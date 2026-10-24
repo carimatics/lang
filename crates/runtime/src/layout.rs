@@ -174,6 +174,19 @@ impl<'types> Layouts<'types> {
             Profile::Components { tasks: true },
         )
     }
+    /// Prepare component layouts on the caller's original ledger. Its admitted
+    /// history already covers the immutable type graph; failures retain charges.
+    #[doc(hidden)]
+    pub fn compile_component_program_with_budget(
+        program: &'types crate::component::program::Program<'_>,
+        budget: &mut m::Budget,
+    ) -> Result<Self, Error> {
+        Self::compile_budget(
+            program.proof().typed().places().declarations().types(),
+            Profile::Components { tasks: true },
+            budget,
+        )
+    }
     /// Private component storage requires the independent IDL/MIR unit proof.
     /// Tokens remain claims checked by the live resource adapter; this admits
     /// no ordinary runtime, wire, C-profile or native-package representation.
@@ -242,6 +255,28 @@ impl<'types> Layouts<'types> {
                 elements: types.elements_used(),
             },
         )?;
+        Self::compile_budget(types, profile, &mut budget)
+    }
+    fn compile_budget(
+        types: &'types o::VerifiedTypes,
+        profile: Profile,
+        budget: &mut m::Budget,
+    ) -> Result<Self, Error> {
+        let initial = m::Usage {
+            work: budget.work_used(),
+            allocation_bytes: budget.allocation_bytes(),
+            elements: budget.elements_used(),
+        };
+        if initial.work < types.work_used()
+            || initial.allocation_bytes < types.requested_bytes()
+            || initial.elements < types.elements_used()
+        {
+            return Err(Error::State);
+        }
+        let local = |base: usize, before: usize, after: usize| {
+            base.checked_add(after.checked_sub(before).ok_or(Error::Overflow)?)
+                .ok_or(Error::Overflow)
+        };
         budget.charge(types.table().constructed.len())?;
         let tasks = match profile {
             Profile::Components { tasks } => tasks,
@@ -318,7 +353,7 @@ impl<'types> Layouts<'types> {
                 budget.charge(1)?;
                 let ty = type_at(types, index).ok_or(Error::Overflow)?;
                 if expanded {
-                    let result = build(types, &entries, ty, &mut budget).map_err(|mut error| {
+                    let result = build(types, &entries, ty, budget).map_err(|mut error| {
                         if let Error::Resource { span, .. } = &mut error {
                             *span = span.or(type_span(types, ty));
                         }
@@ -348,9 +383,17 @@ impl<'types> Layouts<'types> {
             tasks,
             entries,
             usage: m::Usage {
-                work: budget.work_used(),
-                allocation_bytes: budget.allocation_bytes(),
-                elements: budget.elements_used(),
+                work: local(types.work_used(), initial.work, budget.work_used())?,
+                allocation_bytes: local(
+                    types.requested_bytes(),
+                    initial.allocation_bytes,
+                    budget.allocation_bytes(),
+                )?,
+                elements: local(
+                    types.elements_used(),
+                    initial.elements,
+                    budget.elements_used(),
+                )?,
             },
         })
     }

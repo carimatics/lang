@@ -35,6 +35,48 @@ impl Default for Limits {
     }
 }
 
+#[cfg(test)]
+mod decoded_budget_tests {
+    use super::*;
+    #[test]
+    fn failed_decoded_validation_returns_accepted_budget_and_original_limits() {
+        let checked=check(m::SourceId(0),br#"{"idl":1,"package":"test:budget","version":"1.0.0","interfaces":[],"imports":[],"exports":[]}"#,Limits::default()).unwrap();
+        let mut document = checked.document().clone();
+        let span = document.package.span;
+        let interface = Interface {
+            key: Spanned {
+                value: super::super::negotiation::InterfaceKey::new(
+                    document.package.value.clone(),
+                    "api",
+                ),
+                span,
+            },
+            resources: Vec::new(),
+            definitions: Vec::new(),
+            functions: Vec::new(),
+            span,
+        };
+        document.interfaces = vec![interface.clone(), interface];
+        let initial = m::Usage {
+            work: 17,
+            allocation_bytes: 23,
+            elements: 29,
+        };
+        let limits = m::Limits::default();
+        let budget = m::Budget::with_usage(limits, initial).unwrap();
+        let (result, budget) = check_decoded(document, Limits::default(), budget, 2, 0);
+        let Err(error) = result else {
+            panic!("duplicate decoded interface was accepted");
+        };
+        assert_eq!(error.code, Code::Name);
+        assert_eq!(error.reason, Reason::Duplicate);
+        assert_eq!(budget.limits(), limits);
+        assert!(budget.work_used() > initial.work);
+        assert!(budget.allocation_bytes() >= initial.allocation_bytes);
+        assert!(budget.elements_used() >= initial.elements);
+    }
+}
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Code {
     Syntax,

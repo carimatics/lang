@@ -561,11 +561,16 @@ fn execute_profile<P: a::Provider, B: Backend<P>>(
                     && !seen[function.0 as usize] { seen[function.0 as usize]=true;reachable.push(function.0 as usize); }
             }
         }
-        let layouts=if let Some(program)=program {l::Layouts::compile_component_program(program,limits.preparation)?} else if types.service_feature_span().is_some() && backend.services_supported() {l::Layouts::compile_service_tasks(proof,limits.preparation)?} else if types.channel_feature_span().is_some() {l::Layouts::compile_channel_tasks(proof,limits.preparation)?} else {l::Layouts::compile_tasks(proof,limits.preparation)?};
-        let extra=|a:usize,b:usize,c:usize|a.checked_add(b.checked_sub(c)?);
-        let previous=usage(&budget);let layout=layouts.usage();
-        let initial=m::Usage {work:extra(previous.work,layout.work,types.work_used()).ok_or(Reason::Invariant)?, allocation_bytes:extra(previous.allocation_bytes,layout.allocation_bytes,types.requested_bytes()).ok_or(Reason::Invariant)?,elements:extra(previous.elements,layout.elements,types.elements_used()).ok_or(Reason::Invariant)?};
-        *budget=m::Budget::with_usage(limits.preparation,initial)?;
+        let layouts=if let Some(program)=program {
+            l::Layouts::compile_component_program_with_budget(program,&mut budget)?
+        } else {
+            let layouts=if types.service_feature_span().is_some() && backend.services_supported() {l::Layouts::compile_service_tasks(proof,limits.preparation)?} else if types.channel_feature_span().is_some() {l::Layouts::compile_channel_tasks(proof,limits.preparation)?} else {l::Layouts::compile_tasks(proof,limits.preparation)?};
+            let extra=|a:usize,b:usize,c:usize|a.checked_add(b.checked_sub(c)?);
+            let previous=usage(&budget);let layout=layouts.usage();
+            let initial=m::Usage {work:extra(previous.work,layout.work,types.work_used()).ok_or(Reason::Invariant)?, allocation_bytes:extra(previous.allocation_bytes,layout.allocation_bytes,types.requested_bytes()).ok_or(Reason::Invariant)?,elements:extra(previous.elements,layout.elements,types.elements_used()).ok_or(Reason::Invariant)?};
+            *budget=m::Budget::with_usage(limits.preparation,initial)?;
+            layouts
+        };
         Ok((entry,layouts,budget,reachable))
     })().map_err(fail)?;
     let (entry, layouts, mut budget, reachable) = prepared;
@@ -573,15 +578,13 @@ fn execute_profile<P: a::Provider, B: Backend<P>>(
         let mut plans = budget.vector(typed.functions().len())?;
         plans.resize_with(typed.functions().len(), || None);
         for function in reachable {
-            let plan = l::FramePlan::compile_tasks_after(
+            let plan = l::FramePlan::compile_tasks_with_budget(
                 &layouts,
                 proof,
                 m::FunctionId(function as u32),
-                limits.preparation,
+                &mut budget,
                 usize::MAX,
-                usage(&budget),
             )?;
-            *budget = m::Budget::with_usage(limits.preparation, plan.usage())?;
             plans[function] = Some(plan);
         }
         let machine = if let Some(component) = component {

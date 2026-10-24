@@ -2224,3 +2224,143 @@ fn canonical_reply_copy_spends_the_original_child_ledger_before_decode_refusal()
         }
     }
 }
+#[test]
+fn borrowed_layout_and_frame_failures_keep_every_precharged_dimension() {
+    let h = Harness::new();
+    let (registration, watch) = h.registration(false);
+    prepared(registration, |program, _| {
+        let types = program.proof().typed().places().declarations().types();
+        let function = entry(program, "create");
+        let owned =
+            lang_runtime::layout::Layouts::compile_component_program(program, Default::default())
+                .unwrap();
+        let initial = program.usage();
+        let initial = m::Usage {
+            work: initial.work + 17,
+            allocation_bytes: initial.allocation_bytes + 23,
+            elements: initial.elements + 29,
+        };
+        let mut probe = m::Budget::with_usage(Default::default(), initial).unwrap();
+        let borrowed = lang_runtime::layout::Layouts::compile_component_program_with_budget(
+            program, &mut probe,
+        )
+        .unwrap();
+        assert_eq!(
+            borrowed.usage(),
+            owned.usage(),
+            "caller history does not inflate local layout estimates"
+        );
+        let after_layout = preparation_usage(&probe);
+        assert_eq!(
+            after_layout.work - initial.work,
+            owned.usage().work - types.work_used()
+        );
+        assert_eq!(
+            after_layout.allocation_bytes - initial.allocation_bytes,
+            owned.usage().allocation_bytes - types.requested_bytes()
+        );
+        assert_eq!(
+            after_layout.elements - initial.elements,
+            owned.usage().elements - types.elements_used()
+        );
+        let owned_frame = lang_runtime::layout::FramePlan::compile_tasks_after(
+            &owned,
+            program.proof(),
+            function,
+            Default::default(),
+            usize::MAX,
+            after_layout,
+        )
+        .unwrap();
+        let borrowed_frame = lang_runtime::layout::FramePlan::compile_tasks_with_budget(
+            &borrowed,
+            program.proof(),
+            function,
+            &mut probe,
+            usize::MAX,
+        )
+        .unwrap();
+        assert_eq!(borrowed_frame.usage(), owned_frame.usage());
+        assert_eq!(preparation_usage(&probe), owned_frame.usage());
+        let finals = [after_layout, preparation_usage(&probe)];
+        for frames in [false, true] {
+            let start = if frames { after_layout } else { initial };
+            let complete = finals[usize::from(frames)];
+            for dimension in 0..3 {
+                for exact in [false, true] {
+                    let mut limits = m::Limits::default();
+                    let ceiling = match dimension {
+                        0 => complete.work,
+                        1 => complete.allocation_bytes,
+                        _ => complete.elements,
+                    } - usize::from(!exact);
+                    match dimension {
+                        0 => limits.work = ceiling,
+                        1 => limits.allocations = ceiling,
+                        _ => limits.elements = ceiling,
+                    };
+                    let mut budget = m::Budget::with_usage(limits, start).unwrap();
+                    let run = |budget: &mut m::Budget| {
+                        if frames {
+                            lang_runtime::layout::FramePlan::compile_tasks_with_budget(
+                                &owned,
+                                program.proof(),
+                                function,
+                                budget,
+                                usize::MAX,
+                            )
+                            .map(drop)
+                        } else {
+                            lang_runtime::layout::Layouts::compile_component_program_with_budget(
+                                program, budget,
+                            )
+                            .map(drop)
+                        }
+                    };
+                    let result = run(&mut budget);
+                    let after = preparation_usage(&budget);
+                    assert_eq!(result.is_ok(), exact);
+                    assert_eq!(budget.limits(), limits);
+                    if exact {
+                        assert_eq!(after, complete);
+                    } else {
+                        assert!(
+                            after.work >= start.work
+                                && after.allocation_bytes >= start.allocation_bytes
+                                && after.elements >= start.elements
+                        );
+                        assert!(match dimension {
+                            0 => after.work > start.work,
+                            1 => after.allocation_bytes > start.allocation_bytes,
+                            _ => after.elements > start.elements,
+                        });
+                        assert!(
+                            match dimension {
+                                0 => after.work,
+                                1 => after.allocation_bytes,
+                                _ => after.elements,
+                            } <= ceiling
+                        );
+                        assert!(run(&mut budget).is_err());
+                        let repeated = preparation_usage(&budget);
+                        assert!(
+                            repeated.work >= after.work
+                                && repeated.allocation_bytes >= after.allocation_bytes
+                                && repeated.elements >= after.elements
+                        );
+                        assert!(
+                            match dimension {
+                                0 => repeated.work,
+                                1 => repeated.allocation_bytes,
+                                _ => repeated.elements,
+                            } <= ceiling
+                        );
+                    }
+                }
+            }
+        }
+    });
+    assert_eq!(watch.released.get(), 1);
+    assert_eq!(h.allocator.stats().live_allocations, 0);
+    assert!(h.values.is_empty());
+}

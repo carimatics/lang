@@ -53,7 +53,9 @@ impl<'layouts, 'types> FramePlan<'layouts, 'types> {
         limits: m::Limits,
         cell_limit: usize,
     ) -> Result<Self, Error> {
-        Self::compile_inner(layouts, typed, function, limits, cell_limit, None, false)
+        Self::compile_inner(
+            layouts, typed, function, limits, cell_limit, None, false, None,
+        )
     }
     /// Add this function's plan to cumulative program preparation, whose
     /// verified type/layout/body graph has already been counted once.
@@ -73,6 +75,7 @@ impl<'layouts, 'types> FramePlan<'layouts, 'types> {
             cell_limit,
             Some(initial),
             false,
+            None,
         )
     }
     /// Physical task cells require independent task evidence and matching task layouts.
@@ -94,6 +97,7 @@ impl<'layouts, 'types> FramePlan<'layouts, 'types> {
             cell_limit,
             None,
             true,
+            None,
         )
     }
     pub fn compile_tasks_after(
@@ -115,8 +119,38 @@ impl<'layouts, 'types> FramePlan<'layouts, 'types> {
             cell_limit,
             Some(initial),
             true,
+            None,
         )
     }
+    /// Prepare a task frame on an already admitted original ledger.
+    #[doc(hidden)]
+    pub fn compile_tasks_with_budget(
+        layouts: &'layouts Layouts<'types>,
+        proof: &o::tasks::VerifiedTasks,
+        function: m::FunctionId,
+        budget: &mut m::Budget,
+        cell_limit: usize,
+    ) -> Result<Self, Error> {
+        if !layouts.tasks {
+            return Err(Error::State);
+        }
+        let initial = usage(budget);
+        let limits = budget.limits();
+        Self::compile_inner(
+            layouts,
+            proof.typed(),
+            function,
+            limits,
+            cell_limit,
+            Some(initial),
+            true,
+            Some(budget),
+        )
+    }
+    #[allow(
+        clippy::too_many_arguments,
+        reason = "Preserve one frame admission path for owned and original borrowed preparation ledgers."
+    )]
     fn compile_inner(
         layouts: &'layouts Layouts<'types>,
         typed: &TypedBodies,
@@ -125,6 +159,7 @@ impl<'layouts, 'types> FramePlan<'layouts, 'types> {
         cell_limit: usize,
         prefix: Option<m::Usage>,
         tasks: bool,
+        original: Option<&mut m::Budget>,
     ) -> Result<Self, Error> {
         let types = typed.places().declarations().types();
         if !std::ptr::eq(layouts.types, types) {
@@ -185,7 +220,16 @@ impl<'layouts, 'types> FramePlan<'layouts, 'types> {
         } else {
             initial
         };
-        let mut budget = m::Budget::with_usage(limits, initial)?;
+        let mut owned;
+        let budget = if let Some(original) = original {
+            if original.limits() != limits || !covers(usage(original), initial) {
+                return Err(Error::State);
+            }
+            original
+        } else {
+            owned = m::Budget::with_usage(limits, initial)?;
+            &mut owned
+        };
         let mut cells = budget.vector(count)?;
         let mut requests = budget.vector(count.checked_mul(2).ok_or(Error::Overflow)?)?;
         let mut scratch = budget.vector(if scratch_count == 0 { 0 } else { values.len() })?;
@@ -219,7 +263,7 @@ impl<'layouts, 'types> FramePlan<'layouts, 'types> {
             cleanup_slots,
             scratch,
             limits,
-            usage: usage(&budget),
+            usage: usage(budget),
         })
     }
     pub fn cell_count(&self) -> usize {
