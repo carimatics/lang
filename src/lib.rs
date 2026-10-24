@@ -14,6 +14,8 @@ pub mod artifact;
 pub mod component_application_conformance;
 pub mod component_bindings;
 pub mod component_conformance;
+#[doc(hidden)]
+pub mod component_embedding;
 pub mod component_resource_conformance;
 pub mod frontend;
 pub mod linker;
