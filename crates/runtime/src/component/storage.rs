@@ -15,41 +15,8 @@ use std::fmt;
 const MAGIC: u64 = 0x636f_6d70_6f77_6e31;
 const HEADER_BYTES: u64 = 48;
 
-/// Access to the same actual instance allocator from the shared component
-/// service. Erasing its provider type creates neither another allocator nor
-/// shadow accounting; every operation delegates to the original storage.
-pub trait Memory {
-    fn identity(&self) -> a::Identity;
-    fn check(&self, requests: &[a::Request]) -> Result<(), a::Error>;
-    fn allocate(&mut self, request: a::Request) -> Result<a::Handle, a::Error>;
-    fn request(&self, handle: a::Handle) -> Result<a::Request, a::Error>;
-    fn bytes(&self, handle: a::Handle) -> Result<&[u8], a::Error>;
-    fn bytes_mut(&mut self, handle: a::Handle) -> Result<&mut [u8], a::Error>;
-    fn release(&mut self, handle: a::Handle) -> Result<(), a::Error>;
-}
-impl<P: a::Provider> Memory for a::Allocator<P> {
-    fn identity(&self) -> a::Identity {
-        self.identity()
-    }
-    fn check(&self, requests: &[a::Request]) -> Result<(), a::Error> {
-        self.check(requests)
-    }
-    fn allocate(&mut self, request: a::Request) -> Result<a::Handle, a::Error> {
-        self.allocate(request)
-    }
-    fn request(&self, handle: a::Handle) -> Result<a::Request, a::Error> {
-        self.request(handle)
-    }
-    fn bytes(&self, handle: a::Handle) -> Result<&[u8], a::Error> {
-        self.bytes(handle)
-    }
-    fn bytes_mut(&mut self, handle: a::Handle) -> Result<&mut [u8], a::Error> {
-        self.bytes_mut(handle)
-    }
-    fn release(&mut self, handle: a::Handle) -> Result<(), a::Error> {
-        self.release(handle)
-    }
-}
+/// The complete erased allocator access still delegates to original storage.
+pub use crate::allocation::Memory;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct Holder {

@@ -335,11 +335,44 @@ fn entry(program: &program::Program<'_>, name: &str) -> m::FunctionId {
         })
         .unwrap()
 }
+#[derive(Clone, Copy)]
+enum MemoryAccess {
+    Original,
+    View,
+    NestedView,
+}
+
+fn execute_memory<P: a::Provider>(
+    program: &program::Program<'_>,
+    function: m::FunctionId,
+    generated: Option<&lang_codegen_clif::tasks::CompiledProgram<'_>>,
+    allocator: &mut a::Allocator<P>,
+    control: e::Control<'_>,
+    arguments: &[EntryArgument],
+    host: &mut dyn execution::Host,
+) -> Result<r::Outcome<execution::Value>, Box<r::Failure>> {
+    (if let Some(generated) = generated {
+        generated.execute_component(allocator, control, Default::default(), arguments, host)
+    } else {
+        lang_vm::unit::tasks::execute_component(
+            program,
+            function,
+            allocator,
+            control,
+            Default::default(),
+            arguments,
+            host,
+        )
+    })
+    .map_err(Box::new)
+}
+
 struct Harness {
     allocator: a::Allocator<a::System>,
     values: storage::Resources<'static>,
     state: execution::InstanceState,
     engine: lang_codegen_clif::component::Engine,
+    memory_access: MemoryAccess,
 }
 impl Harness {
     fn new() -> Self {
@@ -353,6 +386,7 @@ impl Harness {
             values,
             state,
             engine,
+            memory_access: MemoryAccess::Original,
         }
     }
     fn registration(&self, fail: bool) -> (native::Provider<'static>, Watch) {
@@ -444,7 +478,9 @@ impl Harness {
             values,
             state,
             engine,
+            memory_access,
         } = self;
+        let memory_access = *memory_access;
         prepared(provider, |program, session| {
             let function = entry(program, name);
             let generated = compiled.then(|| {
@@ -473,26 +509,42 @@ impl Harness {
                     invocation.prepare_output(session).unwrap();
                     let arguments: Vec<_> =
                         input.into_iter().map(EntryArgument::Resource).collect();
-                    let mut outcome = if let Some(generated) = generated {
-                        generated.execute_component(
-                            allocator,
-                            control,
-                            Default::default(),
-                            &arguments,
-                            &mut invocation,
-                        )
-                    } else {
-                        lang_vm::unit::tasks::execute_component(
+                    let mut outcome = match memory_access {
+                        MemoryAccess::Original => execute_memory(
                             program,
                             function,
+                            generated.as_ref(),
                             allocator,
                             control,
-                            Default::default(),
                             &arguments,
                             &mut invocation,
-                        )
-                    }
-                    .map_err(Box::new)?;
+                        ),
+                        MemoryAccess::View => {
+                            let mut view = a::Allocator::borrow(allocator).unwrap();
+                            execute_memory(
+                                program,
+                                function,
+                                generated.as_ref(),
+                                &mut view,
+                                control,
+                                &arguments,
+                                &mut invocation,
+                            )
+                        }
+                        MemoryAccess::NestedView => {
+                            let mut first = a::Allocator::borrow(allocator).unwrap();
+                            let mut second = a::Allocator::borrow(&mut first).unwrap();
+                            execute_memory(
+                                program,
+                                function,
+                                generated.as_ref(),
+                                &mut second,
+                                control,
+                                &arguments,
+                                &mut invocation,
+                            )
+                        }
+                    }?;
                     if let execution::Value::Frame(frame) = &outcome.value {
                         outcome.value = match frame.values().nodes.as_slice() {
                             [wire::Value::Resource(_)] if frame.resources().len() == 1 => {
@@ -574,7 +626,15 @@ fn gateway_identity_matches_actual_callbacks_across_wrapper_moves_without_extend
     }
 }
 fn retained_roundtrip(compiled: bool, fresh: bool) -> (e::Usage, e::Usage) {
+    retained_roundtrip_memory(compiled, fresh, MemoryAccess::Original)
+}
+fn retained_roundtrip_memory(
+    compiled: bool,
+    fresh: bool,
+    access: MemoryAccess,
+) -> (e::Usage, e::Usage) {
     let mut h = Harness::new();
+    h.memory_access = access;
     let (first, watch) = h.registration(false);
     let input = (!fresh).then(|| h.publish(&first, &watch));
     let before = h.allocator.stats();
@@ -637,6 +697,18 @@ fn stored_roots_keep_original_backing_and_code_after_each_program_scope() {
         retained_roundtrip(false, false),
         retained_roundtrip(true, false)
     );
+}
+
+#[test]
+fn scoped_allocator_views_execute_source_and_native_resource_callbacks_without_new_custody() {
+    for fresh in [false, true] {
+        let expected = retained_roundtrip_memory(false, fresh, MemoryAccess::Original);
+        for access in [MemoryAccess::View, MemoryAccess::NestedView] {
+            for compiled in [false, true] {
+                assert_eq!(retained_roundtrip_memory(compiled, fresh, access), expected);
+            }
+        }
+    }
 }
 
 #[test]
@@ -886,6 +958,7 @@ fn shared_accounting_rejects_configuration_changes_and_refunds_no_preparation() 
             values,
             state,
             engine,
+            ..
         } = &mut h;
         prepared(provider.clone(), |program, _| {
             state

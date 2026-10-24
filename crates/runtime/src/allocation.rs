@@ -122,6 +122,7 @@ pub enum Limit {
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Error {
     MissingAuthority,
+    BorrowedProvider,
     InUse { allocations: usize },
     ForeignAllocator,
     StaleHandle,
@@ -165,6 +166,75 @@ pub trait Provider {
     type Region: Region;
     fn allocate(&mut self, request: Request) -> Option<Self::Region>;
     fn deallocate(&mut self, region: Self::Region, request: Request);
+    /// Scoped views lend existing storage; ordinary providers return None.
+    fn allocator_view(&self) -> Option<&dyn Memory> {
+        None
+    }
+    fn allocator_view_mut(&mut self) -> Option<&mut dyn Memory> {
+        None
+    }
+}
+
+/// Erased access to the original allocator. A view delegates every operation;
+/// neither this trait nor a handle manufactures another allocation authority.
+pub trait Memory {
+    fn identity(&self) -> Identity;
+    fn limits(&self) -> Limits;
+    fn stats(&self) -> Stats;
+    fn preflight(&self) -> Result<(), Error>;
+    fn check(&self, requests: &[Request]) -> Result<(), Error>;
+    fn allocate(&mut self, request: Request) -> Result<Handle, Error>;
+    fn request(&self, handle: Handle) -> Result<Request, Error>;
+    fn bytes(&self, handle: Handle) -> Result<&[u8], Error>;
+    fn bytes_mut(&mut self, handle: Handle) -> Result<&mut [u8], Error>;
+    fn release(&mut self, handle: Handle) -> Result<(), Error>;
+    fn resize(&mut self, handle: &mut Handle, bytes: u64) -> Result<(), Error>;
+    fn copy_bytes(
+        &mut self,
+        source: Handle,
+        from: usize,
+        target: Handle,
+        to: usize,
+        len: usize,
+    ) -> Result<(), Error>;
+    fn swap_bytes(
+        &mut self,
+        a: Handle,
+        from: usize,
+        b: Handle,
+        to: usize,
+        len: usize,
+    ) -> Result<(), Error>;
+}
+
+/// Lifetime-bearing capability used only by Allocator::borrow. It owns no
+/// region and cannot be passed to the ordinary allocator constructor.
+pub struct Borrowed<'a> {
+    memory: &'a mut dyn Memory,
+}
+pub enum NoRegion {}
+impl Region for NoRegion {
+    fn bytes(&self) -> &[u8] {
+        match *self {}
+    }
+    fn bytes_mut(&mut self) -> &mut [u8] {
+        match *self {}
+    }
+}
+impl Provider for Borrowed<'_> {
+    type Region = NoRegion;
+    fn allocate(&mut self, _: Request) -> Option<NoRegion> {
+        None
+    }
+    fn deallocate(&mut self, region: NoRegion, _: Request) {
+        match region {}
+    }
+    fn allocator_view(&self) -> Option<&dyn Memory> {
+        Some(&*self.memory)
+    }
+    fn allocator_view_mut(&mut self) -> Option<&mut dyn Memory> {
+        Some(&mut *self.memory)
+    }
 }
 
 /// A safe Rust implementation with aligned views into fallibly reserved bytes.
@@ -234,6 +304,9 @@ pub struct Allocator<P: Provider> {
 impl<P: Provider> Allocator<P> {
     /// Host/frame setup. Reserve all locator slots before any guest entry.
     pub fn new(provider: P, limits: Limits) -> Result<Self, Error> {
+        if provider.allocator_view().is_some() {
+            return Err(Error::BorrowedProvider);
+        }
         if limits.alignment == 0 || limits.alignment > MAX_ALIGNMENT {
             return Err(Error::InvalidLimits);
         }
@@ -277,18 +350,22 @@ impl<P: Provider> Allocator<P> {
     pub fn provider(&self) -> Option<&P> {
         self.provider.as_ref()
     }
-    pub const fn stats(&self) -> Stats {
-        self.stats
+    pub fn stats(&self) -> Stats {
+        self.provider
+            .as_ref()
+            .and_then(Provider::allocator_view)
+            .map_or(self.stats, Memory::stats)
     }
     pub const fn limits(&self) -> Limits {
         self.limits
     }
     pub fn revoke(&mut self) -> Result<P, Error> {
-        if self.stats.live_allocations != 0 {
+        if self.stats().live_allocations != 0 {
             return Err(Error::InUse {
-                allocations: self.stats.live_allocations,
+                allocations: self.stats().live_allocations,
             });
         }
+        self.stats = self.stats();
         self.provider.take().ok_or(Error::MissingAuthority)
     }
     fn projected(&self, requests: &[Request]) -> Result<(u64, u64, usize), Error> {
@@ -345,9 +422,19 @@ impl<P: Provider> Allocator<P> {
     /// Preflight a data/metadata plan under exclusive instance access. Required
     /// metadata must be included, not silently allocated by a container later.
     pub fn check(&self, requests: &[Request]) -> Result<(), Error> {
+        if let Some(memory) = self.provider.as_ref().and_then(Provider::allocator_view) {
+            return memory.check(requests);
+        }
         self.projected(requests).map(|_| ())
     }
     pub fn allocate(&mut self, request: Request) -> Result<Handle, Error> {
+        if let Some(memory) = self
+            .provider
+            .as_mut()
+            .and_then(Provider::allocator_view_mut)
+        {
+            return memory.allocate(request);
+        }
         let (live, cumulative, count) = self.projected(&[request])?;
         let slot = *self
             .free
@@ -418,12 +505,18 @@ impl<P: Provider> Allocator<P> {
         Ok(index)
     }
     pub fn request(&self, handle: Handle) -> Result<Request, Error> {
+        if let Some(memory) = self.provider.as_ref().and_then(Provider::allocator_view) {
+            return memory.request(handle);
+        }
         Ok(self.slots[self.index(handle)?]
             .as_ref()
             .expect("validated live allocation")
             .request)
     }
     pub fn bytes(&self, handle: Handle) -> Result<&[u8], Error> {
+        if let Some(memory) = self.provider.as_ref().and_then(Provider::allocator_view) {
+            return memory.bytes(handle);
+        }
         let allocation = self.slots[self.index(handle)?]
             .as_ref()
             .expect("validated live allocation");
@@ -432,6 +525,19 @@ impl<P: Provider> Allocator<P> {
         }))
     }
     pub fn bytes_mut(&mut self, handle: Handle) -> Result<&mut [u8], Error> {
+        if self
+            .provider
+            .as_ref()
+            .and_then(Provider::allocator_view)
+            .is_some()
+        {
+            return self
+                .provider
+                .as_mut()
+                .and_then(Provider::allocator_view_mut)
+                .ok_or(Error::MissingAuthority)?
+                .bytes_mut(handle);
+        }
         let index = self.index(handle)?;
         let allocation = self.slots[index]
             .as_mut()
@@ -441,6 +547,13 @@ impl<P: Provider> Allocator<P> {
         }))
     }
     pub fn release(&mut self, handle: Handle) -> Result<(), Error> {
+        if let Some(memory) = self
+            .provider
+            .as_mut()
+            .and_then(Provider::allocator_view_mut)
+        {
+            return memory.release(handle);
+        }
         let index = self.index(handle)?;
         self.release_index(index);
         Ok(())
@@ -455,6 +568,13 @@ impl<P: Provider> Allocator<P> {
         to: usize,
         len: usize,
     ) -> Result<(), Error> {
+        if let Some(memory) = self
+            .provider
+            .as_mut()
+            .and_then(Provider::allocator_view_mut)
+        {
+            return memory.copy_bytes(source, from, target, to, len);
+        }
         let source_index = self.index(source)?;
         let target_index = self.index(target)?;
         let end = from.checked_add(len).ok_or(Error::Overflow)?;
@@ -497,6 +617,13 @@ impl<P: Provider> Allocator<P> {
         to: usize,
         len: usize,
     ) -> Result<(), Error> {
+        if let Some(memory) = self
+            .provider
+            .as_mut()
+            .and_then(Provider::allocator_view_mut)
+        {
+            return memory.swap_bytes(a, from, b, to, len);
+        }
         let a_index = self.index(a)?;
         let b_index = self.index(b)?;
         let a_end = from.checked_add(len).ok_or(Error::Overflow)?;
@@ -538,6 +665,13 @@ impl<P: Provider> Allocator<P> {
     /// Allocate/copy before publication. Failure preserves the old owner/data;
     /// success publishes the replacement before releasing old storage.
     pub fn resize(&mut self, handle: &mut Handle, bytes: u64) -> Result<(), Error> {
+        if let Some(memory) = self
+            .provider
+            .as_mut()
+            .and_then(Provider::allocator_view_mut)
+        {
+            return memory.resize(handle, bytes);
+        }
         let old_index = self.index(*handle)?;
         let old_request = self.request(*handle)?;
         if bytes == old_request.bytes {
@@ -584,6 +718,79 @@ impl<P: Provider> Allocator<P> {
         Ok(result)
     }
 }
+impl<'a> Allocator<Borrowed<'a>> {
+    /// A scoped typed view of existing storage, with no new identity, locator
+    /// storage, regions or accounting. Drop only ends this exclusive borrow.
+    pub fn borrow(memory: &'a mut dyn Memory) -> Result<Self, Error> {
+        memory.preflight()?;
+        let id = memory.identity();
+        let limits = memory.limits();
+        Ok(Self {
+            id,
+            provider: Some(Borrowed { memory }),
+            slots: Vec::new(),
+            free: Vec::new(),
+            limits,
+            stats: Stats::default(),
+            next_generation: None,
+        })
+    }
+}
+impl<P: Provider> Memory for Allocator<P> {
+    fn identity(&self) -> Identity {
+        self.identity()
+    }
+    fn limits(&self) -> Limits {
+        self.limits()
+    }
+    fn stats(&self) -> Stats {
+        self.stats()
+    }
+    fn preflight(&self) -> Result<(), Error> {
+        Self::preflight(Some(self))
+    }
+    fn check(&self, requests: &[Request]) -> Result<(), Error> {
+        self.check(requests)
+    }
+    fn allocate(&mut self, request: Request) -> Result<Handle, Error> {
+        self.allocate(request)
+    }
+    fn request(&self, handle: Handle) -> Result<Request, Error> {
+        self.request(handle)
+    }
+    fn bytes(&self, handle: Handle) -> Result<&[u8], Error> {
+        self.bytes(handle)
+    }
+    fn bytes_mut(&mut self, handle: Handle) -> Result<&mut [u8], Error> {
+        self.bytes_mut(handle)
+    }
+    fn release(&mut self, handle: Handle) -> Result<(), Error> {
+        self.release(handle)
+    }
+    fn resize(&mut self, handle: &mut Handle, bytes: u64) -> Result<(), Error> {
+        self.resize(handle, bytes)
+    }
+    fn copy_bytes(
+        &mut self,
+        source: Handle,
+        from: usize,
+        target: Handle,
+        to: usize,
+        len: usize,
+    ) -> Result<(), Error> {
+        self.copy_bytes(source, from, target, to, len)
+    }
+    fn swap_bytes(
+        &mut self,
+        a: Handle,
+        from: usize,
+        b: Handle,
+        to: usize,
+        len: usize,
+    ) -> Result<(), Error> {
+        self.swap_bytes(a, from, b, to, len)
+    }
+}
 impl<P: Provider> Drop for Allocator<P> {
     fn drop(&mut self) {
         for index in 0..self.slots.len() {
@@ -597,6 +804,217 @@ impl<P: Provider> Drop for Allocator<P> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn borrowed_views_keep_original_requests_handles_regions_and_failure_accounting() {
+        use std::{
+            cell::{Cell, RefCell},
+            rc::Rc,
+        };
+        struct Trace {
+            calls: Rc<RefCell<Vec<Request>>>,
+            frees: Rc<RefCell<Vec<Request>>>,
+            fail: Rc<Cell<bool>>,
+        }
+        impl Provider for Trace {
+            type Region = Storage;
+            fn allocate(&mut self, request: Request) -> Option<Storage> {
+                self.calls.borrow_mut().push(request);
+                if self.fail.get() {
+                    None
+                } else {
+                    System.allocate(request)
+                }
+            }
+            fn deallocate(&mut self, region: Storage, request: Request) {
+                self.frees.borrow_mut().push(request);
+                System.deallocate(region, request);
+            }
+        }
+        let calls = Rc::new(RefCell::new(Vec::new()));
+        let frees = Rc::new(RefCell::new(Vec::new()));
+        let fail = Rc::new(Cell::new(false));
+        let mut original = Allocator::new(
+            Trace {
+                calls: calls.clone(),
+                frees: frees.clone(),
+                fail: fail.clone(),
+            },
+            Limits {
+                request_bytes: 32,
+                live_bytes: 64,
+                cumulative_bytes: 128,
+                live_allocations: 4,
+                alignment: 64,
+            },
+        )
+        .unwrap();
+        let request = Request::new(8, 8).unwrap();
+        let first = original.allocate(request).unwrap();
+        original
+            .bytes_mut(first)
+            .unwrap()
+            .copy_from_slice(b"12345678");
+        let pointer = original.bytes(first).unwrap().as_ptr();
+        let identity = original.identity();
+        let before = original.stats();
+        let mut foreign = allocator();
+        let alien = foreign.allocate(Request::new(4, 1).unwrap()).unwrap();
+        let mut second;
+        {
+            let mut view = Allocator::borrow(&mut original).unwrap();
+            assert_eq!(view.identity(), identity);
+            assert_eq!(view.stats(), before);
+            assert!(view.slots.is_empty() && view.free.is_empty());
+            {
+                let mut nested = Allocator::borrow(&mut view).unwrap();
+                assert_eq!(nested.identity(), identity);
+                assert_eq!(nested.bytes(first).unwrap().as_ptr(), pointer);
+                second = nested.allocate(request).unwrap();
+                let before_refusal = nested.stats();
+                assert_eq!(nested.bytes(alien), Err(Error::ForeignAllocator));
+                assert_eq!(
+                    nested.copy_bytes(first, 0, alien, 0, 4),
+                    Err(Error::ForeignAllocator)
+                );
+                assert_eq!(
+                    nested.swap_bytes(first, 0, alien, 0, 4),
+                    Err(Error::ForeignAllocator)
+                );
+                assert_eq!(nested.release(alien), Err(Error::ForeignAllocator));
+                assert_eq!(
+                    nested.allocate(Request::new(33, 1).unwrap()),
+                    Err(Error::Limit(Limit::RequestBytes))
+                );
+                assert_eq!(nested.stats(), before_refusal);
+                nested.copy_bytes(first, 0, second, 0, 8).unwrap();
+                assert_eq!(nested.bytes(second).unwrap(), b"12345678");
+                nested
+                    .bytes_mut(second)
+                    .unwrap()
+                    .copy_from_slice(b"ABCDEFGH");
+                nested.swap_bytes(first, 0, second, 0, 8).unwrap();
+                assert_eq!(nested.bytes(first).unwrap(), b"ABCDEFGH");
+                assert_eq!(nested.bytes(second).unwrap(), b"12345678");
+                assert_eq!(
+                    nested.swap_bytes(first, 0, first, 0, 8),
+                    Err(Error::InvalidStorage)
+                );
+                let old = second;
+                nested.resize(&mut second, 16).unwrap();
+                assert_eq!(nested.bytes(old), Err(Error::StaleHandle));
+                assert_eq!(&nested.bytes(second).unwrap()[..8], b"12345678");
+                fail.set(true);
+                let retained = second;
+                assert_eq!(nested.resize(&mut second, 24), Err(Error::OutOfMemory));
+                assert_eq!(second, retained);
+                assert_eq!(
+                    nested.request(second).unwrap(),
+                    Request::new(16, 8).unwrap()
+                );
+                assert_eq!(&nested.bytes(second).unwrap()[..8], b"12345678");
+                fail.set(false);
+                let zero = nested.allocate(Request::new(0, 64).unwrap()).unwrap();
+                assert!(nested.bytes(zero).unwrap().is_empty());
+                nested.release(zero).unwrap();
+                assert!(nested.slots.is_empty() && nested.free.is_empty());
+                assert!(matches!(
+                    nested.revoke(),
+                    Err(Error::InUse { allocations: 2 })
+                ));
+            }
+            assert_eq!(frees.borrow().len(), 1);
+            assert_eq!(view.stats().live_allocations, 2);
+            assert!(view.slots.is_empty() && view.free.is_empty());
+        }
+        assert_eq!(original.bytes(first).unwrap().as_ptr(), pointer);
+        assert_eq!(original.bytes(first).unwrap(), b"ABCDEFGH");
+        assert_eq!(original.stats().live_allocations, 2);
+        original.release(second).unwrap();
+        original.release(first).unwrap();
+        foreign.release(alien).unwrap();
+        assert_eq!(original.stats().live_allocations, 0);
+        assert_eq!(original.stats().requests, 5);
+        assert_eq!(
+            &*calls.borrow(),
+            &[
+                request,
+                request,
+                Request::new(16, 8).unwrap(),
+                Request::new(24, 8).unwrap()
+            ]
+        );
+        assert_eq!(
+            &*frees.borrow(),
+            &[request, Request::new(16, 8).unwrap(), request]
+        );
+    }
+
+    #[test]
+    fn borrowed_view_construction_never_creates_owned_authority_or_drains_its_owner() {
+        let mut original = allocator();
+        let identity = original.identity();
+        {
+            let mut view = Allocator::borrow(&mut original).unwrap();
+            let provider = view.revoke().unwrap();
+            assert!(matches!(
+                Allocator::new(provider, Limits::default()),
+                Err(Error::BorrowedProvider)
+            ));
+        }
+        assert_eq!(original.identity(), identity);
+        assert_eq!(original.stats(), Stats::default());
+        Allocator::preflight(Some(&original)).unwrap();
+        let _provider = original.revoke().unwrap();
+        assert!(matches!(
+            Allocator::borrow(&mut original),
+            Err(Error::MissingAuthority)
+        ));
+    }
+
+    #[test]
+    fn borrowed_views_cannot_reset_parent_limits_or_consumed_storage() {
+        for kind in [
+            Limit::RequestBytes,
+            Limit::LiveBytes,
+            Limit::CumulativeBytes,
+            Limit::LiveAllocations,
+            Limit::Alignment,
+        ] {
+            let mut limits = Limits::default();
+            match kind {
+                Limit::RequestBytes => limits.request_bytes = 8,
+                Limit::LiveBytes => limits.live_bytes = 8,
+                Limit::CumulativeBytes => limits.cumulative_bytes = 8,
+                Limit::LiveAllocations => limits.live_allocations = 1,
+                Limit::Alignment => limits.alignment = 8,
+            }
+            let mut original = Allocator::new(System, limits).unwrap();
+            let first = original.allocate(Request::new(8, 8).unwrap()).unwrap();
+            if kind == Limit::CumulativeBytes {
+                original.release(first).unwrap();
+            }
+            let next = match kind {
+                Limit::RequestBytes => Request::new(9, 8).unwrap(),
+                Limit::Alignment => Request::new(0, 16).unwrap(),
+                Limit::LiveAllocations => Request::new(0, 8).unwrap(),
+                _ => Request::new(1, 8).unwrap(),
+            };
+            let before = original.stats();
+            for _ in 0..2 {
+                let mut view = Allocator::borrow(&mut original).unwrap();
+                assert_eq!(view.limits(), limits);
+                assert_eq!(view.check(&[next]), Err(Error::Limit(kind)));
+                assert_eq!(view.allocate(next), Err(Error::Limit(kind)));
+                assert_eq!(view.stats(), before);
+            }
+            assert_eq!(original.stats(), before);
+            if kind != Limit::CumulativeBytes {
+                original.release(first).unwrap();
+            }
+            assert_eq!(original.stats().live_allocations, 0);
+        }
+    }
 
     fn allocator() -> Allocator<System> {
         Allocator::new(
