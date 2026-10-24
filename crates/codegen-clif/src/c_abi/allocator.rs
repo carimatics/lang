@@ -5,6 +5,19 @@ use lang_runtime::allocation as a;
 use lang_runtime::c_abi::context::{AllocatorIdentity, Context, config::Allocator};
 use std::{marker::PhantomData, ptr::NonNull};
 
+pub type AllocateBytes = unsafe extern "C" fn(*mut std::ffi::c_void, u64, u64) -> *mut u8;
+pub type DeallocateBytes = unsafe extern "C" fn(*mut std::ffi::c_void, *mut u8, u64, u64);
+
+#[derive(Clone, Copy)]
+enum Callbacks {
+    Scalar(Allocator),
+    Component {
+        allocate: AllocateBytes,
+        deallocate: DeallocateBytes,
+        user: *mut std::ffi::c_void,
+    },
+}
+
 pub struct CAllocator<'a> {
     identity: AllocatorIdentity,
     inner: a::Allocator<Provider<'a>>,
@@ -70,7 +83,7 @@ pub struct Provider<'a> {
 /// Original foreign storage without a scalar-context identity. The component
 /// gateway can use the same allocator and Region implementation directly.
 pub struct ForeignProvider<'a> {
-    descriptor: Allocator,
+    callbacks: Callbacks,
     lifetime: PhantomData<&'a ()>,
 }
 impl<'a> ForeignProvider<'a> {
@@ -89,9 +102,29 @@ impl<'a> ForeignProvider<'a> {
             return None;
         }
         Some(Self {
-            descriptor,
+            callbacks: Callbacks::Scalar(descriptor),
             lifetime: PhantomData,
         })
+    }
+    /// Retain exact component-v1 callback types without function-pointer casts.
+    ///
+    /// # Safety
+    /// The foreign code/user lifetime and unique storage contract of `new`
+    /// applies through every region's final release. The caller first checks
+    /// its public descriptor header, reserved fields and non-null callbacks.
+    pub unsafe fn component(
+        allocate: AllocateBytes,
+        deallocate: DeallocateBytes,
+        user: *mut std::ffi::c_void,
+    ) -> Self {
+        Self {
+            callbacks: Callbacks::Component {
+                allocate,
+                deallocate,
+                user,
+            },
+            lifetime: PhantomData,
+        }
     }
 }
 impl lang_runtime::c_abi::context::scalar::ContextProvider for Provider<'_> {
@@ -101,7 +134,7 @@ impl lang_runtime::c_abi::context::scalar::ContextProvider for Provider<'_> {
 }
 pub struct Region<'a> {
     _provider: PhantomData<&'a ()>,
-    descriptor: Allocator,
+    callbacks: Callbacks,
     request: a::Request,
     pointer: NonNull<u8>,
 }
@@ -135,13 +168,22 @@ impl<'a> a::Provider for ForeignProvider<'a> {
         let pointer = if request.bytes() == 0 {
             NonNull::dangling()
         } else {
-            let allocate = self.descriptor.allocate.expect("checked context allocator");
-            // SAFETY: ForeignProvider::new requires actual storage/lifetime and
-            // no-unwind/reentry contract. Request already proves native bounds.
-            let pointer = NonNull::new(
-                unsafe { allocate(self.descriptor.user, request.bytes(), request.alignment()) }
-                    .cast::<u8>(),
-            )?;
+            // SAFETY: either constructor requires actual storage/lifetime and
+            // no-unwind/reentry. Request already proves native bounds.
+            let address = match self.callbacks {
+                Callbacks::Scalar(descriptor) => unsafe {
+                    descriptor.allocate.expect("checked context allocator")(
+                        descriptor.user,
+                        request.bytes(),
+                        request.alignment(),
+                    )
+                    .cast::<u8>()
+                },
+                Callbacks::Component { allocate, user, .. } => unsafe {
+                    allocate(user, request.bytes(), request.alignment())
+                },
+            };
+            let pointer = NonNull::new(address)?;
             // SAFETY: the trusted allocator returned this complete writable
             // range. Initialize it before exposing any bytes as Rust u8.
             unsafe { pointer.as_ptr().write_bytes(0, request.bytes() as usize) };
@@ -149,7 +191,7 @@ impl<'a> a::Provider for ForeignProvider<'a> {
         };
         Some(Region {
             _provider: PhantomData,
-            descriptor: self.descriptor,
+            callbacks: self.callbacks,
             request,
             pointer,
         })
@@ -158,20 +200,28 @@ impl<'a> a::Provider for ForeignProvider<'a> {
         if region.request.bytes() == 0 {
             return;
         }
-        let deallocate = region
-            .descriptor
-            .deallocate
-            .expect("checked original allocator");
-        // SAFETY: the region retains its ORIGINAL callback/user/request, even
-        // if a trusted Rust provider caller supplied a different provider or
-        // Request. The unique owned region is consumed exactly once here.
-        unsafe {
-            deallocate(
-                region.descriptor.user,
-                region.pointer.as_ptr().cast(),
-                region.request.bytes(),
-                region.request.alignment(),
-            )
-        };
+        // SAFETY: the region retains its ORIGINAL typed callback/user/request,
+        // even if a different provider or Request was supplied. Its unique
+        // original storage is consumed exactly once here.
+        match region.callbacks {
+            Callbacks::Scalar(descriptor) => unsafe {
+                descriptor.deallocate.expect("checked original allocator")(
+                    descriptor.user,
+                    region.pointer.as_ptr().cast(),
+                    region.request.bytes(),
+                    region.request.alignment(),
+                )
+            },
+            Callbacks::Component {
+                deallocate, user, ..
+            } => unsafe {
+                deallocate(
+                    user,
+                    region.pointer.as_ptr(),
+                    region.request.bytes(),
+                    region.request.alignment(),
+                )
+            },
+        }
     }
 }

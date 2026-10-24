@@ -425,17 +425,12 @@ fn native_c_host_loads_snapshots_and_repeats_generated_typed_calls_on_vm_and_jit
 #include <malloc.h>
 #endif
 {declarations}
-typedef struct probe_allocator {{
-    uint32_t version,size;void *user;
-    void *(*allocate)(void *,uint64_t,uint64_t);
-    void (*deallocate)(void *,void *,uint64_t,uint64_t);
-}} probe_allocator;
-extern void *probe_load(uint32_t,const uint8_t *,uint64_t,const uint8_t *,uint64_t,probe_allocator);
+extern void *probe_load(uint32_t,const uint8_t *,uint64_t,const uint8_t *,uint64_t,lang_component_v1_allocator);
 extern uint32_t probe_call(void *,uint32_t,const uint8_t *,uint64_t,uint8_t *,uint64_t,uint64_t *);
 extern void probe_drop(void *);
 typedef struct request {{void *data;uint64_t size,alignment;uint32_t live;}} request;
 typedef struct owner {{request requests[8192];uint64_t allocated,released,live;}} owner;
-static void *allocate(void *user,uint64_t size,uint64_t alignment) {{
+static uint8_t *LANG_COMPONENT_V1_CALL allocate(void *user,uint64_t size,uint64_t alignment) {{
     owner *o=(owner *)user;void *data=NULL;assert(size&&alignment);
     assert(o->allocated<8192);
 #ifdef _WIN32
@@ -449,7 +444,7 @@ static void *allocate(void *user,uint64_t size,uint64_t alignment) {{
     o->requests[o->allocated].alignment=alignment;o->requests[o->allocated].live=1;
     ++o->allocated;++o->live;return data;
 }}
-static void deallocate(void *user,void *data,uint64_t size,uint64_t alignment) {{
+static void LANG_COMPONENT_V1_CALL deallocate(void *user,uint8_t *data,uint64_t size,uint64_t alignment) {{
     owner *o=(owner *)user;uint64_t i;uint32_t found=0;
     for(i=0;i<o->allocated;++i)if(o->requests[i].data==data&&o->requests[i].live){{
         assert(o->requests[i].size==size&&o->requests[i].alignment==alignment);
@@ -465,10 +460,20 @@ static void deallocate(void *user,void *data,uint64_t size,uint64_t alignment) {
 uint32_t fixture(void) {{
     uint32_t format,mode,repeat;uint64_t before;
     owner *o=(owner *)calloc(1,sizeof(owner));assert(o);
-    probe_allocator allocator={{1,sizeof(probe_allocator),o,allocate,deallocate}};
+    lang_component_v1_allocator allocator={{{{sizeof(lang_component_v1_allocator),1}},o,allocate,deallocate,{{0,0}}}};
     before=o->allocated;
     assert(probe_load(99,source,sizeof(source),idl,sizeof(idl),allocator)==NULL);
     assert(o->allocated==before);
+    for(mode=0;mode<5;++mode){{
+        lang_component_v1_allocator bad=allocator;
+        if(mode==0)bad.header.version=2;
+        else if(mode==1)--bad.header.size;
+        else if(mode==2)bad.reserved[0]=1;
+        else if(mode==3)bad.allocate=NULL;
+        else bad.deallocate=NULL;
+        assert(probe_load(0,source,sizeof(source),idl,sizeof(idl),bad)==NULL);
+        assert(o->allocated==before);
+    }}
     for(format=0;format<2;++format){{
         uint64_t code_length=format?sizeof(artifact):sizeof(source);
         uint64_t idl_length=format?0:sizeof(idl);

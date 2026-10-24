@@ -1,10 +1,9 @@
 //! Private native-host experiment. This exports no component-v1 query/table.
-use lang::component_embedding::{self as embedding, Module};
+use lang::component_embedding::{self as embedding, Module, ffi};
 use lang_codegen_clif::{c_abi::allocator::ForeignProvider, component, tasks};
 use lang_mir::unit as m;
 use lang_runtime::{
     allocation as a,
-    c_abi::context::config,
     component::{execution, grants, program, storage, wire},
     execution as e,
 };
@@ -36,8 +35,17 @@ unsafe extern "C" fn probe_load(
     code_length: u64,
     idl: *const u8,
     idl_length: u64,
-    allocator: config::Allocator,
+    allocator: ffi::Allocator,
 ) -> *mut c_void {
+    if allocator.header.size != std::mem::size_of::<ffi::Allocator>() as u32
+        || allocator.header.version != 1
+        || allocator.reserved != [0; 2]
+    {
+        return ptr::null_mut();
+    }
+    let (Some(allocate), Some(deallocate)) = (allocator.allocate, allocator.deallocate) else {
+        return ptr::null_mut();
+    };
     // SAFETY: fixture input arrays remain live through this call.
     let Some(code) = (unsafe { input(code, code_length) }) else {
         return ptr::null_mut();
@@ -51,9 +59,7 @@ unsafe extern "C" fn probe_load(
     };
     // SAFETY: the C owner and callbacks remain live through probe_drop and all
     // its original allocations. No scalar context or replacement allocator.
-    let Some(provider) = (unsafe { ForeignProvider::new(allocator) }) else {
-        return ptr::null_mut();
-    };
+    let provider = unsafe { ForeignProvider::component(allocate, deallocate, allocator.user) };
     let mut allocator = a::Allocator::new(provider, Default::default()).unwrap();
     // Exercise the actual native allocator contract before driving the roots.
     let allocation = allocator

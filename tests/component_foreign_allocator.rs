@@ -60,6 +60,50 @@ fn descriptor(owner: &Owner) -> config::Allocator {
     }
 }
 
+unsafe extern "C" fn allocate_bytes(user: *mut c_void, size: u64, alignment: u64) -> *mut u8 {
+    // SAFETY: the same original Owner/storage contract holds for this wrapper.
+    unsafe { allocate(user, size, alignment).cast() }
+}
+unsafe extern "C" fn release_bytes(user: *mut c_void, data: *mut u8, size: u64, alignment: u64) {
+    // SAFETY: the exact original pointer/request is uniquely retired here.
+    unsafe { release(user, data.cast(), size, alignment) }
+}
+
+#[test]
+fn component_and_scalar_regions_keep_their_original_typed_callbacks() {
+    let first = Owner::default();
+    let second = Owner::default();
+    // These type checks use the normative component ABI declarations.
+    let allocate: lang::component_embedding::ffi::AllocateFn = allocate_bytes;
+    let deallocate: lang::component_embedding::ffi::DeallocateFn = release_bytes;
+    // SAFETY: both owners and callbacks outlive every provider and region.
+    let mut component = unsafe {
+        ForeignProvider::component(
+            allocate,
+            deallocate,
+            ptr::from_ref(&first).cast_mut().cast(),
+        )
+    };
+    // SAFETY: second's initialized descriptor obeys the same storage contract.
+    let mut scalar = unsafe { ForeignProvider::new(descriptor(&second)) }.unwrap();
+    let request = a::Request::new(17, 64).unwrap();
+    let region = component.allocate(request).unwrap();
+    assert_eq!(region.bytes(), &[0; 17]);
+    assert_eq!(region.bytes().as_ptr() as usize % 64, 0);
+    scalar.deallocate(region, a::Request::new(1, 1).unwrap());
+    let region = scalar.allocate(request).unwrap();
+    assert_eq!(region.bytes(), &[0; 17]);
+    component.deallocate(region, a::Request::new(1, 1).unwrap());
+    assert_eq!(*first.allocated.borrow(), *first.freed.borrow());
+    assert_eq!(*second.allocated.borrow(), *second.freed.borrow());
+    let zero = component.allocate(a::Request::new(0, 8).unwrap()).unwrap();
+    assert!(zero.bytes().is_empty());
+    scalar.deallocate(zero, request);
+    first.fail.set(true);
+    assert!(component.allocate(request).is_none());
+    assert_eq!(first.allocated.borrow().len(), 1);
+}
+
 #[test]
 fn common_foreign_storage_keeps_original_callbacks_requests_and_initialized_bytes() {
     let first = Owner::default();
