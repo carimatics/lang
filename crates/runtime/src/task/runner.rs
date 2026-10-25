@@ -453,6 +453,15 @@ fn execute_component_profile<P: a::Provider, B: Backend<P>>(
     };
     let mut result = match (result, host.complete(completion, allocator)) {
         (result, Ok(())) => result,
+        (
+            Err(mut failure),
+            Err(Reason::Instance(crate::component::execution::InstanceError::Poisoned)),
+        ) => {
+            // A nested failure already poisoned the instance. Refusing success
+            // publication adds no new cleanup fault to an existing failure.
+            failure.poisoned = true;
+            Err(failure)
+        }
         (Err(mut failure), Err(_)) => {
             failure.poisoned = true;
             if let Some(report) = failure.report.as_mut() {

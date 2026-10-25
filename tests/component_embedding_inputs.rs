@@ -751,6 +751,7 @@ extern void probe_interrupt(lang_component_v1_control *);
 extern uint32_t probe_api_call(lang_component_v1_binding *,lang_component_v1_control *,lang_component_v1_bytes,lang_component_v1_result **,lang_component_v1_error *);
 extern uint32_t probe_context_call(const lang_component_v1_context *,lang_component_v1_binding *,lang_component_v1_bytes,lang_component_v1_result **,lang_component_v1_error *);
 extern uint32_t probe_context_thread(const lang_component_v1_context *,lang_component_v1_binding *);
+extern uint32_t probe_native_failure_report(const lang_component_v1_context *,lang_component_v1_buffer **,uint32_t);
 extern uint32_t probe_result_info(const lang_component_v1_result *,lang_component_v1_result_info *,lang_component_v1_error *);
 extern uint32_t probe_result_usage(const lang_component_v1_result *,lang_component_v1_usage *,lang_component_v1_error *);
 extern uint32_t probe_result_bytes(const lang_component_v1_result *,lang_component_v1_bytes *,lang_component_v1_error *);

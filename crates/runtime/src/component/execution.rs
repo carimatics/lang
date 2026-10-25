@@ -1032,19 +1032,25 @@ impl<'state, 'p, 'u, 'resources, 'code, 'native> Host
                 if context.task_closing()? {
                     return Err(Reason::Cancelled);
                 }
-                if context.instance_poisoned() {
-                    return Err(Reason::Instance(InstanceError::Poisoned));
-                }
                 if returned.status != 0 {
                     let bytes = if returned.buffer.is_null() {
                         Vec::new()
                     } else {
                         context.result(returned.buffer, session)?
                     };
+                    if bytes.is_empty() && context.instance_poisoned() {
+                        return Err(Reason::Instance(InstanceError::Poisoned));
+                    }
                     return Err(Reason::Native(NativeFailure::Status {
                         code: returned.status,
                         bytes,
                     }));
+                }
+                // A nested failure may poison this instance before its native
+                // caller propagates the original error buffer. Preserve that
+                // cause; poison only prevents publishing a successful value.
+                if context.instance_poisoned() {
+                    return Err(Reason::Instance(InstanceError::Poisoned));
                 }
                 if returned.buffer.is_null() {
                     return Err(Reason::Native(NativeFailure::MissingResult));

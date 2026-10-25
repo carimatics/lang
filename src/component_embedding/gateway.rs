@@ -303,7 +303,7 @@ fn project_failure(
             }
         }
     }
-    let report = wire::Report {
+    let mut report = wire::Report {
         policy: wire::MessagePolicy::Redacted,
         primary: wire::Record {
             category,
@@ -329,6 +329,67 @@ fn project_failure(
         },
         frames,
     };
+    if let r::Reason::Native(execution::NativeFailure::Status { code, bytes }) = &failure.reason {
+        // The v1 callback error buffer is a bounded, validated LCMP report.
+        // Treat malformed foreign reports as a host-contract failure, never
+        // as an opaque successful value or unvalidated diagnostic payload.
+        let decoded = if *code == 1 {
+            wire::decode_report(bytes, &mut wire::Session::new(Default::default())).ok()
+        } else {
+            None
+        };
+        if let Some(mut native) = decoded {
+            let maximum = ceiling.suppressed_records.min(64) as usize;
+            let traces = ceiling.trace_frames.min(64) as usize;
+            native.policy = wire::MessagePolicy::Redacted;
+            native.primary.message = None;
+            native.usage = report.usage;
+            native.poisoned |= report.poisoned;
+            native.omitted = native.omitted.saturating_add(
+                report
+                    .omitted
+                    .saturating_sub(u64::from(ceiling.trace_frames == 0)),
+            );
+            native.omitted = native
+                .omitted
+                .saturating_add(native.suppressed.len().saturating_sub(maximum) as u64);
+            native.suppressed.truncate(maximum);
+            for record in &mut native.suppressed {
+                record.message = None;
+            }
+            for record in report.suppressed {
+                if native.suppressed.len() < maximum {
+                    native.suppressed.push(record);
+                } else {
+                    native.omitted = native.omitted.saturating_add(1);
+                }
+            }
+            native.omitted = native
+                .omitted
+                .saturating_add(native.frames.len().saturating_sub(traces) as u64);
+            native.frames.truncate(traces);
+            report = native;
+        } else {
+            report.primary.category = wire::Category::HostContract;
+            report.primary.phase = wire::Phase::Call;
+            report.primary.diagnostic = wire::Diagnostic::HostContract;
+            report.primary.limit = None;
+            report.poisoned = true;
+        }
+    }
+    let requires_poison = |record: &wire::Record| {
+        matches!(
+            record.category,
+            wire::Category::Destructor | wire::Category::HostContract
+        ) || record.diagnostic == wire::Diagnostic::InstancePoisoned
+            || (record.category == wire::Category::Panic
+                && record
+                    .origin
+                    .as_ref()
+                    .is_some_and(|frame| frame.mode == wire::Mode::Host))
+    };
+    report.poisoned |=
+        requires_poison(&report.primary) || report.suppressed.iter().any(requires_poison);
     // Mandatory projection is outside guest control charging, bounded to this
     // fixed primary/top-frame representation. It cannot refund/reset a root.
     let mut session = wire::Session::new(wire::Limits {
@@ -1469,6 +1530,7 @@ pub unsafe extern "C" fn call(
                     )
                 };
                 let committed = execution::Host::arguments_committed(&host);
+                drop(host);
                 let allocations = data.allocator.stats();
                 match outcome {
                     Ok(outcome) => {
@@ -1494,10 +1556,9 @@ pub unsafe extern "C" fn call(
                             report: None,
                         })
                     }
-                    Err(failure) => {
+                    Err(mut failure) => {
                         let usage = failure.usage;
                         let tasks = failure.tasks;
-                        let poisoned = failure.poisoned;
                         let report = project_failure(
                             &failure,
                             ceiling,
@@ -1507,6 +1568,11 @@ pub unsafe extern "C" fn call(
                             allocations,
                             binding.instance.indices.borrow().len() as u64,
                         );
+                        if report.as_ref().is_some_and(|(report, _)| report.poisoned) {
+                            failure.poisoned = true;
+                            instance.poison();
+                        }
+                        let poisoned = failure.poisoned;
                         Ok(CallResult {
                             instance: binding.instance.clone(),
                             body: ResultBody::Failure(Box::new(failure)),

@@ -49,13 +49,28 @@ operation!(probe_result_bytes,result_bytes,(v:*const ffi::Result,o:*mut ffi::Byt
 operation!(probe_result_drop,result_drop,(v:*mut ffi::Result,e:*mut ffi::Error)->u32);
 
 #[unsafe(no_mangle)]
-unsafe extern "C" fn probe_context_thread(context: *const ffi::Context, binding: *mut ffi::Binding) -> u32 {
+unsafe extern "C" fn probe_context_thread(
+    context: *const ffi::Context,
+    binding: *mut ffi::Binding,
+) -> u32 {
     // SAFETY: the caller joins before its live native callback ends.
-    let ffi::Context { header, engine, invocation, scope, reserved } = unsafe { context.read() };
+    let ffi::Context {
+        header,
+        engine,
+        invocation,
+        scope,
+        reserved,
+    } = unsafe { context.read() };
     let engine = engine as usize;
     let binding = binding as usize;
     std::thread::spawn(move || {
-        let context = ffi::Context { header, engine: engine as *mut ffi::Engine, invocation, scope, reserved };
+        let context = ffi::Context {
+            header,
+            engine: engine as *mut ffi::Engine,
+            invocation,
+            scope,
+            reserved,
+        };
         // SAFETY: Error v1 contains initialized C integer fields only.
         let mut error: ffi::Error = unsafe { std::mem::zeroed() };
         error.header.size = size_of::<ffi::Error>() as u32;
@@ -64,10 +79,22 @@ unsafe extern "C" fn probe_context_thread(context: *const ffi::Context, binding:
         let mut output = sentinel;
         // SAFETY: liveness is retained through join; foreign-thread refusal
         // must precede following any mutable original capability or binding.
-        let status = unsafe { gateway::context_call(&context, binding as *mut ffi::Binding,
-            ffi::Bytes { data: ptr::null(), length: 0 }, &mut output, &mut error) };
+        let status = unsafe {
+            gateway::context_call(
+                &context,
+                binding as *mut ffi::Binding,
+                ffi::Bytes {
+                    data: ptr::null(),
+                    length: 0,
+                },
+                &mut output,
+                &mut error,
+            )
+        };
         if output == sentinel { status } else { u32::MAX }
-    }).join().unwrap_or(u32::MAX)
+    })
+    .join()
+    .unwrap_or(u32::MAX)
 }
 
 struct Probe {
@@ -254,11 +281,15 @@ unsafe extern "C" fn probe_report(bytes: ffi::Bytes, mode: u32, case: u32) -> u3
     let report = wire::decode_report(bytes, &mut wire::Session::new(Default::default())).unwrap();
     assert_eq!(report.policy, wire::MessagePolicy::Redacted);
     assert!(report.primary.message.is_none());
-    assert_eq!(report.poisoned, matches!(case, 4 | 5));
+    assert_eq!(report.poisoned, matches!(case, 4 | 5 | 7 | 8 | 9));
     let origin = report.primary.origin.as_ref().unwrap();
     assert_eq!(
         origin.mode,
-        if mode == 1 {
+        if case == 10 {
+            wire::Mode::Vm
+        } else if matches!(case, 7 | 8) {
+            wire::Mode::Host
+        } else if mode == 1 {
             wire::Mode::Jit
         } else {
             wire::Mode::Vm
@@ -307,12 +338,165 @@ unsafe extern "C" fn probe_report(bytes: ffi::Bytes, mode: u32, case: u32) -> u3
         5 => {
             assert_eq!(report.primary.category, wire::Category::Admission);
             assert_eq!(report.primary.phase, wire::Phase::Admission);
-            assert_eq!(report.primary.diagnostic, wire::Diagnostic::InstancePoisoned);
+            assert_eq!(
+                report.primary.diagnostic,
+                wire::Diagnostic::InstancePoisoned
+            );
             assert!(report.primary.limit.is_none());
+        }
+        7 | 8 => {
+            assert_eq!(report.primary.category, wire::Category::HostContract);
+            assert_eq!(report.primary.diagnostic, wire::Diagnostic::HostContract);
+            assert_eq!(report.primary.phase, wire::Phase::Call);
+            assert_eq!(origin.digest, [17; 32]);
+            assert_eq!(origin.member, 9);
+            assert_eq!(
+                report.suppressed.len(),
+                1,
+                "native report case {case}: {report:?}"
+            );
+            assert_eq!(
+                report.suppressed[0].diagnostic,
+                wire::Diagnostic::Destructor
+            );
+            assert!(report.suppressed[0].message.is_none());
+            assert_eq!(report.omitted, 7, "native report case {case}: {report:?}");
+            assert_eq!(
+                report.frames.len(),
+                1,
+                "native report case {case}: {report:?}"
+            );
+            assert_eq!(
+                report.usage.host_calls,
+                if case == 7 { 1 } else { 2 },
+                "native report case {case}: {report:?}"
+            );
+            assert_eq!(report.usage.canonical_indices, 0);
+            assert_ne!(report.usage.fuel, 9999);
+            assert_ne!(report.usage.peak_heap_bytes, 9999);
+        }
+        9 => {
+            assert_eq!(report.primary.category, wire::Category::HostContract);
+            assert_eq!(report.primary.phase, wire::Phase::Call);
+            assert_eq!(report.primary.diagnostic, wire::Diagnostic::HostContract);
+            assert!(report.primary.limit.is_none() && report.suppressed.is_empty());
+            assert_eq!(report.omitted, 0);
+            assert_eq!(report.frames.len(), 1);
+            assert_eq!(report.usage.host_calls, 1);
+        }
+        10 => {
+            assert_eq!(report.primary.category, wire::Category::Panic);
+            assert_eq!(report.primary.phase, wire::Phase::Call);
+            assert_eq!(report.primary.diagnostic, wire::Diagnostic::Panic);
+            assert_eq!(origin.digest, [17; 32]);
+            assert!(report.primary.limit.is_none() && report.suppressed.is_empty());
+            assert_eq!(report.omitted, 0);
+            assert_eq!(report.frames.len(), 1);
+            assert_eq!(report.usage.host_calls, 1);
         }
         _ => panic!("unknown report case"),
     }
     0
+}
+
+#[unsafe(no_mangle)]
+unsafe extern "C" fn probe_native_failure_report(
+    context: *const ffi::Context,
+    output: *mut *mut ffi::Buffer,
+    recoverable: u32,
+) -> u32 {
+    let origin = wire::Frame {
+        mode: if recoverable == 1 {
+            wire::Mode::Vm
+        } else {
+            wire::Mode::Host
+        },
+        digest: [17; 32],
+        member: 9,
+        span: Some(m::Span {
+            source: m::SourceId(0),
+            start: 3,
+            end: 11,
+        }),
+    };
+    let mut report = wire::Report {
+        policy: wire::MessagePolicy::Sanitized,
+        primary: wire::Record {
+            category: wire::Category::HostContract,
+            phase: wire::Phase::Call,
+            diagnostic: wire::Diagnostic::HostContract,
+            message: Some("native private primary".into()),
+            limit: None,
+            origin: Some(origin.clone()),
+        },
+        suppressed: vec![wire::Record {
+            category: wire::Category::Destructor,
+            phase: wire::Phase::Cleanup,
+            diagnostic: wire::Diagnostic::Destructor,
+            message: Some("native private cleanup".into()),
+            limit: None,
+            origin: Some(origin.clone()),
+        }],
+        poisoned: true,
+        omitted: 7,
+        usage: wire::ReportUsage {
+            fuel: 9999,
+            service_work: 9999,
+            host_calls: 9999,
+            peak_heap_bytes: 9999,
+            peak_live_allocations: 9999,
+            peak_frames: 9999,
+            peak_live_cells: 9999,
+            peak_live_tasks: 9999,
+            canonical_indices: 9999,
+        },
+        frames: vec![origin],
+    };
+    if recoverable == 1 {
+        report.primary.category = wire::Category::Panic;
+        report.primary.diagnostic = wire::Diagnostic::Panic;
+        report.suppressed.clear();
+        report.poisoned = false;
+        report.omitted = 0;
+    }
+    let bytes = wire::encode_report(&report, &mut wire::Session::new(Default::default())).unwrap();
+    let mut error = ffi::Error {
+        header: ffi::Header {
+            size: size_of::<ffi::Error>() as u32,
+            version: 1,
+        },
+        diagnostic: 0,
+        limit_kind: 0,
+        limit: 0,
+        attempted: 0,
+        input_digest: [0; 32],
+        source_id: 0,
+        start: 0,
+        end: 0,
+        detail_code: 0,
+        flags: 0,
+        reserved0: 0,
+        reserved: [0; 2],
+    };
+    // SAFETY: the fixture retains the exact live callback and initialized output slot.
+    let status = unsafe {
+        gateway::context_buffer_create(context, bytes.len() as u64, 1, output, &mut error)
+    };
+    if status != 0 {
+        return status;
+    }
+    let mut view = ffi::MutBytes {
+        data: ptr::null_mut(),
+        length: 0,
+    };
+    // SAFETY: the successful creation published this live context buffer.
+    let status = unsafe { gateway::buffer_mut_bytes(context, *output, &mut view, &mut error) };
+    if status != 0 || view.length != bytes.len() as u64 {
+        return 1;
+    }
+    // SAFETY: the checked view is uniquely writable for exactly the requested length.
+    unsafe { std::slice::from_raw_parts_mut(view.data, bytes.len()) }.copy_from_slice(&bytes);
+    1
 }
 
 #[unsafe(no_mangle)]

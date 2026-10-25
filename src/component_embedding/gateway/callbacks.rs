@@ -291,7 +291,7 @@ impl Call<'_, '_> {
                     None,
                 )
             }
-            Err(failure) => {
+            Err(mut failure) => {
                 let report = project_failure(
                     &failure,
                     self.current.ceiling,
@@ -301,6 +301,10 @@ impl Call<'_, '_> {
                     allocations,
                     canonical_indices,
                 );
+                if report.as_ref().is_some_and(|(report, _)| report.poisoned) {
+                    failure.poisoned = true;
+                    instance.poison();
+                }
                 let (usage, tasks, poisoned) = (failure.usage, failure.tasks, failure.poisoned);
                 (
                     ResultBody::Failure(Box::new(failure)),
