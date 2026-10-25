@@ -183,6 +183,10 @@ impl<'code> CallbackCustody<'code> for CallbackArguments<'_, 'code> {
     }
 }
 impl CallbackArguments<'_, '_> {
+    /// Issued locators in this exact native call; this grants no ownership.
+    pub fn resource_indices(&self) -> usize {
+        self.views.borrow().len()
+    }
     pub(crate) fn receipt_work(&self, inputs: usize) -> usize {
         self.owners
             .borrow()

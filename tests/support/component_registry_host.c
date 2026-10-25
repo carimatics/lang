@@ -4,6 +4,11 @@ typedef struct {
     lang_component_v1_engine *engine;
     lang_component_v1_provider *provider;
     lang_component_v1_context saved;
+    lang_component_v1_context inner;
+    lang_component_v1_binding *callback;
+    lang_component_v1_result *retained;
+    lang_component_v1_control *control;
+    uint32_t depth, profile;
     uint32_t calls, released;
 } RegistryOwner;
 static void registry_release(void *user) {
@@ -19,13 +24,57 @@ static uint32_t registry_invoke(void *user,const lang_component_v1_context *cont
     lc_value_reader reader={0};lc_value_writer writer={0};uint8_t scratch[1024];
     error.header.size=sizeof(error);error.header.version=1;
     assert(context->engine==owner->engine&&owner->api->context_check(context,&error)==0);
-    owner->saved=*context;owner->calls++;
+    if(owner->depth){owner->inner=*context;assert(owner->api->context_check(&owner->saved,&error)==5);}
+    else owner->saved=*context;
+    owner->calls++;
     assert(owner->api->provider_drop(owner->provider,&untouched,&error)==4);
     assert(untouched==(lang_component_v1_result *)(uintptr_t)42);
     reader.data=input.data;reader.length=input.length;reader.contextual=1;
     reader.left.work=1000000;reader.left.elements=1000;reader.left.depth=128;
     assert(@HOST_NAME@_decode_arguments(&reader,&arguments));
     assert(arguments.p0==41);result=arguments.p0+1;
+    if(!owner->depth) {
+        uint32_t i;
+        assert(probe_context_thread(context,owner->callback)==4);
+        if(owner->retained){assert(owner->api->result_drop(owner->retained,&error)==0);owner->retained=NULL;}
+        if(owner->profile==3) {
+            @ROOT_ARGUMENTS@ args={0};lc_value_writer child_writer={0};lc_value_outcome child;
+            lang_component_v1_bytes bytes;lang_component_v1_usage usage={0};uint8_t child_scratch[1024];
+            args.p0=41;child_writer.data=child_scratch;child_writer.capacity=sizeof(child_scratch);
+            child_writer.left.work=1000000;child_writer.left.elements=1000;child_writer.left.depth=128;
+            owner->api->interrupt(owner->control);
+            child=@ROOT_NAME@_context_call(owner->api,context,owner->callback,&args,&child_writer,&error);
+            assert(child.status==1&&child.commit==0&&!child.poisoned&&child.result);
+            assert(owner->api->context_check(context,&error)==1);
+            usage.header.size=sizeof(usage);usage.header.version=1;
+            assert(owner->api->result_usage(child.result,&usage,&error)==0&&usage.host_calls==1);
+            assert(owner->api->result_bytes(child.result,&bytes,&error)==0&&bytes.length>4&&memcmp(bytes.data,"LCMP",4)==0);
+            owner->retained=child.result;return 1;
+        }
+        owner->depth++;
+        for(i=0;i<(owner->profile?2u:1u);++i) {
+            @ROOT_ARGUMENTS@ args={0};@ROOT_RESULT@ value=0;
+            lc_value_writer child_writer={0};lc_value_reader child_reader={0};
+            lc_value_outcome child;lang_component_v1_bytes bytes;
+            uint8_t child_scratch[1024];args.p0=41;
+            child_writer.data=child_scratch;child_writer.capacity=sizeof(child_scratch);
+            child_writer.left.work=1000000;child_writer.left.elements=1000;child_writer.left.depth=128;
+            child=@ROOT_NAME@_context_call(owner->api,context,owner->callback,&args,&child_writer,&error);
+            if(!owner->profile){assert(child.status==4&&!child.result);break;}
+            assert(child.status==0&&child.commit==1&&child.result);
+            assert(owner->api->context_check(context,&error)==0);
+            assert(context->invocation==owner->inner.invocation&&context->scope!=owner->inner.scope);
+            assert(owner->api->context_check(&owner->inner,&error)==5);
+            assert(owner->api->result_bytes(child.result,&bytes,&error)==0);
+            child_reader.data=bytes.data;child_reader.length=bytes.length;child_reader.contextual=1;
+            child_reader.left.work=1000000;child_reader.left.elements=1000;child_reader.left.depth=128;
+            assert(@ROOT_NAME@_decode_result(&child_reader,&value)&&value==42);
+            if(i==0)owner->retained=child.result;
+            else assert(owner->api->result_drop(child.result,&error)==0);
+            result=value;
+        }
+        owner->depth--;
+    }
     writer.data=scratch;writer.capacity=sizeof(scratch);writer.contextual=1;
     writer.left.work=1000000;writer.left.elements=1000;writer.left.depth=128;
     assert(@HOST_NAME@_encode_result(&writer,&result));
@@ -37,13 +86,14 @@ static uint8_t *registry_copy(const uint8_t *bytes,uint64_t length) {
     uint8_t *copy=length?(uint8_t *)malloc((size_t)length):NULL;
     if(length){assert(copy);memcpy(copy,bytes,(size_t)length);}return copy;
 }
-static void registry_case(const lang_component_v1_api *api,const lang_component_v1_config *original,uint32_t format) {
+static void registry_profile(const lang_component_v1_api *api,const lang_component_v1_config *original,uint32_t format,uint32_t profile) {
     RegistryOwner owner={0},other={0};
     lang_component_v1_config config=*original;
     lang_component_v1_provider_config registration={0};
     lang_component_v1_import *methods=(lang_component_v1_import *)calloc(2,sizeof(*methods));
     lang_component_v1_engine *engine=NULL;lang_component_v1_module *module=NULL;
     lang_component_v1_instance *instance=NULL;lang_component_v1_binding *binding=NULL;
+    lang_component_v1_instance *second_instance=NULL;lang_component_v1_binding *second_binding=NULL;
     lang_component_v1_error error={0};lang_component_v1_instance_config options={0};
     lang_component_v1_result *closed=(lang_component_v1_result *)(uintptr_t)42;
     lang_component_v1_bytes request={projection,sizeof(projection)},grant={native_grant,sizeof(native_grant)};
@@ -60,11 +110,12 @@ static void registry_case(const lang_component_v1_api *api,const lang_component_
     config.ceiling.serialization_bytes=16777216;config.ceiling.value_elements=1000000;
     error.header.size=sizeof(error);error.header.version=1;
     assert(api->engine_create(&config,&engine,&error)==0);
-    owner.api=api;owner.engine=engine;
+    owner.api=api;owner.engine=engine;owner.profile=profile;
     methods[0].header.size=sizeof(*methods);methods[0].header.version=1;
     methods[0].function_key.data=key;methods[0].function_key.length=sizeof(native_key);
     memcpy(methods[0].signature,native_signature,32);
     methods[0].invoke=registry_invoke;methods[0].user=&owner;
+    methods[0].flags=profile?1u:0u;
     registration.header.size=sizeof(registration);registration.header.version=1;
     registration.contract.data=metadata;registration.contract.length=sizeof(native_contract);
     registration.imports=methods;registration.import_count=1;
@@ -100,6 +151,10 @@ static void registry_case(const lang_component_v1_api *api,const lang_component_
     assert(api->instance_create(module,&options,&instance,&error)==0);
     memset(grant_copy,0,sizeof(native_grant));free(grant_copy);memset(grants,0,sizeof(*grants));free(grants);
     assert(api->bind_export(instance,request,&binding,&error)==0);
+    options.grants=&grant;
+    assert(api->instance_create(module,&options,&second_instance,&error)==0);
+    assert(api->bind_export(second_instance,request,&second_binding,&error)==0);
+    owner.callback=profile==2?second_binding:binding;
     assert(api->provider_drop(owner.provider,&closed,&error)==4&&closed==(lang_component_v1_result *)(uintptr_t)42);
     {
         lang_component_v1_provider_config second={0};lang_component_v1_import method={0};
@@ -123,22 +178,40 @@ static void registry_case(const lang_component_v1_api *api,const lang_component_
         lc_value_writer writer={0};lc_value_reader reader={0};lang_component_v1_bytes bytes;
         uint8_t scratch[1024];arguments.p0=41;
         assert(api->control_create(engine,&config.ceiling,&control,&error)==0);
+        owner.control=control;
         writer.data=scratch;writer.capacity=sizeof(scratch);writer.left.work=1000000;
         writer.left.elements=1000;writer.left.depth=128;
         outcome=@ROOT_NAME@_call(api,control,binding,&arguments,&writer,&error);
-        assert(outcome.status==0&&outcome.commit==1&&outcome.result);
+        assert(outcome.status==(profile==3?1u:0u)&&outcome.commit==1&&outcome.result&&!outcome.poisoned);
         assert(api->result_bytes(outcome.result,&bytes,&error)==0);
         reader.data=bytes.data;reader.length=bytes.length;reader.contextual=1;
         reader.left.work=1000000;reader.left.elements=1000;reader.left.depth=128;
-        assert(@ROOT_NAME@_decode_result(&reader,&result)&&result==42);
+        if(profile==3)assert(bytes.length>4&&memcmp(bytes.data,"LCMP",4)==0);
+        else assert(@ROOT_NAME@_decode_result(&reader,&result)&&result==42);
         assert(api->result_drop(outcome.result,&error)==0);
         assert(api->control_drop(control,&error)==0);
     }
-    assert(owner.calls==2&&other.calls==0&&owner.released==0);
+    assert(owner.calls==((profile&&profile!=3)?6u:2u)&&other.calls==0&&owner.released==0);
     assert(api->provider_drop(other.provider,&closed,&error)==0&&closed==NULL&&other.released==1);
     assert(api->context_check(&owner.saved,&error)==5);
+    {
+        lang_component_v1_result *untouched=(lang_component_v1_result *)(uintptr_t)42;
+        lang_component_v1_bytes empty={NULL,0};lang_component_v1_context malformed=owner.saved;
+        assert(api->context_call(&owner.saved,binding,empty,&untouched,&error)==5);
+        assert(untouched==(lang_component_v1_result *)(uintptr_t)42);
+        malformed.reserved[0]=1;
+        assert(api->context_call(&malformed,binding,empty,&untouched,&error)==2);
+        assert(untouched==(lang_component_v1_result *)(uintptr_t)42);
+    }
     assert(api->instance_close(instance,&closed,&error)==0&&closed==NULL);
+    assert(api->instance_close(second_instance,&closed,&error)==0&&closed==NULL);
     assert(api->provider_drop(owner.provider,&closed,&error)==0&&closed==NULL&&owner.released==0);
-    assert(api->binding_drop(binding,&error)==0&&owner.released==1);
+    assert(api->binding_drop(binding,&error)==0);
+    assert(api->binding_drop(second_binding,&error)==0);
+    if(owner.retained){assert(owner.released==0);assert(api->engine_destroy(engine,&error)==4);assert(api->result_drop(owner.retained,&error)==0);}
+    assert(owner.released==1);
     assert(api->engine_destroy(engine,&error)==0);
+}
+static void registry_case(const lang_component_v1_api *api,const lang_component_v1_config *config,uint32_t format) {
+    uint32_t profile;for(profile=0;profile<4;++profile)registry_profile(api,config,format,profile);
 }

@@ -64,6 +64,24 @@ impl InstanceState {
         };
         Ok(run(&mut scope.instance))
     }
+    /// Select an already admitted target using the live native activation's
+    /// caller. An unrelated active instance cannot supply that exclusive loan.
+    pub fn with_callback_program<'p, 'u, T>(
+        &mut self,
+        program: &'p Program<'u>,
+        origin: &Instance<'_, '_>,
+        run: impl FnOnce(&mut Instance<'p, 'u>) -> T,
+    ) -> Result<T, Reason> {
+        origin.ready()?;
+        if !origin.callback || origin.caller.is_none() {
+            return Err(Reason::Entry);
+        }
+        self.with_program(program, |target| {
+            target.caller = origin.caller;
+            target.callback = true;
+            run(target)
+        })
+    }
 }
 struct Scope<'state, 'p, 'u> {
     target: &'state mut InstanceState,
@@ -95,6 +113,10 @@ impl<'p, 'u> Instance<'p, 'u> {
     }
     pub fn poisoned(&self) -> bool {
         self.phase == Phase::Poisoned
+    }
+    /// A poisoned nested target cannot permit publication by its caller.
+    pub fn poison(&mut self) {
+        self.phase = Phase::Poisoned;
     }
     pub(super) fn ready(&self) -> Result<(), Reason> {
         ready(self.phase)

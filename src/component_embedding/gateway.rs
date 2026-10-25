@@ -1,8 +1,10 @@
 //! Component C operation implementations. No API query/table is published yet.
 mod admission;
+mod callbacks;
 mod registration;
 mod resources;
 use super::{Limits as ModuleLimits, Module, ffi, load};
+pub use callbacks::context_call;
 use lang_codegen_clif::{c_abi::allocator::ForeignProvider, component};
 use lang_mir::unit as m;
 use lang_runtime::{
@@ -43,6 +45,7 @@ struct Metadata {
     engine: *mut ffi::Engine,
     handles: Cell<usize>,
     active: Cell<bool>,
+    current: RefCell<Option<CurrentCall>>,
     data: NonNull<Data>,
 }
 struct Loaded {
@@ -79,6 +82,30 @@ struct InstanceData {
     indices: RefCell<Vec<storage::Claim>>,
 }
 struct InstanceHandle(Rc<InstanceData>);
+#[derive(Clone)]
+struct CurrentCall {
+    instance: Rc<InstanceData>,
+    mode: u32,
+    limits: ModuleLimits,
+    ceiling: ffi::Limits,
+}
+struct CurrentScope<'a> {
+    slot: &'a RefCell<Option<CurrentCall>>,
+    previous: Option<CurrentCall>,
+}
+impl<'a> CurrentScope<'a> {
+    fn enter(owner: &'a Metadata, current: CurrentCall) -> Self {
+        Self {
+            slot: &owner.current,
+            previous: owner.current.replace(Some(current)),
+        }
+    }
+}
+impl Drop for CurrentScope<'_> {
+    fn drop(&mut self) {
+        self.slot.replace(self.previous.take());
+    }
+}
 struct Binding {
     instance: Rc<InstanceData>,
     entry: m::FunctionId,
@@ -250,13 +277,21 @@ macro_rules! checked_context_operation {
             if !unsafe { error_ready(error) } { return INVALID; }
             // SAFETY: the original bridge validates header/thread/invocation/
             // scope/control before restoring any borrowed native capability.
-            unsafe { component::$target($($argument),*) }
+            match unsafe { component::$target($($argument),*) } {
+                status @ 0..=6 => status,
+                12 | 17 => OOM,
+                _ => INVALID,
+            }
         }
     };
 }
 checked_context_operation!(context_check, context_check, (context: *const ffi::Context));
 checked_context_operation!(context_resource_write, context_resource_write,
     (context: *const ffi::Context, index: u32, output: *mut ffi::MutBytes));
+checked_context_operation!(context_resource_read, context_resource_read,
+    (context: *const ffi::Context, index: u32, output: *mut ffi::Bytes));
+checked_context_operation!(context_resource_publish, context_resource_publish,
+    (context: *const ffi::Context, key: ffi::Bytes, buffer: *mut ffi::Buffer, output: *mut u32));
 checked_context_operation!(context_buffer_create, context_buffer_create,
     (context: *const ffi::Context, length: u64, alignment: u64, output: *mut *mut ffi::Buffer));
 checked_context_operation!(context_buffer_drop, context_buffer_drop,
@@ -268,6 +303,26 @@ struct Active<'a>(&'a Cell<bool>);
 impl Drop for Active<'_> {
     fn drop(&mut self) {
         self.0.set(false);
+    }
+}
+struct ResultReservation<'a> {
+    owner: &'a Metadata,
+    held: bool,
+}
+impl<'a> ResultReservation<'a> {
+    fn new(owner: &'a Metadata) -> Result<Self, u32> {
+        retain(owner)?;
+        Ok(Self { owner, held: true })
+    }
+    fn commit(mut self) {
+        self.held = false;
+    }
+}
+impl Drop for ResultReservation<'_> {
+    fn drop(&mut self) {
+        if self.held {
+            release(self.owner).expect("the unexposed result retains its handle reservation");
+        }
     }
 }
 fn bounds(a: ffi::Limits, b: ffi::Limits) -> ffi::Limits {
@@ -484,6 +539,7 @@ pub unsafe extern "C" fn engine_create(
         engine: data.bridge.native_handle(),
         handles: Cell::new(0),
         active: Cell::new(false),
+        current: RefCell::new(None),
         data: NonNull::from(&mut *data),
     });
     let handle = match data
@@ -1147,8 +1203,9 @@ pub unsafe extern "C" fn call(
     if owner.active.get() {
         return BUSY;
     }
-    let Some(next_result_handles) = owner.handles.get().checked_add(1) else {
-        return OOM;
+    let reservation = match ResultReservation::new(owner) {
+        Ok(value) => value,
+        Err(status) => return status,
     };
     if binding.instance.engine != control.engine
         || binding.instance.closed.get()
@@ -1168,6 +1225,15 @@ pub unsafe extern "C" fn call(
     // SAFETY: owner-thread active guard excludes other mutable root operations.
     let data = unsafe { &mut *owner.data.as_ptr() };
     let ceiling = bounds(binding.instance.ceiling, control.ceiling);
+    let _current = CurrentScope::enter(
+        owner,
+        CurrentCall {
+            instance: binding.instance.clone(),
+            mode: data.config.mode,
+            limits: data.limits,
+            ceiling,
+        },
+    );
     let as_size = |n| usize::try_from(n).map_err(|_| INVALID);
     let execute = (|| -> Result<CallResult, u32> {
         let limits = e::Limits {
@@ -1392,7 +1458,7 @@ pub unsafe extern "C" fn call(
     } else {
         OK
     };
-    owner.handles.set(next_result_handles);
+    reservation.commit();
     // SAFETY: admitted completion publishes one immutable owned result handle.
     unsafe { output.write(Box::into_raw(Box::new(value)).cast()) };
     status

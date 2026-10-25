@@ -26,6 +26,8 @@ operation!(probe_module_drop,module_drop,(v:*mut ffi::Module,e:*mut ffi::Error)-
 operation!(probe_resource_publish,resource_publish,(i:*mut ffi::Instance,p:*mut ffi::Provider,k:ffi::Bytes,b:ffi::Bytes,a:u64,o:*mut u32,e:*mut ffi::Error)->u32);
 operation!(probe_resource_drop,resource_drop,(i:*mut ffi::Instance,r:u32,o:*mut *mut ffi::Result,e:*mut ffi::Error)->u32);
 operation!(probe_context_resource_write,context_resource_write,(c:*const ffi::Context,r:u32,o:*mut ffi::MutBytes,e:*mut ffi::Error)->u32);
+operation!(probe_context_resource_read,context_resource_read,(c:*const ffi::Context,r:u32,o:*mut ffi::Bytes,e:*mut ffi::Error)->u32);
+operation!(probe_context_resource_publish,context_resource_publish,(c:*const ffi::Context,k:ffi::Bytes,b:*mut ffi::Buffer,o:*mut u32,e:*mut ffi::Error)->u32);
 operation!(probe_provider_register,provider_register,(v:*mut ffi::Engine,c:*const ffi::ProviderConfig,o:*mut *mut ffi::Provider,e:*mut ffi::Error)->u32);
 operation!(probe_provider_drop,provider_drop,(v:*mut ffi::Provider,o:*mut *mut ffi::Result,e:*mut ffi::Error)->u32);
 operation!(probe_context_check,context_check,(c:*const ffi::Context,e:*mut ffi::Error)->u32);
@@ -40,10 +42,33 @@ operation!(probe_control_create,control_create,(v:*mut ffi::Engine,c:*const ffi:
 operation!(probe_control_drop,control_drop,(v:*mut ffi::Control,e:*mut ffi::Error)->u32);
 operation!(probe_interrupt,interrupt,(v:*mut ffi::Control)->());
 operation!(probe_api_call,call,(b:*mut ffi::Binding,c:*mut ffi::Control,p:ffi::Bytes,o:*mut *mut ffi::Result,e:*mut ffi::Error)->u32);
+operation!(probe_context_call,context_call,(c:*const ffi::Context,b:*mut ffi::Binding,p:ffi::Bytes,o:*mut *mut ffi::Result,e:*mut ffi::Error)->u32);
 operation!(probe_result_info,result_info,(v:*const ffi::Result,o:*mut ffi::ResultInfo,e:*mut ffi::Error)->u32);
 operation!(probe_result_usage,result_usage,(v:*const ffi::Result,o:*mut ffi::Usage,e:*mut ffi::Error)->u32);
 operation!(probe_result_bytes,result_bytes,(v:*const ffi::Result,o:*mut ffi::Bytes,e:*mut ffi::Error)->u32);
 operation!(probe_result_drop,result_drop,(v:*mut ffi::Result,e:*mut ffi::Error)->u32);
+
+#[unsafe(no_mangle)]
+unsafe extern "C" fn probe_context_thread(context: *const ffi::Context, binding: *mut ffi::Binding) -> u32 {
+    // SAFETY: the caller joins before its live native callback ends.
+    let ffi::Context { header, engine, invocation, scope, reserved } = unsafe { context.read() };
+    let engine = engine as usize;
+    let binding = binding as usize;
+    std::thread::spawn(move || {
+        let context = ffi::Context { header, engine: engine as *mut ffi::Engine, invocation, scope, reserved };
+        // SAFETY: Error v1 contains initialized C integer fields only.
+        let mut error: ffi::Error = unsafe { std::mem::zeroed() };
+        error.header.size = size_of::<ffi::Error>() as u32;
+        error.header.version = 1;
+        let sentinel = 42usize as *mut ffi::Result;
+        let mut output = sentinel;
+        // SAFETY: liveness is retained through join; foreign-thread refusal
+        // must precede following any mutable original capability or binding.
+        let status = unsafe { gateway::context_call(&context, binding as *mut ffi::Binding,
+            ffi::Bytes { data: ptr::null(), length: 0 }, &mut output, &mut error) };
+        if output == sentinel { status } else { u32::MAX }
+    }).join().unwrap_or(u32::MAX)
+}
 
 struct Probe {
     module: Module,

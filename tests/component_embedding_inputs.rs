@@ -749,6 +749,8 @@ extern uint32_t probe_control_create(lang_component_v1_engine *,const lang_compo
 extern uint32_t probe_control_drop(lang_component_v1_control *,lang_component_v1_error *);
 extern void probe_interrupt(lang_component_v1_control *);
 extern uint32_t probe_api_call(lang_component_v1_binding *,lang_component_v1_control *,lang_component_v1_bytes,lang_component_v1_result **,lang_component_v1_error *);
+extern uint32_t probe_context_call(const lang_component_v1_context *,lang_component_v1_binding *,lang_component_v1_bytes,lang_component_v1_result **,lang_component_v1_error *);
+extern uint32_t probe_context_thread(const lang_component_v1_context *,lang_component_v1_binding *);
 extern uint32_t probe_result_info(const lang_component_v1_result *,lang_component_v1_result_info *,lang_component_v1_error *);
 extern uint32_t probe_result_usage(const lang_component_v1_result *,lang_component_v1_usage *,lang_component_v1_error *);
 extern uint32_t probe_result_bytes(const lang_component_v1_result *,lang_component_v1_bytes *,lang_component_v1_error *);
@@ -763,6 +765,8 @@ extern uint32_t probe_buffer_mut_bytes(const lang_component_v1_context *,lang_co
 extern uint32_t probe_resource_publish(lang_component_v1_instance *,lang_component_v1_provider *,lang_component_v1_bytes,lang_component_v1_bytes,uint64_t,uint32_t *,lang_component_v1_error *);
 extern uint32_t probe_resource_drop(lang_component_v1_instance *,uint32_t,lang_component_v1_result **,lang_component_v1_error *);
 extern uint32_t probe_context_resource_write(const lang_component_v1_context *,uint32_t,lang_component_v1_mut_bytes *,lang_component_v1_error *);
+extern uint32_t probe_context_resource_read(const lang_component_v1_context *,uint32_t,lang_component_v1_bytes *,lang_component_v1_error *);
+extern uint32_t probe_context_resource_publish(const lang_component_v1_context *,lang_component_v1_bytes,lang_component_v1_buffer *,uint32_t *,lang_component_v1_error *);
 {registry_host}
 {resources_host}
 static void bound_case(const lang_component_v1_api *api,const lang_component_v1_config *config,uint32_t format,lang_component_v1_bytes program,lang_component_v1_bytes contract) {{
@@ -976,13 +980,13 @@ uint32_t fixture(void) {{
                 api.module_load=probe_module_load;api.module_drop=probe_module_drop;
                 api.provider_register=probe_provider_register;api.provider_drop=probe_provider_drop;
                 api.resource_publish=probe_resource_publish;api.resource_drop=probe_resource_drop;
-                api.context_resource_write=probe_context_resource_write;
+                api.context_resource_write=probe_context_resource_write;api.context_resource_read=probe_context_resource_read;api.context_resource_publish=probe_context_resource_publish;
                 api.context_check=probe_context_check;api.context_buffer_create=probe_context_buffer_create;
                 api.context_buffer_drop=probe_context_buffer_drop;api.buffer_mut_bytes=probe_buffer_mut_bytes;
                 api.instance_create=probe_instance_create;api.instance_close=probe_instance_close;
                 api.bind_export=probe_bind_export;api.binding_drop=probe_binding_drop;
                 api.control_create=probe_control_create;api.control_drop=probe_control_drop;api.interrupt=probe_interrupt;
-                api.call=probe_api_call;api.result_info=probe_result_info;api.result_usage=probe_result_usage;
+                api.call=probe_api_call;api.context_call=probe_context_call;api.result_info=probe_result_info;api.result_usage=probe_result_usage;
                 api.result_bytes=probe_result_bytes;api.result_drop=probe_result_drop;
                 for(mode=0;mode<2;++mode){{config.mode=mode;bound_case(&api,&config,format,program,metadata);registry_case(&api,&config,format);resource_case(&api,&config,format,0);resource_case(&api,&config,format,1);}}
             }}

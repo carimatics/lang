@@ -117,13 +117,15 @@ pub unsafe fn gateway_owner(engine: *mut native::Engine) -> Result<NonNull<c_voi
     }
     // SAFETY: caller retains the exact live engine allocation through this
     // access. Foreign-thread calls read only its immutable identity fields.
-    let state = unsafe { &*engine.cast::<State>() };
-    if state.magic != MAGIC {
+    let pointer = engine.cast::<State>();
+    if unsafe { ptr::addr_of!((*pointer).magic).read() } != MAGIC {
         return Err(2);
     }
-    if state.thread != thread::current().id() {
+    if unsafe { ptr::addr_of!((*pointer).thread).read() } != thread::current().id() {
         return Err(4);
     }
+    // SAFETY: only the owner thread forms a State view after identity checks.
+    let state = unsafe { &*pointer };
     state.gateway.ok_or(2)
 }
 fn check(state: &State, context: &native::Context) -> u32 {
@@ -383,6 +385,43 @@ pub unsafe fn with_child<T>(
         e::Control<'scope>,
     ) -> Result<T, u32>,
 ) -> Result<T, u32> {
+    // SAFETY: preserve the strict existing entry and refuse failed control
+    // before exposing the operation's borrowed capabilities.
+    unsafe {
+        child_scope(context, false, |invoker, call, control, _| {
+            operation(invoker, call, control)
+        })
+    }
+}
+
+/// Lend the original scope for either execution or an admitted failure result.
+///
+/// # Safety
+/// Context liveness follows with_child. On a failed admission the operation may
+/// only inspect/report that original failure; it must never enter guest code.
+pub unsafe fn with_child_admission<T>(
+    context: *const native::Context,
+    operation: impl for<'scope> FnOnce(
+        &'scope mut dyn Invoker,
+        &'scope mut dyn NativeContext,
+        e::Control<'scope>,
+        Result<(), e::Failure>,
+    ) -> Result<T, u32>,
+) -> Result<T, u32> {
+    // SAFETY: the caller respects the failed-admission reporting restriction.
+    unsafe { child_scope(context, true, operation) }
+}
+
+unsafe fn child_scope<T>(
+    context: *const native::Context,
+    report_failure: bool,
+    operation: impl for<'scope> FnOnce(
+        &'scope mut dyn Invoker,
+        &'scope mut dyn NativeContext,
+        e::Control<'scope>,
+        Result<(), e::Failure>,
+    ) -> Result<T, u32>,
+) -> Result<T, u32> {
     if context.is_null() {
         return Err(2);
     }
@@ -411,7 +450,10 @@ pub unsafe fn with_child<T>(
     let call = state.call.ok_or(4u32)?;
     // SAFETY: the validated active scope retains the original control/call.
     let control = unsafe { *state.control };
-    control.check().map_err(|_| 1u32)?;
+    let admission = control.check();
+    if !report_failure && admission.is_err() {
+        return Err(1);
+    }
     let call = unsafe { &mut *call };
     if !call.child_profile_supported() {
         return Err(4);
@@ -462,9 +504,22 @@ pub unsafe fn with_child<T>(
         control,
         accounting: Some(accounting.clone()),
     };
-    accounting
-        .with_parent(parent_live, || operation(&mut child, call, control))
-        .map_err(|_| 1u32)?
+    let mut operation = Some(operation);
+    let entered = accounting.with_parent(parent_live, || {
+        operation.take().expect("a child operation runs once")(&mut child, call, control, admission)
+    });
+    match entered {
+        Ok(result) => result,
+        Err(failure) if report_failure => operation
+            .take()
+            .expect("parent admission never ran the child")(
+            &mut child,
+            call,
+            control,
+            Err(failure),
+        ),
+        Err(_) => Err(1),
+    }
 }
 
 #[cfg(test)]
