@@ -148,7 +148,7 @@ impl execution::CallbackOperation for Call<'_, '_> {
                 failure.clone(),
             );
             *self.result = Some(CallResult {
-                instance: caller,
+                owner: ResultOwner::Instance(caller),
                 body: ResultBody::Failure(failure),
                 usage,
                 tasks,
@@ -178,7 +178,7 @@ impl execution::CallbackOperation for Call<'_, '_> {
                 poisoned,
             };
             *self.result = Some(CallResult {
-                instance: target,
+                owner: ResultOwner::Instance(target),
                 body: ResultBody::Failure(Rc::new(failure)),
                 usage,
                 tasks,
@@ -230,7 +230,7 @@ impl execution::CallbackOperation for Call<'_, '_> {
                 );
             }
             *self.result = Some(CallResult {
-                instance: target,
+                owner: ResultOwner::Instance(target),
                 body: ResultBody::Failure(failure),
                 usage,
                 tasks,
@@ -424,7 +424,7 @@ impl Call<'_, '_> {
             }
         };
         *self.result = Some(CallResult {
-            instance: self.target.clone(),
+            owner: ResultOwner::Instance(self.target.clone()),
             body,
             usage,
             tasks,

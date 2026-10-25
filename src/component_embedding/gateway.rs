@@ -3,6 +3,7 @@ mod admission;
 mod callbacks;
 #[cfg(test)]
 mod failure_tests;
+mod persistent;
 mod registration;
 mod resources;
 use super::{Limits as ModuleLimits, Module, ffi, load};
@@ -19,6 +20,7 @@ use lang_runtime::{
     execution as e,
     task::runner as r,
 };
+pub use persistent::{context_resource_keep, context_resource_take};
 pub use resources::{resource_drop, resource_publish};
 use sha2::{Digest, Sha256};
 use std::{
@@ -58,6 +60,7 @@ struct Loaded {
 struct Registered {
     provider: Option<native::Provider<'static>>,
     bindings: Cell<usize>,
+    persistent: RefCell<Option<execution::PersistentResources>>,
 }
 struct ImportLease(Rc<Registered>);
 impl Drop for ImportLease {
@@ -126,8 +129,23 @@ enum ResultBody {
         _code: Vec<native::ResourceKind<'static>>,
     },
 }
+enum ResultOwner {
+    Instance(Rc<InstanceData>),
+    Provider {
+        engine: NonNull<Metadata>,
+        registration: Rc<Registered>,
+    },
+}
+impl ResultOwner {
+    fn engine(&self) -> &NonNull<Metadata> {
+        match self {
+            Self::Instance(instance) => &instance.engine,
+            Self::Provider { engine, .. } => engine,
+        }
+    }
+}
 struct CallResult {
-    instance: Rc<InstanceData>,
+    owner: ResultOwner,
     body: ResultBody,
     usage: e::Usage,
     committed: bool,
@@ -1172,16 +1190,22 @@ pub unsafe extern "C" fn provider_register(
                 || Registered {
                     provider: None,
                     bindings: Cell::new(0),
+                    persistent: RefCell::new(None),
                 },
                 0,
             )
             .map_err(|_| INVALID)?;
+        let persistent =
+            execution::PersistentReservation::prepare(&mut data.values).map_err(|_| INVALID)?;
         // SAFETY: all descriptor/code/user lifetimes are the caller contract;
         // every fallible publication allocation/counter was admitted above.
         let provider = unsafe { registration::prepare(&config, &mut session) }?;
-        Rc::get_mut(&mut registration)
-            .expect("unpublished unique registration")
-            .provider = Some(provider.clone());
+        let prepared = Rc::get_mut(&mut registration).expect("unpublished unique registration");
+        prepared.provider = Some(provider.clone());
+        *prepared.persistent.get_mut() = Some(persistent.bind(
+            provider.clone(),
+            u32::try_from(data.config.ceiling.canonical_indices).unwrap_or(u32::MAX),
+        ));
         inventory.push(provider);
         registrations.push(registration.clone());
         let handle = Box::new(ProviderHandle {
@@ -1251,18 +1275,51 @@ pub unsafe extern "C" fn provider_drop(
     {
         return INVALID;
     }
-    // No persistent holder is created by the current registered-call profile.
-    // Future keep/take retirement must run before these exact leases unlink.
+    let mut budget = m::Budget::new(data.limits.preparation);
+    let holder = match handle.registration.persistent.borrow().as_ref() {
+        Some(persistent) => persistent.holder(),
+        None => return INVALID,
+    };
+    let claims = match data
+        .values
+        .held_claims(holder, &data.allocator, &mut budget)
+    {
+        Ok(claims) => claims,
+        Err(_) => return BUSY,
+    };
+    owner.active.set(true);
+    let _active = Active(&owner.active);
+    let result = match resources::retire(
+        ResultOwner::Provider {
+            engine: handle.engine,
+            registration: handle.registration.clone(),
+        },
+        data,
+        &claims,
+        &mut budget,
+    ) {
+        Ok(result) => result,
+        Err(status) => return status,
+    };
     data.inventory.remove(index);
     data.registrations.remove(index);
-    owner.handles.set(next_handles);
+    let status = if let Some(result) = result {
+        owner.handles.set(next_handles + 1);
+        // SAFETY: admitted close transfers the handle slot to its report.
+        unsafe { output.write(Box::into_raw(Box::new(result)).cast()) };
+        1
+    } else {
+        owner.handles.set(next_handles);
+        // SAFETY: successful close publishes a null failure result.
+        unsafe { output.write(ptr::null_mut()) };
+        OK
+    };
     // SAFETY: this consumes the exact unique public handle after unlink; any
     // resource/report lease retains the original code owner independently.
     unsafe {
         drop(Box::from_raw(provider.cast::<ProviderHandle>()));
-        output.write(ptr::null_mut());
     }
-    OK
+    status
 }
 
 /// # Safety
@@ -1763,7 +1820,7 @@ pub unsafe extern "C" fn call(
                         binding.instance.indices.borrow().len() as u64,
                     );
                     Ok(CallResult {
-                        instance: binding.instance.clone(),
+                        owner: ResultOwner::Instance(binding.instance.clone()),
                         body: ResultBody::Failure(Rc::new(failure)),
                         usage: e::Usage {
                             service_work,
@@ -1843,7 +1900,7 @@ pub unsafe extern "C" fn call(
                             indices.extend_from_slice(frame.resources());
                         }
                         Ok(CallResult {
-                            instance: binding.instance.clone(),
+                            owner: ResultOwner::Instance(binding.instance.clone()),
                             body: ResultBody::Value(frame),
                             usage: outcome.usage,
                             committed,
@@ -1881,7 +1938,7 @@ pub unsafe extern "C" fn call(
                         }
                         let poisoned = failure.poisoned;
                         Ok(CallResult {
-                            instance: binding.instance.clone(),
+                            owner: ResultOwner::Instance(binding.instance.clone()),
                             body: ResultBody::Failure(Rc::new(failure)),
                             usage,
                             committed,
@@ -1924,7 +1981,7 @@ pub unsafe extern "C" fn result_info(
     }
     // SAFETY: exact immutable result remains live through inspection.
     let value = unsafe { &*result.cast::<CallResult>() };
-    if let Err(s) = unsafe { owner(&value.instance.engine) } {
+    if let Err(s) = unsafe { owner(value.owner.engine()) } {
         return s;
     }
     let (kind, records, omitted, frames) = match &value.body {
@@ -1981,7 +2038,7 @@ pub unsafe extern "C" fn result_usage(
     }
     // SAFETY: exact result retains its original engine and immutable usage.
     let value = unsafe { &*result.cast::<CallResult>() };
-    if let Err(s) = unsafe { owner(&value.instance.engine) } {
+    if let Err(s) = unsafe { owner(value.owner.engine()) } {
         return s;
     }
     // SAFETY: initialized output header was checked before publication.
@@ -2021,7 +2078,7 @@ pub unsafe extern "C" fn result_bytes(
     }
     // SAFETY: exact result remains retained throughout this immutable view.
     let value = unsafe { &*result.cast::<CallResult>() };
-    if let Err(s) = unsafe { owner(&value.instance.engine) } {
+    if let Err(s) = unsafe { owner(value.owner.engine()) } {
         return s;
     }
     let bytes = match &value.body {
@@ -2049,7 +2106,7 @@ pub unsafe extern "C" fn result_drop(result: *mut ffi::Result, error: *mut ffi::
     }
     // SAFETY: immutable result still retains its original engine metadata.
     let value = unsafe { &*result.cast::<CallResult>() };
-    let owner = match unsafe { owner(&value.instance.engine) } {
+    let owner = match unsafe { owner(value.owner.engine()) } {
         Ok(v) => v,
         Err(s) => return s,
     };

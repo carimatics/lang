@@ -36,6 +36,19 @@ unsafe fn with_call<T>(
     operation(unsafe { &mut *call })
 }
 
+/// Lend the actual native resource scope without enabling guest reentry.
+///
+/// # Safety
+/// Context storage and its engine remain live as required by context_check.
+/// The operation is synchronous and must not let borrowed capabilities escape.
+pub unsafe fn with_resource_context<T>(
+    context: *const native::Context,
+    operation: impl FnOnce(&mut dyn NativeContext) -> Result<T, u32>,
+) -> Result<T, u32> {
+    // SAFETY: this keeps the normal scope/thread/control/phase validation.
+    unsafe { with_call(context, false, operation) }
+}
+
 /// # Safety
 /// `context` satisfies `context_check`; non-null output is writable and aligned.
 pub unsafe extern "C" fn context_buffer_create(

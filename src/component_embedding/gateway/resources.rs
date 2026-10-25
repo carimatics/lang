@@ -237,7 +237,12 @@ pub unsafe extern "C" fn resource_drop(
     owner.active.set(true);
     let _active = Active(&owner.active);
     let claims = [claim];
-    let retired = match retire(instance, data, &claims, &mut budget) {
+    let retired = match retire(
+        ResultOwner::Instance(instance.clone()),
+        data,
+        &claims,
+        &mut budget,
+    ) {
         Ok(v) => v,
         Err(s) => return s,
     };
@@ -253,8 +258,8 @@ pub unsafe extern "C" fn resource_drop(
     }
 }
 
-fn retire(
-    instance: &Rc<InstanceData>,
+pub(super) fn retire(
+    owner: ResultOwner,
     data: &mut Data,
     claims: &[storage::Claim],
     budget: &mut m::Budget,
@@ -262,7 +267,22 @@ fn retire(
     if claims.is_empty() {
         return Ok(None);
     }
-    let holder = instance.state.borrow().holder();
+    let (holder, canonical_indices, ceiling) = match &owner {
+        ResultOwner::Instance(instance) => (
+            instance.state.borrow().holder(),
+            instance.indices.borrow().len() as u64,
+            instance.ceiling,
+        ),
+        ResultOwner::Provider { registration, .. } => {
+            let persistent = registration.persistent.borrow();
+            let persistent = persistent.as_ref().ok_or(INVALID)?;
+            (
+                persistent.holder(),
+                persistent.issued(),
+                data.config.ceiling,
+            )
+        }
+    };
     budget.allocate::<CallResult>(1).map_err(|_| OOM)?;
     budget.allocate::<c::Report>(1).map_err(|_| OOM)?;
     let mut retained = budget.vector(claims.len()).map_err(|_| OOM)?;
@@ -282,7 +302,7 @@ fn retire(
                 })?,
         );
     }
-    let records = usize::try_from(instance.ceiling.suppressed_records)
+    let records = usize::try_from(ceiling.suppressed_records)
         .unwrap_or(usize::MAX)
         .saturating_add(1)
         .min(claims.len().saturating_mul(2).max(1));
@@ -315,16 +335,18 @@ fn retire(
     if !cleanup.is_poisoned() {
         return Ok(None);
     }
-    instance.state.borrow_mut().poison();
+    if let ResultOwner::Instance(instance) = &owner {
+        instance.state.borrow_mut().poison();
+    }
     let original = cleanup.into_report();
     let projection = cleanup_projection(
         &original,
         data.allocator.stats(),
-        instance.indices.borrow().len() as u64,
-        instance.ceiling.suppressed_records,
+        canonical_indices,
+        ceiling.suppressed_records,
     );
     Ok(Some(CallResult {
-        instance: instance.clone(),
+        owner,
         body: ResultBody::Cleanup {
             report: Box::new(original),
             _code: retained,
@@ -333,7 +355,7 @@ fn retire(
         committed: true,
         poisoned: true,
         allocations: data.allocator.stats(),
-        canonical_indices: instance.indices.borrow().len() as u64,
+        canonical_indices,
         tasks: Default::default(),
         report: Some(projection),
     }))
@@ -376,7 +398,12 @@ pub(super) unsafe fn close(
         };
     owner.active.set(true);
     let _active = Active(&owner.active);
-    let result = match retire(value, data, &claims, &mut budget) {
+    let result = match retire(
+        ResultOwner::Instance(value.clone()),
+        data,
+        &claims,
+        &mut budget,
+    ) {
         Ok(v) => v,
         Err(s) => return s,
     };

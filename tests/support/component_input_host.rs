@@ -9,6 +9,7 @@ use lang_runtime::{
 };
 use std::{ffi::c_void, ptr};
 const RESOURCE_PROVIDER_DIGEST: [u8; 32] = [0; 32];
+const RESOURCE_RUN_MEMBER: u32 = 0;
 thread_local! { static CALLBACK_SNAPSHOT_WORK: std::cell::Cell<u64> = const { std::cell::Cell::new(0) }; }
 #[unsafe(no_mangle)]
 unsafe extern "C" fn probe_exhaust_preparation(context: *const ffi::Context, kind: u32) -> u32 {
@@ -79,6 +80,38 @@ unsafe extern "C" fn probe_exhaust_preparation(context: *const ffi::Context, kin
 }
 const RESOURCE_MODULE_DIGESTS: [[u8; 32]; 2] = [[0; 32]; 2];
 
+#[unsafe(no_mangle)]
+unsafe extern "C" fn probe_exhaust_resource_preparation(context: *const ffi::Context, kind: u32) -> u32 {
+    struct Spend(u32);
+    impl execution::StorageOperation for Spend {
+        fn run(
+            &mut self,
+            _: &mut storage::Resources<'_>,
+            _: &mut dyn storage::Memory,
+            budget: &mut m::Budget,
+            _: storage::Holder,
+            _: &e::InvocationAccounting,
+        ) -> Result<(), u32> {
+            match self.0 {
+                0 => budget.charge(budget.limits().work.saturating_sub(budget.work_used())),
+                1 => {
+                    let remaining = budget.limits().allocations.saturating_sub(budget.allocation_bytes());
+                    budget.allocate::<[u8; 1024]>(remaining / 1024).map_err(|_| 2u32)?;
+                    budget.allocate::<u8>(remaining % 1024)
+                }
+                2 => budget.allocate::<()>(budget.limits().elements.saturating_sub(budget.elements_used())),
+                _ => return Err(2),
+            }.map_err(|_| 2)
+        }
+    }
+    // SAFETY: the fixture keeps the checked native scope live through return;
+    // this spends its original ledger without a guest child or replacement.
+    match unsafe { component::with_resource_context(context, |call| call.with_storage(&mut Spend(kind))) } {
+        Ok(()) => 0,
+        Err(status) => status,
+    }
+}
+
 fn assert_resource_guest_frame(frame: &wire::Frame, mode: u32, member: u32) {
     assert_eq!(
         frame.mode,
@@ -122,6 +155,8 @@ operation!(probe_resource_publish,resource_publish,(i:*mut ffi::Instance,p:*mut 
 operation!(probe_resource_drop,resource_drop,(i:*mut ffi::Instance,r:u32,o:*mut *mut ffi::Result,e:*mut ffi::Error)->u32);
 operation!(probe_context_resource_write,context_resource_write,(c:*const ffi::Context,r:u32,o:*mut ffi::MutBytes,e:*mut ffi::Error)->u32);
 operation!(probe_context_resource_read,context_resource_read,(c:*const ffi::Context,r:u32,o:*mut ffi::Bytes,e:*mut ffi::Error)->u32);
+operation!(probe_context_resource_keep,context_resource_keep,(c:*const ffi::Context,r:u32,o:*mut u32,e:*mut ffi::Error)->u32);
+operation!(probe_context_resource_take,context_resource_take,(c:*const ffi::Context,r:u32,o:*mut u32,e:*mut ffi::Error)->u32);
 operation!(probe_context_resource_publish,context_resource_publish,(c:*const ffi::Context,k:ffi::Bytes,b:*mut ffi::Buffer,o:*mut u32,e:*mut ffi::Error)->u32);
 operation!(probe_provider_register,provider_register,(v:*mut ffi::Engine,c:*const ffi::ProviderConfig,o:*mut *mut ffi::Provider,e:*mut ffi::Error)->u32);
 operation!(probe_provider_drop,provider_drop,(v:*mut ffi::Provider,o:*mut *mut ffi::Result,e:*mut ffi::Error)->u32);
@@ -171,6 +206,14 @@ unsafe extern "C" fn probe_context_thread(
         error.header.size = size_of::<ffi::Error>() as u32;
         error.header.version = 1;
         let sentinel = 42usize as *mut ffi::Result;
+        let mut resource_index = 42;
+        // SAFETY: the original native scope remains live on its owner thread;
+        // both resource operations must refuse before original state access.
+        let kept = unsafe { gateway::context_resource_keep(&context, 1, &mut resource_index, &mut error) };
+        let taken = unsafe { gateway::context_resource_take(&context, 1, &mut resource_index, &mut error) };
+        assert_ne!(kept, 0);
+        assert_ne!(taken, 0);
+        assert_eq!(resource_index, 42);
         let mut output = sentinel;
         // SAFETY: liveness is retained through join; foreign-thread refusal
         // must precede following any mutable original capability or binding.
@@ -496,6 +539,61 @@ unsafe extern "C" fn probe_report(bytes: ffi::Bytes, mode: u32, case: u32) -> u3
         }
         assert!(report.frames.is_empty());
         assert_eq!(report.omitted, 0);
+        return 0;
+    }
+    if matches!(case, 42 | 53) {
+        assert!(report.poisoned);
+        assert_eq!(report.primary.category, wire::Category::Destructor);
+        assert_eq!(report.primary.phase, wire::Phase::Cleanup);
+        assert_eq!(report.primary.diagnostic, wire::Diagnostic::Destructor);
+        assert_resource_cleanup_origin(&report.primary);
+        assert!(report.primary.message.is_none() && report.primary.limit.is_none());
+        assert!(report.frames.is_empty() && report.suppressed.is_empty());
+        assert_eq!(report.omitted, 0);
+        assert_eq!(report.usage.canonical_indices, if case == 42 { 3 } else { 1 });
+        assert_eq!(report.usage.host_calls, 0);
+        return 0;
+    }
+    if (43..=52).contains(&case) {
+        let scenario = 2 + (case - 43) / 2;
+        let failed_cleanup = scenario >= 3 && case % 2 == 0;
+        assert_eq!(report.poisoned, failed_cleanup);
+        assert_eq!(report.primary.category, wire::Category::Limit);
+        assert_eq!(report.primary.phase, wire::Phase::Call);
+        assert_eq!(report.primary.diagnostic, wire::Diagnostic::Limit);
+        let limit = report.primary.limit.unwrap();
+        match scenario {
+            2 | 3 => assert_eq!(limit, wire::LimitDetail {
+                kind: wire::ReportLimitKind::CanonicalIndices, limit: 2, attempted: 3,
+            }),
+            4 => assert_eq!(limit, wire::LimitDetail {
+                kind: wire::ReportLimitKind::PreparationWork, limit: 10_000_000, attempted: 10_000_001,
+            }),
+            5 => {
+                assert_eq!((limit.kind, limit.limit), (wire::ReportLimitKind::MetadataBytes, 16_777_216));
+                assert!(limit.attempted > limit.limit);
+            }
+            6 => assert_eq!(limit, wire::LimitDetail {
+                kind: wire::ReportLimitKind::ValueElements, limit: 1_000_000, attempted: 1_000_001,
+            }),
+            _ => unreachable!(),
+        }
+        let origin = report.primary.origin.as_ref().unwrap();
+        assert_resource_guest_frame(origin, mode, RESOURCE_RUN_MEMBER);
+        assert!((1..=2).contains(&report.frames.len()));
+        for frame in &report.frames {
+            assert_resource_guest_frame(frame, mode, RESOURCE_RUN_MEMBER);
+        }
+        assert_eq!(report.suppressed.len(), usize::from(failed_cleanup));
+        for record in &report.suppressed {
+            assert_eq!(record.category, wire::Category::Destructor);
+            assert_eq!(record.phase, wire::Phase::Cleanup);
+            assert_eq!(record.diagnostic, wire::Diagnostic::Destructor);
+            assert_resource_cleanup_origin(record);
+        }
+        assert_eq!(report.omitted, 0);
+        assert_eq!(report.usage.host_calls, 1);
+        assert_eq!(report.usage.canonical_indices, 2);
         return 0;
     }
     assert_eq!(

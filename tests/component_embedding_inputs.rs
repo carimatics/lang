@@ -573,6 +573,11 @@ fn native_c_host_loads_snapshots_and_repeats_generated_typed_calls_on_vm_and_jit
     let resource_idl = serde_json::to_vec(&resource_caller).unwrap();
     let document = idl::check(m::SourceId(1), &resource_idl, Default::default()).unwrap();
     let guest = g::guest(&document, Default::default()).unwrap();
+    let resource_run_member = guest
+        .exports
+        .iter()
+        .position(|export| export.member.member == "run")
+        .unwrap();
     let bodies = guest
         .exports
         .iter()
@@ -874,6 +879,7 @@ extern uint32_t probe_context_call(const lang_component_v1_context *,lang_compon
 extern uint32_t probe_context_thread(const lang_component_v1_context *,lang_component_v1_binding *);
 extern uint32_t probe_native_failure_report(const lang_component_v1_context *,lang_component_v1_buffer **,uint32_t);
 extern uint32_t probe_exhaust_preparation(const lang_component_v1_context *,uint32_t);
+extern uint32_t probe_exhaust_resource_preparation(const lang_component_v1_context *,uint32_t);
 extern uint32_t probe_result_info(const lang_component_v1_result *,lang_component_v1_result_info *,lang_component_v1_error *);
 extern uint32_t probe_result_usage(const lang_component_v1_result *,lang_component_v1_usage *,lang_component_v1_error *);
 extern uint32_t probe_result_bytes(const lang_component_v1_result *,lang_component_v1_bytes *,lang_component_v1_error *);
@@ -889,6 +895,8 @@ extern uint32_t probe_resource_publish(lang_component_v1_instance *,lang_compone
 extern uint32_t probe_resource_drop(lang_component_v1_instance *,uint32_t,lang_component_v1_result **,lang_component_v1_error *);
 extern uint32_t probe_context_resource_write(const lang_component_v1_context *,uint32_t,lang_component_v1_mut_bytes *,lang_component_v1_error *);
 extern uint32_t probe_context_resource_read(const lang_component_v1_context *,uint32_t,lang_component_v1_bytes *,lang_component_v1_error *);
+extern uint32_t probe_context_resource_keep(const lang_component_v1_context *,uint32_t,uint32_t *,lang_component_v1_error *);
+extern uint32_t probe_context_resource_take(const lang_component_v1_context *,uint32_t,uint32_t *,lang_component_v1_error *);
 extern uint32_t probe_context_resource_publish(const lang_component_v1_context *,lang_component_v1_bytes,lang_component_v1_buffer *,uint32_t *,lang_component_v1_error *);
 {registry_host}
 {resources_host}
@@ -1136,6 +1144,7 @@ uint32_t fixture(void) {{
                 api.provider_register=probe_provider_register;api.provider_drop=probe_provider_drop;
                 api.resource_publish=probe_resource_publish;api.resource_drop=probe_resource_drop;
                 api.context_resource_write=probe_context_resource_write;api.context_resource_read=probe_context_resource_read;api.context_resource_publish=probe_context_resource_publish;
+                api.context_resource_keep=probe_context_resource_keep;api.context_resource_take=probe_context_resource_take;
                 api.context_check=probe_context_check;api.context_buffer_create=probe_context_buffer_create;
                 api.context_buffer_drop=probe_context_buffer_drop;api.buffer_mut_bytes=probe_buffer_mut_bytes;
                 api.instance_create=probe_instance_create;api.instance_close=probe_instance_close;
@@ -1208,6 +1217,10 @@ uint32_t fixture(void) {{
         <sha2::Sha256 as sha2::Digest>::digest(&resource_artifact).into(),
     ];
     let driver_source = include_str!("support/component_input_host.rs")
+        .replace(
+            "const RESOURCE_RUN_MEMBER: u32 = 0;",
+            &format!("const RESOURCE_RUN_MEMBER: u32 = {resource_run_member};"),
+        )
         .replace(
             "const RESOURCE_PROVIDER_DIGEST: [u8; 32] = [0; 32];",
             &format!("const RESOURCE_PROVIDER_DIGEST: [u8; 32] = {resource_provider_digest:?};"),

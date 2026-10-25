@@ -1,7 +1,9 @@
 //! Scoped native callback storage. Payloads use the original allocator; stable
 //! handle headers are bounded caller metadata and remain until callback close.
 use super::*;
+mod persistent;
 use crate::allocation as a;
+pub use persistent::{PersistentReservation, PersistentResources};
 use std::cell::{Cell, RefCell};
 use std::ptr;
 
@@ -727,6 +729,15 @@ pub trait CallbackOperation {
     ) -> Result<(), CallbackFailure>;
 }
 pub trait NativeContext {
+    fn matches_provider(&self, _: &super::super::native::Provider<'_>) -> bool {
+        false
+    }
+    fn resource_keep(&mut self, _: u32, _: &mut PersistentResources) -> Result<u32, u32> {
+        Err(4)
+    }
+    fn resource_take(&mut self, _: u32, _: &mut PersistentResources) -> Result<u32, u32> {
+        Err(4)
+    }
     fn with_callback(&mut self, _: &mut dyn CallbackOperation) -> Result<(), u32> {
         Err(4)
     }
@@ -803,6 +814,7 @@ pub(crate) struct CallContext<'r, 'm, 'b, 'scope, 'code> {
     pub holder: Holder,
     kind: &'scope KindResolver<'scope, 'code>,
     implementation: Option<&'scope KindAuthority<'scope>>,
+    provider: Option<&'scope super::super::native::Provider<'scope>>,
     buffers: Vec<BufferSlot>,
     index_limit: u32,
     accounting: Option<&'scope crate::execution::InvocationAccounting>,
@@ -832,6 +844,7 @@ impl<'r, 'm, 'b, 'scope, 'code> CallContext<'r, 'm, 'b, 'scope, 'code> {
             holder,
             kind,
             implementation: None,
+            provider: None,
             buffers: Vec::new(),
             index_limit: u32::MAX,
             accounting: None,
@@ -845,6 +858,13 @@ impl<'r, 'm, 'b, 'scope, 'code> CallContext<'r, 'm, 'b, 'scope, 'code> {
     }
     pub fn with_index_limit(mut self, limit: u32) -> Self {
         self.index_limit = limit;
+        self
+    }
+    pub fn with_provider(
+        mut self,
+        provider: &'scope super::super::native::Provider<'scope>,
+    ) -> Self {
+        self.provider = Some(provider);
         self
     }
     pub fn with_implementation(mut self, check: &'scope KindAuthority<'scope>) -> Self {
@@ -983,6 +1003,16 @@ impl<'r, 'm, 'b, 'scope, 'code> CallContext<'r, 'm, 'b, 'scope, 'code> {
     }
 }
 impl NativeContext for CallContext<'_, '_, '_, '_, '_> {
+    fn matches_provider(&self, provider: &super::super::native::Provider<'_>) -> bool {
+        self.provider
+            .is_some_and(|current| current.same_registration(provider))
+    }
+    fn resource_keep(&mut self, index: u32, state: &mut PersistentResources) -> Result<u32, u32> {
+        self.keep(index, state)
+    }
+    fn resource_take(&mut self, index: u32, state: &mut PersistentResources) -> Result<u32, u32> {
+        self.take(index, state)
+    }
     fn with_callback(&mut self, operation: &mut dyn CallbackOperation) -> Result<(), u32> {
         let task = self.task.as_mut().ok_or(4u32)?;
         let accounting = self.accounting.ok_or(4u32)?;

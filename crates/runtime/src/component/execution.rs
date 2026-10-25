@@ -20,7 +20,8 @@ pub(crate) use call::ReadRoot;
 pub use call::{
     CallbackArguments, CallbackFailure, CallbackOperation, LatchedFailure, NativeArguments,
     NativeContext, NativeFailure, NativeReport, NativeResourceFailure, NativeResult, NativeReturn,
-    ResourceArgument, StorageOperation, TaskStorageOperation,
+    PersistentReservation, PersistentResources, ResourceArgument, StorageOperation,
+    TaskStorageOperation,
 };
 use instance::Phase;
 pub use instance::{Completion, Instance, InstanceError, InstanceState};
@@ -1010,6 +1011,7 @@ impl<'state, 'p, 'u, 'resources, 'code, 'native> Host
                 &kind,
             )
             .with_implementation(&implementation)
+            .with_provider(target.provider())
             .with_index_limit(
                 self.resource_namespace
                     .map_or(u32::MAX, |namespace| namespace.maximum),
