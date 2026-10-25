@@ -87,6 +87,9 @@ impl<'p, 'u> Instance<'p, 'u> {
             caller: None,
         }
     }
+    pub fn program(&self) -> &'p Program<'u> {
+        self.program
+    }
     pub fn poisoned(&self) -> bool {
         self.phase == Phase::Poisoned
     }
@@ -94,6 +97,55 @@ impl<'p, 'u> Instance<'p, 'u> {
         ready(self.phase)
     }
 }
+
+/// Borrowed implementation view of an already active instance. The native
+/// context is the only constructor of this dynamic callback capability.
+pub(super) trait CallbackInstance {
+    fn poisoned(&self) -> bool;
+    fn with_callback(
+        &mut self,
+        caller: Holder,
+        run: &mut dyn FnMut(&mut Instance<'_, '_>) -> Result<(), u32>,
+    ) -> Result<(), u32>;
+}
+struct Activation<'a, 'p, 'u> {
+    parent: &'a mut Instance<'p, 'u>,
+    child: Instance<'p, 'u>,
+}
+impl Drop for Activation<'_, '_, '_> {
+    fn drop(&mut self) {
+        self.parent.phase = if self.child.phase == Phase::Ready {
+            Phase::Active
+        } else {
+            Phase::Poisoned
+        };
+    }
+}
+impl CallbackInstance for Instance<'_, '_> {
+    fn poisoned(&self) -> bool {
+        self.poisoned()
+    }
+    fn with_callback(
+        &mut self,
+        caller: Holder,
+        run: &mut dyn FnMut(&mut Instance<'_, '_>) -> Result<(), u32>,
+    ) -> Result<(), u32> {
+        if self.phase != Phase::Active {
+            return Err(4);
+        }
+        let child = Instance {
+            program: self.program,
+            phase: Phase::Ready,
+            caller: Some(caller),
+        };
+        let mut activation = Activation {
+            parent: self,
+            child,
+        };
+        run(&mut activation.child)
+    }
+}
+
 fn ready(phase: Phase) -> Result<(), Reason> {
     match phase {
         Phase::Ready => Ok(()),

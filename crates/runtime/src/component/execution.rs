@@ -18,8 +18,8 @@ mod native_result;
 mod result;
 pub(crate) use call::ReadRoot;
 pub use call::{
-    NativeArguments, NativeContext, NativeFailure, NativeResourceFailure, NativeResult,
-    NativeReturn, ResourceArgument, StorageOperation, TaskStorageOperation,
+    CallbackOperation, NativeArguments, NativeContext, NativeFailure, NativeResourceFailure,
+    NativeResult, NativeReturn, ResourceArgument, StorageOperation, TaskStorageOperation,
 };
 use instance::Phase;
 pub use instance::{Completion, Instance, InstanceError, InstanceState};
@@ -618,7 +618,11 @@ impl<'state, 'p, 'u, 'resources, 'code, 'native> Host
             self.instance.phase = Phase::Poisoned;
         }
         if closed {
-            Ok(())
+            if matches!(completion, Completion::Clean) && self.instance.poisoned() {
+                Err(Reason::Instance(InstanceError::Poisoned))
+            } else {
+                Ok(())
+            }
         } else {
             Err(Reason::Instance(InstanceError::ScopeNotClosed))
         }
@@ -891,7 +895,8 @@ impl<'state, 'p, 'u, 'resources, 'code, 'native> Host
             )
             .with_accounting(&self.accounting)
             .with_parent_live(parent_live)
-            .with_task(task);
+            .with_task(task)
+            .with_instance(self.instance, target.method().flags & 1 != 0);
             let returned = self.invoker.invoke(target.method(), &bytes, &mut context);
             let decoded = (|| -> Result<NativeResult, Reason> {
                 self.invoker.check_control().map_err(Reason::Control)?;
@@ -905,6 +910,9 @@ impl<'state, 'p, 'u, 'resources, 'code, 'native> Host
                 }
                 if context.task_closing()? {
                     return Err(Reason::Cancelled);
+                }
+                if context.instance_poisoned() {
+                    return Err(Reason::Instance(InstanceError::Poisoned));
                 }
                 if returned.status != 0 {
                     let bytes = if returned.buffer.is_null() {
@@ -1497,6 +1505,9 @@ impl<'state, 'p, 'u, 'resources, 'code, 'native> Host
         }
     }
     fn commit_result(&mut self, memory: &mut dyn Memory) -> Result<(), Reason> {
+        if self.instance.poisoned() {
+            return Err(Reason::Instance(InstanceError::Poisoned));
+        }
         if self.loans.iter().any(Option::is_some)
             || self
                 .resources

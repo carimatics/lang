@@ -197,6 +197,12 @@ fn control_failure(reason: &r::Reason) -> Option<ChildControlFailure> {
         _ => None,
     }
 }
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum CallbackProbe {
+    Error,
+    Unwind,
+    Unfinished,
+}
 struct Child {
     unit: bindings::Unit,
     owner: RefCell<Weak<Owner>>,
@@ -223,6 +229,9 @@ struct Child {
     task_usage: Cell<Option<lang_runtime::task::Usage>>,
     cancel_task: Cell<bool>,
     task_observations: Cell<usize>,
+    original_instance: bool,
+    activation_probe: Option<CallbackProbe>,
+    callback_argument: i64,
 }
 impl Child {
     fn new(
@@ -257,6 +266,9 @@ impl Child {
             task_usage: Cell::new(None),
             cancel_task: Cell::new(false),
             task_observations: Cell::new(0),
+            original_instance: false,
+            activation_probe: None,
+            callback_argument: 41,
         }
     }
     unsafe fn run(&self, context: *const native::Context) -> Result<i64, u32> {
@@ -307,15 +319,48 @@ impl Child {
                 self.before
                     .set(Some(call.accounting().ok_or(4u32)?.snapshot()));
                 assert_eq!(lang_codegen_clif::component::context_check(context), 5);
-                let mut operation = ChildOperation {
-                    target: self,
-                    owner,
-                    invoker,
-                    control,
-                    value: None,
-                };
-                call.with_task_storage(&mut operation)?;
-                operation.value.ok_or(17u32)
+                if self.original_instance {
+                    if let Some(mode) = self.activation_probe {
+                        let mut probe = ProbeActivation { mode, invoker };
+                        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                            call.with_callback(&mut probe)
+                        }));
+                        let valid = if mode == CallbackProbe::Error {
+                            matches!(result, Ok(Err(2)))
+                        } else {
+                            result.is_err()
+                        };
+                        if !valid {
+                            self.failure.replace(Some(format!(
+                                "activation {mode:?}: panic={}, result={:?}",
+                                result.is_err(),
+                                result.as_ref().ok()
+                            )));
+                            return Err(1);
+                        }
+                        if mode == CallbackProbe::Unfinished {
+                            return Err(1);
+                        }
+                    }
+                    let mut operation = OriginalInstanceOperation {
+                        target: self,
+                        invoker,
+                        control,
+                        value: None,
+                    };
+                    call.with_callback(&mut operation)?;
+                    operation.value.ok_or(17u32)
+                } else {
+                    let mut operation = ChildOperation {
+                        target: self,
+                        owner,
+                        invoker,
+                        control,
+                        value: None,
+                    };
+                    call.with_task_storage(&mut operation)?;
+                    operation.value.ok_or(17u32)
+                }
             })
         }?;
         assert_eq!(
@@ -411,6 +456,22 @@ impl execution::TaskStorageOperation for ObserveTask<'_> {
         Ok(())
     }
 }
+struct DeniedCallback(bool);
+impl execution::CallbackOperation for DeniedCallback {
+    fn run(
+        &mut self,
+        _: &mut execution::Instance<'_, '_>,
+        _: &mut storage::Resources<'_>,
+        _: &mut dyn storage::Memory,
+        _: &mut m::Budget,
+        _: storage::Holder,
+        _: &e::InvocationAccounting,
+        _: &mut lang_runtime::task::CurrentTask<'_>,
+    ) -> Result<(), u32> {
+        self.0 = true;
+        Err(17)
+    }
+}
 struct BudgetInvoker<'a> {
     original: &'a mut dyn execution::Invoker,
     target: &'a Child,
@@ -440,6 +501,11 @@ impl execution::Invoker for BudgetInvoker<'_> {
         parameters: &[u8],
         context: &mut dyn execution::NativeContext,
     ) -> Result<execution::NativeReturn, u32> {
+        if method.flags & 1 == 0 {
+            let mut denied = DeniedCallback(false);
+            assert_eq!(context.with_callback(&mut denied), Err(4));
+            assert!(!denied.0);
+        }
         context.with_storage(&mut OriginalBudget(self.target))?;
         context.with_task_storage(&mut ObserveTask(self.target))?;
         let returned = self.original.invoke(method, parameters, context)?;
@@ -461,6 +527,141 @@ impl execution::Invoker for BudgetInvoker<'_> {
         context: &mut lang_runtime::cleanup::Context<'_>,
     ) -> Result<(), u32> {
         self.original.destroy(kind, backing, memory, context)
+    }
+}
+struct ProbeActivation<'a> {
+    mode: CallbackProbe,
+    invoker: &'a mut dyn execution::Invoker,
+}
+impl execution::CallbackOperation for ProbeActivation<'_> {
+    fn run(
+        &mut self,
+        instance: &mut execution::Instance<'_, '_>,
+        resources: &mut storage::Resources<'_>,
+        memory: &mut dyn storage::Memory,
+        budget: &mut m::Budget,
+        _: storage::Holder,
+        _: &e::InvocationAccounting,
+        _: &mut lang_runtime::task::CurrentTask<'_>,
+    ) -> Result<(), u32> {
+        let function = entry(instance.program(), "nested");
+        let mut session = wire::Session::new(Default::default());
+        let mut invocation = execution::Invocation::prepare_owned(
+            instance,
+            function,
+            resources,
+            self.invoker,
+            budget,
+        )
+        .map_err(|_| 1u32)?;
+        invocation.prepare_output(&mut session).map_err(|_| 1u32)?;
+        execution::Host::prepare_arguments(&mut invocation, &[EntryArgument::I64(41)], memory)
+            .map_err(|_| 1u32)?;
+        if self.mode == CallbackProbe::Error {
+            return Err(2);
+        }
+        if self.mode == CallbackProbe::Unfinished {
+            execution::Host::commit_arguments(&mut invocation, memory).map_err(|_| 1u32)?;
+        }
+        panic!("contained activation probe {:?}", self.mode);
+    }
+}
+struct OriginalInstanceOperation<'a, 'ctrl> {
+    target: &'a Child,
+    invoker: &'a mut dyn execution::Invoker,
+    control: e::Control<'ctrl>,
+    value: Option<i64>,
+}
+impl execution::CallbackOperation for OriginalInstanceOperation<'_, '_> {
+    fn run(
+        &mut self,
+        instance: &mut execution::Instance<'_, '_>,
+        resources: &mut storage::Resources<'_>,
+        memory: &mut dyn storage::Memory,
+        budget: &mut m::Budget,
+        _holder: storage::Holder,
+        accounting: &e::InvocationAccounting,
+        current: &mut lang_runtime::task::CurrentTask<'_>,
+    ) -> Result<(), u32> {
+        assert!(accounting.same_invocation(self.invoker.accounting().unwrap()));
+        assert_eq!(current.status(), Ok(lang_runtime::task::Status::Running));
+        if let Some(previous) = self.target.task.borrow().as_ref() {
+            assert_eq!(previous, current.id());
+        }
+        self.target.task.replace(Some(current.id().clone()));
+        self.target.task_usage.set(Some(current.usage()));
+        let address = std::ptr::from_mut(&mut *budget) as usize;
+        if let Some(previous) = self.target.budget_address.get() {
+            assert_eq!(previous, address);
+        }
+        self.target.budget_address.set(Some(address));
+        self.target
+            .preparation_before
+            .set(Some(preparation_usage(budget)));
+        let preparation = budget.limits();
+        let program = instance.program();
+        let function = entry(program, "nested");
+        let generated = self.target.compiled.then(|| {
+            lang_codegen_clif::tasks::CompiledProgram::compile_component(
+                program,
+                function,
+                Default::default(),
+            )
+            .unwrap()
+        });
+        let mut view = a::Allocator::borrow(memory).map_err(|_| 6u32)?;
+        let mut invoker = BudgetInvoker {
+            original: self.invoker,
+            target: self.target,
+        };
+        let mut session = wire::Session::new(Default::default());
+        let mut invocation = execution::Invocation::prepare_owned(
+            instance,
+            function,
+            resources,
+            &mut invoker,
+            budget,
+        )
+        .map_err(|_| 1u32)?;
+        invocation.prepare_output(&mut session).map_err(|_| 1u32)?;
+        let result = execute_memory_scope(
+            program,
+            function,
+            generated.as_ref(),
+            &mut view,
+            CallControl {
+                tasks: current.limits(),
+                execution: self.control,
+                preparation,
+            },
+            &[EntryArgument::I64(self.target.callback_argument)],
+            &mut invocation,
+            Some(budget),
+            Some(current.reborrow().map_err(|_| 4u32)?),
+        );
+        assert_eq!(current.status(), Ok(lang_runtime::task::Status::Running));
+        assert_eq!(Some(current.usage()), self.target.task_usage.get());
+        let outcome = result.map_err(|error| {
+            self.target.failure.replace(Some(format!("{error:?}")));
+            self.target
+                .control_failure
+                .set(control_failure(&error.reason));
+            1u32
+        })?;
+        assert_eq!(outcome.tasks, current.usage());
+        assert!(!outcome.poisoned);
+        let execution::Value::Frame(frame) = outcome.value else {
+            return Err(17);
+        };
+        let [wire::Value::I64(value)] = frame.values().nodes.as_slice() else {
+            return Err(17);
+        };
+        self.value = Some(*value);
+        self.target.after.set(Some(outcome.usage));
+        self.target
+            .preparation_after
+            .set(Some(preparation_usage(budget)));
+        Ok(())
     }
 }
 struct ChildOperation<'a, 'ctrl> {
@@ -710,6 +911,9 @@ fn stored_unit_for(source: &[u8]) -> bindings::Unit {
     stored_unit_with_task(source, false)
 }
 fn stored_unit_with_task(source: &[u8], task: bool) -> bindings::Unit {
+    stored_unit_profile(source, task, false)
+}
+fn stored_unit_profile(source: &[u8], task: bool, callback: bool) -> bindings::Unit {
     let host = host_document();
     let mut document = json!({
         "idl":1,"package":"demo:scope","version":"1.0.0",
@@ -731,6 +935,16 @@ fn stored_unit_with_task(source: &[u8], task: bool) -> bindings::Unit {
             "name":"start", "effect":"task", "params":[], "result":"i64", "capability":"demo.scope.start"
         }));
         names.push("start");
+    }
+    if callback {
+        document["interfaces"][1]["functions"]
+            .as_array_mut()
+            .unwrap()
+            .push(json!({
+                "name":"nested", "effect":"sync", "params":[{"name":"value","type":"i64"}],
+                "result":"i64", "capability":"demo.scope.nested"
+            }));
+        names.push("nested");
     }
     let bytes = serde_json::to_vec(&document).unwrap();
     let host = InterfaceKey::new(PackageKey::new("demo", "counter"), "api");
@@ -1441,6 +1655,154 @@ fn scoped_allocator_views_execute_source_and_native_resource_callbacks_without_n
         for access in [MemoryAccess::View, MemoryAccess::NestedView] {
             for compiled in [false, true] {
                 assert_eq!(retained_roundtrip_memory(compiled, fresh, access), expected);
+            }
+        }
+    }
+}
+
+#[test]
+fn original_active_instance_guest_failure_closes_child_and_allows_the_next_root() {
+    for compiled in [false, true] {
+        let mut h = Harness::new();
+        h.unit = stored_unit_profile(
+            include_bytes!("fixtures/component_scoped_roots_callback.lang"),
+            false,
+            true,
+        );
+        let mut child = Child::new(&mut h.values, compiled, 2, usize::MAX);
+        child.original_instance = true;
+        child.callback_argument = -7;
+        let child = Rc::new(child);
+        let (registration, watch) = h.registration_child(false, Some(child.clone()));
+        let Err(failure) = h.call(registration, "create", None, compiled) else {
+            panic!("guest panic succeeded");
+        };
+        assert!(!failure.poisoned && !h.state.poisoned(), "{failure:?}");
+        assert!(
+            child
+                .failure
+                .borrow()
+                .as_ref()
+                .unwrap()
+                .contains("Panic(Some(-7))")
+        );
+        assert_eq!(child.task_observations.get(), 1);
+        assert_eq!(watch.produced.get(), 0);
+        assert_eq!(watch.released.get(), 1);
+        assert!(h.values.is_empty());
+        assert_eq!(h.allocator.stats().live_allocations, 0);
+        for context in [child.parent.get().unwrap(), child.nested.get().unwrap()] {
+            assert_eq!(h.engine.check(&context), 5);
+        }
+        let (retry, watch) = h.registration(false);
+        let created = h.call(retry, "create", None, compiled).unwrap();
+        let execution::Value::Resource(claim) = created.value else {
+            panic!("owner");
+        };
+        let (cleanup, _) = h.registration(false);
+        h.call(cleanup, "consume", Some(claim), compiled).unwrap();
+        assert_eq!(watch.destroyed.get(), 1);
+        assert_eq!(watch.released.get(), 1);
+        assert!(h.values.is_empty());
+        assert_eq!(h.allocator.stats().live_allocations, 0);
+    }
+}
+
+#[test]
+fn original_active_instance_restores_clean_error_and_unwind_but_keeps_child_poison() {
+    for compiled in [false, true] {
+        for mode in [
+            CallbackProbe::Error,
+            CallbackProbe::Unwind,
+            CallbackProbe::Unfinished,
+        ] {
+            let mut h = Harness::new();
+            h.unit = stored_unit_profile(
+                include_bytes!("fixtures/component_scoped_roots_callback.lang"),
+                false,
+                true,
+            );
+            let mut child = Child::new(&mut h.values, compiled, 2, usize::MAX);
+            child.original_instance = true;
+            child.activation_probe = Some(mode);
+            let child = Rc::new(child);
+            let (registration, watch) = h.registration_child(false, Some(child.clone()));
+            let result = h.call(registration, "create", None, compiled);
+            if mode == CallbackProbe::Unfinished {
+                let Err(failure) = result else {
+                    panic!("unfinished callback succeeded");
+                };
+                assert!(
+                    matches!(
+                        failure.reason,
+                        r::Reason::Instance(execution::InstanceError::Poisoned)
+                    ),
+                    "{failure:?}"
+                );
+                assert!(failure.poisoned && h.state.poisoned());
+                assert_eq!(watch.produced.get(), 0);
+                let (retry, _) = h.registration(false);
+                prepared_unit(&h.unit, retry, |program, _| {
+                    assert!(matches!(
+                        h.state.with_program(program, |_| panic!("poison entered")),
+                        Err(r::Reason::Instance(execution::InstanceError::Poisoned))
+                    ));
+                });
+            } else {
+                let created =
+                    result.unwrap_or_else(|e| panic!("{e:?}; child={:?}", child.failure.borrow()));
+                let execution::Value::Resource(claim) = created.value else {
+                    panic!("owner");
+                };
+                assert_eq!(child.value.get(), 42);
+                assert_eq!(child.task_observations.get(), 2);
+                assert!(!h.state.poisoned());
+                let (cleanup, _) = h.registration(false);
+                h.call(cleanup, "consume", Some(claim), compiled).unwrap();
+            }
+            assert_eq!(watch.destroyed.get(), watch.produced.get());
+            assert_eq!(watch.released.get(), 1);
+            assert!(h.values.is_empty());
+            assert_eq!(h.allocator.stats().live_allocations, 0);
+            assert_eq!(h.engine.check(&child.parent.get().unwrap()), 5);
+        }
+    }
+}
+
+#[test]
+fn original_active_instance_executes_typed_guest_callbacks_with_its_own_bindings() {
+    for compiled in [false, true] {
+        for repetitions in [1, 2] {
+            let mut h = Harness::new();
+            h.unit = stored_unit_profile(
+                include_bytes!("fixtures/component_scoped_roots_callback.lang"),
+                false,
+                true,
+            );
+            let mut child = Child::new(&mut h.values, compiled, repetitions, usize::MAX);
+            child.original_instance = true;
+            let child = Rc::new(child);
+            let (registration, watch) = h.registration_child(false, Some(child.clone()));
+            let created = h
+                .call(registration, "create", None, compiled)
+                .unwrap_or_else(|e| panic!("{e:?}; child={:?}", child.failure.borrow()));
+            let execution::Value::Resource(claim) = created.value else {
+                panic!("owner");
+            };
+            assert_eq!(child.value.get(), 42);
+            assert_eq!(child.task_observations.get(), repetitions);
+            assert_eq!(created.tasks.admitted, 1);
+            assert_eq!(child.task_usage.get().unwrap().admitted, 1);
+            let (cleanup, _) = h.registration(false);
+            h.call(cleanup, "consume", Some(claim), compiled).unwrap();
+            assert_eq!(watch.produced.get(), 1);
+            assert_eq!(watch.destroyed.get(), 1);
+            assert_eq!(watch.released.get(), 1);
+            assert!(h.values.is_empty());
+            assert_eq!(h.allocator.stats().live_allocations, 0);
+            assert!(!h.state.poisoned());
+            for context in [child.parent.get().unwrap(), child.nested.get().unwrap()] {
+                assert_eq!(h.engine.check(&context), 5);
             }
         }
     }

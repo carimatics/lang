@@ -93,7 +93,27 @@ pub trait TaskStorageOperation {
         task: &mut crate::task::CurrentTask<'_>,
     ) -> Result<(), u32>;
 }
+/// All operands are borrowed from the current dynamic native call.
+pub trait CallbackOperation {
+    #[allow(
+        clippy::too_many_arguments,
+        reason = "Keep the original instance, task and storage authority explicit."
+    )]
+    fn run(
+        &mut self,
+        instance: &mut Instance<'_, '_>,
+        resources: &mut Resources<'_>,
+        memory: &mut dyn Memory,
+        budget: &mut m::Budget,
+        holder: Holder,
+        accounting: &crate::execution::InvocationAccounting,
+        task: &mut crate::task::CurrentTask<'_>,
+    ) -> Result<(), u32>;
+}
 pub trait NativeContext {
+    fn with_callback(&mut self, _: &mut dyn CallbackOperation) -> Result<(), u32> {
+        Err(4)
+    }
     fn with_task_storage(&mut self, _: &mut dyn TaskStorageOperation) -> Result<(), u32> {
         Err(4)
     }
@@ -167,6 +187,7 @@ pub(crate) struct CallContext<'r, 'm, 'b, 'scope, 'code> {
     accounting: Option<&'scope crate::execution::InvocationAccounting>,
     parent_live: crate::execution::LiveUsage,
     task: Option<crate::task::CurrentTask<'r>>,
+    instance: Option<&'r mut dyn instance::CallbackInstance>,
 }
 impl<'r, 'm, 'b, 'scope, 'code> CallContext<'r, 'm, 'b, 'scope, 'code> {
     pub fn new(
@@ -191,6 +212,7 @@ impl<'r, 'm, 'b, 'scope, 'code> CallContext<'r, 'm, 'b, 'scope, 'code> {
             accounting: None,
             parent_live: Default::default(),
             task: None,
+            instance: None,
         }
     }
     pub fn with_index_limit(mut self, limit: u32) -> Self {
@@ -204,9 +226,24 @@ impl<'r, 'm, 'b, 'scope, 'code> CallContext<'r, 'm, 'b, 'scope, 'code> {
         self.accounting = Some(accounting);
         self
     }
+    pub fn with_instance(
+        mut self,
+        instance: &'r mut dyn instance::CallbackInstance,
+        permitted: bool,
+    ) -> Self {
+        if permitted {
+            self.instance = Some(instance);
+        }
+        self
+    }
     pub fn with_task(mut self, task: crate::task::CurrentTask<'r>) -> Self {
         self.task = Some(task);
         self
+    }
+    pub fn instance_poisoned(&self) -> bool {
+        self.instance
+            .as_deref()
+            .is_some_and(instance::CallbackInstance::poisoned)
     }
     pub fn task_closing(&self) -> Result<bool, crate::task::Error> {
         self.task
@@ -276,6 +313,25 @@ impl<'r, 'm, 'b, 'scope, 'code> CallContext<'r, 'm, 'b, 'scope, 'code> {
     }
 }
 impl NativeContext for CallContext<'_, '_, '_, '_, '_> {
+    fn with_callback(&mut self, operation: &mut dyn CallbackOperation) -> Result<(), u32> {
+        let task = self.task.as_mut().ok_or(4u32)?;
+        let accounting = self.accounting.ok_or(4u32)?;
+        if accounting.current_task().as_ref() != Some(task.id()) {
+            return Err(4);
+        }
+        let instance = self.instance.as_deref_mut().ok_or(4u32)?;
+        instance.with_callback(self.holder, &mut |child| {
+            operation.run(
+                child,
+                self.resources,
+                self.memory,
+                self.budget,
+                self.holder,
+                accounting,
+                task,
+            )
+        })
+    }
     fn with_task_storage(&mut self, operation: &mut dyn TaskStorageOperation) -> Result<(), u32> {
         let task = self.task.as_mut().ok_or(4u32)?;
         let accounting = self.accounting.ok_or(4u32)?;
