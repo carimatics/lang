@@ -339,17 +339,6 @@ impl<'a> Signature<'a> {
             })
         })
     }
-    pub(crate) fn supports_callback_result(&self, session: &mut Session) -> Result<bool, Error> {
-        session.metadata(|session, limits| {
-            super::contract::proof_limits(self.metadata_usage, limits, session)?;
-            let result = projection_roots(
-                self.document,
-                std::iter::once(self.function.result),
-                session,
-            )?;
-            Ok(result.resources.is_empty())
-        })
-    }
     pub const fn digest(&self) -> [u8; 32] {
         self.digest
     }

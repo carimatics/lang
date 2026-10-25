@@ -239,6 +239,9 @@ struct Child {
     callback_argument: i64,
     resource_callback: bool,
     owning_callback: bool,
+    returning_callback: bool,
+    returned_index: Cell<u32>,
+    returned_reads: Cell<usize>,
     callback_member: &'static str,
     callback_index: u32,
     previous_arguments: RefCell<Option<Vec<EntryArgument>>>,
@@ -288,6 +291,9 @@ impl Child {
             callback_argument: 41,
             resource_callback: false,
             owning_callback: false,
+            returning_callback: false,
+            returned_index: Cell::new(1),
+            returned_reads: Cell::new(0),
             callback_member: "nested-loan",
             callback_index: 1,
             previous_arguments: RefCell::new(None),
@@ -487,14 +493,14 @@ impl execution::TaskStorageOperation for ObserveTask<'_> {
 }
 struct DeniedCallback(bool);
 impl execution::CallbackOperation for DeniedCallback {
-    fn run(
+    fn run<'code>(
         &mut self,
         _: &mut execution::Instance<'_, '_>,
-        _: &mut storage::Resources<'_>,
+        _: &mut storage::Resources<'code>,
         _: &mut dyn storage::Memory,
         _: &mut m::Budget,
         _: &mut wire::Session,
-        _: &execution::CallbackArguments<'_, '_>,
+        _: &execution::CallbackArguments<'_, 'code>,
         _: storage::Holder,
         _: &e::InvocationAccounting,
         _: &mut lang_runtime::task::CurrentTask<'_>,
@@ -565,14 +571,14 @@ struct ProbeActivation<'a> {
     invoker: &'a mut dyn execution::Invoker,
 }
 impl execution::CallbackOperation for ProbeActivation<'_> {
-    fn run(
+    fn run<'code>(
         &mut self,
         instance: &mut execution::Instance<'_, '_>,
-        resources: &mut storage::Resources<'_>,
+        resources: &mut storage::Resources<'code>,
         memory: &mut dyn storage::Memory,
         budget: &mut m::Budget,
         session: &mut wire::Session,
-        callback_arguments: &execution::CallbackArguments<'_, '_>,
+        callback_arguments: &execution::CallbackArguments<'_, 'code>,
         _: storage::Holder,
         _: &e::InvocationAccounting,
         _: &mut lang_runtime::task::CurrentTask<'_>,
@@ -610,14 +616,14 @@ struct OriginalInstanceOperation<'a, 'ctrl> {
     value: Option<i64>,
 }
 impl execution::CallbackOperation for OriginalInstanceOperation<'_, '_> {
-    fn run(
+    fn run<'code>(
         &mut self,
         instance: &mut execution::Instance<'_, '_>,
-        resources: &mut storage::Resources<'_>,
+        resources: &mut storage::Resources<'code>,
         memory: &mut dyn storage::Memory,
         budget: &mut m::Budget,
         session: &mut wire::Session,
-        callback_arguments: &execution::CallbackArguments<'_, '_>,
+        callback_arguments: &execution::CallbackArguments<'_, 'code>,
         _holder: storage::Holder,
         accounting: &e::InvocationAccounting,
         current: &mut lang_runtime::task::CurrentTask<'_>,
@@ -693,7 +699,14 @@ impl execution::CallbackOperation for OriginalInstanceOperation<'_, '_> {
             let mut values = wire::Values {
                 roots: vec![wire::ValueId(0)],
                 nodes: vec![wire::Value::Resource(
-                    lang_runtime::component::adapter::BoundaryResourceIndex::new(1).unwrap(),
+                    lang_runtime::component::adapter::BoundaryResourceIndex::new(
+                        if self.target.returning_callback {
+                            self.target.returned_index.get()
+                        } else {
+                            1
+                        },
+                    )
+                    .unwrap(),
                 )],
             };
             if self.target.callback_member == "nested-return" {
@@ -770,10 +783,33 @@ impl execution::CallbackOperation for OriginalInstanceOperation<'_, '_> {
         let execution::Value::Frame(frame) = outcome.value else {
             return Err(17);
         };
-        let [wire::Value::I64(value)] = frame.values().nodes.as_slice() else {
-            return Err(17);
+        let value = match frame.values().nodes.as_slice() {
+            [wire::Value::I64(value)] => *value,
+            [wire::Value::Resource(index)] if self.target.returning_callback => {
+                assert_eq!(frame.resources().len(), 1);
+                assert_eq!(&frame.bytes()[45..49], &index.get().to_le_bytes());
+                i64::from(index.get())
+            }
+            _ if self.target.returning_callback => {
+                assert_eq!(frame.resources().len(), 1);
+                assert!(frame.bytes().len() > 49);
+                let index = frame
+                    .values()
+                    .nodes
+                    .iter()
+                    .find_map(|node| {
+                        if let wire::Value::Resource(index) = node {
+                            Some(*index)
+                        } else {
+                            None
+                        }
+                    })
+                    .ok_or(17u32)?;
+                i64::from(index.get())
+            }
+            _ => return Err(17),
         };
-        self.value = Some(*value);
+        self.value = Some(value);
         self.target.after.set(Some(outcome.usage));
         drop(invocation);
         self.target.wire_scope_after.set(Some(session.usage()));
@@ -1049,14 +1085,52 @@ unsafe extern "C" fn bounce_resource(
         child.parent.set(Some(unsafe { *context }));
         let mut value = 0;
         for _ in 0..child.repetitions {
+            let previous_index = if child.returning_callback {
+                child.returned_index.get()
+            } else {
+                1
+            };
             let called = unsafe { child.run(context) };
             let mut original = native::Bytes {
                 data: ptr::null(),
                 length: 0,
             };
             let status = unsafe {
-                lang_codegen_clif::component::context_resource_read(context, 1, &mut original)
+                lang_codegen_clif::component::context_resource_read(
+                    context,
+                    previous_index,
+                    &mut original,
+                )
             };
+            if child.returning_callback {
+                if called.is_ok() || owner.destroyed.get() != 0 {
+                    assert_eq!(status, 7, "old returned-owner index remains live");
+                    child.consumed_indices.set(child.consumed_indices.get() + 1);
+                } else {
+                    assert_eq!(status, 0, "precommit refusal lost native custody");
+                }
+                let next = u32::try_from(called?).map_err(|_| 17u32)?;
+                assert!(next > previous_index);
+                let status = unsafe {
+                    lang_codegen_clif::component::context_resource_read(
+                        context,
+                        next,
+                        &mut original,
+                    )
+                };
+                assert_eq!(status, 0);
+                assert_eq!(original.length, 8);
+                assert_eq!(original.data as usize, owner.backing.get());
+                assert_eq!(
+                    unsafe { std::slice::from_raw_parts(original.data, 8) },
+                    &owner.expected_value.get().to_le_bytes()
+                );
+                assert_eq!(owner.destroyed.get(), 0);
+                child.returned_index.set(next);
+                child.returned_reads.set(child.returned_reads.get() + 1);
+                value = i64::from(next);
+                continue;
+            }
             if child.owning_callback && owner.destroyed.get() != 0 {
                 assert_eq!(status, 7, "consumed native index remains usable");
                 assert!(original.data.is_null() && original.length == 0);
@@ -1078,19 +1152,24 @@ unsafe extern "C" fn bounce_resource(
             value = called?;
         }
         let parameters = unsafe { std::slice::from_raw_parts(input.data, 49) };
-        let (handle, bytes) = unsafe { buffer(context, 53, 1) }?;
-        let frame = unsafe { std::slice::from_raw_parts_mut(bytes.data, 53) };
+        let length = if child.returning_callback { 49 } else { 53 };
+        let (handle, bytes) = unsafe { buffer(context, length, 1) }?;
+        let frame = unsafe { std::slice::from_raw_parts_mut(bytes.data, length as usize) };
         frame[..45].copy_from_slice(&parameters[..45]);
         frame[8] = 1;
-        frame[41..45].copy_from_slice(&8_u32.to_le_bytes());
-        frame[45..].copy_from_slice(&value.to_le_bytes());
+        frame[41..45].copy_from_slice(&((length - 45) as u32).to_le_bytes());
+        if child.returning_callback {
+            frame[45..].copy_from_slice(&u32::try_from(value).map_err(|_| 17u32)?.to_le_bytes());
+        } else {
+            frame[45..].copy_from_slice(&value.to_le_bytes());
+        }
         unsafe { output.write(handle) };
         Ok(())
     })();
     result.map_or_else(|_| 1, |()| 0)
 }
 
-fn host_document_for(resource: bool, owning: bool) -> serde_json::Value {
+fn host_document_for(resource: bool, owning: bool, returning: bool) -> serde_json::Value {
     let mut doc: serde_json::Value =
         serde_json::from_slice(include_bytes!("fixtures/component_counter.idl.json")).unwrap();
     doc["interfaces"][0]["functions"].as_array_mut().unwrap().push(json!({
@@ -1102,7 +1181,7 @@ fn host_document_for(resource: bool, owning: bool) -> serde_json::Value {
     if resource {
         doc["interfaces"][0]["functions"].as_array_mut().unwrap().push(json!({
             "name":"bounce","effect":"sync","params":[{"name":"state","type":if owning {json!({"own":"counter"})} else {json!({"borrow-mut":"counter"})}}],
-            "result":"i64","capability":"demo.counter.bounce"
+            "result":if returning {json!({"own":"counter"})} else {json!("i64")},"capability":"demo.counter.bounce"
         }));
     }
     doc
@@ -1116,7 +1195,11 @@ fn provider(owner: Rc<Owner>) -> native::Provider<'static> {
         .child
         .as_ref()
         .is_some_and(|child| child.owning_callback);
-    let bytes = serde_json::to_vec(&host_document_for(resource, owning)).unwrap();
+    let returning = owner
+        .child
+        .as_ref()
+        .is_some_and(|child| child.returning_callback);
+    let bytes = serde_json::to_vec(&host_document_for(resource, owning, returning)).unwrap();
     let doc = idl::check(m::SourceId(71), &bytes, Default::default()).unwrap();
     let mut session = wire::Session::new(Default::default());
     let contract = wire::Contract::new(doc, vec![], &mut session).unwrap();
@@ -1206,7 +1289,17 @@ fn stored_unit_boundary_ownership(
     resource: bool,
     owning: bool,
 ) -> bindings::Unit {
-    let host = host_document_for(resource, owning);
+    stored_unit_callback_results(source, task, callback, resource, owning, false)
+}
+fn stored_unit_callback_results(
+    source: &[u8],
+    task: bool,
+    callback: bool,
+    resource: bool,
+    owning: bool,
+    returning: bool,
+) -> bindings::Unit {
+    let host = host_document_for(resource, owning, returning);
     let members = if resource {
         vec!["apply", "make", "tick", "bounce"]
     } else {
@@ -1249,7 +1342,7 @@ fn stored_unit_boundary_ownership(
             json!({"name":"nested-loan","effect":"sync","params":[{"name":"state","type":{"borrow-mut":"demo:counter/api.counter"}}],"result":"i64","capability":"demo.scope.nested-loan"})
         ]);
         document["interfaces"][1]["functions"].as_array_mut().unwrap().extend([
-            json!({"name":"nested-own","effect":"sync","params":[{"name":"value","type":{"own":"demo:counter/api.counter"}}],"result":"i64","capability":"demo.scope.nested-own"}),
+            json!({"name":"nested-own","effect":"sync","params":[{"name":"value","type":{"own":"demo:counter/api.counter"}}],"result":if returning {json!({"own":"demo:counter/api.counter"})} else {json!("i64")},"capability":"demo.scope.nested-own"}),
             json!({"name":"nested-pair","effect":"sync","params":[{"name":"first","type":{"borrow-mut":"demo:counter/api.counter"}},{"name":"second","type":{"borrow-mut":"demo:counter/api.counter"}}],"result":"i64","capability":"demo.scope.nested-pair"}),
             json!({"name":"nested-alias-shared","effect":"sync","params":[{"name":"first","type":{"borrow":"demo:counter/api.counter"}},{"name":"second","type":{"borrow":"demo:counter/api.counter"}}],"result":"i64","capability":"demo.scope.nested-alias-shared"})
         ]);
@@ -1262,6 +1355,15 @@ fn stored_unit_boundary_ownership(
             "nested-pair",
             "nested-alias-shared",
         ]);
+    }
+    if returning {
+        document["interfaces"][1]["types"].as_array_mut().unwrap().push(json!({
+            "name":"envelope","record":[{"name":"state","type":{"own":"demo:counter/api.counter"}},{"name":"data","type":"bytes"}]
+        }));
+        document["interfaces"][1]["functions"].as_array_mut().unwrap().push(json!({
+            "name":"nested-record","effect":"sync","params":[{"name":"value","type":{"own":"demo:counter/api.counter"}}],"result":"envelope","capability":"demo.scope.nested-record"
+        }));
+        names.push("nested-record");
     }
     let bytes = serde_json::to_vec(&document).unwrap();
     let host = InterfaceKey::new(PackageKey::new("demo", "counter"), "api");
@@ -1571,6 +1673,7 @@ struct Harness {
     task_limits: lang_runtime::task::Limits,
     wire_address: Rc<Cell<usize>>,
     wire_work: usize,
+    resource_indices: Option<u32>,
     wire_usage: Cell<Option<wire::Usage>>,
     allocator: a::Allocator<TestProvider>,
     provider_calls: Rc<Cell<usize>>,
@@ -1603,6 +1706,7 @@ impl Harness {
             task_limits: Default::default(),
             wire_address: Rc::new(Cell::new(0)),
             wire_work: usize::MAX,
+            resource_indices: None,
             wire_usage: Cell::new(None),
             allocator,
             provider_calls,
@@ -1716,6 +1820,7 @@ impl Harness {
             task_limits,
             wire_address,
             wire_work,
+            resource_indices,
             wire_usage,
             allocator,
             values,
@@ -1755,6 +1860,11 @@ impl Harness {
                             &mut budget,
                         )
                         .unwrap();
+                        if let Some(limit) = *resource_indices {
+                            invocation
+                                .resource_namespace(execution::ResourceNamespace::new(0, limit))
+                                .unwrap();
+                        }
                         invocation.prepare_output(session).unwrap();
                         let arguments: Vec<_> =
                             input.into_iter().map(EntryArgument::Resource).collect();
@@ -1998,7 +2108,16 @@ fn scoped_allocator_views_execute_source_and_native_resource_callbacks_without_n
 
 #[test]
 fn original_resource_callback_uses_the_existing_non_root_task_at_exhausted_task_limits() {
-    for (compiled, owning) in [(false, false), (true, false), (false, true), (true, true)] {
+    for (compiled, kind) in [
+        (false, 0),
+        (true, 0),
+        (false, 1),
+        (true, 1),
+        (false, 2),
+        (true, 2),
+    ] {
+        let owning = kind != 0;
+        let returning = kind == 2;
         let mut h = Harness::new();
         let mut budget = m::Budget::new(Default::default());
         h.values = storage::Resources::prepare(&h.allocator, 4, 1, &mut budget).unwrap();
@@ -2007,7 +2126,9 @@ fn original_resource_callback_uses_the_existing_non_root_task_at_exhausted_task_
             live_tasks: 2,
             total_tasks: 2,
         };
-        let mut source = if owning {
+        let mut source = if returning {
+            include_bytes!("fixtures/component_scoped_roots_own_return.lang").to_vec()
+        } else if owning {
             include_bytes!("fixtures/component_scoped_roots_own_callback.lang").to_vec()
         } else {
             include_bytes!("fixtures/component_scoped_roots_resource_callback.lang").to_vec()
@@ -2024,16 +2145,23 @@ pub async fn start() -> i64 {
 }
 "#,
         );
-        h.unit = stored_unit_boundary_ownership(&source, true, false, true, owning);
+        if returning {
+            source = String::from_utf8(source).unwrap().replace(
+                "return host_bounce(original);",
+                "let mut returned: core::ComponentResource<CounterKind> = host_bounce(original); return consume(returned);",
+            ).into_bytes();
+        }
+        h.unit = stored_unit_callback_results(&source, true, false, true, owning, returning);
         let mut child = Child::new(
             &mut h.values,
             compiled,
-            if owning { 1 } else { 2 },
+            if owning && !returning { 1 } else { 2 },
             usize::MAX,
         );
         child.original_instance = true;
         child.resource_callback = true;
         child.owning_callback = owning;
+        child.returning_callback = returning;
         child.callback_member = if owning { "nested-own" } else { "nested-loan" };
         child.expected_wire = Some(h.wire_address.clone());
         let child = Rc::new(child);
@@ -2063,8 +2191,15 @@ pub async fn start() -> i64 {
             })
         );
         assert_eq!(child.resumed_access.get(), if owning { 0 } else { 2 });
-        assert_eq!(child.replay_refusals.get(), if owning { 0 } else { 1 });
-        assert_eq!(child.consumed_indices.get(), usize::from(owning));
+        assert_eq!(
+            child.replay_refusals.get(),
+            if owning && !returning { 0 } else { 1 }
+        );
+        assert_eq!(
+            child.consumed_indices.get(),
+            if returning { 2 } else { usize::from(owning) }
+        );
+        assert_eq!(child.returned_reads.get(), if returning { 2 } else { 0 });
         assert_eq!(watch.produced.get(), 1);
         assert_eq!(watch.destroyed.get(), 1);
         assert_eq!(watch.released.get(), 1);
@@ -2185,7 +2320,6 @@ fn owning_callbacks_commit_native_custody_once_and_expire_consumed_indices() {
             ("nested-own", 1, 1, true, 1),
             ("nested-own", 1, 2, false, 2),
             ("nested-own", 99, 1, false, 0),
-            ("nested-return", 1, 1, false, 0),
             ("nested-pair", 1, 1, false, 0),
         ] {
             let mut h = Harness::new();
@@ -2240,6 +2374,177 @@ fn owning_callbacks_commit_native_custody_once_and_expire_consumed_indices() {
                 {
                     assert_eq!(h.engine.check(&context), 5);
                 }
+            }
+        }
+    }
+}
+
+fn run_owning_result(
+    compiled: bool,
+    repetitions: usize,
+    fuel: Option<u64>,
+    refused: Option<usize>,
+    indices: Option<u32>,
+    fail_destroy: bool,
+) -> (bool, e::Usage, usize) {
+    let mut h = Harness::new();
+    h.unit = stored_unit_callback_results(
+        include_bytes!("fixtures/component_scoped_roots_own_return.lang"),
+        false,
+        false,
+        true,
+        true,
+        true,
+    );
+    h.resource_indices = indices;
+    let mut child = Child::new(&mut h.values, compiled, repetitions, usize::MAX);
+    child.original_instance = true;
+    child.resource_callback = true;
+    child.owning_callback = true;
+    child.returning_callback = true;
+    child.callback_member = if repetitions == 2 {
+        "nested-record"
+    } else {
+        "nested-own"
+    };
+    child.expected_wire = Some(h.wire_address.clone());
+    let child = Rc::new(child);
+    let (registration, watch) = h.registration_child(fail_destroy, Some(child.clone()));
+    let claim = h.publish(&registration, &watch);
+    let start = h.provider_calls.get();
+    h.provider_failure.set(refused.map(|index| start + index));
+    let result = h.call_control(
+        registration,
+        "run",
+        Some(claim),
+        compiled,
+        e::Control::with_limits(e::Limits {
+            fuel,
+            ..Default::default()
+        }),
+    );
+    let calls = h.provider_calls.get() - start;
+    let (success, usage) = match result {
+        Ok(outcome) => {
+            assert!(matches!(
+                outcome.value,
+                execution::Value::Copy(lang_runtime::layout::Immediate::I64(42))
+            ));
+            assert!(!outcome.poisoned);
+            assert_eq!(child.returned_reads.get(), repetitions);
+            assert_eq!(child.returned_index.get() as usize, repetitions + 1);
+            assert_eq!(child.consumed_indices.get(), repetitions);
+            (true, outcome.usage)
+        }
+        Err(failure) => {
+            assert_eq!(
+                failure.poisoned,
+                fail_destroy,
+                "{failure:?}; {:?}",
+                child.failure.borrow()
+            );
+            if fail_destroy {
+                assert!(failure.span.is_some());
+            }
+            (false, failure.usage)
+        }
+    };
+    if let Some(index) = refused {
+        assert!(calls > index);
+    }
+    h.provider_failure.set(None);
+    let key = ResourceTypeKey::new(
+        InterfaceKey::new(PackageKey::new("demo", "counter"), "api"),
+        "counter",
+    );
+    if h.values
+        .validate(claim, h.state.holder(), &key, &h.allocator)
+        .is_ok()
+    {
+        let (registration, _) = h.registration_child(false, Some(child.clone()));
+        h.call(registration, "consume", Some(claim), compiled)
+            .unwrap();
+    }
+    assert_eq!(watch.destroyed.get(), 1);
+    assert_eq!(watch.released.get(), 1);
+    assert_eq!(watch.produced.get(), 0);
+    assert_eq!(h.state.poisoned(), fail_destroy);
+    assert!(h.values.is_empty());
+    assert_eq!(h.allocator.stats().live_allocations, 0);
+    for context in [child.parent.get(), child.nested.get()]
+        .into_iter()
+        .flatten()
+    {
+        assert_eq!(h.engine.check(&context), 5);
+    }
+    if !h.state.poisoned() {
+        h.resource_indices = None;
+        let mut next = Child::new(&mut h.values, compiled, 1, usize::MAX);
+        next.original_instance = true;
+        next.resource_callback = true;
+        next.owning_callback = true;
+        next.returning_callback = true;
+        next.callback_member = "nested-own";
+        let (registration, next_watch) = h.registration_child(false, Some(Rc::new(next)));
+        let claim = h.publish(&registration, &next_watch);
+        h.call(registration, "run", Some(claim), compiled).unwrap();
+        assert_eq!(next_watch.destroyed.get(), 1);
+        assert_eq!(next_watch.released.get(), 1);
+        assert!(h.values.is_empty());
+        assert_eq!(h.allocator.stats().live_allocations, 0);
+    } else {
+        let (registration, next) = h.registration_child(false, Some(child));
+        prepared(registration, |program, _| {
+            let called = Cell::new(false);
+            assert!(matches!(
+                h.state.with_program(program, |_| called.set(true)),
+                Err(r::Reason::Instance(execution::InstanceError::Poisoned))
+            ));
+            assert!(!called.get());
+        });
+        assert_eq!(next.destroyed.get(), 0);
+        assert_eq!(next.released.get(), 1);
+    }
+    (success, usage, calls)
+}
+
+#[test]
+fn owning_results_publish_fresh_original_context_indices_and_refuse_exhaustion() {
+    for compiled in [false, true] {
+        for (repetitions, indices, succeeds) in [
+            (1, None, true),
+            (2, None, true),
+            (2, Some(3), true),
+            (1, Some(1), false),
+            (2, Some(2), false),
+            (5, None, false),
+        ] {
+            assert_eq!(
+                run_owning_result(compiled, repetitions, None, None, indices, false).0,
+                succeeds
+            );
+        }
+        for repetitions in [1, 2] {
+            assert!(!run_owning_result(compiled, repetitions, None, None, None, true).0);
+        }
+    }
+}
+
+#[test]
+fn owning_result_escrow_retires_every_fuel_and_provider_refusal_prefix() {
+    for compiled in [false, true] {
+        for repetitions in [1, 2] {
+            let (success, full, calls) =
+                run_owning_result(compiled, repetitions, None, None, None, false);
+            assert!(success);
+            for fuel in 0..full.fuel {
+                assert!(
+                    !run_owning_result(compiled, repetitions, Some(fuel), None, None, false).0,
+                    "fuel {fuel}"
+                );
+            }
+            for index in 0..calls {
+                run_owning_result(compiled, repetitions, None, Some(index), None, false);
             }
         }
     }
@@ -2405,7 +2710,6 @@ fn forwarded_callback_loans_refuse_indices_ownership_and_exclusive_aliases_befor
             ("nested-loan", 99, "Entry"),
             ("nested-own", 1, "State"),
             ("nested-pair", 1, "AliasedOwner"),
-            ("nested-return", 1, "Unsupported"),
         ] {
             let mut h = Harness::new();
             h.unit = stored_unit_boundary(

@@ -10,6 +10,8 @@
 
 **次: M3-E02 → owning結果の新index公開/escrowを接続し、binding権限・公開C11へ。**
 
+E02の選択result scope（2026-10-25 JST）: scopedな元context借用を拡張し、既存result transfer commit前に新result indexとcustody/view metadataを予約、commit後にallocationやquota admissionなしで公開します。元backingを返すowning source callbackをVM/JITで実行し、反復時の新index、公開拒否/fuel/provider各位置、一度だけのcleanup/poisonを検証します。binding対象/公開C11と全後続gateを維持し、E02の3 ptを保持して行/見積りを追加しません。
+
 E02の選択scope（2026-10-25 JST）: native所有引数のcustody receiptを既存child引数commitへ接続し、実owning guest→native→guest→native消費をVM/JITで実行します。receipt検査workを副作用前に予約し、準備中断ではnative custodyを保持、child commitではreceiptを一度だけ退役します。消費済みindex拒否・入れ子での元backing access・失敗/fuel/provider各位置と後続fresh rootを検証します。resource結果/新index escrow・binding対象権限・公開C11は、見積り3 ptを維持したE02の次の必須条件です。行/見積りを追加しません。
 
 E02の元Session・borrowed-resource view・native所有引数custodyを実行できました。次はowning結果の新index/escrowを接続し、binding対象権限と公開context_call/C11へ進みます。引数commitは該当native custody receiptだけを退役し、これらのcheckpointをE02やE03/E04/L04の完了とはしません。

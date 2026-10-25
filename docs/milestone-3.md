@@ -10,6 +10,8 @@ Updated: **2026-10-25 JST**. Entry checkpoint: `984557d`; M2 and the repository 
 
 **Next: M3-E02 → publish fresh owning-result indices/escrow, then binding authority and public C11.**
 
+E02 selected result scope (2026-10-25 JST): extend the scoped original context borrow to reserve fresh result indices and custody/view metadata before the existing result transfer commits, then publish only after commit without allocation or quota admission. Execute owning source callbacks returning the original backing on VM/JIT, repeated fresh indices, refused publication/fuel/provider prefixes and exactly-once cleanup/poison. Preserve binding-target/public C11 and every later gate; retain the current E02 3 pt with no new row/estimate.
+
 E02 selected scope (2026-10-25 JST): connect native owning-input custody receipts to the existing child argument commit and execute actual owning guest→native→guest→native consumption on VM/JIT. Reserve receipt-validation work before effects; an aborted preparation preserves native custody and a committed child retires that receipt exactly once. Verify consumed-index rejection, nested original backing access, failure/fuel/provider prefixes and a clean subsequent root. Resource results/fresh-index escrow, binding-target authority and public C11 remain required next steps within E02's unchanged 3 pt; no row or estimate is added.
 
 E02's original Session, borrowed-resource views and native owning-input custody are executable. Continue with fresh owning-result indices/escrow, then binding-target authority and public context_call/C11. Committed inputs retire exactly their native custody receipts; these checkpoints do not complete E02 or E03/E04/L04.

@@ -210,7 +210,7 @@ pub trait Host {
     fn prepare_result(
         &mut self,
         value: Value,
-        memory: &dyn Memory,
+        memory: &mut dyn Memory,
         budget: &mut m::Budget,
     ) -> Result<Value, Reason>;
     fn commit_result(&mut self, memory: &mut dyn Memory) -> Result<(), Reason>;
@@ -237,7 +237,8 @@ pub struct Invocation<'state, 'p, 'u, 'resources, 'code, 'native> {
     input_frame: Option<InputFrame>,
     next_frame: Option<u64>,
     output_session: Option<wire::WorkScope<'native>>,
-    callback_custody: Option<&'native dyn call::CallbackCustody>,
+    callback_custody: Option<&'native dyn call::CallbackCustody<'code>>,
+    callback_output: Vec<call::NativeView<'code>>,
     resource_namespace: Option<ResourceNamespace>,
     output_claims: Vec<(Claim, Option<m::Span>)>,
     holding_output: bool,
@@ -337,6 +338,7 @@ impl<'state, 'p, 'u, 'resources, 'code, 'native>
             next_frame: Some(1),
             output_session: None,
             callback_custody: None,
+            callback_output: Vec::new(),
             resource_namespace: None,
             output_claims,
             holding_output: false,
@@ -411,13 +413,12 @@ impl<'state, 'p, 'u, 'resources, 'code, 'native>
         }
         self.prepare_output_inner(session)
     }
-    /// Checked callback arguments retain the original native custody receipts.
-    /// Resource results remain refused until fresh-index publication is ready.
+    /// Checked callbacks retain the original native custody/index namespace.
     pub fn prepare_callback_output(
         &mut self,
         session: &'native mut wire::Session,
         budget: &mut m::Budget,
-        arguments: &'native CallbackArguments<'_, '_>,
+        arguments: &'native CallbackArguments<'_, 'code>,
     ) -> Result<(), Reason> {
         self.check_work()?;
         if !self.instance.callback || call::CallbackCustody::holder(arguments) != self.caller {
@@ -428,13 +429,7 @@ impl<'state, 'p, 'u, 'resources, 'code, 'native>
             scope
                 .value_work(arguments.receipt_work(self.resources.input_capacity()), 0)
                 .map_err(Reason::from)?;
-            let signature = self.frame_signature(&mut scope)?;
-            if !signature
-                .supports_callback_result(&mut scope)
-                .map_err(Reason::from)?
-            {
-                return Err(Reason::Unsupported);
-            }
+            self.frame_signature(&mut scope)?;
         }
         self.prepare_output_inner(session)?;
         self.callback_custody = Some(arguments);
@@ -457,6 +452,7 @@ impl<'state, 'p, 'u, 'resources, 'code, 'native>
         self.work.used()
     }
     fn abort_transfer(&mut self) {
+        self.callback_output.clear();
         self.holding_output = false;
         if let Some(ticket) = self.transfer.take()
             && self.resources.abort_transfer(ticket).is_err()
@@ -1000,6 +996,8 @@ impl<'state, 'p, 'u, 'resources, 'code, 'native> Host
                 let kind = target.provider().resource_kind_bytes(key, budget)?;
                 normalize(kind).map_err(|_| 7u32)
             };
+            let implementation =
+                |kind: &ResourceKind<'_>| kind.provider().same_registration(target.provider());
             let mut context = call::CallContext::new(
                 self.resources,
                 memory,
@@ -1009,6 +1007,7 @@ impl<'state, 'p, 'u, 'resources, 'code, 'native> Host
                 native,
                 &kind,
             )
+            .with_implementation(&implementation)
             .with_index_limit(
                 self.resource_namespace
                     .map_or(u32::MAX, |namespace| namespace.maximum),
@@ -1489,7 +1488,7 @@ impl<'state, 'p, 'u, 'resources, 'code, 'native> Host
     fn prepare_result(
         &mut self,
         mut value: Value,
-        memory: &dyn Memory,
+        memory: &mut dyn Memory,
         budget: &mut m::Budget,
     ) -> Result<Value, Reason> {
         if self.transfer.is_some() || !self.committed {
@@ -1535,8 +1534,12 @@ impl<'state, 'p, 'u, 'resources, 'code, 'native> Host
                     let mut preparation =
                         session.scope_preparation(budget).map_err(Reason::from)?;
                     let session = &mut *preparation;
-                    let resource_base = self
-                        .resource_namespace
+                    let namespace = self
+                        .callback_custody
+                        .map(|custody| custody.result_namespace(frame.resources.len()))
+                        .transpose()?
+                        .or(self.resource_namespace);
+                    let resource_base = namespace
                         .map(|n| n.result(frame.resources.len()))
                         .transpose()?
                         .unwrap_or(0);
@@ -1596,10 +1599,38 @@ impl<'state, 'p, 'u, 'resources, 'code, 'native> Host
                     let caller = session
                         .vector(frame.resources.len(), 0)
                         .map_err(Reason::from)?;
-                    Ok((bytes, caller))
+                    let mut returned = if self.callback_custody.is_some() {
+                        session
+                            .value_work(frame.resources.len().saturating_mul(2), 0)
+                            .map_err(Reason::from)?;
+                        session
+                            .vector(frame.resources.len(), 0)
+                            .map_err(Reason::from)?
+                    } else {
+                        Vec::new()
+                    };
+                    if self.callback_custody.is_some() {
+                        for claim in &frame.resources {
+                            let kind = self
+                                .resources
+                                .retirement_kind(*claim, self.guest, memory)
+                                .map_err(fault)?;
+                            let bytes = self
+                                .resources
+                                .owned_view(*claim, self.guest, kind.clone(), memory)
+                                .map_err(fault)?;
+                            returned.push(call::NativeView {
+                                authority: call::NativeAuthority::Own(*claim, self.caller),
+                                kind,
+                                access: super::idl::Access::Exclusive,
+                                bytes,
+                            });
+                        }
+                    }
+                    Ok((bytes, caller, returned))
                 })();
                 self.output_session = Some(session_scope);
-                let (bytes, mut caller) = staged?;
+                let (bytes, mut caller, mut returned) = staged?;
                 let transfer = self
                     .resources
                     .prepare_transfer(&frame.resources, self.guest, self.caller, memory)
@@ -1608,12 +1639,16 @@ impl<'state, 'p, 'u, 'resources, 'code, 'native> Host
                 self.output_claims.clear();
                 for (index, claim) in frame.resources.iter().enumerate() {
                     self.output_claims.push((*claim, None));
-                    caller.push(
-                        self.resources
-                            .prepared_claim(transfer, index)
-                            .map_err(fault)?,
-                    );
+                    let next = self
+                        .resources
+                        .prepared_claim(transfer, index)
+                        .map_err(fault)?;
+                    caller.push(next);
+                    if let Some(view) = returned.get_mut(index) {
+                        view.authority = call::NativeAuthority::Own(next, self.caller);
+                    }
                 }
+                self.callback_output = returned;
                 self.holding_output = true;
                 frame.resources = caller;
                 frame.bytes = bytes;
@@ -1667,6 +1702,9 @@ impl<'state, 'p, 'u, 'resources, 'code, 'native> Host
                 .commit_transfer(transfer, memory)
                 .map_err(fault)?;
             self.transfer = None;
+        }
+        if let Some(custody) = self.callback_custody {
+            custody.publish(std::mem::take(&mut self.callback_output));
         }
         self.output_claims.clear();
         self.holding_output = false;

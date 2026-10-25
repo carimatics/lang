@@ -2,7 +2,7 @@
 //! handle headers are bounded caller metadata and remain until callback close.
 use super::*;
 use crate::allocation as a;
-use std::cell::Cell;
+use std::cell::{Cell, RefCell};
 use std::ptr;
 
 #[derive(Clone, Copy)]
@@ -97,9 +97,10 @@ pub trait TaskStorageOperation {
 /// A scoped borrow of the current native call's actual index-to-view mapping.
 /// Wire indices alone never construct this resource authority.
 pub struct CallbackArguments<'a, 'code> {
-    views: &'a [NativeView<'code>],
-    owners: &'a [NativeOwner],
+    views: RefCell<&'a mut Vec<NativeView<'code>>>,
+    owners: RefCell<&'a mut Vec<NativeOwner>>,
     holder: Holder,
+    index_limit: u32,
 }
 /// A custody receipt is retired only after the original table commits its move.
 /// It carries no resource authority and never outlives the native call.
@@ -117,12 +118,14 @@ impl NativeOwner {
         }
     }
 }
-pub(crate) trait CallbackCustody {
+pub(crate) trait CallbackCustody<'code> {
     fn holder(&self) -> Holder;
     fn check(&self, inputs: &[storage::Input]) -> Result<(), Reason>;
     fn committed(&self, inputs: &[storage::Input]);
+    fn result_namespace(&self, count: usize) -> Result<ResourceNamespace, Reason>;
+    fn publish(&self, views: Vec<NativeView<'code>>);
 }
-impl CallbackCustody for CallbackArguments<'_, '_> {
+impl<'code> CallbackCustody<'code> for CallbackArguments<'_, 'code> {
     fn holder(&self) -> Holder {
         self.holder
     }
@@ -133,6 +136,7 @@ impl CallbackCustody for CallbackArguments<'_, '_> {
         {
             if !self
                 .owners
+                .borrow()
                 .iter()
                 .any(|owner| owner.claim == input.claim && owner.held.get())
             {
@@ -142,7 +146,7 @@ impl CallbackCustody for CallbackArguments<'_, '_> {
         Ok(())
     }
     fn committed(&self, inputs: &[storage::Input]) {
-        for owner in self.owners {
+        for owner in self.owners.borrow().iter() {
             if inputs.iter().any(|input| {
                 input.claim == owner.claim && matches!(input.access, storage::Access::Own)
             }) {
@@ -150,10 +154,38 @@ impl CallbackCustody for CallbackArguments<'_, '_> {
             }
         }
     }
+    fn result_namespace(&self, count: usize) -> Result<ResourceNamespace, Reason> {
+        let views = self.views.borrow();
+        let owners = self.owners.borrow();
+        let issued = u32::try_from(views.len()).map_err(|_| fault(storage::Error::Exhausted))?;
+        let namespace = ResourceNamespace::new(issued, self.index_limit);
+        namespace.result(count)?;
+        if count > views.capacity() - views.len() || count > owners.capacity() - owners.len() {
+            return Err(fault(storage::Error::Capacity));
+        }
+        Ok(namespace)
+    }
+    fn publish(&self, returned: Vec<NativeView<'code>>) {
+        let mut views = self.views.borrow_mut();
+        let mut owners = self.owners.borrow_mut();
+        // The scoped context is unavailable during guest execution. Both exact
+        // capacities and every issued index were admitted before table commit.
+        debug_assert!(returned.len() <= views.capacity() - views.len());
+        debug_assert!(returned.len() <= owners.capacity() - owners.len());
+        for view in returned {
+            let NativeAuthority::Own(claim, holder) = view.authority else {
+                unreachable!("result admission accepts owners only")
+            };
+            debug_assert_eq!(holder, self.holder);
+            owners.push(NativeOwner::new(claim, views.len()));
+            views.push(view);
+        }
+    }
 }
 impl CallbackArguments<'_, '_> {
     pub(crate) fn receipt_work(&self, inputs: usize) -> usize {
         self.owners
+            .borrow()
             .len()
             .saturating_add(1)
             .saturating_mul(inputs)
@@ -169,8 +201,8 @@ impl CallbackArguments<'_, '_> {
         if caller != self.holder {
             return Err(fault(storage::Error::WrongHolder));
         }
-        let view = self
-            .views
+        let views = self.views.borrow();
+        let view = views
             .get((used.index.get() - 1) as usize)
             .ok_or(Reason::Entry)?;
         if view.kind.key() != used.key {
@@ -225,14 +257,14 @@ pub trait CallbackOperation {
         clippy::too_many_arguments,
         reason = "Keep the original instance, task and storage authority explicit."
     )]
-    fn run(
+    fn run<'code>(
         &mut self,
         instance: &mut Instance<'_, '_>,
-        resources: &mut Resources<'_>,
+        resources: &mut Resources<'code>,
         memory: &mut dyn Memory,
         budget: &mut m::Budget,
         session: &mut wire::Session,
-        arguments: &CallbackArguments<'_, '_>,
+        arguments: &CallbackArguments<'_, 'code>,
         holder: Holder,
         accounting: &crate::execution::InvocationAccounting,
         task: &mut crate::task::CurrentTask<'_>,
@@ -301,6 +333,7 @@ impl BufferSlot {
 }
 type KindResolver<'scope, 'code> =
     dyn Fn(&[u8], &mut m::Budget) -> Result<ResourceKind<'code>, u32> + 'scope;
+type KindAuthority<'scope> = dyn for<'kind> Fn(&ResourceKind<'kind>) -> bool + 'scope;
 
 pub(crate) struct CallContext<'r, 'm, 'b, 'scope, 'code> {
     pub resources: &'r mut Resources<'code>,
@@ -310,6 +343,7 @@ pub(crate) struct CallContext<'r, 'm, 'b, 'scope, 'code> {
     pub owners: &'r mut Vec<NativeOwner>,
     pub holder: Holder,
     kind: &'scope KindResolver<'scope, 'code>,
+    implementation: Option<&'scope KindAuthority<'scope>>,
     buffers: Vec<BufferSlot>,
     index_limit: u32,
     accounting: Option<&'scope crate::execution::InvocationAccounting>,
@@ -336,6 +370,7 @@ impl<'r, 'm, 'b, 'scope, 'code> CallContext<'r, 'm, 'b, 'scope, 'code> {
             owners,
             holder,
             kind,
+            implementation: None,
             buffers: Vec::new(),
             index_limit: u32::MAX,
             accounting: None,
@@ -347,6 +382,10 @@ impl<'r, 'm, 'b, 'scope, 'code> CallContext<'r, 'm, 'b, 'scope, 'code> {
     }
     pub fn with_index_limit(mut self, limit: u32) -> Self {
         self.index_limit = limit;
+        self
+    }
+    pub fn with_implementation(mut self, check: &'scope KindAuthority<'scope>) -> Self {
+        self.implementation = Some(check);
         self
     }
     pub fn with_accounting(
@@ -435,6 +474,9 @@ impl<'r, 'm, 'b, 'scope, 'code> CallContext<'r, 'm, 'b, 'scope, 'code> {
     fn view(&self, index: u32) -> Result<&NativeView<'code>, u32> {
         let index = index.checked_sub(1).ok_or(7u32)? as usize;
         let view = self.views.get(index).ok_or(7u32)?;
+        if !self.implementation.is_some_and(|check| check(&view.kind)) {
+            return Err(7);
+        }
         match view.authority {
             NativeAuthority::Loan(loan) => {
                 self.resources
@@ -459,9 +501,10 @@ impl NativeContext for CallContext<'_, '_, '_, '_, '_> {
         let instance = self.instance.as_deref_mut().ok_or(4u32)?;
         let session = self.session.as_deref_mut().ok_or(4u32)?;
         let arguments = CallbackArguments {
-            views: self.views,
-            owners: self.owners,
+            views: RefCell::new(self.views),
+            owners: RefCell::new(self.owners),
             holder: self.holder,
+            index_limit: self.index_limit,
         };
         instance.with_callback(self.holder, &mut |child| {
             operation.run(
@@ -620,5 +663,178 @@ impl NativeContext for CallContext<'_, '_, '_, '_, '_> {
             return Err(7);
         }
         Ok(view.bytes)
+    }
+}
+
+#[cfg(test)]
+mod callback_authority_tests {
+    use super::*;
+    use crate::component::{
+        adapter::BoundaryResourceIndex,
+        idl, native,
+        negotiation::{InterfaceKey, PackageKey, ResourceTypeKey},
+        serialization::{DigestAlgorithm, VersionedDigest},
+    };
+    use std::ffi::c_void;
+
+    extern "C" fn unused(
+        _: *mut c_void,
+        _: *const native::Context,
+        _: native::Bytes,
+        _: *mut *mut native::Buffer,
+    ) -> u32 {
+        0
+    }
+    extern "C" fn destroy(
+        _: *mut c_void,
+        _: *const native::Context,
+        _: native::MutBytes,
+        _: *mut *mut native::Buffer,
+    ) -> u32 {
+        0
+    }
+
+    #[test]
+    fn foreign_implementation_owners_stay_opaque_but_transfer_through_original_custody() {
+        let document = idl::check(
+            m::SourceId(1),
+            include_bytes!(concat!(
+                env!("CARGO_MANIFEST_DIR"),
+                "/../../tests/fixtures/component_counter.idl.json"
+            )),
+            Default::default(),
+        )
+        .unwrap();
+        let mut session = wire::Session::new(Default::default());
+        let contract = wire::Contract::new(document, vec![], &mut session).unwrap();
+        let digest = VersionedDigest::new(DigestAlgorithm::Sha256, vec![1; 32]).unwrap();
+        let methods = [native::Method {
+            interface: 0,
+            member: 0,
+            invoke: unused,
+            user: ptr::null_mut(),
+            flags: 0,
+        }];
+        let descriptors = [native::ResourceType {
+            interface: 0,
+            resource: 0,
+            destroy,
+            user: ptr::null_mut(),
+        }];
+        let mut register = || {
+            native::Provider::with_resources(
+                wire::Provider {
+                    contract: &contract,
+                    digest: &digest,
+                },
+                &methods,
+                &descriptors,
+                &(),
+                &mut session,
+            )
+            .unwrap()
+        };
+        let first = register();
+        let other = register();
+        assert!(!first.same_registration(&other));
+        let key = ResourceTypeKey::new(
+            InterfaceKey::new(PackageKey::new("demo", "counter"), "api"),
+            "counter",
+        );
+        let local = first.resource_kind(&key, &mut session).unwrap();
+        let foreign = other.resource_kind(&key, &mut session).unwrap();
+        let mut memory = a::Allocator::new(a::System, Default::default()).unwrap();
+        let mut budget = m::Budget::new(Default::default());
+        let mut resources = Resources::prepare(&memory, 2, 1, &mut budget).unwrap();
+        let holder = resources.new_holder().unwrap();
+        let guest = resources.new_holder().unwrap();
+        let a = resources
+            .publish(local.clone(), holder, &41_i64.to_le_bytes(), &mut memory)
+            .unwrap();
+        let b = resources
+            .publish(foreign.clone(), holder, &42_i64.to_le_bytes(), &mut memory)
+            .unwrap();
+        let mut views = Vec::with_capacity(3);
+        for (claim, kind) in [(a, local), (b, foreign)] {
+            let bytes = resources
+                .owned_view(claim, holder, kind.clone(), &mut memory)
+                .unwrap();
+            views.push(NativeView {
+                authority: NativeAuthority::Own(claim, holder),
+                kind,
+                access: idl::Access::Exclusive,
+                bytes,
+            });
+        }
+        let mut owners = vec![NativeOwner::new(a, 0), NativeOwner::new(b, 1)];
+        let kind = |_: &[u8], _: &mut m::Budget| Err(7);
+        let implementation = |kind: &ResourceKind<'_>| kind.provider().same_registration(&first);
+        let context = CallContext::new(
+            &mut resources,
+            &mut memory,
+            &mut budget,
+            &mut views,
+            &mut owners,
+            holder,
+            &kind,
+        )
+        .with_implementation(&implementation);
+        assert_eq!(context.resource_read(1).unwrap().length, 8);
+        assert!(context.resource_write(1).is_ok());
+        assert!(matches!(context.resource_read(2), Err(7)));
+        assert!(matches!(context.resource_write(2), Err(7)));
+        let next = {
+            let arguments = CallbackArguments {
+                views: RefCell::new(&mut *context.views),
+                owners: RefCell::new(&mut *context.owners),
+                holder,
+                index_limit: 3,
+            };
+            let used = wire::ResourceUse {
+                index: BoundaryResourceIndex::new(2).unwrap(),
+                key: &key,
+                access: wire::ResourceAccess::Own,
+                value: wire::ValueId(0),
+                offset: 0,
+            };
+            let input = arguments
+                .input(&used, context.resources, holder, context.memory)
+                .unwrap();
+            arguments.check(&[input]).unwrap();
+            let transfer = context
+                .resources
+                .prepare_call([input].into_iter(), holder, guest, context.memory)
+                .unwrap();
+            let next = context.resources.prepared_claim(transfer, 0).unwrap();
+            context
+                .resources
+                .commit_call(transfer, context.memory, &mut [None])
+                .unwrap();
+            arguments.committed(&[input]);
+            next
+        };
+        assert!(!context.owners[1].held.get());
+        assert!(context.owners[0].held.get());
+        assert_eq!(context.resource_read(1).unwrap().length, 8);
+        assert!(matches!(context.resource_read(2), Err(7)));
+        context
+            .resources
+            .validate(next, guest, &key, context.memory)
+            .unwrap();
+        context
+            .resources
+            .detach(next, guest, context.memory)
+            .unwrap()
+            .release(context.memory)
+            .unwrap();
+        context
+            .resources
+            .detach(a, holder, context.memory)
+            .unwrap()
+            .release(context.memory)
+            .unwrap();
+        assert!(context.resources.is_empty());
+        drop(context);
+        assert_eq!(memory.stats().live_allocations, 0);
     }
 }
