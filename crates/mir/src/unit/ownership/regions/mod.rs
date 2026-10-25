@@ -67,12 +67,12 @@ pub struct Counts {
     pub paths: usize,
     pub edges: usize,
 }
-struct Admission {
-    budget: Budget,
+struct Admission<'a> {
+    budget: &'a mut Budget,
     limits: Limits,
     counts: Counts,
 }
-impl Admission {
+impl Admission<'_> {
     fn edges(&mut self, n: usize, span: Option<Span>) -> Result<()> {
         self.budget.charge(n)?;
         self.counts.edges = add(self.counts.edges, n)?;
@@ -275,20 +275,29 @@ impl<'a> Plan<'a> {
 /// Resumes the checked input's cumulative work, allocation and element counts.
 /// Indirect recursive types remain graph edges; nothing is recursively unrolled.
 pub fn prepare(source: &loans::LoanCheckedBodies, limits: Limits) -> Result<Plan<'_>> {
+    let mut budget = Budget::with_usage(
+        m::Limits {
+            work: limits.work,
+            allocations: limits.allocations,
+            elements: limits.elements,
+            ..Default::default()
+        },
+        m::Usage {
+            work: source.work_used(),
+            allocation_bytes: source.requested_bytes(),
+            elements: source.elements_used(),
+        },
+    )?;
+    prepare_in(source, limits, &mut budget)
+}
+
+pub(crate) fn prepare_in<'a>(
+    source: &'a loans::LoanCheckedBodies,
+    limits: Limits,
+    budget: &mut Budget,
+) -> Result<Plan<'a>> {
     let mut admit = Admission {
-        budget: Budget::with_usage(
-            m::Limits {
-                work: limits.work,
-                allocations: limits.allocations,
-                elements: limits.elements,
-                ..Default::default()
-            },
-            m::Usage {
-                work: source.work_used(),
-                allocation_bytes: source.requested_bytes(),
-                elements: source.elements_used(),
-            },
-        )?,
+        budget,
         limits,
         counts: Counts {
             nodes: 0,

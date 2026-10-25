@@ -22,26 +22,28 @@ pub fn analyze(
             elements: activity.elements_used(),
         },
     )?;
+    analyze_in(activity, limits, &mut budget)
+}
+
+pub(crate) fn analyze_in(
+    activity: loan_activity::ActivityBodies,
+    limits: Limits,
+    budget: &mut Budget,
+) -> Result<LoanCheckedBodies, Error> {
     let typed = activity.moved().typed();
     let mut functions = budget.vector(typed.functions().len())?;
     let (mut nodes, mut state_words) = (0usize, 0usize);
     for index in 0..typed.functions().len() {
         let span = typed.places().declarations().functions()[index].span;
         functions.push(
-            function(
-                typed,
-                index,
-                limits,
-                &mut nodes,
-                &mut state_words,
-                &mut budget,
-            )
-            .map_err(|mut e| {
-                if e.primary.is_none() {
-                    e.primary = Some(span);
-                }
-                e
-            })?,
+            function(typed, index, limits, &mut nodes, &mut state_words, budget).map_err(
+                |mut e| {
+                    if e.primary.is_none() {
+                        e.primary = Some(span);
+                    }
+                    e
+                },
+            )?,
         );
     }
     Ok(LoanCheckedBodies {

@@ -5,8 +5,8 @@ pub mod ownership;
 mod validation;
 
 pub use validation::{
-    Budget, Error, ErrorKind, FunctionFacts, Layout, LimitKind, Limits, SourceFacts, UnitFacts,
-    Usage, VerifiedUnit,
+    Budget, BudgetCheckpoint, Error, ErrorKind, FunctionFacts, Layout, LimitKind, Limits,
+    SourceFacts, UnitFacts, Usage, VerifiedUnit,
 };
 
 use crate::ResourceTypeId;

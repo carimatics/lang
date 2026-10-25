@@ -667,6 +667,14 @@ pub fn analyze(typed: b::TypedBodies, limits: Limits) -> Result<MoveCheckedBodie
             elements: typed.elements_used(),
         },
     )?;
+    analyze_in(typed, limits, &mut budget)
+}
+
+pub(crate) fn analyze_in(
+    typed: b::TypedBodies,
+    limits: Limits,
+    budget: &mut Budget,
+) -> Result<MoveCheckedBodies, Error> {
     let mut functions = budget.vector(typed.functions().len())?;
     let mut cells = 0usize;
     for f in 0..typed.functions().len() {
@@ -693,7 +701,7 @@ pub fn analyze(typed: b::TypedBodies, limits: Limits) -> Result<MoveCheckedBodie
                 secondary: None,
             });
         }
-        functions.push(function(&typed, f, &mut budget).map_err(|mut error| {
+        functions.push(function(&typed, f, budget).map_err(|mut error| {
             if error.primary.is_none() {
                 error.primary = Some(declaration.span);
             }

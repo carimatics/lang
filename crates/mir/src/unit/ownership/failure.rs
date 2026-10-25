@@ -374,10 +374,29 @@ fn block_count(block: &b::Block, budget: &mut m::Budget) -> Result<usize, Error>
     Ok(count)
 }
 pub fn elaborate(source: loans::LoanCheckedBodies, limits: Limits) -> Result<Elaborated, Error> {
-    // No failure nodes, execution layout, or guest effects are admitted before
-    // the complete independent proof. Temporary reports borrow immutable input.
+    let mut budget = m::Budget::with_usage(
+        m::Limits {
+            work: limits.work,
+            allocations: limits.allocations,
+            elements: limits.elements,
+            ..Default::default()
+        },
+        m::Usage {
+            work: source.work_used(),
+            allocation_bytes: source.requested_bytes(),
+            elements: source.elements_used(),
+        },
+    )?;
+    elaborate_in(source, limits, &mut budget)
+}
+
+pub(crate) fn elaborate_in(
+    source: loans::LoanCheckedBodies,
+    limits: Limits,
+    budget: &mut m::Budget,
+) -> Result<Elaborated, Error> {
     let region_usage = {
-        let plan = regions::prepare(
+        let plan = regions::prepare_in(
             &source,
             regions::Limits {
                 work: limits.work,
@@ -387,12 +406,13 @@ pub fn elaborate(source: loans::LoanCheckedBodies, limits: Limits) -> Result<Ela
                 paths: limits.regions.paths,
                 edges: limits.regions.edges,
             },
+            budget,
         )
         .map_err(|e| Error {
             primary: e.span,
             kind: ErrorKind::RegionPreparation(e),
         })?;
-        let checked = regions::calls::analyze(
+        let checked = regions::calls::analyze_in(
             &plan,
             regions::local::Limits {
                 work: limits.work,
@@ -402,6 +422,7 @@ pub fn elaborate(source: loans::LoanCheckedBodies, limits: Limits) -> Result<Ela
                 state_cells: limits.regions.state_cells,
                 depth: limits.regions.depth,
             },
+            budget,
         )
         .map_err(|e| Error {
             primary: e.primary,
@@ -409,15 +430,6 @@ pub fn elaborate(source: loans::LoanCheckedBodies, limits: Limits) -> Result<Ela
         })?;
         checked.usage()
     };
-    let mut budget = m::Budget::with_usage(
-        m::Limits {
-            work: limits.work,
-            allocations: limits.allocations,
-            elements: limits.elements,
-            ..Default::default()
-        },
-        region_usage,
-    )?;
     let typed = source.activity().moved().typed();
     let mut functions = budget.vector(typed.functions().len())?;
     let mut total = 0usize;
@@ -430,7 +442,7 @@ pub fn elaborate(source: loans::LoanCheckedBodies, limits: Limits) -> Result<Ela
             for block in &body.blocks {
                 budget.charge(1)?;
                 entries.push(id(count)?);
-                count = add(count, block_count(block, &mut budget)?)?;
+                count = add(count, block_count(block, budget)?)?;
             }
             id(count)?;
             total = add(total, count)?;
@@ -479,7 +491,7 @@ pub fn elaborate(source: loans::LoanCheckedBodies, limits: Limits) -> Result<Ela
                 for (order, instruction) in block.instructions[..split].iter().enumerate() {
                     instruction_nodes(
                         &mut nodes,
-                        &mut budget,
+                        budget,
                         instruction,
                         b::Site {
                             block: original,
@@ -491,7 +503,7 @@ pub fn elaborate(source: loans::LoanCheckedBodies, limits: Limits) -> Result<Ela
                 let next = id(add(nodes.len(), 1)?)?;
                 push(
                     &mut nodes,
-                    &mut budget,
+                    budget,
                     Kind::Fuel {
                         position: Position::Terminator(original),
                         next,
@@ -506,7 +518,7 @@ pub fn elaborate(source: loans::LoanCheckedBodies, limits: Limits) -> Result<Ela
                         {
                             instruction_nodes(
                                 &mut nodes,
-                                &mut budget,
+                                budget,
                                 instruction,
                                 b::Site {
                                     block: original,
@@ -516,29 +528,24 @@ pub fn elaborate(source: loans::LoanCheckedBodies, limits: Limits) -> Result<Ela
                             )?;
                         }
                         let next = id(add(nodes.len(), 1)?)?;
-                        push(
-                            &mut nodes,
-                            &mut budget,
-                            Kind::DiscardPrepared { next },
-                            span,
-                        )?;
+                        push(&mut nodes, budget, Kind::DiscardPrepared { next }, span)?;
                         let next = id(add(nodes.len(), 1)?)?;
                         push(
                             &mut nodes,
-                            &mut budget,
+                            budget,
                             Kind::RetireReturn {
                                 next,
                                 failure: fail,
                             },
                             span,
                         )?;
-                        push(&mut nodes, &mut budget, Kind::PublishReturn, span)?;
+                        push(&mut nodes, budget, Kind::PublishReturn, span)?;
                     }
                     b::Term::Return(value) => {
                         let next = id(add(nodes.len(), 1)?)?;
                         push(
                             &mut nodes,
-                            &mut budget,
+                            budget,
                             Kind::StageReturn {
                                 value: *value,
                                 next,
@@ -550,7 +557,7 @@ pub fn elaborate(source: loans::LoanCheckedBodies, limits: Limits) -> Result<Ela
                         {
                             instruction_nodes(
                                 &mut nodes,
-                                &mut budget,
+                                budget,
                                 instruction,
                                 b::Site {
                                     block: original,
@@ -560,27 +567,22 @@ pub fn elaborate(source: loans::LoanCheckedBodies, limits: Limits) -> Result<Ela
                             )?;
                         }
                         let next = id(add(nodes.len(), 1)?)?;
-                        push(
-                            &mut nodes,
-                            &mut budget,
-                            Kind::DiscardPrepared { next },
-                            span,
-                        )?;
+                        push(&mut nodes, budget, Kind::DiscardPrepared { next }, span)?;
                         let next = id(add(nodes.len(), 1)?)?;
                         push(
                             &mut nodes,
-                            &mut budget,
+                            budget,
                             Kind::RetireReturn {
                                 next,
                                 failure: fail,
                             },
                             span,
                         )?;
-                        push(&mut nodes, &mut budget, Kind::PublishReturn, span)?;
+                        push(&mut nodes, budget, Kind::PublishReturn, span)?;
                     }
                     b::Term::Jump(target) => push(
                         &mut nodes,
-                        &mut budget,
+                        budget,
                         Kind::Transfer {
                             block: original,
                             arm: 0,
@@ -598,7 +600,7 @@ pub fn elaborate(source: loans::LoanCheckedBodies, limits: Limits) -> Result<Ela
                         let else_node = id(add(nodes.len(), 2)?)?;
                         push(
                             &mut nodes,
-                            &mut budget,
+                            budget,
                             Kind::Branch {
                                 condition: *condition,
                                 then_node,
@@ -609,7 +611,7 @@ pub fn elaborate(source: loans::LoanCheckedBodies, limits: Limits) -> Result<Ela
                         )?;
                         push(
                             &mut nodes,
-                            &mut budget,
+                            budget,
                             Kind::Transfer {
                                 block: original,
                                 arm: 0,
@@ -620,7 +622,7 @@ pub fn elaborate(source: loans::LoanCheckedBodies, limits: Limits) -> Result<Ela
                         )?;
                         push(
                             &mut nodes,
-                            &mut budget,
+                            budget,
                             Kind::Transfer {
                                 block: original,
                                 arm: 1,
@@ -632,7 +634,7 @@ pub fn elaborate(source: loans::LoanCheckedBodies, limits: Limits) -> Result<Ela
                     }
                     b::Term::Unreachable => push(
                         &mut nodes,
-                        &mut budget,
+                        budget,
                         Kind::Raise {
                             failure: ExecutionFailure::Invariant,
                             next: fail,

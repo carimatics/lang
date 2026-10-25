@@ -103,9 +103,20 @@ pub fn verify_with_usage(
 ) -> Result<VerifiedTasks, Error> {
     let global = limits.bodies.places.ownership.unit;
     let mut budget = m::Budget::with_usage(global, usage)?;
+    verify_with_budget(table, limits, &mut budget)
+}
+
+/// Verify using the caller's original cumulative preparation ledger.
+/// Reporting may be scoped by the caller; admission always uses the original limits.
+pub fn verify_with_budget(
+    table: b::BodyTable,
+    limits: Limits,
+    budget: &mut m::Budget,
+) -> Result<VerifiedTasks, Error> {
+    let global = budget.limits();
     let mut typed = table
         .verify_profile(
-            &mut budget,
+            budget,
             limits.bodies.places.ownership.constructed,
             limits.bodies.places.places,
             limits.bodies.loans,
@@ -144,11 +155,11 @@ pub fn verify_with_usage(
         if scopes > limits.scopes || bindings > limits.bindings || cells > limits.state_cells {
             return Err(fail(ErrorKind::Limit, span));
         }
-        let meta = metadata(&typed, f, &mut budget)?;
-        analyze(&typed, f, &meta, &mut budget)?;
+        let meta = metadata(&typed, f, budget)?;
+        analyze(&typed, f, &meta, budget)?;
     }
-    typed.record_usage(&budget);
-    let moved = moves::analyze(
+    typed.record_usage(budget);
+    let moved = moves::analyze_in(
         typed,
         moves::Limits {
             work: global.work,
@@ -156,13 +167,14 @@ pub fn verify_with_usage(
             elements: global.elements,
             state_cells: limits.state_cells,
         },
+        budget,
     )
     .map_err(|e| Error {
         primary: e.primary,
         secondary: e.secondary,
         kind: ErrorKind::Moves(e.kind),
     })?;
-    let activity = loan_activity::analyze(
+    let activity = loan_activity::analyze_in(
         moved,
         loan_activity::Limits {
             work: global.work,
@@ -170,13 +182,14 @@ pub fn verify_with_usage(
             elements: global.elements,
             state_cells: limits.state_cells,
         },
+        budget,
     )
     .map_err(|e| Error {
         primary: e.primary,
         secondary: e.secondary,
         kind: ErrorKind::Activity(e.kind),
     })?;
-    let loaned = loans::analyze(
+    let loaned = loans::analyze_in(
         activity,
         loans::Limits {
             work: global.work,
@@ -186,13 +199,14 @@ pub fn verify_with_usage(
             depth: global.depth,
             state_words: limits.loan_words,
         },
+        budget,
     )
     .map_err(|e| Error {
         primary: e.primary,
         secondary: e.secondary,
         kind: ErrorKind::Loans(e.kind),
     })?;
-    let plan = failure::elaborate(
+    let plan = failure::elaborate_in(
         loaned,
         failure::Limits {
             work: global.work,
@@ -201,6 +215,7 @@ pub fn verify_with_usage(
             nodes: limits.failure_nodes,
             regions: limits.regions,
         },
+        budget,
     )
     .map_err(|e| Error {
         primary: e.primary,

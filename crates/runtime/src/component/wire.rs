@@ -105,7 +105,6 @@ pub struct Session {
 pub struct PreparationScope<'s> {
     session: &'s mut Session,
     original: &'s mut m::Budget,
-    original_limits: m::Limits,
     initial: m::Usage,
     local_budget: Option<m::Budget>,
     local_elements: usize,
@@ -169,8 +168,9 @@ impl Drop for PreparationScope<'_> {
         self.session.budget =
             m::Budget::with_usage(local.limits(), local_usage).expect("scope retains local limits");
         self.session.limits = self.local_limits;
-        *self.original = m::Budget::with_usage(self.original_limits, usage)
-            .expect("scope retains original limits");
+        self.original
+            .advance_to(usage)
+            .expect("scope retains original limits and ledger identity");
     }
 }
 /// Restore the previous association on every exit, including Rust unwinding.
@@ -261,7 +261,6 @@ impl Session {
         Ok(PreparationScope {
             session: self,
             original,
-            original_limits,
             initial,
             local_budget: Some(local_budget),
             local_elements,

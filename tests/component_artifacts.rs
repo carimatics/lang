@@ -10,7 +10,7 @@ use lang_runtime::{
     },
     execution as e,
     layout::Immediate,
-    task::runner::EntryArgument,
+    task::runner::{self as r, EntryArgument},
 };
 use std::path::Path;
 const SOURCE: &str = "pub fn relay(n:i64)->i64{return n+1;}";
@@ -489,4 +489,399 @@ fn retained_metadata_depth_and_snapshot_byte_caps_cannot_be_bypassed_by_an_old_p
         ..Default::default()
     };
     assert!(codec::decode(&bytes, limits).is_err());
+}
+
+fn preparation_source_input() -> String {
+    let document = idl::check(m::SourceId(1), IDL.as_bytes(), Default::default()).unwrap();
+    let generated = lang::component_bindings::guest(&document, Default::default()).unwrap();
+    format!(
+        "{}\n{} {{ return p0 + 1; }}",
+        generated.declarations, generated.exports[0].declaration
+    )
+}
+
+fn with_preparation_bindings<T>(stored: bool, run: impl FnOnce(&grants::Bindings<'_>) -> T) -> T {
+    let module = if stored {
+        let bytes = codec::encode(unit(), snapshot(), None, Default::default()).unwrap();
+        lang::component_embedding::load(1, &bytes, &[], Default::default()).unwrap()
+    } else {
+        lang::component_embedding::load(
+            0,
+            preparation_source_input().as_bytes(),
+            IDL.as_bytes(),
+            Default::default(),
+        )
+        .unwrap()
+    };
+    let mut session = wire::Session::new(Default::default());
+    let bindings =
+        grants::prepare(module.unit(), module.contract(), &[], || &[], &mut session).unwrap();
+    run(&bindings)
+}
+
+fn preparation_usage(budget: &m::Budget) -> m::Usage {
+    m::Usage {
+        work: budget.work_used(),
+        allocation_bytes: budget.allocation_bytes(),
+        elements: budget.elements_used(),
+    }
+}
+
+#[test]
+fn resumed_program_cost_is_intrinsic_to_source_and_stored_proofs() {
+    for stored in [false, true] {
+        with_preparation_bindings(stored, |bindings| {
+            let ordinary = program::Program::prepare(bindings, Default::default()).unwrap();
+            let intrinsic = ordinary.usage();
+            assert_eq!(intrinsic.work, if stored { 1_811 } else { 3_288 });
+            for history in [0, 123] {
+                let initial = m::Usage {
+                    work: history,
+                    allocation_bytes: history,
+                    elements: history,
+                };
+                let limits = m::Limits {
+                    work: initial.work + intrinsic.work,
+                    allocations: initial.allocation_bytes + intrinsic.allocation_bytes,
+                    elements: initial.elements + intrinsic.elements,
+                    ..Default::default()
+                };
+                let mut budget = m::Budget::with_usage(limits, initial).unwrap();
+                let resumed = program::Program::prepare_with_budget(bindings, &mut budget).unwrap();
+                assert_eq!(
+                    resumed.usage(),
+                    intrinsic,
+                    "stored={stored}, history={history}"
+                );
+                assert_eq!(resumed.proof(), ordinary.proof());
+                assert_eq!(
+                    preparation_usage(&budget),
+                    m::Usage {
+                        work: initial.work + intrinsic.work,
+                        allocation_bytes: initial.allocation_bytes + intrinsic.allocation_bytes,
+                        elements: initial.elements + intrinsic.elements,
+                    },
+                );
+            }
+        });
+    }
+}
+
+#[test]
+fn every_resumed_proof_work_refusal_keeps_its_original_prefix() {
+    use lang_mir::unit::ownership::{failure, tasks};
+    use std::collections::BTreeSet;
+    with_preparation_bindings(false, |bindings| {
+        let intrinsic = program::Program::prepare(bindings, Default::default())
+            .unwrap()
+            .usage();
+        let mut phases = BTreeSet::new();
+        for remaining in 0..intrinsic.work {
+            let mut budget = m::Budget::with_usage(
+                m::Limits {
+                    work: 123 + remaining,
+                    ..Default::default()
+                },
+                m::Usage {
+                    work: 123,
+                    allocation_bytes: 37,
+                    elements: 5,
+                },
+            )
+            .unwrap();
+            let error = match program::Program::prepare_with_budget(bindings, &mut budget) {
+                Ok(_) => panic!("accepted a short proof budget at {remaining}"),
+                Err(error) => error,
+            };
+            let phase = match error {
+                program::Error::Resource(_) => "prepare",
+                program::Error::Tasks(error) => match error.kind {
+                    tasks::ErrorKind::Resource(_) => "tasks",
+                    tasks::ErrorKind::Types(_) => "types",
+                    tasks::ErrorKind::Moves(_) => "moves",
+                    tasks::ErrorKind::Activity(_) => "activity",
+                    tasks::ErrorKind::Loans(_) => "loans",
+                    tasks::ErrorKind::Failure(error) => match error {
+                        failure::ErrorKind::RegionPreparation(_) => "region preparation",
+                        failure::ErrorKind::Regions(_) => "region calls",
+                        failure::ErrorKind::Resource(_) => "failure",
+                        error => panic!("unexpected failure error: {error:?}"),
+                    },
+                    error => panic!("unexpected task error: {error:?}"),
+                },
+                error => panic!("unexpected program error: {error:?}"),
+            };
+            phases.insert(phase);
+            let prefix = preparation_usage(&budget);
+            assert!(prefix.work >= 123 && prefix.work <= 123 + remaining);
+            assert!(prefix.allocation_bytes >= 37 && prefix.elements >= 5);
+            if remaining + 1 == intrinsic.work {
+                assert_eq!(prefix.work, 123 + remaining);
+            }
+            if remaining % 113 == 0 {
+                assert!(program::Program::prepare_with_budget(bindings, &mut budget).is_err());
+                let repeated = preparation_usage(&budget);
+                assert!(repeated.work >= prefix.work);
+                assert!(repeated.allocation_bytes >= prefix.allocation_bytes);
+                assert!(repeated.elements >= prefix.elements);
+            }
+        }
+        assert_eq!(
+            phases,
+            BTreeSet::from([
+                "prepare",
+                "types",
+                "tasks",
+                "moves",
+                "activity",
+                "loans",
+                "region preparation",
+                "region calls",
+                "failure",
+            ])
+        );
+    });
+}
+
+#[test]
+fn repeated_resumed_proof_storage_refusals_keep_all_admitted_counters() {
+    with_preparation_bindings(false, |bindings| {
+        let cost = program::Program::prepare(bindings, Default::default())
+            .unwrap()
+            .usage();
+        for dimension in 0..2 {
+            let total = if dimension == 0 {
+                cost.allocation_bytes
+            } else {
+                cost.elements
+            };
+            let cuts = std::collections::BTreeSet::from([
+                0,
+                1,
+                total / 4,
+                total / 2,
+                total * 3 / 4,
+                total - 2,
+                total - 1,
+            ]);
+            for remaining in cuts {
+                let mut limits = m::Limits::default();
+                if dimension == 0 {
+                    limits.allocations = 37 + remaining;
+                } else {
+                    limits.elements = 5 + remaining;
+                }
+                let mut budget = m::Budget::with_usage(
+                    limits,
+                    m::Usage {
+                        work: 123,
+                        allocation_bytes: 37,
+                        elements: 5,
+                    },
+                )
+                .unwrap();
+                let mut previous = preparation_usage(&budget);
+                for _ in 0..3 {
+                    assert!(program::Program::prepare_with_budget(bindings, &mut budget).is_err());
+                    let current = preparation_usage(&budget);
+                    assert!(current.work >= previous.work && current.work <= limits.work);
+                    assert!(
+                        current.allocation_bytes >= previous.allocation_bytes
+                            && current.allocation_bytes <= limits.allocations
+                    );
+                    assert!(
+                        current.elements >= previous.elements
+                            && current.elements <= limits.elements
+                    );
+                    previous = current;
+                }
+            }
+        }
+    });
+}
+
+fn preparation_entry_sequence(
+    bindings: &grants::Bindings<'_>,
+    compiled: bool,
+    prepaid: bool,
+) -> Vec<m::Usage> {
+    let mut allocator = a::Allocator::new(a::System, Default::default()).unwrap();
+    let mut budget = m::Budget::with_usage(
+        Default::default(),
+        m::Usage {
+            work: 123,
+            allocation_bytes: 37,
+            elements: 5,
+        },
+    )
+    .unwrap();
+    let mut resources = storage::Resources::prepare(&allocator, 2, 4, &mut budget).unwrap();
+    let mut engine = lang_codegen_clif::component::Engine::prepare(&mut budget).unwrap();
+    let program = if prepaid {
+        program::Program::prepare_with_budget(bindings, &mut budget).unwrap()
+    } else {
+        program::Program::prepare(bindings, Default::default()).unwrap()
+    };
+    let entry = bindings.unit().exports()[0].0;
+    let generated = compiled.then(|| {
+        lang_codegen_clif::tasks::CompiledProgram::compile_component(
+            &program,
+            entry,
+            Default::default(),
+        )
+        .unwrap()
+    });
+    let mut instance = execution::Instance::new(&program);
+    let mut checkpoints = Vec::new();
+    for _ in 0..2 {
+        let control = e::Control::default();
+        let mut bridge = engine.begin(control).unwrap();
+        let mut call = execution::Invocation::prepare(
+            &mut instance,
+            entry,
+            &mut resources,
+            &mut bridge,
+            &mut budget,
+        )
+        .unwrap();
+        let arguments = [EntryArgument::I64(41)];
+        let output = if let Some(generated) = generated.as_ref() {
+            generated.execute_component_with_budget(
+                &mut allocator,
+                control,
+                Default::default(),
+                &arguments,
+                &mut call,
+                &mut budget,
+            )
+        } else {
+            lang_vm::unit::tasks::execute_component_with_budget(
+                &program,
+                entry,
+                &mut allocator,
+                control,
+                Default::default(),
+                &arguments,
+                &mut call,
+                &mut budget,
+            )
+        }
+        .unwrap();
+        assert!(matches!(
+            output.value,
+            execution::Value::Copy(Immediate::I64(42))
+        ));
+        assert!(!output.poisoned);
+        assert_eq!(allocator.stats().live_allocations, 0);
+        checkpoints.push(preparation_usage(&budget));
+    }
+    checkpoints
+}
+
+#[test]
+fn prepaid_program_entry_charges_once_then_repeated_vm_native_entries_pay_normally() {
+    for stored in [false, true] {
+        with_preparation_bindings(stored, |bindings| {
+            let mut vm = None;
+            for compiled in [false, true] {
+                let ordinary = preparation_entry_sequence(bindings, compiled, false);
+                let prepaid = preparation_entry_sequence(bindings, compiled, true);
+                assert_eq!(prepaid, ordinary, "stored={stored}, compiled={compiled}");
+                assert!(prepaid[1].work > prepaid[0].work);
+                if let Some(vm) = vm.as_ref() {
+                    assert_eq!(&prepaid, vm);
+                } else {
+                    vm = Some(prepaid);
+                }
+            }
+        });
+    }
+}
+
+#[test]
+fn equal_usage_on_another_ledger_cannot_consume_the_prepaid_entry() {
+    with_preparation_bindings(false, |bindings| {
+        for compiled in [false, true] {
+            let expected = preparation_entry_sequence(bindings, compiled, false)[0];
+            let mut allocator = a::Allocator::new(a::System, Default::default()).unwrap();
+            let mut original = m::Budget::with_usage(
+                Default::default(),
+                m::Usage {
+                    work: 123,
+                    allocation_bytes: 37,
+                    elements: 5,
+                },
+            )
+            .unwrap();
+            let mut resources =
+                storage::Resources::prepare(&allocator, 2, 4, &mut original).unwrap();
+            let mut engine = lang_codegen_clif::component::Engine::prepare(&mut original).unwrap();
+            let program = program::Program::prepare_with_budget(bindings, &mut original).unwrap();
+            let admitted = preparation_usage(&original);
+            let mut other = m::Budget::with_usage(original.limits(), admitted).unwrap();
+            let entry = bindings.unit().exports()[0].0;
+            let generated = compiled.then(|| {
+                lang_codegen_clif::tasks::CompiledProgram::compile_component(
+                    &program,
+                    entry,
+                    Default::default(),
+                )
+                .unwrap()
+            });
+            let mut instance = execution::Instance::new(&program);
+            for foreign in [true, false] {
+                let budget = if foreign { &mut other } else { &mut original };
+                let control = e::Control::default();
+                let mut bridge = engine.begin(control).unwrap();
+                let mut call = execution::Invocation::prepare(
+                    &mut instance,
+                    entry,
+                    &mut resources,
+                    &mut bridge,
+                    budget,
+                )
+                .unwrap();
+                let arguments = [EntryArgument::I64(41)];
+                let outcome = if let Some(generated) = generated.as_ref() {
+                    generated.execute_component_with_budget(
+                        &mut allocator,
+                        control,
+                        Default::default(),
+                        &arguments,
+                        &mut call,
+                        budget,
+                    )
+                } else {
+                    lang_vm::unit::tasks::execute_component_with_budget(
+                        &program,
+                        entry,
+                        &mut allocator,
+                        control,
+                        Default::default(),
+                        &arguments,
+                        &mut call,
+                        budget,
+                    )
+                };
+                if foreign {
+                    let failure = match outcome {
+                        Err(failure) => failure,
+                        Ok(_) => panic!("foreign preparation ledger entered the guest"),
+                    };
+                    assert!(matches!(failure.reason, r::Reason::Entry), "{failure:?}");
+                    assert!(!failure.poisoned);
+                    assert_eq!(preparation_usage(&original), admitted);
+                } else {
+                    let output = outcome.unwrap();
+                    assert!(matches!(
+                        output.value,
+                        execution::Value::Copy(Immediate::I64(42))
+                    ));
+                    assert!(!output.poisoned);
+                    assert_eq!(preparation_usage(&original), expected);
+                }
+                assert_eq!(allocator.stats().live_allocations, 0);
+            }
+        }
+    });
 }

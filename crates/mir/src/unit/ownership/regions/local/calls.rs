@@ -92,7 +92,7 @@ impl Summary {
                 .try_fold(add(1, v.len())?, |n, v| add(n, v.len()))?,
         })
     }
-    fn input(&mut self, input: Input, admit: &mut Admission) -> Result<usize> {
+    fn input(&mut self, input: Input, admit: &mut Admission<'_>) -> Result<usize> {
         for (id, old) in self.inputs.iter().enumerate() {
             admit
                 .budget
@@ -106,7 +106,7 @@ impl Summary {
         admit.push(&mut self.inputs, input)?;
         Ok(id)
     }
-    fn value(&mut self, value: Template, admit: &mut Admission) -> Result<usize> {
+    fn value(&mut self, value: Template, admit: &mut Admission<'_>) -> Result<usize> {
         for (id, old) in self.values.iter().enumerate() {
             admit.budget.charge(add(
                 Self::template_cost(&value)?,
@@ -157,17 +157,26 @@ impl<'p, 'a> Analysis<'p, 'a> {
 /// Derive a least fixed point over guest calls, then validate every reachable
 /// operation using those effects. Failure/VM/artifact admission is separate.
 pub fn analyze<'p, 'a>(plan: &'p Plan<'a>, limits: Limits) -> Result<Analysis<'p, 'a>> {
+    let mut budget = Budget::with_usage(
+        m::Limits {
+            work: limits.work,
+            allocations: limits.allocations,
+            elements: limits.elements,
+            depth: limits.depth,
+            ..Default::default()
+        },
+        plan.usage(),
+    )?;
+    analyze_in(plan, limits, &mut budget)
+}
+
+pub(crate) fn analyze_in<'p, 'a>(
+    plan: &'p Plan<'a>,
+    limits: Limits,
+    budget: &mut Budget,
+) -> Result<Analysis<'p, 'a>> {
     let mut admit = Admission {
-        budget: Budget::with_usage(
-            m::Limits {
-                work: limits.work,
-                allocations: limits.allocations,
-                elements: limits.elements,
-                depth: limits.depth,
-                ..Default::default()
-            },
-            plan.usage(),
-        )?,
+        budget,
         limits,
         nodes: 0,
         cells: 0,
@@ -238,7 +247,7 @@ fn at_function(plan: &Plan<'_>, index: usize, mut e: Error) -> Error {
 fn run(
     plan: &Plan<'_>,
     index: usize,
-    admit: &mut Admission,
+    admit: &mut Admission<'_>,
     summaries: &[Summary],
     check: bool,
 ) -> Result<FunctionAnalysis> {
@@ -253,7 +262,7 @@ impl Engine {
         root: usize,
         brands: Vec<Brand>,
         span: Span,
-        admit: &mut Admission,
+        admit: &mut Admission<'_>,
     ) -> Result<()> {
         if !self.record || !matches!(self.roots[root].kind, RootKind::Caller { .. }) {
             return Ok(());
@@ -289,7 +298,7 @@ impl Engine {
         &mut self,
         plan: &Plan<'_>,
         row: &[usize],
-        admit: &mut Admission,
+        admit: &mut Admission<'_>,
     ) -> Result<()> {
         for (root, value) in row.iter().enumerate().take(self.roots.len()) {
             admit.budget.charge(1)?;
@@ -316,7 +325,7 @@ impl Engine {
         plan: &Plan<'_>,
         index: usize,
         place: usize,
-        admit: &mut Admission,
+        admit: &mut Admission<'_>,
         depth: usize,
     ) -> Result<Input> {
         admit.depth(depth)?;
@@ -366,7 +375,7 @@ impl Engine {
         index: usize,
         brand: Brand,
         summary: &mut Summary,
-        admit: &mut Admission,
+        admit: &mut Admission<'_>,
     ) -> Result<usize> {
         match brand.origin {
             Origin::Caller { place, .. } => {
@@ -395,7 +404,7 @@ impl Engine {
         index: usize,
         value: usize,
         summary: &mut Summary,
-        admit: &mut Admission,
+        admit: &mut Admission<'_>,
         depth: usize,
     ) -> Result<usize> {
         admit.depth(depth)?;
@@ -450,7 +459,7 @@ impl Engine {
         };
         summary.value(value, admit)
     }
-    fn sort(values: &mut Vec<usize>, admit: &mut Admission) -> Result<()> {
+    fn sort(values: &mut Vec<usize>, admit: &mut Admission<'_>) -> Result<()> {
         for i in 1..values.len() {
             let mut j = i;
             while j > 0 {
@@ -470,7 +479,7 @@ impl Engine {
         &mut self,
         plan: &Plan<'_>,
         index: usize,
-        admit: &mut Admission,
+        admit: &mut Admission<'_>,
     ) -> Result<Summary> {
         let mut summary = Summary::bottom();
         summary.returns = self.returns;
@@ -544,7 +553,7 @@ impl Engine {
         before: &[usize],
         arguments: &[m::Register],
         input: &Input,
-        admit: &mut Admission,
+        admit: &mut Admission<'_>,
         check: bool,
     ) -> Result<Vec<usize>> {
         let root = self.value_root(arguments[input.parameter]);
@@ -577,7 +586,7 @@ impl Engine {
         value: usize,
         sources: &[usize],
         locations: &[Vec<usize>],
-        admit: &mut Admission,
+        admit: &mut Admission<'_>,
         depth: usize,
     ) -> Result<usize> {
         admit.depth(depth)?;
@@ -650,7 +659,7 @@ impl Engine {
         arguments: &[m::Register],
         summary: &Summary,
         span: Span,
-        admit: &mut Admission,
+        admit: &mut Admission<'_>,
         check: bool,
     ) -> Result<bool> {
         // Resolve all values AND destination/reference paths against one

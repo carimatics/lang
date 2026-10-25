@@ -540,10 +540,10 @@ fn execute_profile<P: a::Provider, B: Backend<P>>(
         let mut component_budget=if let Some(program)=program {
             let budget = if let Some(budget)=preparation {
                 if budget.limits()!=limits.preparation {return Err(Reason::Entry);}
-                let initial=program.usage();
-                budget.charge(initial.work)?;
-                budget.bytes(initial.allocation_bytes)?;
-                budget.allocate::<()>(initial.elements)?;
+                program.begin_preparation(budget).map_err(|error| match error {
+                    crate::component::program::Error::Resource(error) => Reason::from(error),
+                    _ => Reason::Entry,
+                })?;
                 PreparationBudget::Borrowed(budget)
             } else {PreparationBudget::Owned(m::Budget::with_usage(limits.preparation,program.usage())?)};
             Some(budget)

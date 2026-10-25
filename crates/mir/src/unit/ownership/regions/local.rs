@@ -165,13 +165,13 @@ impl<'p, 'a> Analysis<'p, 'a> {
         self.cells
     }
 }
-struct Admission {
-    budget: Budget,
+struct Admission<'a> {
+    budget: &'a mut Budget,
     limits: Limits,
     nodes: usize,
     cells: usize,
 }
-impl Admission {
+impl Admission<'_> {
     fn node(&mut self) -> Result<()> {
         self.budget.charge(1)?;
         self.nodes = add(self.nodes, 1)?;
@@ -234,17 +234,26 @@ impl Admission {
 /// Performs local transfer and reports outstanding call obligations separately.
 /// Neither success nor an empty pending-call list authorizes execution.
 pub fn analyze<'p, 'a>(plan: &'p Plan<'a>, limits: Limits) -> Result<Analysis<'p, 'a>> {
+    let mut budget = Budget::with_usage(
+        m::Limits {
+            work: limits.work,
+            allocations: limits.allocations,
+            elements: limits.elements,
+            depth: limits.depth,
+            ..Default::default()
+        },
+        plan.usage(),
+    )?;
+    analyze_in(plan, limits, &mut budget)
+}
+
+pub(crate) fn analyze_in<'p, 'a>(
+    plan: &'p Plan<'a>,
+    limits: Limits,
+    budget: &mut Budget,
+) -> Result<Analysis<'p, 'a>> {
     let mut admit = Admission {
-        budget: Budget::with_usage(
-            m::Limits {
-                work: limits.work,
-                allocations: limits.allocations,
-                elements: limits.elements,
-                depth: limits.depth,
-                ..Default::default()
-            },
-            plan.usage(),
-        )?,
+        budget,
         limits,
         nodes: 0,
         cells: 0,
@@ -285,7 +294,7 @@ pub fn analyze<'p, 'a>(plan: &'p Plan<'a>, limits: Limits) -> Result<Analysis<'p
 fn function(
     plan: &Plan<'_>,
     index: usize,
-    admit: &mut Admission,
+    admit: &mut Admission<'_>,
     summaries: Option<&[calls::Summary]>,
     final_check: bool,
 ) -> Result<FunctionAnalysis> {
@@ -304,8 +313,8 @@ fn function(
     engine.record = summaries.is_some();
     if engine.record {
         admit.cells(roots_checked_mul(engine.roots.len(), 2)?)?;
-        engine.outputs = flow::filled(&mut admit.budget, engine.roots.len(), 0usize)?;
-        engine.wrote = flow::filled(&mut admit.budget, engine.roots.len(), false)?;
+        engine.outputs = flow::filled(admit.budget, engine.roots.len(), 0usize)?;
+        engine.wrote = flow::filled(admit.budget, engine.roots.len(), false)?;
     }
     let roots = engine.roots.len();
     let width = add(
@@ -314,9 +323,9 @@ fn function(
     )?;
     let cells = roots_checked_mul(width, body.blocks.len())?;
     admit.cells(add(cells, roots_checked_mul(width, 2)?)?)?;
-    let mut entries = flow::filled(&mut admit.budget, cells, 0usize)?;
-    let mut row = flow::filled(&mut admit.budget, width, 0usize)?;
-    let mut edge = flow::filled(&mut admit.budget, width, 0usize)?;
+    let mut entries = flow::filled(admit.budget, cells, 0usize)?;
+    let mut row = flow::filled(admit.budget, width, 0usize)?;
+    let mut edge = flow::filled(admit.budget, width, 0usize)?;
     entries[roots..roots * 2].fill(usize::MAX);
     for (root, value) in seeds {
         entries[root] = value;
@@ -328,10 +337,10 @@ fn function(
             entries[root] = metadata.seed;
         }
     }
-    let mut reached = flow::filled(&mut admit.budget, body.blocks.len(), false)?;
+    let mut reached = flow::filled(admit.budget, body.blocks.len(), false)?;
     reached[0] = true;
-    let mut queued = flow::filled(&mut admit.budget, body.blocks.len(), false)?;
-    let mut queue = flow::filled(&mut admit.budget, body.blocks.len(), 0usize)?;
+    let mut queued = flow::filled(admit.budget, body.blocks.len(), false)?;
+    let mut queue = flow::filled(admit.budget, body.blocks.len(), 0usize)?;
     queued[0] = true;
     let (mut head, mut tail, mut pending) = (0usize, 1 % queue.len(), 1usize);
     while pending > 0 {

@@ -181,9 +181,9 @@ impl execution::CallbackOperation for Call<'_, '_> {
                 &mut preparing,
             )
             .map_err(|_| INVALID)?;
-            let program = program::Program::prepare(&bound, self.current.limits.preparation)
-                .map_err(|_| INVALID)?;
             drop(preparing);
+            let program =
+                program::Program::prepare_with_budget(&bound, budget).map_err(|_| INVALID)?;
             let result = state
                 .with_callback_program(&program, origin, |instance| {
                     self.execute(

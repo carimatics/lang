@@ -250,6 +250,14 @@ pub fn analyze(moved: moves::MoveCheckedBodies, limits: Limits) -> Result<Activi
             elements: moved.elements_used(),
         },
     )?;
+    analyze_in(moved, limits, &mut budget)
+}
+
+pub(crate) fn analyze_in(
+    moved: moves::MoveCheckedBodies,
+    limits: Limits,
+    budget: &mut Budget,
+) -> Result<ActivityBodies, Error> {
     let mut functions = budget.vector(moved.typed().functions().len())?;
     let mut cells = 0usize;
     for (index, body) in moved.typed().functions().iter().enumerate() {
@@ -271,7 +279,7 @@ pub fn analyze(moved: moves::MoveCheckedBodies, limits: Limits) -> Result<Activi
             });
         }
         functions.push(
-            function(body, &moved.typed().facts()[index], &mut budget).map_err(|mut error| {
+            function(body, &moved.typed().facts()[index], budget).map_err(|mut error| {
                 if error.primary.is_none() {
                     error.primary = Some(declaration.span);
                 }

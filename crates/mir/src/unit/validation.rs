@@ -154,6 +154,8 @@ pub struct Budget {
     work: usize,
     allocations: usize,
     elements: usize,
+    reporting: Usage,
+    identity: usize,
 }
 impl Budget {
     /// Resume cumulative accounting across immutable verified pipeline stages.
@@ -170,6 +172,8 @@ impl Budget {
             work: usage.work,
             allocations: usage.allocation_bytes,
             elements: usage.elements,
+            reporting: Usage::default(),
+            identity: 0,
         })
     }
     pub const fn new(limits: Limits) -> Self {
@@ -178,19 +182,95 @@ impl Budget {
             work: 0,
             allocations: 0,
             elements: 0,
+            reporting: Usage {
+                work: 0,
+                allocation_bytes: 0,
+                elements: 0,
+            },
+            identity: 0,
         }
     }
     pub const fn limits(&self) -> Limits {
         self.limits
     }
     pub const fn work_used(&self) -> usize {
-        self.work
+        self.work - self.reporting.work
     }
     pub const fn allocation_bytes(&self) -> usize {
-        self.allocations
+        self.allocations - self.reporting.allocation_bytes
     }
     pub const fn elements_used(&self) -> usize {
-        self.elements
+        self.elements - self.reporting.elements
+    }
+    /// Report intrinsic costs while admitting every charge against this ledger.
+    /// Dropping the scope restores reporting, including after errors or unwind;
+    /// admitted work and storage are never restored or replenished.
+    pub fn scope_usage(&mut self) -> impl std::ops::DerefMut<Target = Self> + '_ {
+        let previous = self.reporting;
+        self.reporting = Usage {
+            work: self.work,
+            allocation_bytes: self.allocations,
+            elements: self.elements,
+        };
+        UsageScope {
+            budget: self,
+            previous,
+        }
+    }
+    /// Remember an admitted prefix on this ledger, independent of its address.
+    /// Each original ledger receives a unique identity on demand, without allocation.
+    pub fn checkpoint(&mut self) -> Result<BudgetCheckpoint, Error> {
+        if self.identity == 0 {
+            use std::sync::atomic::{AtomicUsize, Ordering};
+            static NEXT: AtomicUsize = AtomicUsize::new(1);
+            self.identity = NEXT
+                .try_update(Ordering::Relaxed, Ordering::Relaxed, |id| id.checked_add(1))
+                .map_err(|_| Error::new(ErrorKind::ArithmeticOverflow))?;
+        }
+        Ok(BudgetCheckpoint {
+            identity: self.identity,
+            work: self.work,
+            allocations: self.allocations,
+            elements: self.elements,
+        })
+    }
+    pub fn includes_checkpoint(&self, checkpoint: BudgetCheckpoint) -> bool {
+        self.identity == checkpoint.identity
+            && self.work >= checkpoint.work
+            && self.allocations >= checkpoint.allocations
+            && self.elements >= checkpoint.elements
+    }
+    /// Publish an admitted synchronous scope prefix without replacing this ledger.
+    /// The reported counters may only advance and still obey the original limits.
+    pub fn advance_to(&mut self, usage: Usage) -> Result<(), Error> {
+        if usage.work < self.work_used()
+            || usage.allocation_bytes < self.allocation_bytes()
+            || usage.elements < self.elements_used()
+        {
+            return Err(Error::new(ErrorKind::ArithmeticOverflow));
+        }
+        let work = self
+            .reporting
+            .work
+            .checked_add(usage.work)
+            .ok_or_else(|| Error::new(ErrorKind::ArithmeticOverflow))?;
+        let allocations = self
+            .reporting
+            .allocation_bytes
+            .checked_add(usage.allocation_bytes)
+            .ok_or_else(|| Error::new(ErrorKind::ArithmeticOverflow))?;
+        let elements = self
+            .reporting
+            .elements
+            .checked_add(usage.elements)
+            .ok_or_else(|| Error::new(ErrorKind::ArithmeticOverflow))?;
+        cap(work, self.limits.work, LimitKind::Work)?;
+        cap(allocations, self.limits.allocations, LimitKind::Allocations)?;
+        cap(elements, self.limits.elements, LimitKind::Elements)?;
+        self.work = work;
+        self.allocations = allocations;
+        self.elements = elements;
+        Ok(())
     }
     pub fn charge(&mut self, steps: usize) -> Result<(), Error> {
         Self::add(&mut self.work, steps, self.limits.work, LimitKind::Work)
@@ -247,6 +327,34 @@ impl Budget {
         let mut vector = self.vector(count)?;
         vector.resize(count, value);
         Ok(vector)
+    }
+}
+/// Identity and cumulative prefix of one original preparation ledger.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct BudgetCheckpoint {
+    identity: usize,
+    work: usize,
+    allocations: usize,
+    elements: usize,
+}
+struct UsageScope<'a> {
+    budget: &'a mut Budget,
+    previous: Usage,
+}
+impl std::ops::Deref for UsageScope<'_> {
+    type Target = Budget;
+    fn deref(&self) -> &Budget {
+        self.budget
+    }
+}
+impl std::ops::DerefMut for UsageScope<'_> {
+    fn deref_mut(&mut self) -> &mut Budget {
+        self.budget
+    }
+}
+impl Drop for UsageScope<'_> {
+    fn drop(&mut self) {
+        self.budget.reporting = self.previous;
     }
 }
 fn cap(count: usize, maximum: usize, kind: LimitKind) -> Result<(), Error> {

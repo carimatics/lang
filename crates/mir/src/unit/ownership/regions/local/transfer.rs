@@ -265,7 +265,7 @@ impl Engine {
             cases.push(if i == case as usize {
                 fields.take().unwrap()
             } else {
-                flow::filled(&mut admit.budget, child.len(), 0)?
+                flow::filled(admit.budget, child.len(), 0)?
             });
         }
         self.intern(Data::Sum(cases), admit)

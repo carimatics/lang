@@ -12,6 +12,7 @@ mod state;
 mod topology;
 
 pub use analysis::analyze;
+pub(crate) use analysis::analyze_in;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct ReferenceId(pub u32);
