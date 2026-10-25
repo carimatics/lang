@@ -7,10 +7,14 @@
 - Status: implemented
 - Authors: Project contributors
 - Created: 2026-10-20
-- Last updated: 2026-10-21
+- Last updated: 2026-10-25
 - Tracking issue: M3-T01, M3-T02
 - Supersedes:
 - Superseded by:
+
+Accepted E13 current-task borrowing decision (2026-10-25 JST, RFC 0001 experimental delegation): synchronous native callbacks borrow the original Scheduler's actively running task through a checked exclusive view. The view reads the original branded TaskId, parent/origin, cancellation request, usage/limits, and delegates cancellation requests to that same original task. It grants no root start, task admission, copied counter, dispatch/finish or cleanup authority. Entry validates invocation/slot/active/running state; ready/waiting/cleaning/completed/foreign tasks refuse. Nested reborrows reference the same task/state; drop, error and unwind neither finish nor redispatch the original task. Existing kernel transitions remain unchanged. Reject copied IDs/cancellation flags or fresh roots because they do not share lifecycle. Next connect the existing VM/native frame execution: a synchronous child belongs to the original logical task, admits no replacement task and cleans only its own scope without closing the parent. E13 remains incomplete until actual source callbacks from a non-root task prove cancellation, repeats, unchanged admissions and complete owner/loan cleanup. Preserve task-export refusal and E02/E03/E04/L04/public-C conditions; syntax/persistent formats stay unchanged. Unverified implementation assumption: existing frame driving can connect to the original task lifecycle without another logical task.
+
+Accepted E13 synchronous-call scope clarification (2026-10-25 JST, delegated before implementation): a borrowed-task adapter neither constructs/starts nor dispatches the original Scheduler. It holds the original CurrentTask plus call-local ready/running/cleanup/complete phases, reusing the existing Backend/frame executor. Logical TaskId, task usage and cancellation/closing state come from the original view. Scope finish/cleanup closes only that scope; it neither completes the original task nor dispatches its ready queue. Suspending/task exports remain refused. Native imports borrow the original task view and pass it to nested synchronous calls. Distinguish temporary frame-record indices from logical task identity; observable events use the original identity. Add no logical task, identity registry or source evaluator. Require actual non-root source callbacks proving this separation, cancellation scope cleanup and continued parent execution.
 
 ## Summary
 

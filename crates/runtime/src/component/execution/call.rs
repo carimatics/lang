@@ -82,7 +82,22 @@ pub trait StorageOperation {
         accounting: &crate::execution::InvocationAccounting,
     ) -> Result<(), u32>;
 }
+pub trait TaskStorageOperation {
+    fn run(
+        &mut self,
+        resources: &mut Resources<'_>,
+        memory: &mut dyn Memory,
+        budget: &mut m::Budget,
+        holder: Holder,
+        accounting: &crate::execution::InvocationAccounting,
+        task: &mut crate::task::CurrentTask<'_>,
+    ) -> Result<(), u32>;
+}
 pub trait NativeContext {
+    fn with_task_storage(&mut self, _: &mut dyn TaskStorageOperation) -> Result<(), u32> {
+        Err(4)
+    }
+
     fn parent_live(&self) -> crate::execution::LiveUsage {
         Default::default()
     }
@@ -151,6 +166,7 @@ pub(crate) struct CallContext<'r, 'm, 'b, 'scope, 'code> {
     index_limit: u32,
     accounting: Option<&'scope crate::execution::InvocationAccounting>,
     parent_live: crate::execution::LiveUsage,
+    task: Option<crate::task::CurrentTask<'r>>,
 }
 impl<'r, 'm, 'b, 'scope, 'code> CallContext<'r, 'm, 'b, 'scope, 'code> {
     pub fn new(
@@ -174,6 +190,7 @@ impl<'r, 'm, 'b, 'scope, 'code> CallContext<'r, 'm, 'b, 'scope, 'code> {
             index_limit: u32::MAX,
             accounting: None,
             parent_live: Default::default(),
+            task: None,
         }
     }
     pub fn with_index_limit(mut self, limit: u32) -> Self {
@@ -186,6 +203,15 @@ impl<'r, 'm, 'b, 'scope, 'code> CallContext<'r, 'm, 'b, 'scope, 'code> {
     ) -> Self {
         self.accounting = Some(accounting);
         self
+    }
+    pub fn with_task(mut self, task: crate::task::CurrentTask<'r>) -> Self {
+        self.task = Some(task);
+        self
+    }
+    pub fn task_closing(&self) -> Result<bool, crate::task::Error> {
+        self.task
+            .as_ref()
+            .map_or(Ok(false), crate::task::CurrentTask::closing_requested)
     }
     pub fn with_parent_live(mut self, live: crate::execution::LiveUsage) -> Self {
         self.parent_live = live;
@@ -250,6 +276,22 @@ impl<'r, 'm, 'b, 'scope, 'code> CallContext<'r, 'm, 'b, 'scope, 'code> {
     }
 }
 impl NativeContext for CallContext<'_, '_, '_, '_, '_> {
+    fn with_task_storage(&mut self, operation: &mut dyn TaskStorageOperation) -> Result<(), u32> {
+        let task = self.task.as_mut().ok_or(4u32)?;
+        let accounting = self.accounting.ok_or(4u32)?;
+        if accounting.current_task().as_ref() != Some(task.id()) {
+            return Err(4);
+        }
+        operation.run(
+            self.resources,
+            self.memory,
+            self.budget,
+            self.holder,
+            accounting,
+            task,
+        )
+    }
+
     fn parent_live(&self) -> crate::execution::LiveUsage {
         self.parent_live
     }

@@ -30,7 +30,7 @@ fn allocation<T>(value: Result<T, mm::Error>) -> Result<Result<T, buffer::AllocE
         Err(e) => Err(fault(e)),
     }
 }
-impl Access<'_, '_, '_> {
+impl Access<'_, '_, '_, '_> {
     fn map_key<P: a::Provider>(
         &self,
         slot: usize,

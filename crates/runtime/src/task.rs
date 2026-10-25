@@ -10,6 +10,7 @@ use std::collections::VecDeque;
 use std::fmt::{Debug, Display, Formatter};
 use std::rc::Rc;
 
+pub(crate) mod driver;
 pub mod runner;
 
 /// Private invocation identity prevents a handle from naming another tree.
@@ -183,6 +184,46 @@ pub struct Scheduler {
     usage: Usage,
     last_wait: u64,
 }
+/// Exclusive access to the original actively running task for a synchronous call.
+/// The view neither admits a task nor grants dispatch/completion authority.
+pub struct CurrentTask<'a> {
+    scheduler: &'a mut Scheduler,
+    task: TaskId,
+}
+impl CurrentTask<'_> {
+    pub fn id(&self) -> &TaskId {
+        &self.task
+    }
+    pub fn parent(&self) -> Result<Option<TaskId>, Error> {
+        self.scheduler.parent(&self.task)
+    }
+    pub fn origin(&self) -> Result<Option<Span>, Error> {
+        self.scheduler.origin(&self.task)
+    }
+    pub fn status(&self) -> Result<Status, Error> {
+        self.scheduler.status(&self.task)
+    }
+    pub fn usage(&self) -> Usage {
+        self.scheduler.usage()
+    }
+    pub fn limits(&self) -> Limits {
+        self.scheduler.limits
+    }
+    pub fn cancellation_requested(&self) -> Result<bool, Error> {
+        self.scheduler.cancellation_requested(&self.task)
+    }
+    pub fn closing_requested(&self) -> Result<bool, Error> {
+        let index = self.scheduler.running(&self.task)?;
+        Ok(self.scheduler.closing_requested(index))
+    }
+    pub fn request_cancel(&mut self) -> Result<(), Error> {
+        self.scheduler.request_cancel(&self.task)
+    }
+    pub fn reborrow(&mut self) -> Result<CurrentTask<'_>, Error> {
+        self.scheduler.current(&self.task)
+    }
+}
+
 impl Scheduler {
     pub fn new(limits: Limits) -> Result<Self, Error> {
         let mut tasks = Vec::new();
@@ -201,6 +242,15 @@ impl Scheduler {
             active: None,
             usage: Usage::default(),
             last_wait: 0,
+        })
+    }
+
+    /// Lend only the checked active running task; dropping the view changes no state.
+    pub fn current(&mut self, task: &TaskId) -> Result<CurrentTask<'_>, Error> {
+        self.running(task)?;
+        Ok(CurrentTask {
+            task: task.clone(),
+            scheduler: self,
         })
     }
 

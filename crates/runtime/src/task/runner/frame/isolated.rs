@@ -15,7 +15,7 @@ fn service_error(error: g::Error) -> Result<l::ServiceError, Reason> {
         error => Err(failure(error)),
     }
 }
-impl<'l, 'ty> Access<'_, 'l, 'ty> {
+impl<'l, 'ty> Access<'_, 'l, 'ty, '_> {
     fn retire_service<P: a::Provider>(
         &mut self,
         value: Option<g::Retired<'l, 'ty>>,

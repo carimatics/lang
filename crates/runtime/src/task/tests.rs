@@ -30,6 +30,217 @@ fn cleanup(scheduler: &mut Scheduler, task: &TaskId, outcome: Outcome) {
 }
 
 #[test]
+fn current_task_borrow_keeps_non_root_identity_cancellation_and_parent_lifecycle() {
+    let mut s = Scheduler::new(Limits {
+        live_tasks: 2,
+        total_tasks: 2,
+    })
+    .unwrap();
+    let root = s.start(None).unwrap();
+    assert!(matches!(s.current(&root), Err(Error::NoActiveTask)));
+    resume(&mut s, &root);
+    let origin = Span {
+        source: lang_mir::unit::SourceId(0),
+        start: 3,
+        end: 7,
+    };
+    let child = s.spawn(&root, Some(origin)).unwrap();
+    s.join(&root, &child).unwrap();
+    resume(&mut s, &child);
+    assert_eq!(child.index(), 1);
+    assert!(matches!(s.current(&root), Err(Error::NotActiveTask)));
+    let mut foreign = scheduler();
+    let other = foreign.start(None).unwrap();
+    assert!(matches!(s.current(&other), Err(Error::ForeignTask)));
+    let invalid = TaskId {
+        invocation: child.invocation.clone(),
+        index: usize::MAX,
+    };
+    assert!(matches!(s.current(&invalid), Err(Error::InvalidTask)));
+    let before = s.usage();
+    {
+        let mut current = s.current(&child).unwrap();
+        assert_eq!(current.id(), &child);
+        assert_eq!(current.parent(), Ok(Some(root.clone())));
+        assert_eq!(current.origin(), Ok(Some(origin)));
+        assert_eq!(current.status(), Ok(Status::Running));
+        assert_eq!(current.usage(), before);
+        assert_eq!(current.limits().total_tasks, 2);
+        assert_eq!(current.cancellation_requested(), Ok(false));
+        {
+            let mut nested = current.reborrow().unwrap();
+            assert_eq!(nested.id(), &child);
+            nested.request_cancel().unwrap();
+            assert_eq!(nested.cancellation_requested(), Ok(true));
+            assert_eq!(nested.status(), Ok(Status::Running));
+            assert_eq!(nested.usage(), before);
+        }
+        assert_eq!(current.cancellation_requested(), Ok(true));
+        assert_eq!(current.status(), Ok(Status::Running));
+    }
+    assert_eq!(s.usage(), before);
+    assert_eq!(s.status(&child), Ok(Status::Running));
+    assert_eq!(
+        s.status(&root),
+        Ok(Status::Waiting {
+            child: child.clone()
+        })
+    );
+    assert!(matches!(s.dispatch(), Err(Error::Busy)));
+    assert_eq!(s.cancellation_point(&child), Ok(Boundary::Closing));
+    assert_eq!(
+        s.dispatch(),
+        Ok(Some(Dispatch::Cleanup {
+            task: child.clone(),
+            outcome: Outcome::Cancelled
+        }))
+    );
+    assert!(matches!(s.current(&child), Err(Error::WrongPhase)));
+    assert_eq!(s.finish_cleanup(&child, None), Ok(Outcome::Cancelled));
+    assert!(matches!(s.current(&child), Err(Error::NoActiveTask)));
+    resume(&mut s, &root);
+    assert_eq!(s.cancellation_requested(&root), Ok(false));
+    s.finish(&root, Outcome::Success).unwrap();
+    cleanup(&mut s, &root, Outcome::Success);
+    assert!(s.is_finished());
+    assert_eq!(
+        s.usage(),
+        Usage {
+            admitted: 2,
+            live: 0,
+            peak_live: 2
+        }
+    );
+}
+
+#[test]
+fn current_task_error_and_unwind_release_only_the_borrow() {
+    let mut s = scheduler();
+    let root = s.start(None).unwrap();
+    resume(&mut s, &root);
+    let before = s.usage();
+    let result = (|| -> Result<(), Error> {
+        let mut current = s.current(&root)?;
+        let nested = current.reborrow()?;
+        assert_eq!(nested.id(), &root);
+        Err(Error::Capacity)
+    })();
+    assert_eq!(result, Err(Error::Capacity));
+    assert_eq!(s.status(&root), Ok(Status::Running));
+    let panic = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let mut current = s.current(&root).unwrap();
+        let nested = current.reborrow().unwrap();
+        assert_eq!(nested.id(), &root);
+        panic!("contained current-task borrower");
+    }));
+    assert!(panic.is_err());
+    assert_eq!(s.status(&root), Ok(Status::Running));
+    assert_eq!(s.cancellation_requested(&root), Ok(false));
+    assert_eq!(s.usage(), before);
+    s.finish(&root, Outcome::Success).unwrap();
+    cleanup(&mut s, &root, Outcome::Success);
+}
+
+#[test]
+fn call_scopes_finish_only_the_scope_on_the_original_non_root_task() {
+    let mut s = Scheduler::new(Limits {
+        live_tasks: 2,
+        total_tasks: 2,
+    })
+    .unwrap();
+    let root = s.start(None).unwrap();
+    resume(&mut s, &root);
+    let child = s.spawn(&root, None).unwrap();
+    s.join(&root, &child).unwrap();
+    resume(&mut s, &child);
+    let before = s.usage();
+    for outcome in [Outcome::Success, Outcome::Failed(FailureId(7))] {
+        let mut scope = driver::Driver::scope(s.current(&child).unwrap()).unwrap();
+        assert_eq!(scope.start(None), Ok(child.clone()));
+        assert_eq!(scope.record_index(&child), Ok(0));
+        assert_eq!(child.index(), 1);
+        assert_eq!(scope.record_index(&root), Err(Error::ForeignTask));
+        assert_eq!(scope.dispatch(), Ok(Some(Dispatch::Resume(child.clone()))));
+        assert_eq!(scope.spawn(&child, None), Err(Error::WrongPhase));
+        assert_eq!(scope.yield_now(&child), Err(Error::WrongPhase));
+        {
+            let current = scope.current(&child).unwrap();
+            let mut nested = driver::Driver::scope(current).unwrap();
+            assert_eq!(nested.start(None), Ok(child.clone()));
+            assert_eq!(nested.dispatch(), Ok(Some(Dispatch::Resume(child.clone()))));
+            nested.finish(&child, Outcome::Success).unwrap();
+            assert!(matches!(
+                nested.dispatch(),
+                Ok(Some(Dispatch::Cleanup { .. }))
+            ));
+            assert_eq!(nested.finish_cleanup(&child, None), Ok(Outcome::Success));
+            assert_eq!(nested.usage(), before);
+        }
+        assert_eq!(scope.current(&child).unwrap().status(), Ok(Status::Running));
+        scope.finish(&child, outcome).unwrap();
+        assert_eq!(
+            scope.dispatch(),
+            Ok(Some(Dispatch::Cleanup {
+                task: child.clone(),
+                outcome
+            }))
+        );
+        assert_eq!(scope.finish_cleanup(&child, None), Ok(outcome));
+        assert!(scope.is_finished());
+        drop(scope);
+        assert_eq!(s.status(&child), Ok(Status::Running));
+        assert_eq!(s.usage(), before);
+        assert_eq!(
+            s.status(&root),
+            Ok(Status::Waiting {
+                child: child.clone()
+            })
+        );
+    }
+    let panic = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let mut scope = driver::Driver::scope(s.current(&child).unwrap()).unwrap();
+        scope.start(None).unwrap();
+        scope.dispatch().unwrap();
+        panic!("contained call scope");
+    }));
+    assert!(panic.is_err());
+    assert_eq!(s.status(&child), Ok(Status::Running));
+    {
+        let mut scope = driver::Driver::scope(s.current(&child).unwrap()).unwrap();
+        scope.start(None).unwrap();
+        scope.dispatch().unwrap();
+        scope.current(&child).unwrap().request_cancel().unwrap();
+        assert_eq!(scope.cancellation_point(&child), Ok(Boundary::Closing));
+        assert_eq!(
+            scope.dispatch(),
+            Ok(Some(Dispatch::Cleanup {
+                task: child.clone(),
+                outcome: Outcome::Cancelled
+            }))
+        );
+        assert_eq!(
+            scope.finish_cleanup(&child, Some(FailureId(8))),
+            Ok(Outcome::Cancelled)
+        );
+    }
+    assert_eq!(s.status(&child), Ok(Status::Running));
+    assert_eq!(s.usage(), before);
+    assert_eq!(s.cancellation_point(&child), Ok(Boundary::Closing));
+    cleanup(&mut s, &child, Outcome::Cancelled);
+    resume(&mut s, &root);
+    s.finish(&root, Outcome::Success).unwrap();
+    cleanup(&mut s, &root, Outcome::Success);
+    assert_eq!(
+        s.usage(),
+        Usage {
+            admitted: 2,
+            live: 0,
+            peak_live: 2
+        }
+    );
+}
+
+#[test]
 fn fifo_children_join_only_after_actual_cleanup_acknowledgement() {
     let mut s = scheduler();
     let root = s.start(None).unwrap();

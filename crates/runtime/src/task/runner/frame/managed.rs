@@ -222,7 +222,7 @@ impl Frame<'_, '_> {
         &mut self,
         id: b::LoanId,
         allocator: &mut a::Allocator<P>,
-        services: &mut crate::task::runner::services::Services<'_, '_>,
+        services: &mut crate::task::runner::services::Services<'_, '_, '_>,
     ) -> Result<(), Reason> {
         let meter = services.work.clone();
         meter.unmetered(|| {
@@ -317,7 +317,7 @@ impl Frame<'_, '_> {
                                     channels: services
                                         .channels
                                         .as_mut()
-                                        .map(|channels| (channels, &mut services.scheduler)),
+                                        .map(|channels| (channels, &mut *services.scheduler)),
                                 },
                                 allocator,
                                 context,
@@ -381,7 +381,7 @@ impl Frame<'_, '_> {
     pub fn end_loans<P: a::Provider>(
         &mut self,
         allocator: &mut a::Allocator<P>,
-        services: &mut crate::task::runner::services::Services<'_, '_>,
+        services: &mut crate::task::runner::services::Services<'_, '_, '_>,
     ) -> Result<(), Reason> {
         let count = self.managed.as_ref().map_or(0, |m| m.loans.len());
         let mut failure = None;
@@ -432,7 +432,7 @@ impl Frame<'_, '_> {
         slot: usize,
         reason: c::Reason,
         allocator: &mut a::Allocator<P>,
-        services: &mut crate::task::runner::services::Services<'_, '_>,
+        services: &mut crate::task::runner::services::Services<'_, '_, '_>,
     ) -> Result<(), Reason> {
         self.cleanup_slot_except(slot, reason, allocator, services, &[])
     }
@@ -441,7 +441,7 @@ impl Frame<'_, '_> {
         slot: usize,
         reason: c::Reason,
         allocator: &mut a::Allocator<P>,
-        services: &mut crate::task::runner::services::Services<'_, '_>,
+        services: &mut crate::task::runner::services::Services<'_, '_, '_>,
         consumed: &[crate::component::storage::Claim],
     ) -> Result<(), Reason> {
         let meter = services.work.clone();
@@ -508,7 +508,7 @@ impl Frame<'_, '_> {
         slots: impl IntoIterator<Item = usize>,
         reason: c::Reason,
         allocator: &mut a::Allocator<P>,
-        services: &mut crate::task::runner::services::Services<'_, '_>,
+        services: &mut crate::task::runner::services::Services<'_, '_, '_>,
     ) -> Result<(), Reason> {
         if let Some(managed) = &mut self.managed {
             managed.selected.fill(false);
@@ -541,7 +541,7 @@ impl Frame<'_, '_> {
         keep: Option<usize>,
         reason: c::Reason,
         allocator: &mut a::Allocator<P>,
-        services: &mut crate::task::runner::services::Services<'_, '_>,
+        services: &mut crate::task::runner::services::Services<'_, '_, '_>,
     ) -> Result<(), Reason> {
         let ended = self.end_loans(allocator, services);
         let mut next = self.managed.as_ref().and_then(|m| m.head);

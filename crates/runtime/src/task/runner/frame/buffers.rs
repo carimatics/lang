@@ -1,7 +1,7 @@
 //! The existing RFC 0007 services keep their allocator/token representation.
 use super::*;
 use crate::buffer;
-impl Access<'_, '_, '_> {
+impl Access<'_, '_, '_, '_> {
     pub(super) fn buffer_core<P: a::Provider>(
         &mut self,
         operation: o::core::Operation,

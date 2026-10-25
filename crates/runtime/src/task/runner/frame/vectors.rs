@@ -27,7 +27,7 @@ fn allocation<T>(value: Result<T, v::Error>) -> Result<Result<T, buffer::AllocEr
         Err(e) => Err(fault(e)),
     }
 }
-impl Access<'_, '_, '_> {
+impl Access<'_, '_, '_, '_> {
     #[allow(
         clippy::too_many_arguments,
         reason = "Keep verified operands, publication context and allocator explicit at the shared backend boundary."

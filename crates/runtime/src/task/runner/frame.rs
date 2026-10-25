@@ -392,7 +392,7 @@ impl<'l, 'ty> Frame<'l, 'ty> {
         to: Location,
         span: m::Span,
         allocator: &mut a::Allocator<P>,
-        services: &mut super::services::Services<'_, '_>,
+        services: &mut super::services::Services<'_, '_, '_>,
     ) -> Result<(), Reason> {
         self.available(from)?;
         if !self.live[to.slot] && to.at == self.root(to.slot)?.at {
@@ -500,7 +500,7 @@ impl<'l, 'ty> Frame<'l, 'ty> {
     pub fn release<P: a::Provider>(
         &mut self,
         allocator: &mut a::Allocator<P>,
-        services: &mut super::services::Services<'_, '_>,
+        services: &mut super::services::Services<'_, '_, '_>,
     ) -> Result<(), Reason> {
         let cleaned = self.cleanup_all(None, crate::cleanup::Reason::Failure, allocator, services);
         self.storage
@@ -515,7 +515,7 @@ impl<'l, 'ty> Frame<'l, 'ty> {
     pub fn result<P: a::Provider>(
         &mut self,
         allocator: &mut a::Allocator<P>,
-        services: &mut super::services::Services<'_, '_>,
+        services: &mut super::services::Services<'_, '_, '_>,
     ) -> Result<RetainedResult<'l, 'ty>, Reason> {
         self.available(self.return_cell)?;
         let span = self

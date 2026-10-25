@@ -7,10 +7,14 @@
 - Status: implemented
 - Authors: Project contributors
 - Created: 2026-10-20
-- Last updated: 2026-10-21
+- Last updated: 2026-10-25
 - Tracking issue: M3-T01, M3-T02
 - Supersedes:
 - Superseded by:
+
+E13 current-task借用の判断（2026-10-25 JST、RFC 0001実験段階の委任で受理）: 同期native callbackは、元Schedulerのactively running taskをcheckedな排他viewとして借用します。viewは元のbrand付きTaskId・parent/origin・取消要求・usage/limitを読み、取消要求は元Schedulerの同じtaskへ委譲します。root開始・task admission・counter複製・dispatch/finish/cleanup権限は与えません。入場でinvocation/slot/active/runningを検証し、ready/waiting/cleaning/completed/foreign taskは拒否します。nested reborrowは同じtask/stateを参照し、drop/失敗/unwindで元taskを完了または再dispatchしません。既存kernel transitionは不変です。ID/取消flagのコピーや新しいrootではlifecycleを共有できず、viewの代案として採用しません。次に既存VM/native frame executionへ接続し、同期childは元logical taskに属しtaskを再admitせず、元taskを閉じずに自身のscopeだけをcleanupします。実sourceの非root task callback・取消・反復・usage不増・全owner/loan cleanupで検証するまでE13は未完了です。task exportの拒否とE02/E03/E04/L04・公開Cの条件を維持し、syntax/永続形式は変更しません。未検証の実装仮定は、既存frame driverと元task lifecycleを別task生成なしに接続できることです。
+
+E13同期call scopeの補足判断（2026-10-25 JST、実装前に委任受理）: 借用taskの実行adapterは、元Schedulerをnew/start/dispatchせず、元CurrentTaskとcall-localなready/running/cleanup/complete phaseだけを持ちます。既存Backend/frame executorを共有し、logical TaskId・task usage・取消/closing状態は元viewを参照します。scopeのfinish/cleanupはそのscopeだけを閉じ、元taskとready queueを完了・再dispatchしません。suspending/task exportは引き続き拒否します。native importは元task viewを借用し、ネストした同期callへ渡します。scope内の一時的なframe-record索引はlogical task identityと区別し、観測eventは元identityを使います。新しいlogical task・identity registry・source evaluatorは設けません。実sourceの非root callbackで、この分離と取消時のscope cleanup/親task継続を検証します。
 
 ## Summary
 

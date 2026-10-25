@@ -219,6 +219,10 @@ struct Child {
     preparation_after: Cell<Option<m::Usage>>,
     failure: RefCell<Option<String>>,
     control_failure: Cell<Option<ChildControlFailure>>,
+    task: RefCell<Option<lang_runtime::task::TaskId>>,
+    task_usage: Cell<Option<lang_runtime::task::Usage>>,
+    cancel_task: Cell<bool>,
+    task_observations: Cell<usize>,
 }
 impl Child {
     fn new(
@@ -249,6 +253,10 @@ impl Child {
             preparation_after: Cell::new(None),
             failure: RefCell::new(None),
             control_failure: Cell::new(None),
+            task: RefCell::new(None),
+            task_usage: Cell::new(None),
+            cancel_task: Cell::new(false),
+            task_observations: Cell::new(0),
         }
     }
     unsafe fn run(&self, context: *const native::Context) -> Result<i64, u32> {
@@ -306,7 +314,7 @@ impl Child {
                     control,
                     value: None,
                 };
-                call.with_storage(&mut operation)?;
+                call.with_task_storage(&mut operation)?;
                 operation.value.ok_or(17u32)
             })
         }?;
@@ -379,6 +387,30 @@ impl execution::StorageOperation for ReplyWindow<'_> {
         Ok(())
     }
 }
+struct ObserveTask<'a>(&'a Child);
+impl execution::TaskStorageOperation for ObserveTask<'_> {
+    fn run(
+        &mut self,
+        _: &mut storage::Resources<'_>,
+        _: &mut dyn storage::Memory,
+        _: &mut m::Budget,
+        _: storage::Holder,
+        _: &e::InvocationAccounting,
+        current: &mut lang_runtime::task::CurrentTask<'_>,
+    ) -> Result<(), u32> {
+        assert_eq!(self.0.task.borrow().as_ref(), Some(current.id()));
+        assert_eq!(self.0.task_usage.get(), Some(current.usage()));
+        assert_eq!(current.status(), Ok(lang_runtime::task::Status::Running));
+        self.0
+            .task_observations
+            .set(self.0.task_observations.get() + 1);
+        if self.0.cancel_task.get() {
+            current.request_cancel().map_err(|_| 4u32)?;
+            assert_eq!(current.cancellation_requested(), Ok(true));
+        }
+        Ok(())
+    }
+}
 struct BudgetInvoker<'a> {
     original: &'a mut dyn execution::Invoker,
     target: &'a Child,
@@ -409,6 +441,7 @@ impl execution::Invoker for BudgetInvoker<'_> {
         context: &mut dyn execution::NativeContext,
     ) -> Result<execution::NativeReturn, u32> {
         context.with_storage(&mut OriginalBudget(self.target))?;
+        context.with_task_storage(&mut ObserveTask(self.target))?;
         let returned = self.original.invoke(method, parameters, context)?;
         if returned.status == 0
             && let Some(remaining) = self.target.reply_work.get()
@@ -437,7 +470,7 @@ struct ChildOperation<'a, 'ctrl> {
     control: e::Control<'ctrl>,
     value: Option<i64>,
 }
-impl execution::StorageOperation for ChildOperation<'_, '_> {
+impl execution::TaskStorageOperation for ChildOperation<'_, '_> {
     fn run(
         &mut self,
         resources: &mut storage::Resources<'_>,
@@ -445,7 +478,14 @@ impl execution::StorageOperation for ChildOperation<'_, '_> {
         budget: &mut m::Budget,
         _: storage::Holder,
         accounting: &e::InvocationAccounting,
+        current: &mut lang_runtime::task::CurrentTask<'_>,
     ) -> Result<(), u32> {
+        assert_eq!(current.status(), Ok(lang_runtime::task::Status::Running));
+        if let Some(previous) = self.target.task.borrow().as_ref() {
+            assert_eq!(previous, current.id());
+        }
+        self.target.task.replace(Some(current.id().clone()));
+        self.target.task_usage.set(Some(current.usage()));
         assert!(accounting.same_invocation(self.invoker.accounting().unwrap()));
         assert_eq!(memory.identity().get(), self.owner.allocator);
         let mut view = a::Allocator::borrow(memory).map_err(|_| 6u32)?;
@@ -499,20 +539,24 @@ impl execution::StorageOperation for ChildOperation<'_, '_> {
                         )
                         .map_err(|_| 1u32)?;
                         invocation.prepare_output(session).map_err(|_| 1u32)?;
-                        let outcome = execute_memory_with_budget(
+                        let result = execute_memory_scope(
                             program,
                             function,
                             generated.as_ref(),
                             &mut view,
                             CallControl {
+                                tasks: Default::default(),
                                 execution: self.control,
                                 preparation,
                             },
                             &[],
                             &mut invocation,
                             Some(budget),
-                        )
-                        .map_err(|error| {
+                            Some(current.reborrow().map_err(|_| 4u32)?),
+                        );
+                        assert_eq!(current.status(), Ok(lang_runtime::task::Status::Running));
+                        assert_eq!(Some(current.usage()), self.target.task_usage.get());
+                        let outcome = result.map_err(|error| {
                             self.target.failure.replace(Some(format!("{error:?}")));
                             self.target
                                 .control_failure
@@ -522,6 +566,8 @@ impl execution::StorageOperation for ChildOperation<'_, '_> {
                         self.target
                             .preparation_after
                             .set(Some(preparation_usage(budget)));
+                        assert_eq!(outcome.tasks, current.usage());
+                        assert_eq!(current.status(), Ok(lang_runtime::task::Status::Running));
                         assert!(!outcome.poisoned);
                         let execution::Value::Frame(frame) = outcome.value else {
                             return Err(17);
@@ -661,8 +707,11 @@ fn stored_unit() -> bindings::Unit {
     stored_unit_for(include_bytes!("fixtures/component_scoped_roots.lang"))
 }
 fn stored_unit_for(source: &[u8]) -> bindings::Unit {
+    stored_unit_with_task(source, false)
+}
+fn stored_unit_with_task(source: &[u8], task: bool) -> bindings::Unit {
     let host = host_document();
-    let bytes = serde_json::to_vec(&json!({
+    let mut document = json!({
         "idl":1,"package":"demo:scope","version":"1.0.0",
         "interfaces":[host["interfaces"][0].clone(),
             {"key":"demo:scope/api","resources":[],"types":[],"functions":[
@@ -675,7 +724,15 @@ fn stored_unit_for(source: &[u8]) -> bindings::Unit {
             ]}],
         "imports":[{"interface":"demo:counter/api","version":{"exact":"1.0.0"},"members":["apply","make","tick"]}],
         "exports":["demo:scope/api"]
-    })).unwrap();
+    });
+    let mut names = vec!["relay", "consume", "create", "answer"];
+    if task {
+        document["interfaces"][1]["functions"].as_array_mut().unwrap().push(json!({
+            "name":"start", "effect":"task", "params":[], "result":"i64", "capability":"demo.scope.start"
+        }));
+        names.push("start");
+    }
+    let bytes = serde_json::to_vec(&document).unwrap();
     let host = InterfaceKey::new(PackageKey::new("demo", "counter"), "api");
     let script = InterfaceKey::new(PackageKey::new("demo", "scope"), "api");
     let out = f::analyze(f::Request {
@@ -705,7 +762,7 @@ fn stored_unit_for(source: &[u8]) -> bindings::Unit {
                 },
             })
             .collect(),
-            exports: ["relay", "consume", "create", "answer"]
+            exports: names
                 .into_iter()
                 .map(|name| f::Export {
                     source: name.into(),
@@ -860,11 +917,57 @@ fn execute_memory_with_budget<P: a::Provider>(
     host: &mut dyn execution::Host,
     budget: Option<&mut m::Budget>,
 ) -> Result<r::Outcome<execution::Value>, Box<r::Failure>> {
+    execute_memory_scope(
+        program, function, generated, allocator, control, arguments, host, budget, None,
+    )
+}
+
+#[allow(
+    clippy::too_many_arguments,
+    reason = "Fixture keeps original task and preparation loans explicit."
+)]
+fn execute_memory_scope<P: a::Provider>(
+    program: &program::Program<'_>,
+    function: m::FunctionId,
+    generated: Option<&lang_codegen_clif::tasks::CompiledProgram<'_>>,
+    allocator: &mut a::Allocator<P>,
+    control: CallControl<'_>,
+    arguments: &[EntryArgument],
+    host: &mut dyn execution::Host,
+    budget: Option<&mut m::Budget>,
+    current: Option<lang_runtime::task::CurrentTask<'_>>,
+) -> Result<r::Outcome<execution::Value>, Box<r::Failure>> {
     let limits = r::Limits {
+        tasks: control.tasks,
         preparation: control.preparation,
         ..Default::default()
     };
-    (if let Some(budget) = budget {
+    (if let Some(current) = current {
+        let budget = budget.expect("task scope borrows original preparation");
+        if let Some(generated) = generated {
+            generated.execute_component_in_task(
+                allocator,
+                control.execution,
+                limits,
+                arguments,
+                host,
+                budget,
+                current,
+            )
+        } else {
+            lang_vm::unit::tasks::execute_component_in_task(
+                program,
+                function,
+                allocator,
+                control.execution,
+                limits,
+                arguments,
+                host,
+                budget,
+                current,
+            )
+        }
+    } else if let Some(budget) = budget {
         if let Some(generated) = generated {
             generated.execute_component_with_budget(
                 allocator,
@@ -904,6 +1007,7 @@ fn execute_memory_with_budget<P: a::Provider>(
 
 #[derive(Clone, Copy)]
 struct CallControl<'a> {
+    tasks: lang_runtime::task::Limits,
     execution: e::Control<'a>,
     preparation: m::Limits,
 }
@@ -928,6 +1032,8 @@ impl a::Provider for TestProvider {
     }
 }
 struct Harness {
+    unit: bindings::Unit,
+    task_limits: lang_runtime::task::Limits,
     allocator: a::Allocator<TestProvider>,
     provider_calls: Rc<Cell<usize>>,
     provider_failure: Rc<Cell<Option<usize>>>,
@@ -955,6 +1061,8 @@ impl Harness {
         let state = execution::InstanceState::prepare(&mut values).unwrap();
         let engine = lang_codegen_clif::component::Engine::prepare(&mut budget).unwrap();
         Self {
+            unit: stored_unit(),
+            task_limits: Default::default(),
             allocator,
             provider_calls,
             provider_failure,
@@ -1062,6 +1170,8 @@ impl Harness {
         accounting: Option<&e::InvocationAccounting>,
     ) -> Result<r::Outcome<execution::Value>, Box<r::Failure>> {
         let Self {
+            unit,
+            task_limits,
             allocator,
             values,
             state,
@@ -1073,7 +1183,7 @@ impl Harness {
         } = self;
         let memory_access = *memory_access;
         let preparation_limits = *preparation_limits;
-        prepared(provider, |program, session| {
+        prepared_unit(unit, provider, |program, session| {
             let function = entry(program, name);
             let generated = compiled.then(|| {
                 lang_codegen_clif::tasks::CompiledProgram::compile_component(
@@ -1110,6 +1220,7 @@ impl Harness {
                             generated.as_ref(),
                             allocator,
                             CallControl {
+                                tasks: *task_limits,
                                 execution: control,
                                 preparation: preparation_limits,
                             },
@@ -1129,6 +1240,7 @@ impl Harness {
                                 generated.as_ref(),
                                 &mut view,
                                 CallControl {
+                                    tasks: *task_limits,
                                     execution: control,
                                     preparation: preparation_limits,
                                 },
@@ -1150,6 +1262,7 @@ impl Harness {
                                 generated.as_ref(),
                                 &mut second,
                                 CallControl {
+                                    tasks: *task_limits,
                                     execution: control,
                                     preparation: preparation_limits,
                                 },
@@ -1329,6 +1442,139 @@ fn scoped_allocator_views_execute_source_and_native_resource_callbacks_without_n
             for compiled in [false, true] {
                 assert_eq!(retained_roundtrip_memory(compiled, fresh, access), expected);
             }
+        }
+    }
+}
+
+#[test]
+fn callback_cancellation_closes_original_non_root_task_and_resumes_parent() {
+    for compiled in [false, true] {
+        let mut h = Harness::new();
+        h.unit = stored_unit_with_task(
+            include_bytes!("fixtures/component_scoped_roots_task.lang"),
+            true,
+        );
+        h.task_limits = lang_runtime::task::Limits {
+            live_tasks: 2,
+            total_tasks: 2,
+        };
+        let mut child = Child::new(&mut h.values, compiled, 2, usize::MAX);
+        child.unit = stored_unit_for(include_bytes!(
+            "fixtures/component_scoped_roots_cancel.lang"
+        ));
+        child.cancel_task.set(true);
+        let child = Rc::new(child);
+        let (registration, watch) = h.registration_child(false, Some(child.clone()));
+        let outcome = h
+            .call(registration, "start", None, compiled)
+            .unwrap_or_else(|e| panic!("{e:?}; child={:?}", child.failure.borrow()));
+        assert!(matches!(
+            outcome.value,
+            execution::Value::Copy(lang_runtime::layout::Immediate::I64(42))
+        ));
+        assert_eq!(
+            outcome.tasks,
+            lang_runtime::task::Usage {
+                admitted: 2,
+                live: 0,
+                peak_live: 2
+            }
+        );
+        assert_eq!(child.task.borrow().as_ref().unwrap().index(), 1);
+        assert_eq!(child.task_observations.get(), 1);
+        assert!(
+            child
+                .failure
+                .borrow()
+                .as_ref()
+                .unwrap()
+                .contains("Cancelled")
+        );
+        assert_eq!(child.value.get(), 0);
+        assert_eq!(watch.produced.get(), 0);
+        assert_eq!(watch.destroyed.get(), 0);
+        assert_eq!(watch.released.get(), 1);
+        assert!(h.values.is_empty());
+        assert_eq!(h.allocator.stats().live_allocations, 0);
+        assert!(!outcome.poisoned && !h.state.poisoned() && !child.state.borrow().poisoned());
+        for context in [child.parent.get().unwrap(), child.nested.get().unwrap()] {
+            assert_eq!(h.engine.check(&context), 5);
+        }
+        let (retry, watch) = h.registration(false);
+        let outcome = h.call(retry, "start", None, compiled).unwrap();
+        assert!(matches!(
+            outcome.value,
+            execution::Value::Copy(lang_runtime::layout::Immediate::I64(42))
+        ));
+        assert_eq!(outcome.tasks.admitted, 2);
+        assert_eq!(watch.produced.get(), 1);
+        assert_eq!(watch.destroyed.get(), 1);
+        assert_eq!(watch.released.get(), 1);
+        assert!(h.values.is_empty());
+        assert_eq!(h.allocator.stats().live_allocations, 0);
+    }
+}
+
+#[test]
+fn original_non_root_task_survives_repeated_guest_callback_scopes() {
+    for compiled in [false, true] {
+        for repetitions in [1, 2] {
+            let mut h = Harness::new();
+            h.unit = stored_unit_with_task(
+                include_bytes!("fixtures/component_scoped_roots_task.lang"),
+                true,
+            );
+            h.task_limits = lang_runtime::task::Limits {
+                live_tasks: 2,
+                total_tasks: 2,
+            };
+            let child = Rc::new(Child::new(&mut h.values, compiled, repetitions, usize::MAX));
+            let (registration, watch) = h.registration_child(false, Some(child.clone()));
+            let outcome = h
+                .call(registration, "start", None, compiled)
+                .unwrap_or_else(|e| panic!("{e:?}; child={:?}", child.failure.borrow()));
+            assert!(matches!(
+                outcome.value,
+                execution::Value::Copy(lang_runtime::layout::Immediate::I64(42))
+            ));
+            assert_eq!(
+                outcome.tasks,
+                lang_runtime::task::Usage {
+                    admitted: 2,
+                    live: 0,
+                    peak_live: 2
+                }
+            );
+            assert_eq!(child.task.borrow().as_ref().unwrap().index(), 1);
+            assert_eq!(
+                child.task_usage.get(),
+                Some(lang_runtime::task::Usage {
+                    admitted: 2,
+                    live: 2,
+                    peak_live: 2
+                })
+            );
+            assert_eq!(child.task_observations.get(), repetitions);
+            assert_eq!(child.value.get(), 42);
+            assert_eq!(watch.produced.get(), 1);
+            assert_eq!(watch.destroyed.get(), 1);
+            assert_eq!(watch.released.get(), 1);
+            assert!(h.values.is_empty());
+            assert_eq!(h.allocator.stats().live_allocations, 0);
+            assert!(!h.state.poisoned() && !child.state.borrow().poisoned());
+            for context in [child.parent.get().unwrap(), child.nested.get().unwrap()] {
+                assert_eq!(h.engine.check(&context), 5);
+            }
+            let (retry, retry_watch) = h.registration(false);
+            let retry = h.call(retry, "start", None, compiled).unwrap();
+            assert!(matches!(
+                retry.value,
+                execution::Value::Copy(lang_runtime::layout::Immediate::I64(42))
+            ));
+            assert_eq!(retry.tasks.admitted, 2);
+            assert_eq!(retry_watch.destroyed.get(), 1);
+            assert!(h.values.is_empty());
+            assert_eq!(h.allocator.stats().live_allocations, 0);
         }
     }
 }
@@ -2408,6 +2654,7 @@ fn borrowed_preparation_entry_keeps_precharges_and_refuses_mismatched_or_exhaust
                             generated.as_ref(),
                             &mut h.allocator,
                             CallControl {
+                                tasks: Default::default(),
                                 execution: control,
                                 preparation: requested,
                             },

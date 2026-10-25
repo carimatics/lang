@@ -341,12 +341,7 @@ impl<P: a::Provider> runner::Backend<P> for Interpreter {
                 f::Kind::CancelTaskScopes { next } => {
                     machine.frame_mut(task)?.node = next;
                     machine.frame_mut(task)?.closing = true;
-                    let failure = machine.frame(task)?.fault.ok_or(Reason::Invariant)?;
-                    machine.services.scheduler.finish(
-                        &machine.records[task].id,
-                        t::Outcome::Failed(t::FailureId(failure as u64)),
-                    )?;
-                    machine.active = None;
+                    machine.finish_faulted_task(task)?;
                     return Ok(());
                 }
                 f::Kind::PropagateFailure => {

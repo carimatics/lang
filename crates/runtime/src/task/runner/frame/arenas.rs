@@ -29,7 +29,7 @@ fn outcome<T>(value: Result<T, g::Error>) -> Result<Result<T, l::ArenaError>, Re
         Err(_) => Err(Reason::Invariant),
     }
 }
-impl<'a, 'l, 'ty> Access<'a, 'l, 'ty> {
+impl<'a, 'l, 'ty> Access<'a, 'l, 'ty, '_> {
     pub fn arena_enter<P: a::Provider>(
         &mut self,
         owner: usize,

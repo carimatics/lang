@@ -266,7 +266,7 @@ impl<'l, 't> Frame<'l, 't> {
         &mut self,
         slot: usize,
         allocator: &mut a::Allocator<P>,
-        services: &mut crate::task::runner::services::Services<'l, 't>,
+        services: &mut crate::task::runner::services::Services<'l, 't, '_>,
         session: &mut c::Session,
     ) -> Result<(), Reason> {
         self.discard_partial_except(slot, allocator, services, session, &[])
@@ -275,7 +275,7 @@ impl<'l, 't> Frame<'l, 't> {
         &mut self,
         slot: usize,
         allocator: &mut a::Allocator<P>,
-        services: &mut crate::task::runner::services::Services<'l, 't>,
+        services: &mut crate::task::runner::services::Services<'l, 't, '_>,
         session: &mut c::Session,
         unpublished: &[crate::component::storage::Claim],
     ) -> Result<(), Reason> {
@@ -678,7 +678,7 @@ impl<'l, 't> Frame<'l, 't> {
     }
 }
 
-impl<'l, 't> Access<'_, 'l, 't> {
+impl<'l, 't> Access<'_, 'l, 't, '_> {
     pub fn native_resource<P: a::Provider>(
         &self,
         slot: usize,

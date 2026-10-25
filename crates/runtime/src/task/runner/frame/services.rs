@@ -1,7 +1,7 @@
 //! Typed managed services, shared by interpreted and generated task bodies.
 use super::*;
 use crate::buffer;
-impl Access<'_, '_, '_> {
+impl Access<'_, '_, '_, '_> {
     pub fn unpack_case<P: a::Provider>(
         &mut self,
         from: usize,

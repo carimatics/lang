@@ -314,7 +314,7 @@ fn execute<P: a::Provider, B: Backend<P>>(
     arguments: &[EntryArgument],
 ) -> Result<Outcome, Failure> {
     execute_profile(
-        backend, proof, entry, allocator, control, limits, arguments, None, None,
+        backend, proof, entry, allocator, control, limits, arguments, None, None, None,
     )
     .map(|outcome| {
         outcome.map(|value| match value {
@@ -339,7 +339,7 @@ pub fn execute_component<P: a::Provider, B: Backend<P>>(
     host: &mut dyn crate::component::execution::Host,
 ) -> Result<Outcome<crate::component::execution::Value>, Failure> {
     execute_component_profile(
-        backend, program, function, allocator, control, limits, arguments, host, None,
+        backend, program, function, allocator, control, limits, arguments, host, None, None,
     )
 }
 
@@ -372,6 +372,38 @@ pub fn execute_component_with_budget<P: a::Provider, B: Backend<P>>(
         arguments,
         host,
         Some(preparation),
+        None,
+    )
+}
+/// Execute one synchronous callback scope on the original borrowed running task.
+#[doc(hidden)]
+#[allow(
+    clippy::too_many_arguments,
+    reason = "Keep original program, storage, control, budget and running-task authority explicit."
+)]
+pub fn execute_component_in_task<P: a::Provider, B: Backend<P>>(
+    backend: &mut B,
+    program: &crate::component::program::Program<'_>,
+    function: m::FunctionId,
+    allocator: &mut a::Allocator<P>,
+    control: e::Control<'_>,
+    limits: Limits,
+    arguments: &[EntryArgument],
+    host: &mut dyn crate::component::execution::Host,
+    preparation: &mut m::Budget,
+    current: t::CurrentTask<'_>,
+) -> Result<Outcome<crate::component::execution::Value>, Failure> {
+    execute_component_profile(
+        backend,
+        program,
+        function,
+        allocator,
+        control,
+        limits,
+        arguments,
+        host,
+        Some(preparation),
+        Some(current),
     )
 }
 #[allow(
@@ -388,6 +420,7 @@ fn execute_component_profile<P: a::Provider, B: Backend<P>>(
     arguments: &[EntryArgument],
     host: &mut dyn crate::component::execution::Host,
     preparation: Option<&mut m::Budget>,
+    current: Option<t::CurrentTask<'_>>,
 ) -> Result<Outcome<crate::component::execution::Value>, Failure> {
     let accounting = host.accounting().clone();
     let result = execute_profile(
@@ -400,6 +433,7 @@ fn execute_component_profile<P: a::Provider, B: Backend<P>>(
         arguments,
         Some((program, &mut *host)),
         preparation,
+        current,
     );
     if let Err(failure) = &result
         && let Reason::Control(
@@ -466,6 +500,7 @@ fn execute_profile<P: a::Provider, B: Backend<P>>(
         &mut dyn crate::component::execution::Host,
     )>,
     preparation: Option<&mut m::Budget>,
+    current: Option<t::CurrentTask<'_>>,
 ) -> Result<Outcome<crate::component::execution::Value>, Failure> {
     let (program, component) = match component {
         Some((program, host)) => (Some(program), Some(host)),
@@ -477,22 +512,30 @@ fn execute_profile<P: a::Provider, B: Backend<P>>(
     let span = entry
         .and_then(|f| declarations.functions().get(f.0 as usize))
         .map(|f| f.signature_span);
+    let task_usage = current
+        .as_ref()
+        .map_or_else(Default::default, t::CurrentTask::usage);
     let fail = |reason| Failure {
         reason,
         function: entry,
         span,
         usage: Default::default(),
-        tasks: Default::default(),
+        tasks: task_usage,
         events: Vec::new(),
         report: None,
         poisoned: false,
     };
     let prepared=(||->Result<_,Reason>{
         if let Some(span)=declarations.component_feature_span() && program.is_none(){return Err(Reason::Layout(l::Error::UnsupportedComponentProfile{span}));}
+        if let Some(host) = component.as_deref() {
+            let expected = host.accounting().current_task();
+            if current.as_ref().map(t::CurrentTask::id) != expected.as_ref() { return Err(Reason::Entry); }
+        }
         if let Some(host)=component.as_deref() && let Some(failure)=host.work_failure(){
             if !host.corresponds(proof,entry.ok_or(Reason::Entry)?)||!host.control_matches(control)||host.service_work().limit()!=control.service_work_limit(){return Err(Reason::Entry);}
             return Err(Reason::Control(failure));
         }
+        if let Some(current) = current.as_ref() && current.closing_requested()? { return Err(Reason::Cancelled); }
         control.check()?;
         let mut component_budget=if let Some(program)=program {
             let budget = if let Some(budget)=preparation {
@@ -529,6 +572,7 @@ fn execute_profile<P: a::Provider, B: Backend<P>>(
         let entry=entry.ok_or(Reason::Entry)?;
         if program.is_some_and(|program|!program.is_export(entry)){return Err(Reason::Entry);}
         let decl=declarations.functions().get(entry.0 as usize).ok_or(Reason::Entry)?;
+        if current.is_some() && decl.effect.is_async() { return Err(Reason::Unsupported); }
         if decl.parameters.len()!=arguments.len() || (program.is_none() && decl.result.ty!=o::Type::I64) {return Err(Reason::Entry);}
         if let Some(host)=component.as_deref(){
             if !host.corresponds(proof,entry)||!host.control_matches(control)||host.service_work().limit()!=control.service_work_limit(){return Err(Reason::Entry);}
@@ -604,6 +648,7 @@ fn execute_profile<P: a::Provider, B: Backend<P>>(
                 entry,
                 arguments,
                 component,
+                current,
             )?
         } else {
             machine::Machine::new_with_arguments(

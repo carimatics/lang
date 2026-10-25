@@ -45,20 +45,28 @@ impl<P: a::Provider> Machine<'_, '_, '_, '_, '_, P> {
             frames: self.live_frames,
             cells: self.value_cells()?,
         };
-        let result = self
-            .services
-            .component
-            .as_deref_mut()
-            .ok_or(Reason::Unsupported)?
-            .invoke_native(
-                import,
-                &mut values,
-                span,
-                self.allocator,
-                self.budget,
-                parent_live,
-            );
-        if let Err(reason) = &result {
+        let id = self.records[task].id.clone();
+        let current = self.services.scheduler.current(&id)?;
+        let accounting = self.accounting.as_ref().ok_or(Reason::Invariant)?.clone();
+        let logical = current.id().clone();
+        let result = accounting.with_task(logical, || {
+            self.services
+                .component
+                .as_deref_mut()
+                .ok_or(Reason::Unsupported)?
+                .invoke_native(
+                    import,
+                    &mut values,
+                    span,
+                    self.allocator,
+                    self.budget,
+                    parent_live,
+                    current,
+                )
+        });
+        if let Err(reason) = &result
+            && !matches!(reason, Reason::Cancelled)
+        {
             self.record_execution(task, reason, span)?;
         }
         if let Some(cleanup) = values.cleanup.take() {

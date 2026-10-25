@@ -20,7 +20,7 @@ pub(super) fn allocation(error: &g::Error) -> Option<crate::buffer::AllocError> 
         _ => return None,
     })
 }
-impl Access<'_, '_, '_> {
+impl Access<'_, '_, '_, '_> {
     pub fn capture_channel<P: a::Provider>(
         &mut self,
         from: usize,

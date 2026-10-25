@@ -303,6 +303,47 @@ impl<'p> CompiledProgram<'p> {
             budget,
         )
     }
+    /// Run a synchronous component scope in the original borrowed task.
+    #[doc(hidden)]
+    #[allow(
+        clippy::too_many_arguments,
+        reason = "Original running-task authority accompanies component preparation and control."
+    )]
+    pub fn execute_component_in_task<P: a::Provider>(
+        &self,
+        allocator: &mut a::Allocator<P>,
+        control: e::Control<'_>,
+        limits: r::Limits,
+        arguments: &[r::EntryArgument],
+        host: &mut dyn lang_runtime::component::execution::Host,
+        budget: &mut m::Budget,
+        current: lang_runtime::task::CurrentTask<'_>,
+    ) -> Result<r::Outcome<lang_runtime::component::execution::Value>, r::Failure> {
+        let Some(program) = self.image.component else {
+            return Err(r::Failure {
+                reason: r::Reason::Entry,
+                function: Some(self.image.entry),
+                span: None,
+                usage: Default::default(),
+                tasks: current.usage(),
+                events: Vec::new(),
+                report: None,
+                poisoned: false,
+            });
+        };
+        r::execute_component_in_task(
+            &mut Adapter(&self.image),
+            program,
+            self.image.entry,
+            allocator,
+            control,
+            limits,
+            arguments,
+            host,
+            budget,
+            current,
+        )
+    }
 }
 struct Adapter<'a, 'p>(&'a Image<'p>);
 impl<P: a::Provider> r::Backend<P> for Adapter<'_, '_> {

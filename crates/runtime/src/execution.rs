@@ -1,5 +1,5 @@
 //! Shared polling, charging and usage contract for instrumented execution.
-use std::cell::Cell;
+use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Instant;
@@ -183,6 +183,7 @@ struct Accounting {
     work: ServiceWork,
     preparation_failure: Cell<Option<Failure>>,
     parent: Cell<LiveUsage>,
+    task: RefCell<Option<crate::task::TaskId>>,
 }
 impl InvocationAccounting {
     pub fn prepare(
@@ -197,6 +198,7 @@ impl InvocationAccounting {
             work: ServiceWork::new(control.service_work_limit()),
             preparation_failure: Cell::new(None),
             parent: Cell::new(LiveUsage::default()),
+            task: RefCell::new(None),
         })))
     }
     pub fn matches(&self, control: Control<'_>) -> bool {
@@ -246,6 +248,29 @@ impl InvocationAccounting {
                 .checked_add(local.cells)
                 .ok_or(Failure::CounterOverflow)?,
         })
+    }
+    pub(crate) fn current_task(&self) -> Option<crate::task::TaskId> {
+        self.0.task.borrow().clone()
+    }
+    pub(crate) fn with_task<R>(
+        &self,
+        task: crate::task::TaskId,
+        operation: impl FnOnce() -> R,
+    ) -> R {
+        struct Restore<'a> {
+            slot: &'a RefCell<Option<crate::task::TaskId>>,
+            previous: Option<crate::task::TaskId>,
+        }
+        impl Drop for Restore<'_> {
+            fn drop(&mut self) {
+                self.slot.replace(self.previous.take());
+            }
+        }
+        let _restore = Restore {
+            slot: &self.0.task,
+            previous: self.0.task.replace(Some(task)),
+        };
+        operation()
     }
     pub fn work(&self) -> &ServiceWork {
         &self.0.work

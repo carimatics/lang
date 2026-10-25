@@ -40,7 +40,7 @@ pub struct Machine<'p, 'l, 'ty, 'host, 'ctrl, P: a::Provider> {
     pub failure_records: std::num::NonZeroUsize,
     pub completed: Vec<usize>,
     pub next_activation: u64,
-    pub services: services::Services<'l, 'ty>,
+    pub services: services::Services<'l, 'ty, 'host>,
 }
 impl<'p, 'l, 'ty, 'host, 'ctrl, P: a::Provider> Machine<'p, 'l, 'ty, 'host, 'ctrl, P> {
     #[allow(
@@ -85,7 +85,7 @@ impl<'p, 'l, 'ty, 'host, 'ctrl, P: a::Provider> Machine<'p, 'l, 'ty, 'host, 'ctr
         arguments: &[EntryArgument],
     ) -> Result<Self, Reason> {
         Self::new_inner(
-            proof, plans, layouts, allocator, control, limits, budget, entry, arguments, None,
+            proof, plans, layouts, allocator, control, limits, budget, entry, arguments, None, None,
         )
     }
     #[allow(
@@ -103,6 +103,7 @@ impl<'p, 'l, 'ty, 'host, 'ctrl, P: a::Provider> Machine<'p, 'l, 'ty, 'host, 'ctr
         entry: m::FunctionId,
         arguments: &[EntryArgument],
         component: &'l mut dyn crate::component::execution::Host,
+        current: Option<t::CurrentTask<'host>>,
     ) -> Result<Self, Reason> {
         Self::new_inner(
             proof,
@@ -115,6 +116,7 @@ impl<'p, 'l, 'ty, 'host, 'ctrl, P: a::Provider> Machine<'p, 'l, 'ty, 'host, 'ctr
             entry,
             arguments,
             Some(component),
+            current,
         )
     }
     #[allow(
@@ -132,6 +134,7 @@ impl<'p, 'l, 'ty, 'host, 'ctrl, P: a::Provider> Machine<'p, 'l, 'ty, 'host, 'ctr
         entry: m::FunctionId,
         arguments: &[EntryArgument],
         mut component: Option<&'l mut dyn crate::component::execution::Host>,
+        current: Option<t::CurrentTask<'host>>,
     ) -> Result<Self, Reason> {
         let accounting = component.as_deref().map(|host| host.accounting().clone());
         let declaration = &proof.typed().places().declarations().functions()[entry.0 as usize];
@@ -171,17 +174,25 @@ impl<'p, 'l, 'ty, 'host, 'ctrl, P: a::Provider> Machine<'p, 'l, 'ty, 'host, 'ctr
             .and_then(|n| n.checked_add(component_cells))
             .ok_or(Reason::Invariant)?;
         admit(control, accounting.as_ref(), 0, 0, cells)?;
-        let mut records = budget.vector(limits.tasks.total_tasks)?;
-        let mut faults = budget.vector(limits.tasks.total_tasks)?;
-        faults.resize_with(limits.tasks.total_tasks, || None);
+        let storage_tasks = if current.is_some() {
+            1
+        } else {
+            limits.tasks.total_tasks
+        };
+        let mut records = budget.vector(storage_tasks)?;
+        let mut faults = budget.vector(storage_tasks)?;
+        faults.resize_with(storage_tasks, || None);
         let events = budget.vector(limits.trace_events)?;
         let mut frames = budget.vector(1)?;
         let failure_records =
             std::num::NonZeroUsize::new(limits.cleanup_failure_records).ok_or(Reason::Invariant)?;
-        let completed = budget.vector(limits.tasks.total_tasks)?;
+        let completed = budget.vector(storage_tasks)?;
         let mut session = c::Session::prepare(failure_records, budget)?;
         let mut input_ready = budget.vector(declaration.parameters.len())?;
-        let mut scheduler = t::Scheduler::new(limits.tasks)?;
+        let mut scheduler = match current {
+            Some(current) => t::driver::Driver::scope(current)?,
+            None => t::driver::Driver::owned(limits.tasks)?,
+        };
         let span = proof.typed().places().declarations().functions()[entry.0 as usize].span;
         let id = scheduler.start(Some(span))?;
         let mut services = services::Services::prepare(
@@ -392,7 +403,7 @@ impl<'p, 'l, 'ty, 'host, 'ctrl, P: a::Provider> Machine<'p, 'l, 'ty, 'host, 'ctr
             .map(|f| f.function)
             .unwrap_or(self.records[task].function);
         self.events.push(Event {
-            task,
+            task: self.records[task].id.index(),
             function,
             kind,
             span,
@@ -421,7 +432,9 @@ impl<'p, 'l, 'ty, 'host, 'ctrl, P: a::Provider> Machine<'p, 'l, 'ty, 'host, 'ctr
             return Ok(index);
         }
         let function = self.frame(task)?.function;
-        self.record_execution(task, &reason, span)?;
+        if !matches!(reason, Reason::Cancelled) {
+            self.record_execution(task, &reason, span)?;
+        }
         self.faults[task] = Some(Fault {
             reason,
             function,
@@ -429,6 +442,25 @@ impl<'p, 'l, 'ty, 'host, 'ctrl, P: a::Provider> Machine<'p, 'l, 'ty, 'host, 'ctr
         });
         self.frame_mut(task)?.fault = Some(task);
         Ok(task)
+    }
+    pub fn finish_faulted_task(&mut self, task: usize) -> Result<(), Reason> {
+        let failure = self.frame(task)?.fault.ok_or(Reason::Invariant)?;
+        let outcome = if self
+            .faults
+            .get(failure)
+            .and_then(Option::as_ref)
+            .is_some_and(|fault| matches!(fault.reason, Reason::Cancelled))
+        {
+            // The original cancellation flag determines the terminal outcome.
+            t::Outcome::Success
+        } else {
+            t::Outcome::Failed(t::FailureId(failure as u64))
+        };
+        self.services
+            .scheduler
+            .finish(&self.records[task].id, outcome)?;
+        self.active = None;
+        Ok(())
     }
     pub fn retired(
         &mut self,
@@ -889,7 +921,7 @@ impl<'p, 'l, 'ty, 'host, 'ctrl, P: a::Provider> Machine<'p, 'l, 'ty, 'host, 'ctr
         self.trace = false;
         if let Some((task, cleaning)) = self.active.take() {
             if cleaning {
-                let index = task.index();
+                let index = self.services.scheduler.record_index(&task)?;
                 self.cancel_channel_waits(index)?;
                 self.retire_children_results(index, c::Reason::Failure)?;
                 while let Some(frame) = self.records[index].frames.pop() {
@@ -916,7 +948,7 @@ impl<'p, 'l, 'ty, 'host, 'ctrl, P: a::Provider> Machine<'p, 'l, 'ty, 'host, 'ctr
                     .scheduler
                     .finish(&task, t::Outcome::Failed(t::FailureId(0)))?,
                 t::Dispatch::Cleanup { task, .. } => {
-                    let index = task.index();
+                    let index = self.services.scheduler.record_index(&task)?;
                     self.cancel_channel_waits(index)?;
                     self.retire_children_results(index, c::Reason::Failure)?;
                     let mut cleanup_failure = None;
@@ -1112,7 +1144,7 @@ impl<'p, 'l, 'ty, 'host, 'ctrl, P: a::Provider> Machine<'p, 'l, 'ty, 'host, 'ctr
             while let Some(dispatch) = self.services.scheduler.dispatch()? {
                 match dispatch {
                     t::Dispatch::Resume(task) => {
-                        let index = task.index();
+                        let index = self.services.scheduler.record_index(&task)?;
                         self.active = Some((task, false));
                         let frame = self.frame(index)?;
                         let span = self.proof.plan().functions()[frame.function.0 as usize].nodes()
@@ -1126,7 +1158,7 @@ impl<'p, 'l, 'ty, 'host, 'ctrl, P: a::Provider> Machine<'p, 'l, 'ty, 'host, 'ctr
                         }
                     }
                     t::Dispatch::Cleanup { task, outcome } => {
-                        let index = task.index();
+                        let index = self.services.scheduler.record_index(&task)?;
                         self.active = Some((task, true));
                         self.cleanup(backend, index, outcome)?;
                     }
@@ -1138,7 +1170,10 @@ impl<'p, 'l, 'ty, 'host, 'ctrl, P: a::Provider> Machine<'p, 'l, 'ty, 'host, 'ctr
                         .deadlock(&self.services.scheduler)
                         .map_err(Reason::Channel)?
                 {
-                    let task = deadlock.operation.task().index();
+                    let task = self
+                        .services
+                        .scheduler
+                        .record_index(deadlock.operation.task())?;
                     let function = self.frame(task)?.function;
                     let span = deadlock
                         .operation

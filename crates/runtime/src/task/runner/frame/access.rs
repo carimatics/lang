@@ -4,23 +4,23 @@ use super::*;
 use crate::task::runner::services::Services;
 use std::ops::{Deref, DerefMut};
 
-pub struct Access<'a, 'l, 'ty> {
+pub struct Access<'a, 'l, 'ty, 'scope> {
     pub frame: &'a mut Frame<'l, 'ty>,
     pub ancestors: &'a mut [Frame<'l, 'ty>],
-    pub services: &'a mut Services<'l, 'ty>,
+    pub services: &'a mut Services<'l, 'ty, 'scope>,
 }
-impl<'l, 'ty> Deref for Access<'_, 'l, 'ty> {
+impl<'l, 'ty> Deref for Access<'_, 'l, 'ty, '_> {
     type Target = Frame<'l, 'ty>;
     fn deref(&self) -> &Self::Target {
         self.frame
     }
 }
-impl DerefMut for Access<'_, '_, '_> {
+impl DerefMut for Access<'_, '_, '_, '_> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         self.frame
     }
 }
-impl<'a, 'l, 'ty> Access<'a, 'l, 'ty> {
+impl<'a, 'l, 'ty, 'scope> Access<'a, 'l, 'ty, 'scope> {
     pub fn end_loan<P: a::Provider>(
         &mut self,
         id: b::LoanId,
@@ -36,7 +36,7 @@ impl<'a, 'l, 'ty> Access<'a, 'l, 'ty> {
     }
     pub fn new(
         frames: &'a mut [Frame<'l, 'ty>],
-        services: &'a mut Services<'l, 'ty>,
+        services: &'a mut Services<'l, 'ty, 'scope>,
     ) -> Result<Self, Reason> {
         let (frame, ancestors) = frames.split_last_mut().ok_or(Reason::Invariant)?;
         Ok(Self {

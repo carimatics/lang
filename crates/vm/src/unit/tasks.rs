@@ -78,6 +78,37 @@ pub fn execute_component_with_budget<P: a::Provider>(
     )
 }
 
+/// Run a synchronous component scope in the original borrowed task.
+#[doc(hidden)]
+#[allow(
+    clippy::too_many_arguments,
+    reason = "Original task and preparation authority accompany the existing component operands."
+)]
+pub fn execute_component_in_task<P: a::Provider>(
+    program: &lang_runtime::component::program::Program<'_>,
+    function: m::FunctionId,
+    allocator: &mut a::Allocator<P>,
+    control: e::Control<'_>,
+    limits: Limits,
+    arguments: &[lang_runtime::task::runner::EntryArgument],
+    host: &mut dyn lang_runtime::component::execution::Host,
+    budget: &mut m::Budget,
+    current: lang_runtime::task::CurrentTask<'_>,
+) -> Result<Outcome<lang_runtime::component::execution::Value>, Failure> {
+    lang_runtime::task::runner::execute_component_in_task(
+        &mut machine::Interpreter,
+        program,
+        function,
+        allocator,
+        control,
+        limits,
+        arguments,
+        host,
+        budget,
+        current,
+    )
+}
+
 #[doc(hidden)]
 pub fn execute_function_with_arguments<P: a::Provider>(
     proof: &o::tasks::VerifiedTasks,

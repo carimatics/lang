@@ -574,12 +574,7 @@ impl<P: a::Provider> Machine<'_, '_, '_, '_, '_, P> {
                 } else {
                     frame.node = *next;
                     frame.closing = true;
-                    let failure = frame.fault.ok_or(Reason::Invariant)?;
-                    self.services.scheduler.finish(
-                        &self.records[task].id,
-                        t::Outcome::Failed(t::FailureId(failure as u64)),
-                    )?;
-                    self.active = None;
+                    self.finish_faulted_task(task)?;
                     return Ok(Flow::Suspended);
                 }
             }

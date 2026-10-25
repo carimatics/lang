@@ -13,7 +13,7 @@ pub(super) fn supported(op: &b::Op) -> bool {
 }
 pub(super) fn execute<P: a::Provider>(
     typed: &b::TypedBodies,
-    frame: &mut Access<'_, '_, '_>,
+    frame: &mut Access<'_, '_, '_, '_>,
     site: b::Site,
     allocator: &mut a::Allocator<P>,
 ) -> Result<(), Reason> {

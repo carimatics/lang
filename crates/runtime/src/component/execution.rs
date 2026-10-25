@@ -19,7 +19,7 @@ mod result;
 pub(crate) use call::ReadRoot;
 pub use call::{
     NativeArguments, NativeContext, NativeFailure, NativeResourceFailure, NativeResult,
-    NativeReturn, ResourceArgument, StorageOperation,
+    NativeReturn, ResourceArgument, StorageOperation, TaskStorageOperation,
 };
 use instance::Phase;
 pub use instance::{Completion, Instance, InstanceError, InstanceState};
@@ -148,6 +148,10 @@ pub trait Host {
         budget: &mut m::Budget,
         read: &mut dyn FnMut(&mut wire::Session) -> Result<NativeArguments, Reason>,
     ) -> Result<NativeArguments, Reason>;
+    #[allow(
+        clippy::too_many_arguments,
+        reason = "Original task and storage authority stay explicit at the native boundary."
+    )]
     fn invoke_native(
         &mut self,
         import: m::ImportId,
@@ -156,6 +160,7 @@ pub trait Host {
         memory: &mut dyn Memory,
         budget: &mut m::Budget,
         parent_live: crate::execution::LiveUsage,
+        task: crate::task::CurrentTask<'_>,
     ) -> Result<NativeResult, Reason>;
     fn commit_native_result(
         &mut self,
@@ -638,6 +643,7 @@ impl<'state, 'p, 'u, 'resources, 'code, 'native> Host
         memory: &mut dyn Memory,
         budget: &mut m::Budget,
         parent_live: crate::execution::LiveUsage,
+        task: crate::task::CurrentTask<'_>,
     ) -> Result<NativeResult, Reason> {
         let mut session_scope = self.output_session.take().ok_or(Reason::Unsupported)?;
         let session = &mut *session_scope;
@@ -884,7 +890,8 @@ impl<'state, 'p, 'u, 'resources, 'code, 'native> Host
                     .map_or(u32::MAX, |namespace| namespace.maximum),
             )
             .with_accounting(&self.accounting)
-            .with_parent_live(parent_live);
+            .with_parent_live(parent_live)
+            .with_task(task);
             let returned = self.invoker.invoke(target.method(), &bytes, &mut context);
             let decoded = (|| -> Result<NativeResult, Reason> {
                 self.invoker.check_control().map_err(Reason::Control)?;
@@ -895,6 +902,9 @@ impl<'state, 'p, 'u, 'resources, 'code, 'native> Host
                 }
                 if let Some(failure) = self.accounting.preparation_failure() {
                     return Err(Reason::Control(failure));
+                }
+                if context.task_closing()? {
+                    return Err(Reason::Cancelled);
                 }
                 if returned.status != 0 {
                     let bytes = if returned.buffer.is_null() {

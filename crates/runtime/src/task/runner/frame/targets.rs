@@ -100,7 +100,7 @@ macro_rules! observe {
         }
     }};
 }
-impl Access<'_, '_, '_> {
+impl Access<'_, '_, '_, '_> {
     pub(super) fn replace_indirect<P: a::Provider>(
         &mut self,
         from: usize,

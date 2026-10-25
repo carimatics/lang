@@ -63,9 +63,9 @@ fn cleanup_leaf<P: a::Provider>(
         crate::buffer::cleanup_token(types, token, allocator).map_err(|_| 3u32)
     }
 }
-pub struct Services<'l, 'ty> {
+pub struct Services<'l, 'ty, 'scope> {
     pub component: Option<&'l mut dyn crate::component::execution::Host>,
-    pub scheduler: t::Scheduler,
+    pub scheduler: t::driver::Driver<'scope>,
     pub channels: Option<crate::channel::managed::Channels<'l, 'ty>>,
     pub work: e::ServiceWork,
     pub layouts: &'l l::Layouts<'ty>,
@@ -74,7 +74,7 @@ pub struct Services<'l, 'ty> {
     pub opened: bool,
     pub inspection: Option<crate::inspection::Inspector<'l, 'ty>>,
 }
-impl<'l, 'ty> Services<'l, 'ty> {
+impl<'l, 'ty, 'scope> Services<'l, 'ty, 'scope> {
     #[expect(
         clippy::too_many_arguments,
         reason = "Invocation preparation shares the existing proof, frame, allocator, scheduler and finite service budgets."
@@ -84,7 +84,7 @@ impl<'l, 'ty> Services<'l, 'ty> {
         plans: &[Option<l::FramePlan<'l, 'ty>>],
         layouts: &'l l::Layouts<'ty>,
         allocator: &a::Allocator<P>,
-        scheduler: t::Scheduler,
+        scheduler: t::driver::Driver<'scope>,
         root: &t::TaskId,
         channel_limits: crate::channel::Limits,
         channel_cells: usize,
@@ -223,7 +223,7 @@ impl<'l, 'ty> Services<'l, 'ty> {
                         channels: self
                             .channels
                             .as_mut()
-                            .map(|channels| (channels, &mut self.scheduler)),
+                            .map(|channels| (channels, &mut *self.scheduler)),
                     },
                     allocator,
                     context,
@@ -253,7 +253,7 @@ impl<'l, 'ty> Services<'l, 'ty> {
                     channels: self
                         .channels
                         .as_mut()
-                        .map(|channels| (channels, &mut self.scheduler)),
+                        .map(|channels| (channels, &mut *self.scheduler)),
                 },
                 allocator,
                 context,
@@ -280,7 +280,7 @@ impl<'l, 'ty> Services<'l, 'ty> {
                     channels: self
                         .channels
                         .as_mut()
-                        .map(|channels| (channels, &mut self.scheduler)),
+                        .map(|channels| (channels, &mut *self.scheduler)),
                 },
                 allocator,
                 context,

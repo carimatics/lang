@@ -20,7 +20,7 @@ fn outcome<T>(value: Result<T, sh::Error>) -> Result<Result<T, l::OwnershipError
         Err(_) => Err(Reason::Invariant),
     }
 }
-impl Access<'_, '_, '_> {
+impl Access<'_, '_, '_, '_> {
     fn observation<P: a::Provider>(
         &self,
         target: Target,
