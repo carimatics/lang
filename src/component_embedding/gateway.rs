@@ -1,6 +1,8 @@
 //! Component C operation implementations. No API query/table is published yet.
 mod admission;
 mod callbacks;
+#[cfg(test)]
+mod failure_tests;
 mod registration;
 mod resources;
 use super::{Limits as ModuleLimits, Module, ffi, load};
@@ -145,16 +147,9 @@ fn project_failure(
     allocations: a::Stats,
     canonical_indices: u64,
 ) -> Option<(wire::Report, Vec<u8>)> {
-    // More complex native/resource/cleanup provenance is not yet connected;
-    // preserve the actual failure, never fabricate suppressed diagnostics.
-    if failure
-        .report
-        .as_ref()
-        .is_some_and(|r| !r.secondary().is_empty())
-    {
-        return None;
-    }
+    // Preserve the actual primary; cleanup records never replace it.
     let mut limit = None;
+    let mut phase = wire::Phase::Call;
     let (category, diagnostic) = match failure.reason {
         r::Reason::ComponentIndices {
             limit: maximum,
@@ -209,6 +204,45 @@ fn project_failure(
             });
             (wire::Category::Limit, wire::Diagnostic::Limit)
         }
+        r::Reason::Instance(execution::InstanceError::Poisoned) => {
+            phase = wire::Phase::Admission;
+            (
+                wire::Category::Admission,
+                wire::Diagnostic::InstancePoisoned,
+            )
+        }
+        r::Reason::Instance(execution::InstanceError::Active) => {
+            phase = wire::Phase::Admission;
+            (wire::Category::Admission, wire::Diagnostic::Reentry)
+        }
+        r::Reason::Native(execution::NativeFailure::Status { .. }) => {
+            (wire::Category::Trap, wire::Diagnostic::Trap)
+        }
+        r::Reason::Native(_)
+        | r::Reason::Invariant
+        | r::Reason::Instance(execution::InstanceError::ScopeNotClosed) => {
+            (wire::Category::HostContract, wire::Diagnostic::HostContract)
+        }
+        r::Reason::Cleanup => match failure
+            .report
+            .as_ref()
+            .and_then(|report| report.primary())
+            .map(|r| r.kind)
+        {
+            Some(lang_runtime::cleanup::FailureKind::Cleanup(_)) => {
+                phase = wire::Phase::Cleanup;
+                (wire::Category::Destructor, wire::Diagnostic::Destructor)
+            }
+            Some(
+                lang_runtime::cleanup::FailureKind::CleanupPanic
+                | lang_runtime::cleanup::FailureKind::PayloadDropPanic
+                | lang_runtime::cleanup::FailureKind::PanicPayloadDropPanic,
+            ) => {
+                phase = wire::Phase::Cleanup;
+                (wire::Category::HostContract, wire::Diagnostic::HostContract)
+            }
+            _ => (wire::Category::Trap, wire::Diagnostic::Trap),
+        },
         _ => return None,
     };
     let frame = wire::Frame {
@@ -226,19 +260,60 @@ fn project_failure(
     } else {
         vec![frame.clone()]
     };
-    let omitted = failure.report.as_ref().map_or(0, |r| r.truncated() as u64)
-        + u64::from(ceiling.trace_frames == 0);
+    let mut omitted = failure
+        .report
+        .as_ref()
+        .map_or(0, |r| r.truncated() as u64)
+        .saturating_add(u64::from(ceiling.trace_frames == 0));
+    let mut suppressed = Vec::new();
+    if let Some(cleanup) = &failure.report {
+        let maximum = ceiling.suppressed_records.min(64) as usize;
+        for record in cleanup.secondary() {
+            let description = match record.kind {
+                lang_runtime::cleanup::FailureKind::Cleanup(_) => {
+                    Some((wire::Category::Destructor, wire::Diagnostic::Destructor))
+                }
+                lang_runtime::cleanup::FailureKind::CleanupPanic
+                | lang_runtime::cleanup::FailureKind::PayloadDropPanic
+                | lang_runtime::cleanup::FailureKind::PanicPayloadDropPanic
+                | lang_runtime::cleanup::FailureKind::Execution(
+                    lang_mir::unit::ownership::failure::ExecutionFailure::HostPanic
+                    | lang_mir::unit::ownership::failure::ExecutionFailure::Invariant,
+                ) => Some((wire::Category::HostContract, wire::Diagnostic::HostContract)),
+                // Schema 3 represents suppressed cleanup records. Other
+                // execution evidence remains in the original immutable failure.
+                _ => None,
+            };
+            if let Some((category, diagnostic)) = description
+                && suppressed.len() < maximum
+            {
+                suppressed.push(wire::Record {
+                    category,
+                    phase: wire::Phase::Cleanup,
+                    diagnostic,
+                    message: None,
+                    limit: None,
+                    origin: record
+                        .span
+                        .filter(|span| Some(*span) == failure.span)
+                        .map(|_| frame.clone()),
+                });
+            } else {
+                omitted = omitted.saturating_add(1);
+            }
+        }
+    }
     let report = wire::Report {
         policy: wire::MessagePolicy::Redacted,
         primary: wire::Record {
             category,
-            phase: wire::Phase::Call,
+            phase,
             diagnostic,
             message: None,
             limit,
             origin: Some(frame),
         },
-        suppressed: vec![],
+        suppressed,
         poisoned: failure.poisoned,
         omitted,
         usage: wire::ReportUsage {
@@ -257,8 +332,8 @@ fn project_failure(
     // Mandatory projection is outside guest control charging, bounded to this
     // fixed primary/top-frame representation. It cannot refund/reset a root.
     let mut session = wire::Session::new(wire::Limits {
-        bytes: 4096,
-        serialization_bytes: 4096,
+        bytes: 16384,
+        serialization_bytes: 16384,
         allocation_bytes: 65536,
         work: 65536,
         elements: 1024,

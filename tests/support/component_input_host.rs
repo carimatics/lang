@@ -254,7 +254,7 @@ unsafe extern "C" fn probe_report(bytes: ffi::Bytes, mode: u32, case: u32) -> u3
     let report = wire::decode_report(bytes, &mut wire::Session::new(Default::default())).unwrap();
     assert_eq!(report.policy, wire::MessagePolicy::Redacted);
     assert!(report.primary.message.is_none());
-    assert!(!report.poisoned);
+    assert_eq!(report.poisoned, matches!(case, 4 | 5));
     let origin = report.primary.origin.as_ref().unwrap();
     assert_eq!(
         origin.mode,
@@ -285,6 +285,30 @@ unsafe extern "C" fn probe_report(bytes: ffi::Bytes, mode: u32, case: u32) -> u3
             assert_eq!(limit.kind, wire::ReportLimitKind::ServiceWork);
             assert_eq!(limit.limit, 0);
             assert!(limit.attempted > 0);
+        }
+        4 | 6 => {
+            assert_eq!(report.primary.category, wire::Category::Limit);
+            assert_eq!(report.primary.phase, wire::Phase::Call);
+            assert_eq!(report.primary.diagnostic, wire::Diagnostic::Limit);
+            let limit = report.primary.limit.unwrap();
+            assert_eq!(limit.kind, wire::ReportLimitKind::CanonicalIndices);
+            assert_eq!((limit.limit, limit.attempted), (3, 4));
+            assert_eq!(report.suppressed.len(), usize::from(case == 4));
+            for record in &report.suppressed {
+                assert_eq!(record.category, wire::Category::Destructor);
+                assert_eq!(record.phase, wire::Phase::Cleanup);
+                assert_eq!(record.diagnostic, wire::Diagnostic::Destructor);
+                assert!(record.message.is_none() && record.limit.is_none());
+                assert_eq!(record.origin, report.primary.origin);
+            }
+            assert_eq!(report.usage.host_calls, 3);
+            assert_eq!(report.usage.canonical_indices, 3);
+        }
+        5 => {
+            assert_eq!(report.primary.category, wire::Category::Admission);
+            assert_eq!(report.primary.phase, wire::Phase::Admission);
+            assert_eq!(report.primary.diagnostic, wire::Diagnostic::InstancePoisoned);
+            assert!(report.primary.limit.is_none());
         }
         _ => panic!("unknown report case"),
     }

@@ -1246,6 +1246,7 @@ impl<'p, 'l, 'ty, 'host, 'ctrl, P: a::Provider> Machine<'p, 'l, 'ty, 'host, 'ctr
         {
             finished = Err(reason);
         }
+        let mut final_failure_origin = None;
         let finished = finished.and_then(|()| {
             let result = self.finish_root();
             if let Err(reason) = &result {
@@ -1254,6 +1255,7 @@ impl<'p, 'l, 'ty, 'host, 'ctrl, P: a::Provider> Machine<'p, 'l, 'ty, 'host, 'ctr
                     [function.0 as usize]
                     .span;
                 let _ = self.record_execution(0, reason, span);
+                final_failure_origin = Some((function, span));
             }
             result
         });
@@ -1294,19 +1296,24 @@ impl<'p, 'l, 'ty, 'host, 'ctrl, P: a::Provider> Machine<'p, 'l, 'ty, 'host, 'ctr
                 };
                 let fault = self.faults.get_mut(failure).and_then(Option::take);
                 let (report, poisoned) = self.failure_report(failure).unwrap_or((None, true));
-                let (reason, function, span) = if let Some(fault) = fault {
-                    (fault.reason, Some(fault.function), Some(fault.span))
-                } else {
-                    (
-                        reason,
-                        Some(self.records[0].function),
-                        Some(
-                            self.proof.typed().places().declarations().functions()
-                                [self.records[0].function.0 as usize]
-                                .span,
-                        ),
-                    )
-                };
+                // Final result admission precedes retirement of its escrow.
+                // A later destructor failure must not replace that typed cause.
+                let (reason, function, span) =
+                    if let Some((function, span)) = final_failure_origin.filter(|_| failure == 0) {
+                        (reason, Some(function), Some(span))
+                    } else if let Some(fault) = fault {
+                        (fault.reason, Some(fault.function), Some(fault.span))
+                    } else {
+                        (
+                            reason,
+                            Some(self.records[0].function),
+                            Some(
+                                self.proof.typed().places().declarations().functions()
+                                    [self.records[0].function.0 as usize]
+                                    .span,
+                            ),
+                        )
+                    };
                 Err(Failure {
                     reason,
                     function,
