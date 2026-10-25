@@ -25,6 +25,10 @@ static uint32_t registry_report_case(uint32_t profile) {
     if(profile==16)return 23;
     if(profile==17)return 24;
     if(profile==18)return 25;
+    if(profile==19)return 38;
+    if(profile==20)return 39;
+    if(profile==21||profile==22)return 40;
+    if(profile==23||profile==24)return 41;
     return 11u+((profile-10u)&1u);
 }
 static uint32_t registry_poisoned_profile(uint32_t profile) {
@@ -95,6 +99,33 @@ static uint32_t registry_invoke(void *user,const lang_component_v1_context *cont
             assert(owner->api->result_drop(failed.result,&error)==0);
             return 0;
         }
+        if(owner->profile>=19&&owner->profile<=24&&owner->calls==1) {
+            @ROOT_ARGUMENTS@ args={0};lc_value_writer child_writer={0};uint8_t child_scratch[1024];
+            lang_component_v1_bytes input;lang_component_v1_result *unchanged=(lang_component_v1_result *)(uintptr_t)42;
+            args.p0=41;child_writer.data=child_scratch;child_writer.capacity=sizeof(child_scratch);
+            child_writer.left.work=1000000;child_writer.left.elements=1000;child_writer.left.depth=128;
+            assert(@ROOT_NAME@_encode_arguments(&child_writer,&args));input.data=child_scratch;input.length=child_writer.at;
+            assert(probe_exhaust_preparation(context,(owner->profile-19u)/2u)==0);
+            assert(owner->api->context_call(context,owner->callback,input,&unchanged,&error)!=0);
+            assert(unchanged==(lang_component_v1_result *)(uintptr_t)42&&owner->calls==1);
+            assert(owner->api->context_check(context,&error)==1);
+            {
+                lc_value_outcome first,again;lang_component_v1_bytes bytes,repeated;
+                lc_value_writer writer={0};writer.data=child_scratch;writer.capacity=sizeof(child_scratch);
+                writer.left.work=1000000;writer.left.elements=1000;writer.left.depth=128;
+                first=@ROOT_NAME@_context_call(owner->api,context,owner->callback,&args,&writer,&error);
+                assert(first.status==1&&first.commit==0&&!first.poisoned&&first.result&&owner->calls==1);
+                assert(owner->api->result_bytes(first.result,&bytes,&error)==0&&probe_report(bytes,owner->mode,registry_report_case(owner->profile))==0);
+                writer.at=0;writer.left.work=1000000;writer.left.elements=1000;writer.left.depth=128;
+                again=@ROOT_NAME@_context_call(owner->api,context,owner->callback,&args,&writer,&error);
+                assert(again.status==1&&again.commit==0&&!again.poisoned&&again.result&&owner->calls==1);
+                assert(owner->api->result_bytes(again.result,&repeated,&error)==0);
+                assert(repeated.length==bytes.length&&memcmp(repeated.data,bytes.data,(size_t)bytes.length)==0);
+                assert(owner->api->result_drop(again.result,&error)==0);
+                assert(owner->api->result_drop(first.result,&error)==0);
+            }
+            return 0;
+        }
         if(owner->profile>=10&&owner->calls>1)goto encode_result;
         owner->depth++;
         for(i=0;i<(owner->profile?2u:1u);++i) {
@@ -158,6 +189,7 @@ static void registry_profile(const lang_component_v1_api *api,const lang_compone
     lang_component_v1_engine *engine=NULL;lang_component_v1_module *module=NULL;
     lang_component_v1_instance *instance=NULL;lang_component_v1_binding *binding=NULL;
     lang_component_v1_instance *second_instance=NULL;lang_component_v1_binding *second_binding=NULL;
+    lang_component_v1_instance *task_instance=NULL;
     lang_component_v1_error error={0};lang_component_v1_instance_config options={0};
     lang_component_v1_result *closed=(lang_component_v1_result *)(uintptr_t)42;
     lang_component_v1_bytes request={projection,sizeof(projection)},grant={native_grant,sizeof(native_grant)};
@@ -225,7 +257,21 @@ static void registry_profile(const lang_component_v1_api *api,const lang_compone
     options.grants=&grant;
     assert(api->instance_create(module,&options,&second_instance,&error)==0);
     assert(api->bind_export(second_instance,request,&second_binding,&error)==0);
-    owner.callback=(profile==2||profile==6||(profile>=12&&profile<14))?second_binding:binding;
+    owner.callback=(profile==2||profile==6||(profile>=12&&profile<14)||profile==20||profile==22||profile==24)?second_binding:binding;
+    if(profile==2) {
+        lang_component_v1_module *task_module=NULL;
+        lang_component_v1_binding *refused=(lang_component_v1_binding *)(uintptr_t)42;
+        lang_component_v1_instance_config task_options={0};
+        lang_component_v1_bytes task_input={format?task_artifact:task_source,format?sizeof(task_artifact):sizeof(task_source)};
+        lang_component_v1_bytes task_metadata={format?NULL:task_idl,format?0:sizeof(task_idl)};
+        lang_component_v1_bytes task_request={task_projection,sizeof(task_projection)};
+        task_options.header.size=sizeof(task_options);task_options.header.version=1;task_options.ceiling=config.ceiling;
+        assert(api->module_load(engine,format,task_input,task_metadata,&task_module,&error)==0);
+        assert(api->instance_create(task_module,&task_options,&task_instance,&error)==0);
+        assert(api->bind_export(task_instance,task_request,&refused,&error)==2);
+        assert(refused==(lang_component_v1_binding *)(uintptr_t)42);
+        assert(api->module_drop(task_module,&error)==0);
+    }
     assert(api->provider_drop(owner.provider,&closed,&error)==4&&closed==(lang_component_v1_result *)(uintptr_t)42);
     {
         lang_component_v1_provider_config second={0};lang_component_v1_import method={0};
@@ -311,6 +357,9 @@ static void registry_profile(const lang_component_v1_api *api,const lang_compone
     if(owner.retained)assert(api->result_bytes(owner.retained,&retained_view,&error)==0);
     assert(api->instance_close(instance,&closed,&error)==0&&closed==NULL);
     assert(api->instance_close(second_instance,&closed,&error)==0&&closed==NULL);
+    if(task_instance) {
+        assert(api->instance_close(task_instance,&closed,&error)==0&&closed==NULL);
+    }
     assert(api->provider_drop(owner.provider,&closed,&error)==0&&closed==NULL&&owner.released==0);
     assert(api->binding_drop(binding,&error)==0);
     assert(api->binding_drop(second_binding,&error)==0);
@@ -326,5 +375,5 @@ static void registry_profile(const lang_component_v1_api *api,const lang_compone
     assert(api->engine_destroy(engine,&error)==0);
 }
 static void registry_case(const lang_component_v1_api *api,const lang_component_v1_config *config,uint32_t format) {
-    uint32_t profile;for(profile=0;profile<19;++profile)registry_profile(api,config,format,profile);
+    uint32_t profile;for(profile=0;profile<25;++profile)registry_profile(api,config,format,profile);
 }

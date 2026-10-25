@@ -624,6 +624,89 @@ impl CallbackArguments<'_, '_> {
         }
     }
 }
+/// Internal callback admission stays distinct from an actual failure of the
+/// original invocation's preparation, allocator or control.
+#[derive(Debug)]
+pub enum CallbackFailure {
+    Admission(u32),
+    Preparation(Reason),
+}
+impl From<u32> for CallbackFailure {
+    fn from(status: u32) -> Self {
+        Self::Admission(status)
+    }
+}
+impl From<m::Error> for CallbackFailure {
+    fn from(error: m::Error) -> Self {
+        Self::Preparation(Reason::Resource(error))
+    }
+}
+impl From<wire::Error> for CallbackFailure {
+    fn from(error: wire::Error) -> Self {
+        if matches!(
+            &error.kind,
+            wire::ErrorKind::Budget(_)
+                | wire::ErrorKind::Limit { .. }
+                | wire::ErrorKind::Execution(_)
+        ) {
+            Self::Preparation(Reason::from(error))
+        } else {
+            Self::Admission(2)
+        }
+    }
+}
+impl From<Reason> for CallbackFailure {
+    fn from(reason: Reason) -> Self {
+        match reason {
+            Reason::ComponentFrame(error) => error.into(),
+            Reason::Component(storage::Error::Allocation(error)) => {
+                Self::Preparation(Reason::Layout(l::Error::Allocation(error)))
+            }
+            Reason::Component(storage::Error::Preparation(
+                super::super::resource::PreparationError::Budget(error),
+            )) => error.into(),
+            Reason::Resource(_)
+            | Reason::Control(_)
+            | Reason::ComponentIndices { .. }
+            | Reason::FrameLimit { .. }
+            | Reason::CellLimit { .. }
+            | Reason::Layout(l::Error::Allocation(_) | l::Error::Resource { .. }) => {
+                Self::Preparation(reason)
+            }
+            _ => Self::Admission(2),
+        }
+    }
+}
+impl From<super::super::grants::Error> for CallbackFailure {
+    fn from(error: super::super::grants::Error) -> Self {
+        use super::super::grants::Error;
+        match error {
+            Error::Wire(error) | Error::Selection(wire::SelectionError::Wire(error)) => {
+                error.into()
+            }
+            _ => Self::Admission(2),
+        }
+    }
+}
+impl From<super::super::program::Error> for CallbackFailure {
+    fn from(error: super::super::program::Error) -> Self {
+        use super::super::program::Error;
+        match error {
+            Error::Resource(error) => error.into(),
+            Error::Tasks(error) => match error.kind {
+                o::tasks::ErrorKind::Resource(kind) => m::Error {
+                    kind,
+                    function: None,
+                    block: None,
+                    instruction: None,
+                }
+                .into(),
+                _ => Self::Admission(2),
+            },
+            _ => Self::Admission(2),
+        }
+    }
+}
 /// All operands are borrowed from the current dynamic native call.
 pub trait CallbackOperation {
     #[allow(
@@ -641,7 +724,7 @@ pub trait CallbackOperation {
         holder: Holder,
         accounting: &crate::execution::InvocationAccounting,
         task: &mut crate::task::CurrentTask<'_>,
-    ) -> Result<(), u32>;
+    ) -> Result<(), CallbackFailure>;
 }
 pub trait NativeContext {
     fn with_callback(&mut self, _: &mut dyn CallbackOperation) -> Result<(), u32> {
@@ -914,7 +997,7 @@ impl NativeContext for CallContext<'_, '_, '_, '_, '_> {
             holder: self.holder,
             index_limit: self.index_limit,
         };
-        instance.with_callback(self.holder, &mut |child| {
+        let result = instance.with_callback(self.holder, &mut |child| {
             operation.run(
                 child,
                 self.resources,
@@ -926,7 +1009,15 @@ impl NativeContext for CallContext<'_, '_, '_, '_, '_> {
                 accounting,
                 task,
             )
-        })
+        });
+        match result {
+            Ok(()) => Ok(()),
+            Err(CallbackFailure::Admission(status)) => Err(status),
+            Err(CallbackFailure::Preparation(reason)) => {
+                self.remember_failure(reason);
+                Err(2)
+            }
+        }
     }
     fn with_task_storage(&mut self, operation: &mut dyn TaskStorageOperation) -> Result<(), u32> {
         let task = self.task.as_mut().ok_or(4u32)?;

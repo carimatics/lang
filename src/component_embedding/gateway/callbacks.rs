@@ -105,11 +105,11 @@ impl execution::CallbackOperation for Call<'_, '_> {
         _: storage::Holder,
         accounting: &e::InvocationAccounting,
         task: &mut lang_runtime::task::CurrentTask<'_>,
-    ) -> Result<(), u32> {
+    ) -> Result<(), execution::CallbackFailure> {
         let target = self.target.clone();
         if let Some(first) = accounting.child_failure() {
             let Some(canonical_indices) = accounting.failure_indices() else {
-                return Err(UNSUPPORTED);
+                return Err(UNSUPPORTED.into());
             };
             let caller = self.current.instance.clone();
             let allocations = a::Allocator::borrow(memory).map_err(|_| INVALID)?.stats();
@@ -245,7 +245,7 @@ impl execution::CallbackOperation for Call<'_, '_> {
         if target.module.unit().code().declarations().functions()[self.entry.0 as usize].effect
             != m::ownership::declarations::FunctionEffect::Synchronous
         {
-            return Err(BUSY);
+            return Err(BUSY.into());
         }
         let _current = CurrentScope::enter(
             self.owner,
@@ -261,12 +261,14 @@ impl execution::CallbackOperation for Call<'_, '_> {
         } else {
             let mut state = target.state.try_borrow_mut().map_err(|_| BUSY)?;
             if state.poisoned() {
-                return Err(BUSY);
+                return Err(BUSY.into());
             }
-            let mut preparing = session.scope_preparation(budget).map_err(|_| INVALID)?;
+            let mut preparing = session
+                .scope_preparation(budget)
+                .map_err(execution::CallbackFailure::from)?;
             let mut views = preparing
                 .vector(target.grants.len(), 0)
-                .map_err(|_| INVALID)?;
+                .map_err(execution::CallbackFailure::from)?;
             for grant in &target.grants {
                 views.push(grant.view());
             }
@@ -277,10 +279,10 @@ impl execution::CallbackOperation for Call<'_, '_> {
                 || &target.providers,
                 &mut preparing,
             )
-            .map_err(|_| INVALID)?;
+            .map_err(execution::CallbackFailure::from)?;
             drop(preparing);
-            let program =
-                program::Program::prepare_with_budget(&bound, budget).map_err(|_| INVALID)?;
+            let program = program::Program::prepare_with_budget(&bound, budget)
+                .map_err(execution::CallbackFailure::from)?;
             let result = state
                 .with_callback_program(&program, origin, |instance| {
                     self.execute(
@@ -310,7 +312,7 @@ impl Call<'_, '_> {
         callback: &execution::CallbackArguments<'_, 'code>,
         task: &mut lang_runtime::task::CurrentTask<'_>,
         accounting: &e::InvocationAccounting,
-    ) -> Result<(), u32> {
+    ) -> Result<(), execution::CallbackFailure> {
         let program = instance.program();
         let generated = match self.current.mode {
             0 => None,
@@ -322,7 +324,7 @@ impl Call<'_, '_> {
                 )
                 .map_err(|_| INVALID)?,
             ),
-            _ => return Err(UNSUPPORTED),
+            _ => return Err(UNSUPPORTED.into()),
         };
         let mut memory = a::Allocator::borrow(memory).map_err(|_| INVALID)?;
         let mut host = execution::Invocation::prepare_owned(
@@ -332,14 +334,16 @@ impl Call<'_, '_> {
             self.invoker,
             budget,
         )
-        .map_err(|_| INVALID)?;
+        .map_err(execution::CallbackFailure::from)?;
         let values = {
-            let mut preparing = session.scope_preparation(budget).map_err(|_| INVALID)?;
+            let mut preparing = session
+                .scope_preparation(budget)
+                .map_err(execution::CallbackFailure::from)?;
             host.decode_callback_arguments(self.arguments, callback, &memory, &mut preparing)
-                .map_err(|_| INVALID)?
+                .map_err(execution::CallbackFailure::from)?
         };
         host.prepare_callback_output(session, budget, callback)
-            .map_err(|_| INVALID)?;
+            .map_err(execution::CallbackFailure::from)?;
         let limits = r::Limits {
             tasks: task.limits(),
             preparation: self.current.limits.preparation,
@@ -379,7 +383,7 @@ impl Call<'_, '_> {
         let (body, usage, tasks, poisoned, report) = match outcome {
             Ok(outcome) => {
                 let execution::Value::Frame(frame) = outcome.value else {
-                    return Err(INVALID);
+                    return Err(INVALID.into());
                 };
                 (
                     ResultBody::Value(frame),

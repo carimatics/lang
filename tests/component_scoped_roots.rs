@@ -527,9 +527,9 @@ impl execution::CallbackOperation for DeniedCallback {
         _: storage::Holder,
         _: &e::InvocationAccounting,
         _: &mut lang_runtime::task::CurrentTask<'_>,
-    ) -> Result<(), u32> {
+    ) -> Result<(), execution::CallbackFailure> {
         self.0 = true;
-        Err(17)
+        Err(17u32.into())
     }
 }
 struct BudgetInvoker<'a> {
@@ -605,7 +605,7 @@ impl execution::CallbackOperation for ProbeActivation<'_> {
         _: storage::Holder,
         _: &e::InvocationAccounting,
         _: &mut lang_runtime::task::CurrentTask<'_>,
-    ) -> Result<(), u32> {
+    ) -> Result<(), execution::CallbackFailure> {
         let function = entry(instance.program(), "nested");
         let mut invocation = execution::Invocation::prepare_owned(
             instance,
@@ -624,7 +624,7 @@ impl execution::CallbackOperation for ProbeActivation<'_> {
         execution::Host::prepare_arguments(&mut invocation, &[EntryArgument::I64(41)], memory)
             .map_err(|_| 1u32)?;
         if self.mode == CallbackProbe::Error {
-            return Err(2);
+            return Err(2u32.into());
         }
         if self.mode == CallbackProbe::Unfinished {
             execution::Host::commit_arguments(&mut invocation, memory).map_err(|_| 1u32)?;
@@ -668,7 +668,7 @@ impl execution::CallbackOperation for OriginalInstanceOperation<'_, '_> {
         _holder: storage::Holder,
         accounting: &e::InvocationAccounting,
         current: &mut lang_runtime::task::CurrentTask<'_>,
-    ) -> Result<(), u32> {
+    ) -> Result<(), execution::CallbackFailure> {
         assert!(accounting.same_invocation(self.invoker.accounting().unwrap()));
         assert_eq!(current.status(), Ok(lang_runtime::task::Status::Running));
         if let Some(previous) = self.target.task.borrow().as_ref() {
@@ -829,7 +829,7 @@ impl execution::CallbackOperation for OriginalInstanceOperation<'_, '_> {
         assert_eq!(outcome.tasks, current.usage());
         assert!(!outcome.poisoned);
         let execution::Value::Frame(frame) = outcome.value else {
-            return Err(17);
+            return Err(17u32.into());
         };
         let value = match frame.values().nodes.as_slice() {
             [wire::Value::I64(value)] => *value,
@@ -855,7 +855,7 @@ impl execution::CallbackOperation for OriginalInstanceOperation<'_, '_> {
                     .ok_or(17u32)?;
                 i64::from(index.get())
             }
-            _ => return Err(17),
+            _ => return Err(17u32.into()),
         };
         self.value = Some(value);
         self.target.after.set(Some(outcome.usage));

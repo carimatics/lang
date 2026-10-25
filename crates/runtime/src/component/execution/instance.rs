@@ -130,8 +130,8 @@ pub(super) trait CallbackInstance {
     fn with_callback(
         &mut self,
         caller: Holder,
-        run: &mut dyn FnMut(&mut Instance<'_, '_>) -> Result<(), u32>,
-    ) -> Result<(), u32>;
+        run: &mut dyn FnMut(&mut Instance<'_, '_>) -> Result<(), super::CallbackFailure>,
+    ) -> Result<(), super::CallbackFailure>;
 }
 struct Activation<'a, 'p, 'u> {
     parent: &'a mut Instance<'p, 'u>,
@@ -153,10 +153,10 @@ impl CallbackInstance for Instance<'_, '_> {
     fn with_callback(
         &mut self,
         caller: Holder,
-        run: &mut dyn FnMut(&mut Instance<'_, '_>) -> Result<(), u32>,
-    ) -> Result<(), u32> {
+        run: &mut dyn FnMut(&mut Instance<'_, '_>) -> Result<(), super::CallbackFailure>,
+    ) -> Result<(), super::CallbackFailure> {
         if self.phase != Phase::Active {
-            return Err(4);
+            return Err(super::CallbackFailure::Admission(4));
         }
         let child = Instance {
             program: self.program,

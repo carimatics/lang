@@ -18,8 +18,8 @@ mod native_result;
 mod result;
 pub(crate) use call::ReadRoot;
 pub use call::{
-    CallbackArguments, CallbackOperation, LatchedFailure, NativeArguments, NativeContext,
-    NativeFailure, NativeReport, NativeResourceFailure, NativeResult, NativeReturn,
+    CallbackArguments, CallbackFailure, CallbackOperation, LatchedFailure, NativeArguments,
+    NativeContext, NativeFailure, NativeReport, NativeResourceFailure, NativeResult, NativeReturn,
     ResourceArgument, StorageOperation, TaskStorageOperation,
 };
 use instance::Phase;

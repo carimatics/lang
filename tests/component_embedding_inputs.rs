@@ -752,7 +752,67 @@ fn native_c_host_loads_snapshots_and_repeats_generated_typed_calls_on_vm_and_jit
         .replace("@RESOURCE_EXPLODE_NAME@", &resource_explode.name)
         .replace("@RESOURCE_RETIRE_ARGS@", &resource_retire.arguments)
         .replace("@RESOURCE_RETIRE_NAME@", &resource_retire.name);
-    let declarations = array("source", source.as_bytes())
+    let task_json = serde_json::json!({
+        "idl":1,"package":"demo:callback-task","version":"1.0.0",
+        "interfaces":[{"key":"demo:callback-task/api","resources":[],"types":[],"functions":[
+            {"name":"later","effect":"task","params":[],"result":"i64","capability":"demo.callback.later"}
+        ]}],"imports":[],"exports":["demo:callback-task/api"]
+    });
+    let task_idl = serde_json::to_vec(&task_json).unwrap();
+    let task_document = idl::check(m::SourceId(1), &task_idl, Default::default()).unwrap();
+    let task_guest = g::guest(&task_document, Default::default()).unwrap();
+    let task_source = format!(
+        "{}\n{} {{return 42;}}",
+        task_guest.declarations, task_guest.exports[0].declaration
+    );
+    let task_analysis = f::analyze(f::Request {
+        sources: SourceMap::new(),
+        display: Path::new("component-source.lang"),
+        bytes: task_source.as_bytes(),
+        root: None,
+        compile: Default::default(),
+        document: task_document,
+        bindings: task_guest.bindings,
+        limits: Default::default(),
+    });
+    assert!(
+        task_analysis.diagnostics.is_empty(),
+        "{:?}",
+        task_analysis.diagnostics
+    );
+    let task_artifact = lang::artifact::component::encode(
+        task_analysis.result.unwrap(),
+        m::Source {
+            path: "component-idl.json".into(),
+            text: String::from_utf8(task_idl.clone()).unwrap(),
+        },
+        None,
+        Default::default(),
+    )
+    .unwrap();
+    let mut task_consumer = task_json;
+    task_consumer["interfaces"][0]["functions"][0]["effect"] = serde_json::json!("sync");
+    task_consumer["package"] = serde_json::json!("demo:task-consumer");
+    task_consumer["exports"] = serde_json::json!([]);
+    task_consumer["imports"] = serde_json::json!([{"interface":"demo:callback-task/api","version":{"exact":"1.0.0"},"members":["later"]}]);
+    let task_contract = wire::Contract::new(
+        idl::check(
+            m::SourceId(1),
+            &serde_json::to_vec(&task_consumer).unwrap(),
+            Default::default(),
+        )
+        .unwrap(),
+        vec![],
+        &mut wire::Session::new(Default::default()),
+    )
+    .unwrap();
+    let task_projection =
+        wire::encode_contract(&task_contract, &mut wire::Session::new(Default::default())).unwrap();
+    let declarations = array("task_source", task_source.as_bytes())
+        + &array("task_idl", &task_idl)
+        + &array("task_artifact", &task_artifact)
+        + &array("task_projection", &task_projection)
+        + &array("source", source.as_bytes())
         + &array("idl", IDL)
         + &array("artifact", &bytes)
         + &array("projection", &projection)
@@ -813,6 +873,7 @@ extern uint32_t probe_api_call(lang_component_v1_binding *,lang_component_v1_con
 extern uint32_t probe_context_call(const lang_component_v1_context *,lang_component_v1_binding *,lang_component_v1_bytes,lang_component_v1_result **,lang_component_v1_error *);
 extern uint32_t probe_context_thread(const lang_component_v1_context *,lang_component_v1_binding *);
 extern uint32_t probe_native_failure_report(const lang_component_v1_context *,lang_component_v1_buffer **,uint32_t);
+extern uint32_t probe_exhaust_preparation(const lang_component_v1_context *,uint32_t);
 extern uint32_t probe_result_info(const lang_component_v1_result *,lang_component_v1_result_info *,lang_component_v1_error *);
 extern uint32_t probe_result_usage(const lang_component_v1_result *,lang_component_v1_usage *,lang_component_v1_error *);
 extern uint32_t probe_result_bytes(const lang_component_v1_result *,lang_component_v1_bytes *,lang_component_v1_error *);

@@ -9,6 +9,74 @@ use lang_runtime::{
 };
 use std::{ffi::c_void, ptr};
 const RESOURCE_PROVIDER_DIGEST: [u8; 32] = [0; 32];
+thread_local! { static CALLBACK_SNAPSHOT_WORK: std::cell::Cell<u64> = const { std::cell::Cell::new(0) }; }
+#[unsafe(no_mangle)]
+unsafe extern "C" fn probe_exhaust_preparation(context: *const ffi::Context, kind: u32) -> u32 {
+    struct Spend(u32);
+    impl execution::CallbackOperation for Spend {
+        fn run<'code>(
+            &mut self,
+            instance: &mut execution::Instance<'_, '_>,
+            _: &mut storage::Resources<'code>,
+            _: &mut dyn storage::Memory,
+            budget: &mut m::Budget,
+            _: &mut wire::Session,
+            _: &execution::CallbackArguments<'_, 'code>,
+            _: storage::Holder,
+            _: &e::InvocationAccounting,
+            _: &mut lang_runtime::task::CurrentTask<'_>,
+        ) -> Result<(), execution::CallbackFailure> {
+            let snapshot = instance
+                .program()
+                .bindings()
+                .unit()
+                .document()
+                .usage()
+                .budget;
+            CALLBACK_SNAPSHOT_WORK.with(|cell| {
+                cell.set(
+                    snapshot
+                        .work
+                        .saturating_add(snapshot.allocation_bytes)
+                        .saturating_add(1) as u64,
+                )
+            });
+            let result = (|| -> Result<(), u32> {
+                match self.0 {
+                    0 => budget.charge(budget.limits().work.saturating_sub(budget.work_used())),
+                    1 => {
+                        let remaining = budget
+                            .limits()
+                            .allocations
+                            .saturating_sub(budget.allocation_bytes());
+                        // Charge metadata without allocating physical test payloads.
+                        budget
+                            .allocate::<[u8; 1024]>(remaining / 1024)
+                            .map_err(|_| 2u32)?;
+                        budget.allocate::<u8>(remaining % 1024)
+                    }
+                    2 => budget.allocate::<()>(
+                        budget
+                            .limits()
+                            .elements
+                            .saturating_sub(budget.elements_used()),
+                    ),
+                    _ => return Err(2),
+                }
+                .map_err(|_| 2)
+            })();
+            result.map_err(execution::CallbackFailure::Admission)
+        }
+    }
+    // SAFETY: the fixture retains the actual live native callback. Only its
+    // original preparation ledger is spent; no guest body or resource runs.
+    match unsafe {
+        component::with_child(context, |_, call, _| call.with_callback(&mut Spend(kind)))
+    } {
+        Ok(()) => 0,
+        Err(status) => status,
+    }
+}
 const RESOURCE_MODULE_DIGESTS: [[u8; 32]; 2] = [[0; 32]; 2];
 
 fn assert_resource_guest_frame(frame: &wire::Frame, mode: u32, member: u32) {
@@ -575,6 +643,56 @@ unsafe extern "C" fn probe_report(bytes: ffi::Bytes, mode: u32, case: u32) -> u3
             assert_eq!(report.omitted, 1);
             assert_eq!(report.frames.len(), 1);
             assert_eq!(report.usage.host_calls, 1);
+        }
+        38 | 39 | 40 | 41 => {
+            assert_eq!(report.primary.category, wire::Category::Limit);
+            assert_eq!(report.primary.phase, wire::Phase::Call);
+            assert_eq!(report.primary.diagnostic, wire::Diagnostic::Limit);
+            let limit = report.primary.limit.unwrap();
+            match case {
+                38 | 39 => assert_eq!(
+                    limit,
+                    wire::LimitDetail {
+                        kind: wire::ReportLimitKind::PreparationWork,
+                        limit: 10_000_000,
+                        attempted: 10_000_000
+                            + if case == 38 {
+                                1
+                            } else {
+                                CALLBACK_SNAPSHOT_WORK.with(std::cell::Cell::get)
+                            },
+                    }
+                ),
+                40 => {
+                    assert_eq!(
+                        (limit.kind, limit.limit),
+                        (wire::ReportLimitKind::MetadataBytes, 16_777_216)
+                    );
+                    assert!(limit.attempted > limit.limit);
+                }
+                41 => {
+                    assert_eq!(
+                        (limit.kind, limit.limit),
+                        (wire::ReportLimitKind::ValueElements, 1_000_000)
+                    );
+                    assert!(limit.attempted > limit.limit);
+                }
+                _ => unreachable!(),
+            }
+            assert!(!report.poisoned && report.suppressed.is_empty());
+            assert_eq!(report.omitted, 0);
+            // The first packet contains the caller; outer native propagation
+            // can prepend it again until E04 supplies activation identities.
+            assert!((1..=2).contains(&report.frames.len()));
+            for frame in &report.frames {
+                assert_eq!(
+                    (frame.mode, frame.digest, frame.member),
+                    (origin.mode, origin.digest, origin.member)
+                );
+                assert!(frame.span.is_some());
+            }
+            assert_eq!(report.usage.host_calls, 1);
+            assert_eq!(report.usage.canonical_indices, 0);
         }
         25 => {
             assert_eq!(report.primary.category, wire::Category::Limit);
