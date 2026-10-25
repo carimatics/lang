@@ -13,6 +13,14 @@ pub struct NativeReturn {
 #[derive(Debug)]
 pub enum NativeFailure {
     Invocation(u32),
+    Report(NativeReport),
+    Latched(std::rc::Rc<LatchedFailure>),
+    Child(std::rc::Rc<crate::task::runner::Failure>),
+    Context {
+        failure: std::rc::Rc<crate::task::runner::Failure>,
+        canonical_indices: u64,
+    },
+    /// Unvalidated legacy evidence. It never grants report provenance.
     Status {
         code: u32,
         bytes: Vec<u8>,
@@ -24,6 +32,367 @@ pub enum NativeFailure {
         kind: NativeResourceFailure,
     },
 }
+
+/// A fresh callback report admitted on its original canonical Session.
+/// Rust callers supply the retained checked provider digest/member ordinal;
+/// foreign report bytes cannot supply this origin or guest execution history.
+#[derive(Debug)]
+pub struct NativeReport(std::rc::Rc<wire::Report>);
+impl NativeReport {
+    pub fn decode(
+        bytes: &[u8],
+        session: &mut wire::Session,
+        digest: [u8; 32],
+        member: u32,
+        canonical_indices: u64,
+    ) -> Result<Self, wire::Error> {
+        let mut report = wire::decode_report(bytes, session)?;
+        if report.primary.phase != wire::Phase::Call
+            || !matches!(
+                report.primary.category,
+                wire::Category::Panic | wire::Category::Trap | wire::Category::HostContract
+            )
+            || report.suppressed.iter().any(|record| {
+                record.phase != wire::Phase::Cleanup
+                    || !matches!(
+                        record.category,
+                        wire::Category::Destructor | wire::Category::HostContract
+                    )
+            })
+        {
+            return Err(wire::Error {
+                offset: 0,
+                kind: wire::ErrorKind::InvalidReport,
+            });
+        }
+        report.policy = wire::MessagePolicy::Redacted;
+        report.primary.message = None;
+        report.primary.origin = Some(wire::Frame {
+            mode: wire::Mode::Host,
+            digest,
+            member,
+            span: None,
+        });
+        report.poisoned |=
+            report.primary.category != wire::Category::Trap || !report.suppressed.is_empty();
+        report.omitted = report
+            .omitted
+            .saturating_add(report.frames.len() as u64)
+            .saturating_add(report.suppressed.len().saturating_sub(64) as u64);
+        report.frames.clear();
+        report.suppressed.truncate(64);
+        for record in &mut report.suppressed {
+            record.message = None;
+            record.origin = None;
+        }
+        report.usage = wire::ReportUsage {
+            canonical_indices,
+            ..Default::default()
+        };
+        Ok(Self(session.shared(|| report, 0)?))
+    }
+    pub fn report(&self) -> &wire::Report {
+        &self.0
+    }
+}
+
+/// Immutable first boundary failure. Retention supplies code/metadata lifetime
+/// only; it grants no resource, invocation or callback authority.
+pub struct LatchedFailure {
+    report: wire::Report,
+    bytes: Vec<u8>,
+    cause: Option<std::rc::Rc<crate::task::runner::Failure>>,
+    _owner: std::rc::Rc<dyn std::any::Any>,
+}
+impl std::fmt::Debug for LatchedFailure {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("LatchedFailure")
+            .field("report", &self.report)
+            .finish_non_exhaustive()
+    }
+}
+impl LatchedFailure {
+    pub(crate) fn new(
+        report: wire::Report,
+        bytes: Vec<u8>,
+        owner: std::rc::Rc<dyn std::any::Any>,
+        cause: Option<std::rc::Rc<crate::task::runner::Failure>>,
+    ) -> Self {
+        Self {
+            report,
+            bytes,
+            cause,
+            _owner: owner,
+        }
+    }
+    pub fn report(&self) -> &wire::Report {
+        &self.report
+    }
+    pub fn bytes(&self) -> &[u8] {
+        &self.bytes
+    }
+    pub fn cause(&self) -> Option<&crate::task::runner::Failure> {
+        self.cause.as_deref()
+    }
+}
+#[cfg(test)]
+mod report_tests {
+    use super::*;
+
+    fn packet(records: usize, frames: usize) -> wire::Report {
+        let origin = wire::Frame {
+            mode: wire::Mode::Vm,
+            digest: [17; 32],
+            member: 99,
+            span: Some(m::Span {
+                source: m::SourceId(8),
+                start: 1,
+                end: 9,
+            }),
+        };
+        wire::Report {
+            policy: wire::MessagePolicy::Sanitized,
+            primary: wire::Record {
+                category: wire::Category::Panic,
+                phase: wire::Phase::Call,
+                diagnostic: wire::Diagnostic::Panic,
+                message: Some("foreign primary".into()),
+                limit: None,
+                origin: Some(origin.clone()),
+            },
+            suppressed: (0..records)
+                .map(|_| wire::Record {
+                    category: wire::Category::Destructor,
+                    phase: wire::Phase::Cleanup,
+                    diagnostic: wire::Diagnostic::Destructor,
+                    message: Some("foreign cleanup".into()),
+                    limit: None,
+                    origin: Some(origin.clone()),
+                })
+                .collect(),
+            poisoned: records != 0,
+            omitted: 7,
+            usage: wire::ReportUsage {
+                fuel: 9999,
+                ..Default::default()
+            },
+            frames: vec![origin; frames],
+        }
+    }
+    fn bytes(report: &wire::Report) -> Vec<u8> {
+        wire::encode_report(report, &mut wire::Session::new(Default::default())).unwrap()
+    }
+    #[test]
+    fn fresh_host_reports_cannot_forge_guest_origins_usage_or_cleanup_history() {
+        let report = NativeReport::decode(
+            &bytes(&packet(80, 5)),
+            &mut wire::Session::new(Default::default()),
+            [71; 32],
+            3,
+            0,
+        )
+        .unwrap();
+        let report = report.report();
+        assert_eq!(
+            report.primary.origin,
+            Some(wire::Frame {
+                mode: wire::Mode::Host,
+                digest: [71; 32],
+                member: 3,
+                span: None,
+            })
+        );
+        assert_eq!(report.policy, wire::MessagePolicy::Redacted);
+        assert!(report.primary.message.is_none() && report.poisoned);
+        assert_eq!(report.suppressed.len(), 64);
+        assert!(
+            report
+                .suppressed
+                .iter()
+                .all(|r| r.message.is_none() && r.origin.is_none())
+        );
+        assert!(report.frames.is_empty());
+        assert_eq!(report.usage, wire::ReportUsage::default());
+        assert_eq!(report.omitted, 7 + 16 + 5);
+    }
+    #[test]
+    fn fresh_reports_admit_only_call_panic_trap_and_host_contract() {
+        use wire::{Category as C, Diagnostic as D, Phase as P};
+        for (category, diagnostic, phase, allowed) in [
+            (C::Panic, D::Panic, P::Call, true),
+            (C::Trap, D::Trap, P::Call, true),
+            (C::HostContract, D::HostContract, P::Call, true),
+            (C::HostContract, D::HostContract, P::Cleanup, false),
+            (C::Destructor, D::Destructor, P::Cleanup, false),
+            (C::Cancellation, D::Cancelled, P::Call, false),
+            (C::Interruption, D::Interrupted, P::Call, false),
+            (C::Admission, D::InvalidRequest, P::Admission, false),
+            (C::Limit, D::Limit, P::Call, false),
+            (C::Limit, D::Limit, P::Admission, false),
+        ] {
+            let mut report = packet(0, 0);
+            report.primary.category = category;
+            report.primary.diagnostic = diagnostic;
+            report.primary.phase = phase;
+            report.primary.limit = (category == C::Limit).then_some(wire::LimitDetail {
+                kind: wire::ReportLimitKind::Fuel,
+                limit: 0,
+                attempted: 1,
+            });
+            report.poisoned = true;
+            let result = NativeReport::decode(
+                &bytes(&report),
+                &mut wire::Session::new(Default::default()),
+                [71; 32],
+                3,
+                0,
+            );
+            assert_eq!(result.is_ok(), allowed, "{category:?}/{phase:?}");
+        }
+        let report = NativeReport::decode(
+            &bytes(&packet(0, 0)),
+            &mut wire::Session::new(Default::default()),
+            [71; 32],
+            3,
+            0,
+        )
+        .unwrap();
+        assert!(
+            report.report().poisoned,
+            "a claimed guest panic becomes a host panic"
+        );
+        let mut trap = packet(0, 0);
+        trap.primary.category = C::Trap;
+        trap.primary.diagnostic = D::Trap;
+        let report = NativeReport::decode(
+            &bytes(&trap),
+            &mut wire::Session::new(Default::default()),
+            [71; 32],
+            3,
+            0,
+        )
+        .unwrap();
+        assert!(!report.report().poisoned);
+    }
+    #[test]
+    fn first_failure_keeps_immutable_bytes_and_the_actual_code_owner() {
+        use std::rc::Rc;
+        struct Lease(Rc<Cell<usize>>);
+        impl Drop for Lease {
+            fn drop(&mut self) {
+                self.0.set(self.0.get() + 1);
+            }
+        }
+        let dropped = Rc::new(Cell::new(0));
+        let owner = Rc::new(Lease(dropped.clone()));
+        let retained = Rc::downgrade(&owner);
+        let mut session = wire::Session::new(Default::default());
+        let report = NativeReport::decode(&bytes(&packet(0, 0)), &mut session, [71; 32], 3, 0)
+            .unwrap()
+            .report()
+            .clone();
+        let encoded = bytes(&report);
+        let accounting = crate::execution::InvocationAccounting::prepare(
+            Default::default(),
+            &mut m::Budget::new(Default::default()),
+        )
+        .unwrap();
+        let usage = accounting.snapshot();
+        accounting.latch_boundary_failure(report.clone(), encoded.clone(), owner.clone());
+        drop(owner);
+        let first = accounting.boundary_failure().unwrap();
+        accounting.latch_boundary_failure(packet(0, 0), vec![0], Rc::new(()));
+        let again = accounting.boundary_failure().unwrap();
+        assert!(Rc::ptr_eq(&first, &again));
+        assert_eq!(first.report(), &report);
+        assert_eq!(first.bytes(), encoded);
+        assert_eq!(accounting.snapshot(), usage);
+        drop(accounting);
+        assert!(retained.upgrade().is_some());
+        drop(first);
+        assert_eq!(dropped.get(), 0);
+        drop(again);
+        assert!(retained.upgrade().is_none());
+        assert_eq!(dropped.get(), 1);
+    }
+    #[test]
+    fn report_storage_and_element_refusals_keep_original_metadata_prefixes() {
+        let bytes = bytes(&packet(1, 2));
+        let run = |limits: m::Limits| {
+            let mut original = m::Budget::with_usage(
+                limits,
+                m::Usage {
+                    work: 123,
+                    allocation_bytes: 101,
+                    elements: 23,
+                },
+            )
+            .unwrap();
+            let mut session = wire::Session::new(Default::default());
+            let result = {
+                let mut scope = session.scope_preparation(&mut original).unwrap();
+                NativeReport::decode(&bytes, &mut scope, [71; 32], 3, 0)
+            };
+            (
+                result,
+                original.allocation_bytes(),
+                original.elements_used(),
+            )
+        };
+        let (complete, allocations, elements) = run(Default::default());
+        assert!(complete.is_ok());
+        for storage in [false, true] {
+            let required = if storage {
+                allocations - 101
+            } else {
+                elements - 23
+            };
+            assert!(required > 0);
+            for cut in 0..=required {
+                let mut limits = m::Limits::default();
+                if storage {
+                    limits.allocations = 101 + cut;
+                } else {
+                    limits.elements = 23 + cut;
+                }
+                let (result, allocations, elements) = run(limits);
+                assert_eq!(
+                    result.is_ok(),
+                    cut == required,
+                    "storage={storage} cut={cut}"
+                );
+                assert!(allocations >= 101 && allocations <= limits.allocations);
+                assert!(elements >= 23 && elements <= limits.elements);
+            }
+        }
+    }
+    #[test]
+    fn report_refusals_keep_every_original_precharged_work_prefix() {
+        let bytes = bytes(&packet(1, 2));
+        let mut complete = wire::Session::new(Default::default());
+        NativeReport::decode(&bytes, &mut complete, [71; 32], 3, 0).unwrap();
+        let work = complete.usage().work;
+        for cut in 0..=work {
+            let mut session = wire::Session::new(wire::Limits {
+                work: work + 7,
+                ..Default::default()
+            });
+            let mut original = m::Budget::new(m::Limits {
+                work: 123 + cut,
+                ..Default::default()
+            });
+            original.charge(123).unwrap();
+            let result = {
+                let mut scope = session.scope_preparation(&mut original).unwrap();
+                NativeReport::decode(&bytes, &mut scope, [71; 32], 3, 0)
+            };
+            assert_eq!(result.is_ok(), cut == work, "cut {cut}/{work}");
+            assert!((123..=123 + cut).contains(&original.work_used()));
+            assert_eq!(original.work_used(), 123 + session.usage().work);
+        }
+    }
+}
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum NativeResourceFailure {
     UnknownIndex,
@@ -335,8 +704,11 @@ impl BufferSlot {
         self.header.as_ptr().cast_mut().cast()
     }
 }
-type KindResolver<'scope, 'code> =
-    dyn Fn(&[u8], &mut m::Budget) -> Result<ResourceKind<'code>, u32> + 'scope;
+type KindResolver<'scope, 'code> = dyn Fn(
+        &[u8],
+        &mut m::Budget,
+    ) -> Result<ResourceKind<'code>, super::super::native::ResourceLookupError>
+    + 'scope;
 type KindAuthority<'scope> = dyn for<'kind> Fn(&ResourceKind<'kind>) -> bool + 'scope;
 
 pub(crate) struct CallContext<'r, 'm, 'b, 'scope, 'code> {
@@ -355,6 +727,8 @@ pub(crate) struct CallContext<'r, 'm, 'b, 'scope, 'code> {
     task: Option<crate::task::CurrentTask<'r>>,
     instance: Option<&'r mut dyn instance::CallbackInstance>,
     session: Option<&'b mut wire::Session>,
+    span: Option<m::Span>,
+    function: Option<m::FunctionId>,
 }
 impl<'r, 'm, 'b, 'scope, 'code> CallContext<'r, 'm, 'b, 'scope, 'code> {
     pub fn new(
@@ -382,6 +756,8 @@ impl<'r, 'm, 'b, 'scope, 'code> CallContext<'r, 'm, 'b, 'scope, 'code> {
             task: None,
             instance: None,
             session: None,
+            span: None,
+            function: None,
         }
     }
     pub fn with_index_limit(mut self, limit: u32) -> Self {
@@ -402,6 +778,31 @@ impl<'r, 'm, 'b, 'scope, 'code> CallContext<'r, 'm, 'b, 'scope, 'code> {
     pub fn with_session(mut self, session: &'b mut wire::Session) -> Self {
         self.session = Some(session);
         self
+    }
+    pub fn with_source(mut self, function: m::FunctionId, span: m::Span) -> Self {
+        self.function = Some(function);
+        self.span = Some(span);
+        self
+    }
+    fn remember_failure(&self, reason: Reason) {
+        if let Some(accounting) = self.accounting {
+            accounting.latch_context_failure(
+                crate::task::runner::Failure {
+                    reason,
+                    function: self.function,
+                    span: self.span,
+                    usage: accounting.snapshot(),
+                    tasks: self
+                        .task
+                        .as_ref()
+                        .map_or_else(Default::default, crate::task::CurrentTask::usage),
+                    events: vec![],
+                    report: None,
+                    poisoned: false,
+                },
+                self.resource_indices(),
+            );
+        }
     }
     pub fn take_session(&mut self) -> Result<&'b mut wire::Session, Reason> {
         self.session.take().ok_or(Reason::Invariant)
@@ -424,6 +825,9 @@ impl<'r, 'm, 'b, 'scope, 'code> CallContext<'r, 'm, 'b, 'scope, 'code> {
         self.instance
             .as_deref()
             .is_some_and(instance::CallbackInstance::poisoned)
+    }
+    pub fn resource_indices(&self) -> u64 {
+        self.views.len() as u64
     }
     pub fn task_closing(&self) -> Result<bool, crate::task::Error> {
         self.task
@@ -564,11 +968,24 @@ impl NativeContext for CallContext<'_, '_, '_, '_, '_> {
         buffer: *mut super::super::native::Buffer,
     ) -> Result<u32, u32> {
         if self.views.len() >= self.index_limit as usize {
+            self.remember_failure(Reason::ComponentIndices {
+                limit: u64::from(self.index_limit),
+                attempted: self.views.len() as u64 + 1,
+            });
             return Err(12);
         }
-        self.budget.charge(self.buffers.len()).map_err(|_| 12u32)?;
+        self.budget.charge(self.buffers.len()).map_err(|error| {
+            self.remember_failure(Reason::Resource(error));
+            12u32
+        })?;
         let slot = self.slot(buffer)?;
-        let kind = (self.kind)(key, self.budget)?;
+        let kind = (self.kind)(key, self.budget).map_err(|error| match error {
+            super::super::native::ResourceLookupError::Budget(error) => {
+                self.remember_failure(Reason::Resource(error));
+                12u32
+            }
+            super::super::native::ResourceLookupError::Unknown => 7u32,
+        })?;
         let index = u32::try_from(self.views.len())
             .ok()
             .and_then(|n| n.checked_add(1))
@@ -586,7 +1003,16 @@ impl NativeContext for CallContext<'_, '_, '_, '_, '_> {
         let claim = self
             .resources
             .publish_backing(kind.clone(), self.holder, allocation, self.memory)
-            .map_err(|_| 12u32)?;
+            .map_err(|error| {
+                let reason = match error {
+                    storage::Error::Allocation(error) => {
+                        Reason::Layout(l::Error::Allocation(error))
+                    }
+                    other => fault(other),
+                };
+                self.remember_failure(reason);
+                12u32
+            })?;
         // The complete metadata capacity and index were checked before custody
         // moved; publication now performs no allocation or foreign callback.
         self.buffers[slot].header[0].allocation = None;
@@ -615,12 +1041,21 @@ impl NativeContext for CallContext<'_, '_, '_, '_, '_> {
                 .checked_add(1)
                 .and_then(|n| n.checked_mul(2))
                 .ok_or(12u32)?;
-            let mut slots = self.budget.vector(capacity).map_err(|_| 12u32)?;
+            let mut slots = self.budget.vector(capacity).map_err(|error| {
+                self.remember_failure(Reason::Resource(error));
+                12u32
+            })?;
             slots.append(&mut self.buffers);
             self.buffers = slots;
         }
-        let mut header = self.budget.vector(1).map_err(|_| 12u32)?;
-        let allocation = self.memory.allocate(request).map_err(|_| 12u32)?;
+        let mut header = self.budget.vector(1).map_err(|error| {
+            self.remember_failure(Reason::Resource(error));
+            12u32
+        })?;
+        let allocation = self.memory.allocate(request).map_err(|error| {
+            self.remember_failure(Reason::Layout(l::Error::Allocation(error)));
+            12u32
+        })?;
         header.push(BufferHeader {
             allocation: Some(allocation),
         });
@@ -641,7 +1076,10 @@ impl NativeContext for CallContext<'_, '_, '_, '_, '_> {
         &mut self,
         buffer: *mut super::super::native::Buffer,
     ) -> Result<super::super::native::MutBytes, u32> {
-        self.budget.charge(self.buffers.len()).map_err(|_| 12u32)?;
+        self.budget.charge(self.buffers.len()).map_err(|error| {
+            self.remember_failure(Reason::Resource(error));
+            12u32
+        })?;
         let index = self.slot(buffer)?;
         let allocation = self.buffers[index].header[0].allocation.ok_or(5u32)?;
         let bytes = self.memory.bytes_mut(allocation).map_err(|_| 17u32)?;
@@ -771,7 +1209,7 @@ mod callback_authority_tests {
             });
         }
         let mut owners = vec![NativeOwner::new(a, 0), NativeOwner::new(b, 1)];
-        let kind = |_: &[u8], _: &mut m::Budget| Err(7);
+        let kind = |_: &[u8], _: &mut m::Budget| Err(native::ResourceLookupError::Unknown);
         let implementation = |kind: &ResourceKind<'_>| kind.provider().same_registration(&first);
         let context = CallContext::new(
             &mut resources,

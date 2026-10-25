@@ -105,6 +105,26 @@ impl From<crate::component::wire::Error> for Reason {
     }
 }
 impl Reason {
+    /// The original typed cause survives native propagation without copying
+    /// owned reports or trusting foreign native report bytes.
+    pub fn primary_cause(&self) -> &Self {
+        let mut cause = self;
+        loop {
+            cause = match cause {
+                Self::Native(
+                    crate::component::execution::NativeFailure::Child(failure)
+                    | crate::component::execution::NativeFailure::Context { failure, .. },
+                ) => &failure.reason,
+                Self::Native(crate::component::execution::NativeFailure::Latched(failure)) => {
+                    let Some(failure) = failure.cause() else {
+                        return cause;
+                    };
+                    &failure.reason
+                }
+                _ => return cause,
+            };
+        }
+    }
     fn service(error: &(dyn std::error::Error + 'static)) -> Self {
         e::service_failure(error).map_or(Self::Invariant, Self::Control)
     }

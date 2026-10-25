@@ -171,6 +171,14 @@ pub unsafe extern "C" fn context_check(context: *const native::Context) -> u32 {
     }
     // SAFETY: the active scope guard keeps the original control alive and clears
     // this pointer before callback return; no stack address is in the token.
+    if let Some(call) = state.call {
+        // SAFETY: identity/thread/scope checks above retain this actual call.
+        if unsafe { &*call }.accounting().is_some_and(|accounting| {
+            accounting.has_failure() || accounting.preparation_failure().is_some()
+        }) {
+            return 1;
+        }
+    }
     match unsafe { &*state.control }.check() {
         Ok(()) => 0,
         Err(_) => 1,
@@ -461,6 +469,9 @@ unsafe fn child_scope<T>(
     let accounting = call.accounting().ok_or(4u32)?.clone();
     if !accounting.matches(control) {
         return Err(4);
+    }
+    if !report_failure && (accounting.has_failure() || accounting.preparation_failure().is_some()) {
+        return Err(1);
     }
     let parent_live = call.parent_live();
     struct Restore {

@@ -2710,11 +2710,8 @@ fn run_source_namespace(
             if let Some(NativeCase::Oom(offset)) = case.native() {
                 assert!(
                     matches!(
-                        failure.reason,
+                        failure.reason.primary_cause(),
                         lang_runtime::task::runner::Reason::Panic(_)
-                            | lang_runtime::task::runner::Reason::Native(
-                                execution::NativeFailure::Status { code: 1, .. }
-                            )
                             | lang_runtime::task::runner::Reason::Layout(
                                 lang_runtime::layout::Error::Allocation(a::Error::OutOfMemory)
                             )

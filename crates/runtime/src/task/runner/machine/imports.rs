@@ -46,6 +46,11 @@ impl<P: a::Provider> Machine<'_, '_, '_, '_, '_, P> {
             cells: self.value_cells()?,
         };
         let id = self.records[task].id.clone();
+        let caller = self.records[task]
+            .frames
+            .last()
+            .ok_or(Reason::Invariant)?
+            .function;
         let current = self.services.scheduler.current(&id)?;
         let accounting = self.accounting.as_ref().ok_or(Reason::Invariant)?.clone();
         let logical = current.id().clone();
@@ -58,6 +63,7 @@ impl<P: a::Provider> Machine<'_, '_, '_, '_, '_, P> {
                     import,
                     &mut values,
                     span,
+                    caller,
                     self.allocator,
                     self.budget,
                     parent_live,
@@ -65,7 +71,7 @@ impl<P: a::Provider> Machine<'_, '_, '_, '_, '_, P> {
                 )
         });
         if let Err(reason) = &result
-            && !matches!(reason, Reason::Cancelled)
+            && !matches!(reason.primary_cause(), Reason::Cancelled)
         {
             self.record_execution(task, reason, span)?;
         }

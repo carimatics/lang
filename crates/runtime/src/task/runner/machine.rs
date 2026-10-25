@@ -432,7 +432,7 @@ impl<'p, 'l, 'ty, 'host, 'ctrl, P: a::Provider> Machine<'p, 'l, 'ty, 'host, 'ctr
             return Ok(index);
         }
         let function = self.frame(task)?.function;
-        if !matches!(reason, Reason::Cancelled) {
+        if !matches!(reason.primary_cause(), Reason::Cancelled) {
             self.record_execution(task, &reason, span)?;
         }
         self.faults[task] = Some(Fault {
@@ -449,7 +449,7 @@ impl<'p, 'l, 'ty, 'host, 'ctrl, P: a::Provider> Machine<'p, 'l, 'ty, 'host, 'ctr
             .faults
             .get(failure)
             .and_then(Option::as_ref)
-            .is_some_and(|fault| matches!(fault.reason, Reason::Cancelled))
+            .is_some_and(|fault| matches!(fault.reason.primary_cause(), Reason::Cancelled))
         {
             // The original cancellation flag determines the terminal outcome.
             t::Outcome::Success

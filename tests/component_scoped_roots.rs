@@ -192,11 +192,36 @@ enum ChildControlFailure {
 }
 fn control_failure(reason: &r::Reason) -> Option<ChildControlFailure> {
     match reason {
+        r::Reason::Native(execution::NativeFailure::Child(failure)) => {
+            control_failure(&failure.reason)
+        }
         r::Reason::FrameLimit { .. } => Some(ChildControlFailure::Frames),
         r::Reason::CellLimit { .. } => Some(ChildControlFailure::Cells),
         r::Reason::Control(failure) => Some(ChildControlFailure::Control(*failure)),
         _ => None,
     }
+}
+fn preparation_refusal(reason: &r::Reason) -> bool {
+    matches!(
+        reason.primary_cause(),
+        r::Reason::Resource(m::Error {
+            kind: m::ErrorKind::ArithmeticOverflow
+                | m::ErrorKind::Limit {
+                    kind: m::LimitKind::Work,
+                    ..
+                },
+            ..
+        }) | r::Reason::ComponentFrame(wire::Error {
+            kind: wire::ErrorKind::Budget(
+                m::ErrorKind::ArithmeticOverflow
+                    | m::ErrorKind::Limit {
+                        kind: m::LimitKind::Work,
+                        ..
+                    }
+            ),
+            ..
+        })
+    )
 }
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum CallbackProbe {
@@ -218,6 +243,7 @@ struct Child {
     budget_address: Cell<Option<usize>>,
     preparation_before: Cell<Option<m::Usage>>,
     wire_preparation: Cell<Option<m::Usage>>,
+    wire_metadata: Cell<Option<wire::Usage>>,
     wire_attempt: Cell<Option<m::Usage>>,
     wire_work: usize,
     wire_total: Cell<Option<wire::Usage>>,
@@ -270,6 +296,7 @@ impl Child {
             budget_address: Cell::new(None),
             preparation_before: Cell::new(None),
             wire_preparation: Cell::new(None),
+            wire_metadata: Cell::new(None),
             wire_attempt: Cell::new(None),
             wire_work,
             wire_total: Cell::new(None),
@@ -605,6 +632,24 @@ impl execution::CallbackOperation for ProbeActivation<'_> {
         panic!("contained activation probe {:?}", self.mode);
     }
 }
+fn remember_child_reason(
+    reason: r::Reason,
+    function: m::FunctionId,
+    span: m::Span,
+    accounting: &e::InvocationAccounting,
+    current: &lang_runtime::task::CurrentTask<'_>,
+) {
+    accounting.latch_child_failure(r::Failure {
+        reason,
+        function: Some(function),
+        span: Some(span),
+        usage: accounting.snapshot(),
+        tasks: current.usage(),
+        events: vec![],
+        report: None,
+        poisoned: false,
+    });
+}
 struct OriginalInstanceOperation<'a, 'ctrl> {
     target: &'a Child,
     invoker: &'a mut dyn execution::Invoker,
@@ -668,6 +713,9 @@ impl execution::CallbackOperation for OriginalInstanceOperation<'_, '_> {
                 "nested"
             },
         );
+        let failure_span = program.proof().typed().places().declarations().functions()
+            [function.0 as usize]
+            .signature_span;
         let generated = self.target.compiled.then(|| {
             lang_codegen_clif::tasks::CompiledProgram::compile_component(
                 program,
@@ -719,6 +767,7 @@ impl execution::CallbackOperation for OriginalInstanceOperation<'_, '_> {
                 .encode_callback_arguments(&values, callback_arguments, &view, session)
                 .map_err(|e| {
                     self.target.failure.replace(Some(format!("{e:?}")));
+                    remember_child_reason(e, function, failure_span, accounting, current);
                     1u32
                 })?;
             if self.target.callback_index != 1 {
@@ -728,6 +777,7 @@ impl execution::CallbackOperation for OriginalInstanceOperation<'_, '_> {
                 .decode_callback_arguments(&encoded, callback_arguments, &view, session)
                 .map_err(|e| {
                     self.target.failure.replace(Some(format!("{e:?}")));
+                    remember_child_reason(e, function, failure_span, accounting, current);
                     1u32
                 })?
         } else {
@@ -737,6 +787,7 @@ impl execution::CallbackOperation for OriginalInstanceOperation<'_, '_> {
             .prepare_callback_output(session, budget, callback_arguments)
             .map_err(|e| {
                 self.target.failure.replace(Some(format!("{e:?}")));
+                remember_child_reason(e, function, failure_span, accounting, current);
                 1u32
             })?;
         if self.target.resource_callback {
@@ -772,6 +823,7 @@ impl execution::CallbackOperation for OriginalInstanceOperation<'_, '_> {
             self.target
                 .control_failure
                 .set(control_failure(&error.reason));
+            accounting.latch_child_failure(*error);
             1u32
         })?;
         assert_eq!(outcome.tasks, current.usage());
@@ -856,13 +908,14 @@ impl execution::TaskStorageOperation for ChildOperation<'_, '_> {
         self.target
             .preparation_before
             .set(Some(preparation_usage(budget)));
-        let result = prepared_unit_budget(
+        let result = prepared_unit_budget_reason(
             &self.target.unit,
             provider(self.owner.clone()),
             Some(&mut *budget),
             self.target.wire_work,
             |program, session, budget| {
                 let budget = budget.ok_or(4u32)?;
+                self.target.wire_metadata.set(Some(session.usage()));
                 self.target
                     .wire_preparation
                     .set(Some(preparation_usage(budget)));
@@ -913,6 +966,7 @@ impl execution::TaskStorageOperation for ChildOperation<'_, '_> {
                             self.target
                                 .control_failure
                                 .set(control_failure(&error.reason));
+                            accounting.latch_child_failure(*error);
                             1u32
                         })?;
                         self.target
@@ -937,7 +991,20 @@ impl execution::TaskStorageOperation for ChildOperation<'_, '_> {
         self.target
             .wire_attempt
             .set(Some(preparation_usage(budget)));
-        let (result, wire_usage) = result?;
+        let (result, wire_usage) = result.map_err(|reason| {
+            self.target.failure.replace(Some(format!("{reason:?}")));
+            accounting.latch_child_failure(r::Failure {
+                reason,
+                function: None,
+                span: None,
+                usage: accounting.snapshot(),
+                tasks: current.usage(),
+                events: vec![],
+                report: None,
+                poisoned: false,
+            });
+            1u32
+        })?;
         self.target.wire_total.set(Some(wire_usage));
         result
     }
@@ -1454,10 +1521,19 @@ fn preparing<T, E: From<wire::Error>>(
 fn prepared_unit_budget<T>(
     unit: &bindings::Unit,
     provider: native::Provider<'_>,
-    mut budget: Option<&mut m::Budget>,
+    budget: Option<&mut m::Budget>,
     wire_work: usize,
     run: impl FnOnce(&program::Program<'_>, &mut wire::Session, Option<&mut m::Budget>) -> T,
 ) -> Result<(T, wire::Usage), u32> {
+    prepared_unit_budget_reason(unit, provider, budget, wire_work, run).map_err(|_| 1)
+}
+fn prepared_unit_budget_reason<T>(
+    unit: &bindings::Unit,
+    provider: native::Provider<'_>,
+    mut budget: Option<&mut m::Budget>,
+    wire_work: usize,
+    run: impl FnOnce(&program::Program<'_>, &mut wire::Session, Option<&mut m::Budget>) -> T,
+) -> Result<(T, wire::Usage), r::Reason> {
     let mut limits = wire::Limits::default();
     limits.work = limits.work.min(wire_work);
     if let Some(budget) = budget.as_deref() {
@@ -1470,7 +1546,7 @@ fn prepared_unit_budget<T>(
     let contract = preparing(&mut session, &mut budget, |session| {
         wire::artifact::source_contract(unit, session, 65_536)
     })
-    .map_err(|_| 1u32)?;
+    .map_err(r::Reason::from)?;
     let signatures: Vec<_> = unit
         .mappings()
         .imports
@@ -1487,7 +1563,7 @@ fn prepared_unit_budget<T>(
             })
         })
         .collect::<Result<_, _>>()
-        .map_err(|_| 1u32)?;
+        .map_err(r::Reason::from)?;
     let grants: Vec<_> = unit
         .mappings()
         .imports
@@ -1511,8 +1587,27 @@ fn prepared_unit_budget<T>(
     let bound = preparing(&mut session, &mut budget, |session| {
         grants::prepare(unit, &contract, &grants, || &providers, session)
     })
-    .map_err(|_| 1u32)?;
-    let program = program::Program::prepare(&bound, Default::default()).map_err(|_| 1u32)?;
+    .map_err(|error| match error {
+        grants::Error::Wire(error) => r::Reason::from(error),
+        other => panic!("valid fixture grant preparation: {other:?}"),
+    })?;
+    let program = match budget.as_deref_mut() {
+        Some(original) => program::Program::prepare_with_budget(&bound, original),
+        None => program::Program::prepare(&bound, Default::default()),
+    }
+    .map_err(|error| match error {
+        program::Error::Resource(error) => r::Reason::Resource(error),
+        program::Error::Tasks(error) => match error.kind {
+            m::ownership::tasks::ErrorKind::Resource(kind) => r::Reason::Resource(m::Error {
+                kind,
+                function: None,
+                block: None,
+                instruction: None,
+            }),
+            other => panic!("valid fixture task preparation: {other:?}"),
+        },
+        other => panic!("valid fixture program preparation: {other:?}"),
+    })?;
     let result = run(&program, &mut session, budget);
     Ok((result, session.usage()))
 }
@@ -3567,7 +3662,7 @@ fn finite_callback_service_work_keeps_original_prefixes_and_typed_causes() {
                     limit: cap,
                     used,
                     requested,
-                }) = error.reason
+                }) = *error.reason.primary_cause()
                 else {
                     panic!(
                         "typed original quota: {error:?}; child={:?}",
@@ -4375,10 +4470,7 @@ fn child_grant_session_caps_keep_original_history_and_parent_cleanup() {
             assert!(
                 observed.work > before.work && observed.allocation_bytes > before.allocation_bytes
             );
-            let metadata = child
-                .wire_preparation
-                .get()
-                .map(|used| used.work - before.work);
+            let metadata = child.wire_metadata.get().map(|used| used.work);
             let total = child.wire_total.get().map(|used| used.work);
             if let Some(total) = total {
                 assert!(total <= work);
@@ -4394,10 +4486,7 @@ fn child_grant_session_caps_keep_original_history_and_parent_cleanup() {
                 assert_eq!(watch.destroyed.get(), 1);
             } else {
                 let failure = result.err().unwrap();
-                assert!(matches!(
-                    failure.reason,
-                    r::Reason::Native(execution::NativeFailure::Status { code: 1, .. })
-                ));
+                assert!(preparation_refusal(&failure.reason), "{failure:?}");
                 assert_eq!(watch.produced.get(), 0);
                 assert_eq!(watch.destroyed.get(), 0);
                 let (retry, retry_watch) = h.registration(false);
@@ -4465,10 +4554,7 @@ fn canonical_reply_copy_spends_the_original_child_ledger_before_decode_refusal()
                 )
                 .err()
                 .expect("canonical reply/decode work refusal");
-            assert!(matches!(
-                failure.reason,
-                r::Reason::Native(execution::NativeFailure::Status { code: 1, .. })
-            ));
+            assert!(preparation_refusal(&failure.reason), "{failure:?}");
             let before = child.reply_before.get().unwrap();
             let after = child.wire_attempt.get().unwrap();
             let spent = if remaining == 53 { 53 } else { 0 };

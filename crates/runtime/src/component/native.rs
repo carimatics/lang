@@ -59,6 +59,12 @@ pub struct Method {
     pub flags: u32,
 }
 
+#[derive(Debug)]
+pub(crate) enum ResourceLookupError {
+    Budget(lang_mir::unit::Error),
+    Unknown,
+}
+
 #[derive(Clone, Copy, Debug)]
 pub struct ResourceType {
     pub interface: usize,
@@ -273,8 +279,10 @@ impl<'a> Provider<'a> {
         &self,
         key: &[u8],
         budget: &mut lang_mir::unit::Budget,
-    ) -> Result<ResourceKind<'a>, u32> {
-        budget.charge(key.len()).map_err(|_| 12u32)?;
+    ) -> Result<ResourceKind<'a>, ResourceLookupError> {
+        budget
+            .charge(key.len())
+            .map_err(ResourceLookupError::Budget)?;
         for registration in 0..self.resources().len() {
             let kind = ResourceKind {
                 provider: self.clone(),
@@ -294,14 +302,16 @@ impl<'a> Provider<'a> {
             ];
             let mut remaining = Some(key);
             for part in parts {
-                budget.charge(part.len()).map_err(|_| 12u32)?;
+                budget
+                    .charge(part.len())
+                    .map_err(ResourceLookupError::Budget)?;
                 remaining = remaining.and_then(|bytes| bytes.strip_prefix(part));
             }
             if remaining == Some(&[][..]) {
                 return Ok(kind);
             }
         }
-        Err(7)
+        Err(ResourceLookupError::Unknown)
     }
     pub fn retains_code<T>(&self, owner: &T) -> bool {
         let actual: &dyn CodeOwner = match &self.data {

@@ -129,8 +129,10 @@ static uint32_t resource_touch(void *user,const lang_component_v1_context *conte
                     assert(owner->api->result_bytes(child.result,&bytes,&error)==0&&bytes.length>4&&memcmp(bytes.data,"LCMP",4)==0);
                     assert(probe_report(bytes,owner->mode,owner->profile==4?4u:6u)==0);
                     assert(owner->api->result_drop(child.result,&error)==0);
-                    assert(owner->api->context_resource_read(context,old,&bytes,&error)==2);
-                    break;
+                    assert(owner->api->context_check(context,&error)==1);
+                    /* Deliberately return success with no value. The original
+                     * child failure must win before value validation. */
+                    return 0;
                 }
                 assert(child.status==0&&child.commit==1&&child.result);
                 assert(owner->api->result_bytes(child.result,&bytes,&error)==0);
@@ -227,14 +229,17 @@ static void resource_profile(const lang_component_v1_api *api,const lang_compone
         writer.data=scratch;writer.capacity=sizeof(scratch);writer.contextual=1;
         writer.left.work=1000000;writer.left.elements=1000;writer.left.depth=128;
         outcome=@RESOURCE_ROOT_NAME@_call(api,control,binding,&arguments,&writer,&error);
-        if(profile==4) {
+        if(profile>=3) {
             lang_component_v1_result_info info={0};
-            assert(outcome.status==1&&outcome.commit==1&&outcome.poisoned&&outcome.result);
+            assert(outcome.status==1&&outcome.commit==1&&outcome.poisoned==(profile==4)&&outcome.result);
             info.header.size=sizeof(info);info.header.version=1;
-            assert(api->result_info(outcome.result,&info,&error)==0&&info.kind==1&&info.flags==3);
+            assert(api->result_info(outcome.result,&info,&error)==0&&info.kind==1&&info.flags==(profile==4?3u:1u));
             assert(api->result_bytes(outcome.result,&bytes,&error)==0&&bytes.length>4&&memcmp(bytes.data,"LCMP",4)==0);
-            assert(probe_report(bytes,config.mode,5)==0);
-            poison_report=outcome.result;poison_bytes=bytes.data;poison_length=bytes.length;
+            assert(probe_report(bytes,config.mode,profile==4?4u:6u)==0);
+            {lang_component_v1_usage observed={0};observed.header.size=sizeof(observed);observed.header.version=1;
+             assert(api->result_usage(outcome.result,&observed,&error)==0&&observed.host_calls==3&&observed.canonical_indices==3);}
+            if(profile==4){poison_report=outcome.result;poison_bytes=bytes.data;poison_length=bytes.length;}
+            else assert(api->result_drop(outcome.result,&error)==0);
             assert(api->control_drop(control,&error)==0);continue;
         }
         assert(outcome.status==0&&outcome.commit==1&&outcome.result);
@@ -272,7 +277,7 @@ static void resource_profile(const lang_component_v1_api *api,const lang_compone
         assert(api->engine_destroy(engine,&error)==4);
         {lang_component_v1_bytes retained;
          assert(api->result_bytes(poison_report,&retained,&error)==0&&retained.data==poison_bytes&&retained.length==poison_length);
-         assert(probe_report(retained,config.mode,5)==0);}
+         assert(probe_report(retained,config.mode,4)==0);}
         assert(api->result_drop(poison_report,&error)==0&&owner.released==1);
         assert(api->engine_destroy(engine,&error)==0);return;
     }

@@ -4,11 +4,17 @@
 
 [English](../milestone-3.md) · [Exit gates](../roadmap.md#milestone-3-concurrency-and-embedding)
 
-更新日: **2026-10-25 JST**。開始チェックポイント: `984557d`。M2 とリポジトリレビューは完了済みです。
+更新日: **2026-10-26 JST**。開始チェックポイント: `984557d`。M2 とリポジトリレビューは完了済みです。
 
 **58 done · 1 doing · 14 todo · 43 remaining pt**
 
 **次: M3-E03 → native report検証・最初の失敗伝播・destructor report、続いてE02の公開escrow。**
+
+E03 native失敗状態checkpoint（未commit、2026-10-26 JST）: fresh reportを元Sessionで受理し、control/origin偽装を拒否、実provider/member originと失敗namespaceを保持します。元taskに対応する単一slotがtyped原因・不変report/bytes・実code ownerを保持し、親nativeの成功/別reportより優先します。通常buffer/metadata/resource publicationの拒否も元原因を記録し、非root取消しと後のparent実行を維持します。C11 source/artifact × VM/JITの5 test、runtime 176単体、gateway 19単体、reentry 41・resource 64・repository consistency 5 testが成功し、全target Clippyも成功しました。frame 1→2・cell 5→8・host call 0→1・heap 4096→4097、偽control/guest origin、host panicのpoison・trap/heap失敗後のfresh root、成功返却/未定義status後のfirst cause、同一report再取得、result_usage一致とclose後の不変bytes/code ownerを検証しました。これから入力固定baselineを実行します。残る3 ptを、destructor reportの取込み・cleanup scratch/owner保持と、最終的な失敗境界/拒否/寿命監査へ再照合します。E03は唯一のdoing、E02は待機、消化0 pt・追加/再見積り0 pt、58 done · 1 doing · 14 todo · 43 remaining pt、台帳110 + 91 − 158 = 43、gate 3/15・18/96を維持します。activation-aware stackはE04、合算controlはL04の必須条件です。
+
+E03結合監査（2026-10-25 JST）: fresh report検証は、選択済みchild失敗と未信頼bytesを区別する必要があります。現在のC fixtureはchild reportをnative bufferへコピーするため、fresh扱いではcontrol偽装を信頼するか実child失敗を失います。元invocation accountingの既存要件である最初の失敗latchを、fresh report取り込みと一緒に実装します。不変の検証済みreport bytesと実失敗instance/code ownerを保持し、後のnative成功/report返却で置換できなくします。再context_callは他guestへ入らずその失敗を公開します。既存E03の2成果を結合するもので行/見積りの追加はなく、destructor report検証を必須として残します。3 pt・doing 1行・残り43 ptを維持します。
+
+E03選択scope（2026-10-25 JST）: callback終了前に元canonical Session上でfresh invoke reportを検証します。call phaseのpanic/trap/host-contract primaryだけを受理し、検査済みcallからhost証拠を付与、未信頼のguest origin/frame/counterを除きます。上限付きcleanup順序・redaction・永続poisonを保持します。次のcheckpointまでにcontrol/origin偽装と元budgetの拒否を実行します。最初のchild/control失敗伝播とdestructor report検証は次の必須条件として維持し、E03の3 pt・doing 1行・残り43 ptは不変、行/見積りを追加しません。
 
 E03 quota/origin checkpoint `546c94c`（**2026-10-25 22:21 JST検証**、macOS AArch64）: allocator LimitViolationとrunner Frame/Cell拒否が実上限・合計を保持し、Resource/Layout/Execution失敗を型付きで投影します。元ledgerの履歴・拒否順序を変えずmetadata/decoder quota座標を区別し、module minimumのallocation由来を保持します。cleanupの実種別・順序・source spanを4096比較上限で解決し、不明originはnull、redacted envelopeは16 KiBで64 secondary/64 frameを保持します。生成C11 source/artifact × VM/JITでframe 1→2・cell 5→8・host call 0→1・metadata/decoder拒否、source panicとcleanup成功/失敗、primary destructor、immutable report/code owner寿命を検証しました。18 projection単体、157関連integration/consistency、67 allocator/vector/map/shared-storage移行テストが成功しました。入力固定baselineは **147 suites / 2,271 passed / 0 failed / 1 existing timing ignore**、suite-time合計 **771.73 s**、command interval **1377.54 s**です。workspace/fuzz fmt、警告をエラーとしたClippy（**28.1 s**）、rustdoc（**12.94 s**）、全15 fuzz targetのcheck（**4.69 s**）/Clippy（**0.39 s**）が成功し、campaignは実行していません。**831入力・731 non-Markdown入力**の前後hashは一致し、main `a2d5d79f52af0af27b4a500f2a0f83b38f89d1b9e771625da8728463d8a7b41f`、検証checkout `d8a05417e85c2599ed05161e9a6b9ca4c142576ba3ba3c8b917b59e66c5775d8`です。未変更Windows benchmarkのCRLF/LF差だけを正規化し、余分な検証入力はありません。**消化0 pt・追加/再見積り0 pt**。E03は3 ptのdoing、E02は待機を維持し、下記policy監査の3成果を次に検証します。**73行・58 done · 1 doing · 14 todo · 43 remaining pt**、台帳 **110 + 91 − 158 = 43**、gate **3/15・18/96**を維持します。RFC 0027/architectureは2026-10-25更新、codeには更新日記載がありません。C layoutとwire schemaは不変です。
 

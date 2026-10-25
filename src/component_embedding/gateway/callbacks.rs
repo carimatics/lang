@@ -107,6 +107,89 @@ impl execution::CallbackOperation for Call<'_, '_> {
         task: &mut lang_runtime::task::CurrentTask<'_>,
     ) -> Result<(), u32> {
         let target = self.target.clone();
+        if let Some(first) = accounting.child_failure() {
+            let Some(canonical_indices) = accounting.failure_indices() else {
+                return Err(UNSUPPORTED);
+            };
+            let caller = self.current.instance.clone();
+            let allocations = a::Allocator::borrow(memory).map_err(|_| INVALID)?.stats();
+            let usage = accounting.snapshot();
+            let tasks = task.usage();
+            let failure = Rc::new(r::Failure {
+                function: first.function,
+                span: first.span,
+                usage,
+                tasks,
+                events: vec![],
+                report: None,
+                poisoned: first.poisoned,
+                reason: r::Reason::Native(execution::NativeFailure::Context {
+                    failure: first,
+                    canonical_indices,
+                }),
+            });
+            let report = project_failure(
+                &failure,
+                self.current.ceiling,
+                FailureCode {
+                    digest: caller.digest,
+                    mode: self.current.mode,
+                    entry: failure.function.unwrap_or(self.entry),
+                    functions: caller.module.unit().code().declarations().functions(),
+                },
+                allocations,
+                canonical_indices,
+            )
+            .ok_or(INVALID)?;
+            accounting.latch_boundary_failure_from(
+                report.0.clone(),
+                report.1.clone(),
+                caller.clone(),
+                failure.clone(),
+            );
+            *self.result = Some(CallResult {
+                instance: caller,
+                body: ResultBody::Failure(failure),
+                usage,
+                tasks,
+                committed: false,
+                poisoned: report.0.poisoned,
+                allocations,
+                canonical_indices,
+                report: Some(report),
+            });
+            return Ok(());
+        }
+        if let Some(latched) = accounting.boundary_failure() {
+            let report = latched.report().clone();
+            let bytes = latched.bytes().to_vec();
+            let allocations = a::Allocator::borrow(memory).map_err(|_| INVALID)?.stats();
+            let usage = accounting.snapshot();
+            let tasks = task.usage();
+            let poisoned = report.poisoned;
+            let failure = r::Failure {
+                reason: r::Reason::Native(execution::NativeFailure::Latched(latched)),
+                function: None,
+                span: None,
+                usage,
+                tasks,
+                events: vec![],
+                report: None,
+                poisoned,
+            };
+            *self.result = Some(CallResult {
+                instance: target,
+                body: ResultBody::Failure(Rc::new(failure)),
+                usage,
+                tasks,
+                committed: false,
+                poisoned,
+                allocations,
+                canonical_indices: arguments.resource_indices() as u64,
+                report: Some((report, bytes)),
+            });
+            return Ok(());
+        }
         if let Err(reason) = self.admission {
             let allocations = a::Allocator::borrow(memory).map_err(|_| INVALID)?.stats();
             let canonical_indices = arguments.resource_indices() as u64;
@@ -137,9 +220,18 @@ impl execution::CallbackOperation for Call<'_, '_> {
                 allocations,
                 canonical_indices,
             );
+            let failure = Rc::new(failure);
+            if let Some((report, bytes)) = &report {
+                accounting.latch_boundary_failure_from(
+                    report.clone(),
+                    bytes.clone(),
+                    target.clone(),
+                    failure.clone(),
+                );
+            }
             *self.result = Some(CallResult {
                 instance: target,
-                body: ResultBody::Failure(Box::new(failure)),
+                body: ResultBody::Failure(failure),
                 usage,
                 tasks,
                 committed: false,
@@ -163,7 +255,9 @@ impl execution::CallbackOperation for Call<'_, '_> {
             },
         );
         if Rc::ptr_eq(&target, &self.current.instance) {
-            self.execute(origin, resources, memory, budget, session, arguments, task)
+            self.execute(
+                origin, resources, memory, budget, session, arguments, task, accounting,
+            )
         } else {
             let mut state = target.state.try_borrow_mut().map_err(|_| BUSY)?;
             if state.poisoned() {
@@ -190,7 +284,7 @@ impl execution::CallbackOperation for Call<'_, '_> {
             let result = state
                 .with_callback_program(&program, origin, |instance| {
                     self.execute(
-                        instance, resources, memory, budget, session, arguments, task,
+                        instance, resources, memory, budget, session, arguments, task, accounting,
                     )
                 })
                 .map_err(|_| BUSY)?;
@@ -215,6 +309,7 @@ impl Call<'_, '_> {
         session: &mut wire::Session,
         callback: &execution::CallbackArguments<'_, 'code>,
         task: &mut lang_runtime::task::CurrentTask<'_>,
+        accounting: &e::InvocationAccounting,
     ) -> Result<(), u32> {
         let program = instance.program();
         let generated = match self.current.mode {
@@ -312,13 +407,16 @@ impl Call<'_, '_> {
                     instance.poison();
                 }
                 let (usage, tasks, poisoned) = (failure.usage, failure.tasks, failure.poisoned);
-                (
-                    ResultBody::Failure(Box::new(failure)),
-                    usage,
-                    tasks,
-                    poisoned,
-                    report,
-                )
+                let failure = Rc::new(failure);
+                if let Some((report, bytes)) = &report {
+                    accounting.latch_boundary_failure_from(
+                        report.clone(),
+                        bytes.clone(),
+                        self.target.clone(),
+                        failure.clone(),
+                    );
+                }
+                (ResultBody::Failure(failure), usage, tasks, poisoned, report)
             }
         };
         *self.result = Some(CallResult {

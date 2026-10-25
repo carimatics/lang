@@ -7,51 +7,81 @@ impl<'p, 'l, 'ty, 'host, 'ctrl, P: a::Provider> Machine<'p, 'l, 'ty, 'host, 'ctr
         reason: &Reason,
         span: m::Span,
     ) -> Result<(), Reason> {
-        let failure = match reason {
-            Reason::Cleanup => return Ok(()),
-            Reason::Panic(_) => c::ExecutionFailure::Panic,
-            Reason::Execution(failure) => *failure,
-            Reason::FrameLimit { .. } => c::ExecutionFailure::FrameLimit,
-            Reason::CellLimit { .. } => c::ExecutionFailure::CellLimit,
-            Reason::Control(failure) | Reason::Layout(l::Error::ServiceWork(failure)) => {
-                match failure {
-                    e::Failure::Interrupted => c::ExecutionFailure::Interrupted,
-                    e::Failure::DeadlineExceeded => c::ExecutionFailure::DeadlineExceeded,
-                    e::Failure::FuelExhausted => c::ExecutionFailure::FuelLimit,
-                    e::Failure::HostCallLimit => c::ExecutionFailure::HostCallLimit,
-                    e::Failure::CounterOverflow => c::ExecutionFailure::CounterOverflow,
-                    e::Failure::ServiceWorkLimit {
-                        limit,
-                        used,
-                        requested,
-                    } => c::ExecutionFailure::ServiceWorkLimit {
-                        limit: *limit,
-                        used: *used,
-                        requested: *requested,
-                    },
-                }
-            }
-            Reason::Resource(_)
-            | Reason::Layout(
-                l::Error::Resource { .. }
-                | l::Error::Overflow
-                | l::Error::Allocation(
-                    a::Error::Limit(_) | a::Error::OutOfMemory | a::Error::Overflow,
-                ),
-            ) => c::ExecutionFailure::AllocationLimit,
-            Reason::Layout(l::Error::CellLimit { .. }) => c::ExecutionFailure::CellLimit,
-            Reason::Invariant
-            | Reason::Layout(_)
-            | Reason::Instance(crate::component::execution::InstanceError::ScopeNotClosed) => {
-                c::ExecutionFailure::Invariant
-            }
+        let poisoned_cause = match reason {
             Reason::Native(
-                crate::component::execution::NativeFailure::Invocation(_)
-                | crate::component::execution::NativeFailure::MissingResult
-                | crate::component::execution::NativeFailure::InvalidResult(_)
-                | crate::component::execution::NativeFailure::Resource { .. },
-            ) => c::ExecutionFailure::Invariant,
-            _ => c::ExecutionFailure::Fault,
+                crate::component::execution::NativeFailure::Child(failure)
+                | crate::component::execution::NativeFailure::Context { failure, .. },
+            ) => failure.poisoned,
+            Reason::Native(crate::component::execution::NativeFailure::Latched(failure)) => {
+                failure.report().poisoned
+            }
+            _ => false,
+        };
+        let failure = if poisoned_cause {
+            c::ExecutionFailure::Invariant
+        } else {
+            match reason.primary_cause() {
+                Reason::Cleanup => return Ok(()),
+                Reason::Panic(_) => c::ExecutionFailure::Panic,
+                Reason::Execution(failure) => *failure,
+                Reason::FrameLimit { .. } => c::ExecutionFailure::FrameLimit,
+                Reason::CellLimit { .. } => c::ExecutionFailure::CellLimit,
+                Reason::Control(failure) | Reason::Layout(l::Error::ServiceWork(failure)) => {
+                    match failure {
+                        e::Failure::Interrupted => c::ExecutionFailure::Interrupted,
+                        e::Failure::DeadlineExceeded => c::ExecutionFailure::DeadlineExceeded,
+                        e::Failure::FuelExhausted => c::ExecutionFailure::FuelLimit,
+                        e::Failure::HostCallLimit => c::ExecutionFailure::HostCallLimit,
+                        e::Failure::CounterOverflow => c::ExecutionFailure::CounterOverflow,
+                        e::Failure::ServiceWorkLimit {
+                            limit,
+                            used,
+                            requested,
+                        } => c::ExecutionFailure::ServiceWorkLimit {
+                            limit: *limit,
+                            used: *used,
+                            requested: *requested,
+                        },
+                    }
+                }
+                Reason::Resource(_)
+                | Reason::Layout(
+                    l::Error::Resource { .. }
+                    | l::Error::Overflow
+                    | l::Error::Allocation(
+                        a::Error::Limit(_) | a::Error::OutOfMemory | a::Error::Overflow,
+                    ),
+                ) => c::ExecutionFailure::AllocationLimit,
+                Reason::Layout(l::Error::CellLimit { .. }) => c::ExecutionFailure::CellLimit,
+                Reason::Invariant
+                | Reason::Layout(_)
+                | Reason::Instance(crate::component::execution::InstanceError::ScopeNotClosed) => {
+                    c::ExecutionFailure::Invariant
+                }
+                Reason::Native(crate::component::execution::NativeFailure::Child(failure))
+                    if failure.poisoned =>
+                {
+                    c::ExecutionFailure::Invariant
+                }
+                Reason::Native(crate::component::execution::NativeFailure::Report(report))
+                    if report.report().poisoned =>
+                {
+                    c::ExecutionFailure::Invariant
+                }
+                Reason::Native(crate::component::execution::NativeFailure::Latched(report))
+                    if report.report().poisoned =>
+                {
+                    c::ExecutionFailure::Invariant
+                }
+                Reason::Native(
+                    crate::component::execution::NativeFailure::Invocation(_)
+                    | crate::component::execution::NativeFailure::Status { .. }
+                    | crate::component::execution::NativeFailure::MissingResult
+                    | crate::component::execution::NativeFailure::InvalidResult(_)
+                    | crate::component::execution::NativeFailure::Resource { .. },
+                ) => c::ExecutionFailure::Invariant,
+                _ => c::ExecutionFailure::Fault,
+            }
         };
         let session = self.records[task]
             .session

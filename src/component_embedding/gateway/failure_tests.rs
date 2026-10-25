@@ -471,8 +471,28 @@ fn allocator_reports_retain_the_rejected_batch_after_original_storage_is_release
 }
 
 #[test]
-fn the_full_native_record_and_trace_caps_fit_the_mandatory_envelope() {
-    let failure = native_failure(1, native_packet(64, 64));
+fn the_full_checked_record_and_trace_caps_fit_the_mandatory_envelope() {
+    let mut checked = wire::decode_report(
+        &native_packet(64, 63),
+        &mut wire::Session::new(Default::default()),
+    )
+    .unwrap();
+    checked.policy = wire::MessagePolicy::Redacted;
+    checked.primary.message = None;
+    for record in &mut checked.suppressed {
+        record.message = None;
+    }
+    let bytes = wire::encode_report(&checked, &mut wire::Session::new(Default::default())).unwrap();
+    let accounting = lang_runtime::execution::InvocationAccounting::prepare(
+        Default::default(),
+        &mut m::Budget::new(Default::default()),
+    )
+    .unwrap();
+    accounting.latch_boundary_failure(checked, bytes, std::rc::Rc::new(()));
+    let mut failure = native_failure(2, Vec::new());
+    failure.reason = r::Reason::Native(execution::NativeFailure::Latched(
+        accounting.boundary_failure().unwrap(),
+    ));
     let (report, bytes) = project_failure(
         &failure,
         ceiling(u64::MAX, u64::MAX),
@@ -862,10 +882,52 @@ fn native_packet(records: u32, traces: u32) -> Vec<u8> {
 
 fn native_failure(code: u32, bytes: Vec<u8>) -> r::Failure {
     let mut failure = composite(false, 81);
-    failure.reason = r::Reason::Native(execution::NativeFailure::Status { code, bytes });
+    failure.reason = r::Reason::Native(if code == 1 {
+        match execution::NativeReport::decode(
+            &bytes,
+            &mut wire::Session::new(Default::default()),
+            [27; 32],
+            4,
+            3,
+        ) {
+            Ok(report) => execution::NativeFailure::Report(report),
+            Err(_) => execution::NativeFailure::Status { code, bytes },
+        }
+    } else {
+        execution::NativeFailure::Status { code, bytes }
+    });
     failure.report = None;
     failure.poisoned = false;
     failure
+}
+
+#[test]
+fn unvalidated_native_status_cannot_forge_a_control_failure() {
+    let mut session = wire::Session::new(Default::default());
+    let mut packet = wire::decode_report(&native_packet(0, 0), &mut session).unwrap();
+    packet.primary.category = wire::Category::Limit;
+    packet.primary.diagnostic = wire::Diagnostic::Limit;
+    packet.primary.limit = Some(wire::LimitDetail {
+        kind: wire::ReportLimitKind::Fuel,
+        limit: 0,
+        attempted: 1,
+    });
+    packet.primary.origin.as_mut().unwrap().mode = wire::Mode::Vm;
+    packet.poisoned = false;
+    let bytes = wire::encode_report(&packet, &mut wire::Session::new(Default::default())).unwrap();
+    let (report, _) = project_failure(
+        &native_failure(1, bytes),
+        ceiling(3, 3),
+        [7; 32],
+        0,
+        m::FunctionId(2),
+        Default::default(),
+        3,
+    )
+    .unwrap();
+    assert_eq!(report.primary.category, wire::Category::HostContract);
+    assert!(report.poisoned);
+    assert_ne!(report.primary.origin.as_ref().unwrap().digest, [17; 32]);
 }
 
 #[test]
@@ -885,24 +947,20 @@ fn native_report_is_redacted_bounded_and_uses_the_original_usage() {
         assert_eq!(report.policy, wire::MessagePolicy::Redacted);
         assert_eq!(report.primary.category, wire::Category::HostContract);
         assert_eq!(report.primary.diagnostic, wire::Diagnostic::HostContract);
-        assert_eq!(report.primary.origin.as_ref().unwrap().digest, [17; 32]);
+        assert_eq!(report.primary.origin.as_ref().unwrap().digest, [27; 32]);
         assert_eq!(
             report.primary.origin.as_ref().unwrap().mode,
             wire::Mode::Host
         );
         assert!(report.primary.message.is_none() && report.poisoned);
         assert_eq!(report.suppressed.len(), 3);
-        assert_eq!(
-            report
-                .suppressed
-                .iter()
-                .map(|r| r.origin.as_ref().unwrap().member)
-                .collect::<Vec<_>>(),
-            [10, 11, 12]
-        );
+        assert!(report.suppressed.iter().all(|r| r.origin.is_none()));
         assert!(report.suppressed.iter().all(|r| r.message.is_none()));
         assert_eq!(report.frames.len(), trace as usize);
-        assert_eq!(report.omitted, 7 + 77 + 5 - trace);
+        assert_eq!(report.omitted, 7 + 77 + 5 + 1 - trace);
+        if trace != 0 {
+            assert_eq!(report.frames[0].digest, [7; 32]);
+        }
         assert_eq!(report.usage.fuel, 37);
         assert_eq!(report.usage.service_work, 9);
         assert_eq!(report.usage.host_calls, 3);
@@ -959,10 +1017,7 @@ fn malformed_native_report_and_unknown_status_are_contract_failures() {
 #[test]
 fn native_secondaries_precede_later_local_cleanup_and_preserve_omissions() {
     let mut failure = composite(false, 81);
-    failure.reason = r::Reason::Native(execution::NativeFailure::Status {
-        code: 1,
-        bytes: native_packet(2, 5),
-    });
+    failure.reason = native_failure(1, native_packet(2, 5)).reason;
     let (report, bytes) = project_failure(
         &failure,
         ceiling(3, 2),
@@ -975,14 +1030,14 @@ fn native_secondaries_precede_later_local_cleanup_and_preserve_omissions() {
     .unwrap();
     assert_eq!(report.primary.diagnostic, wire::Diagnostic::HostContract);
     assert_eq!(report.suppressed.len(), 3);
-    assert_eq!(report.suppressed[0].origin.as_ref().unwrap().member, 10);
-    assert_eq!(report.suppressed[1].origin.as_ref().unwrap().member, 11);
+    assert!(report.suppressed[0].origin.is_none());
+    assert!(report.suppressed[1].origin.is_none());
     assert_eq!(report.suppressed[2].origin.as_ref().unwrap().member, 7);
     assert_eq!(
         report.suppressed[2].origin.as_ref().unwrap().digest,
         [7; 32]
     );
-    assert_eq!(report.omitted, 7 + 79 + 3);
+    assert_eq!(report.omitted, 7 + 79 + 5);
     assert_eq!(
         wire::decode_report(&bytes, &mut wire::Session::new(Default::default())).unwrap(),
         report

@@ -177,11 +177,23 @@ pub struct LiveUsage {
     pub cells: usize,
 }
 #[derive(Debug)]
+enum InvocationFailure {
+    Report(Rc<crate::component::execution::LatchedFailure>),
+    Child(Rc<crate::task::runner::Failure>),
+}
+#[derive(Debug)]
+struct ScopedFailure {
+    task: Option<crate::task::TaskId>,
+    failure: InvocationFailure,
+    canonical_indices: Option<u64>,
+}
+#[derive(Debug)]
 struct Accounting {
     configuration: Configuration,
     usage: Cell<Usage>,
     work: ServiceWork,
     preparation_failure: Cell<Option<Failure>>,
+    boundary_failure: RefCell<Option<ScopedFailure>>,
     parent: Cell<LiveUsage>,
     task: RefCell<Option<crate::task::TaskId>>,
 }
@@ -197,6 +209,7 @@ impl InvocationAccounting {
             usage: Cell::new(Usage::default()),
             work: ServiceWork::new(control.service_work_limit()),
             preparation_failure: Cell::new(None),
+            boundary_failure: RefCell::new(None),
             parent: Cell::new(LiveUsage::default()),
             task: RefCell::new(None),
         })))
@@ -206,6 +219,103 @@ impl InvocationAccounting {
     }
     pub fn same_invocation(&self, other: &Self) -> bool {
         Rc::ptr_eq(&self.0, &other.0)
+    }
+    fn current_failure(&self) -> Option<std::cell::Ref<'_, ScopedFailure>> {
+        let task = self.0.task.borrow();
+        std::cell::Ref::filter_map(self.0.boundary_failure.borrow(), |slot| {
+            slot.as_ref()
+                .filter(|slot| slot.task.is_none() || slot.task.as_ref() == task.as_ref())
+        })
+        .ok()
+    }
+    pub fn boundary_failure(&self) -> Option<Rc<crate::component::execution::LatchedFailure>> {
+        match self.current_failure().as_deref().map(|slot| &slot.failure) {
+            Some(InvocationFailure::Report(report)) => Some(report.clone()),
+            _ => None,
+        }
+    }
+    pub fn child_failure(&self) -> Option<Rc<crate::task::runner::Failure>> {
+        match self.current_failure().as_deref().map(|slot| &slot.failure) {
+            Some(InvocationFailure::Child(failure)) => Some(failure.clone()),
+            _ => None,
+        }
+    }
+    pub fn failure_indices(&self) -> Option<u64> {
+        self.current_failure()
+            .and_then(|slot| slot.canonical_indices)
+    }
+    pub fn has_failure(&self) -> bool {
+        self.current_failure().is_some()
+    }
+    fn install_failure(
+        &self,
+        failure: InvocationFailure,
+        indices: Option<u64>,
+        cause: Option<&crate::task::runner::Failure>,
+    ) {
+        let task = self.0.task.borrow().clone();
+        let mut slot = self.0.boundary_failure.borrow_mut();
+        let replace = match slot
+            .as_ref()
+            .filter(|slot| slot.task.is_none() || slot.task == task)
+        {
+            None => true,
+            Some(ScopedFailure {
+                failure: InvocationFailure::Child(first),
+                ..
+            }) => cause.is_some_and(|cause| {
+                std::ptr::eq(cause.reason.primary_cause(), first.reason.primary_cause())
+            }),
+            Some(_) => false,
+        };
+        if replace {
+            *slot = Some(ScopedFailure {
+                task,
+                failure,
+                canonical_indices: indices,
+            });
+        }
+    }
+    /// Internal borrowed Rust child adapters retain the actual typed failure.
+    pub fn latch_child_failure(&self, child: crate::task::runner::Failure) {
+        self.install_failure(InvocationFailure::Child(Rc::new(child)), None, None);
+    }
+    pub(crate) fn latch_context_failure(&self, child: crate::task::runner::Failure, indices: u64) {
+        self.install_failure(
+            InvocationFailure::Child(Rc::new(child)),
+            Some(indices),
+            None,
+        );
+    }
+    pub fn latch_boundary_failure(
+        &self,
+        report: crate::component::wire::Report,
+        bytes: Vec<u8>,
+        owner: Rc<dyn std::any::Any>,
+    ) {
+        self.install_failure(
+            InvocationFailure::Report(Rc::new(crate::component::execution::LatchedFailure::new(
+                report, bytes, owner, None,
+            ))),
+            None,
+            None,
+        );
+    }
+    /// Enrich only that same retained typed cause with checked C metadata.
+    pub fn latch_boundary_failure_from(
+        &self,
+        report: crate::component::wire::Report,
+        bytes: Vec<u8>,
+        owner: Rc<dyn std::any::Any>,
+        cause: Rc<crate::task::runner::Failure>,
+    ) {
+        let packet = Rc::new(crate::component::execution::LatchedFailure::new(
+            report,
+            bytes,
+            owner,
+            Some(cause.clone()),
+        ));
+        self.install_failure(InvocationFailure::Report(packet), None, Some(&cause));
     }
     /// Lend actual suspended guest live counts for one synchronous child. This
     /// changes no counter identity or authority, and restores the prior scope.

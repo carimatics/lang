@@ -18,9 +18,9 @@ mod native_result;
 mod result;
 pub(crate) use call::ReadRoot;
 pub use call::{
-    CallbackArguments, CallbackOperation, NativeArguments, NativeContext, NativeFailure,
-    NativeResourceFailure, NativeResult, NativeReturn, ResourceArgument, StorageOperation,
-    TaskStorageOperation,
+    CallbackArguments, CallbackOperation, LatchedFailure, NativeArguments, NativeContext,
+    NativeFailure, NativeReport, NativeResourceFailure, NativeResult, NativeReturn,
+    ResourceArgument, StorageOperation, TaskStorageOperation,
 };
 use instance::Phase;
 pub use instance::{Completion, Instance, InstanceError, InstanceState};
@@ -158,6 +158,7 @@ pub trait Host {
         import: m::ImportId,
         arguments: &mut NativeArguments,
         span: m::Span,
+        caller: m::FunctionId,
         memory: &mut dyn Memory,
         budget: &mut m::Budget,
         parent_live: crate::execution::LiveUsage,
@@ -759,6 +760,7 @@ impl<'state, 'p, 'u, 'resources, 'code, 'native> Host
         import: m::ImportId,
         arguments: &mut NativeArguments,
         span: m::Span,
+        caller: m::FunctionId,
         memory: &mut dyn Memory,
         budget: &mut m::Budget,
         parent_live: crate::execution::LiveUsage,
@@ -994,7 +996,7 @@ impl<'state, 'p, 'u, 'resources, 'code, 'native> Host
             let normalize = self.normalize;
             let kind = |key: &[u8], budget: &mut m::Budget| {
                 let kind = target.provider().resource_kind_bytes(key, budget)?;
-                normalize(kind).map_err(|_| 7u32)
+                normalize(kind).map_err(|_| super::native::ResourceLookupError::Unknown)
             };
             let implementation =
                 |kind: &ResourceKind<'_>| kind.provider().same_registration(target.provider());
@@ -1013,6 +1015,7 @@ impl<'state, 'p, 'u, 'resources, 'code, 'native> Host
                     .map_or(u32::MAX, |namespace| namespace.maximum),
             )
             .with_accounting(&self.accounting)
+            .with_source(caller, span)
             .with_parent_live(parent_live)
             .with_task(task)
             .with_instance(self.instance, target.method().flags & 1 != 0)
@@ -1020,6 +1023,33 @@ impl<'state, 'p, 'u, 'resources, 'code, 'native> Host
             let returned = self.invoker.invoke(target.method(), &bytes, &mut context);
             let session = context.take_session()?;
             let decoded = (|| -> Result<NativeResult, Reason> {
+                if self.accounting.has_failure()
+                    && returned.as_ref().is_ok_and(|returned| returned.status > 1)
+                {
+                    // An undefined native status cannot replace the selected
+                    // child cause, but still records its actual exit-contract
+                    // violation during failed-scope retirement and poisons.
+                    arguments
+                        .cleanup
+                        .as_mut()
+                        .ok_or(Reason::Invariant)?
+                        .execution(c::ExecutionFailure::Invariant, Some(span));
+                }
+                if let Some(failure) = self.accounting.child_failure() {
+                    if let Some(canonical_indices) = self.accounting.failure_indices() {
+                        return Err(Reason::Native(NativeFailure::Context {
+                            failure,
+                            canonical_indices,
+                        }));
+                    }
+                    return Err(Reason::Native(NativeFailure::Child(failure)));
+                }
+                if let Some(failure) = self.accounting.boundary_failure() {
+                    return Err(Reason::Native(NativeFailure::Latched(failure)));
+                }
+                if let Some(failure) = self.accounting.preparation_failure() {
+                    return Err(Reason::Control(failure));
+                }
                 self.invoker.check_control().map_err(Reason::Control)?;
                 let returned =
                     returned.map_err(|status| Reason::Native(NativeFailure::Invocation(status)))?;
@@ -1041,10 +1071,44 @@ impl<'state, 'p, 'u, 'resources, 'code, 'native> Host
                     if bytes.is_empty() && context.instance_poisoned() {
                         return Err(Reason::Instance(InstanceError::Poisoned));
                     }
-                    return Err(Reason::Native(NativeFailure::Status {
-                        code: returned.status,
-                        bytes,
-                    }));
+                    let canonical_indices = context.resource_indices();
+                    let mut preparation = session
+                        .scope_preparation(context.budget)
+                        .map_err(Reason::from)?;
+                    let session = &mut *preparation;
+                    let provider = target.provider().metadata();
+                    let method = target.method();
+                    session
+                        .charge(method.interface.saturating_add(1), 0)
+                        .map_err(Reason::from)?;
+                    let ordinal = provider.contract.document().interfaces[..method.interface]
+                        .iter()
+                        .try_fold(method.member, |ordinal, interface| {
+                            ordinal.checked_add(interface.functions.len())
+                        })
+                        .and_then(|ordinal| u32::try_from(ordinal).ok())
+                        .ok_or(Reason::Invariant)?;
+                    let digest = provider
+                        .digest
+                        .as_bytes()
+                        .try_into()
+                        .map_err(|_| Reason::Invariant)?;
+                    let report =
+                        NativeReport::decode(&bytes, session, digest, ordinal, canonical_indices)
+                            .map_err(|error| {
+                            if matches!(
+                                error.kind,
+                                wire::ErrorKind::Limit { .. }
+                                    | wire::ErrorKind::Budget(_)
+                                    | wire::ErrorKind::Execution(_)
+                                    | wire::ErrorKind::WorkContext
+                            ) {
+                                Reason::from(error)
+                            } else {
+                                Reason::Native(NativeFailure::InvalidResult(error))
+                            }
+                        })?;
+                    return Err(Reason::Native(NativeFailure::Report(report)));
                 }
                 // A nested failure may poison this instance before its native
                 // caller propagates the original error buffer. Preserve that

@@ -120,7 +120,7 @@ struct Control {
 }
 enum ResultBody {
     Value(execution::FrameResult),
-    Failure(Box<r::Failure>),
+    Failure(Rc<r::Failure>),
     Cleanup {
         report: Box<lang_runtime::cleanup::Report>,
         _code: Vec<native::ResourceKind<'static>>,
@@ -175,7 +175,7 @@ fn project_failure(
     // Preserve the actual primary; cleanup records never replace it.
     let mut limit = None;
     let mut phase = wire::Phase::Call;
-    let (category, diagnostic) = match failure.reason {
+    let (category, diagnostic) = match *failure.reason.primary_cause() {
         r::Reason::ComponentIndices {
             limit: maximum,
             attempted,
@@ -429,9 +429,9 @@ fn project_failure(
             phase = wire::Phase::Admission;
             (wire::Category::Admission, wire::Diagnostic::Reentry)
         }
-        r::Reason::Native(execution::NativeFailure::Status { .. }) => {
-            (wire::Category::Trap, wire::Diagnostic::Trap)
-        }
+        r::Reason::Native(
+            execution::NativeFailure::Report(_) | execution::NativeFailure::Latched(_),
+        ) => (wire::Category::Trap, wire::Diagnostic::Trap),
         r::Reason::Native(_)
         | r::Reason::Invariant
         | r::Reason::Instance(execution::InstanceError::ScopeNotClosed) => {
@@ -573,57 +573,51 @@ fn project_failure(
             peak_frames: failure.usage.peak_frames as u64,
             peak_live_cells: failure.usage.peak_live_cells as u64,
             peak_live_tasks: failure.tasks.peak_live as u64,
-            canonical_indices,
+            canonical_indices: match &failure.reason {
+                r::Reason::Native(execution::NativeFailure::Context {
+                    canonical_indices, ..
+                }) => *canonical_indices,
+                _ => canonical_indices,
+            },
         },
         frames,
     };
-    if let r::Reason::Native(execution::NativeFailure::Status { code, bytes }) = &failure.reason {
-        // The v1 callback error buffer is a bounded, validated LCMP report.
-        // Treat malformed foreign reports as a host-contract failure, never
-        // as an opaque successful value or unvalidated diagnostic payload.
-        let decoded = if *code == 1 {
-            wire::decode_report(bytes, &mut wire::Session::new(Default::default())).ok()
-        } else {
-            None
-        };
-        if let Some(mut native) = decoded {
-            let maximum = ceiling.suppressed_records.min(64) as usize;
-            let traces = ceiling.trace_frames.min(64) as usize;
-            native.policy = wire::MessagePolicy::Redacted;
-            native.primary.message = None;
-            native.usage = report.usage;
-            native.poisoned |= report.poisoned;
-            native.omitted = native.omitted.saturating_add(
-                report
-                    .omitted
-                    .saturating_sub(u64::from(ceiling.trace_frames == 0)),
-            );
-            native.omitted = native
-                .omitted
-                .saturating_add(native.suppressed.len().saturating_sub(maximum) as u64);
-            native.suppressed.truncate(maximum);
-            for record in &mut native.suppressed {
-                record.message = None;
+    let native = match &failure.reason {
+        r::Reason::Native(execution::NativeFailure::Report(native)) => Some(native.report()),
+        r::Reason::Native(execution::NativeFailure::Latched(native)) => Some(native.report()),
+        _ => None,
+    };
+    if let Some(native) = native {
+        // Foreign bytes were admitted and attributed on the original Session.
+        // This mandatory projection only caps already bounded immutable data.
+        let mut native = native.clone();
+        let maximum = ceiling.suppressed_records.min(64) as usize;
+        // Canonical indices are scoped locators. A parent namespace cannot
+        // overwrite the immutable observed prefix of the failed child scope.
+        let failed_indices = native.usage.canonical_indices;
+        native.usage = report.usage;
+        native.usage.canonical_indices = failed_indices;
+        native.poisoned |= report.poisoned;
+        native.omitted = native.omitted.saturating_add(report.omitted);
+        native.omitted = native
+            .omitted
+            .saturating_add(native.suppressed.len().saturating_sub(maximum) as u64);
+        native.suppressed.truncate(maximum);
+        for record in report.suppressed {
+            if native.suppressed.len() < maximum {
+                native.suppressed.push(record);
+            } else {
+                native.omitted = native.omitted.saturating_add(1);
             }
-            for record in report.suppressed {
-                if native.suppressed.len() < maximum {
-                    native.suppressed.push(record);
-                } else {
-                    native.omitted = native.omitted.saturating_add(1);
-                }
-            }
-            native.omitted = native
-                .omitted
-                .saturating_add(native.frames.len().saturating_sub(traces) as u64);
-            native.frames.truncate(traces);
-            report = native;
-        } else {
-            report.primary.category = wire::Category::HostContract;
-            report.primary.phase = wire::Phase::Call;
-            report.primary.diagnostic = wire::Diagnostic::HostContract;
-            report.primary.limit = None;
-            report.poisoned = true;
         }
+        report.frames.append(&mut native.frames);
+        let traces = ceiling.trace_frames.min(64) as usize;
+        native.omitted = native
+            .omitted
+            .saturating_add(report.frames.len().saturating_sub(traces) as u64);
+        report.frames.truncate(traces);
+        native.frames = report.frames;
+        report = native;
     }
     let requires_poison = |record: &wire::Record| {
         matches!(
@@ -1727,7 +1721,7 @@ pub unsafe extern "C" fn call(
                     );
                     Ok(CallResult {
                         instance: binding.instance.clone(),
-                        body: ResultBody::Failure(Box::new(failure)),
+                        body: ResultBody::Failure(Rc::new(failure)),
                         usage: e::Usage {
                             service_work,
                             ..Default::default()
@@ -1845,7 +1839,7 @@ pub unsafe extern "C" fn call(
                         let poisoned = failure.poisoned;
                         Ok(CallResult {
                             instance: binding.instance.clone(),
-                            body: ResultBody::Failure(Box::new(failure)),
+                            body: ResultBody::Failure(Rc::new(failure)),
                             usage,
                             committed,
                             poisoned,
@@ -1959,7 +1953,12 @@ pub unsafe extern "C" fn result_usage(
             peak_frames: value.usage.peak_frames as u64,
             peak_live_cells: value.usage.peak_live_cells as u64,
             peak_live_tasks: value.tasks.peak_live as u64,
-            canonical_indices: value.canonical_indices,
+            canonical_indices: value
+                .report
+                .as_ref()
+                .map_or(value.canonical_indices, |(report, _)| {
+                    report.usage.canonical_indices
+                }),
             reserved: [0; 2],
         }
     };
