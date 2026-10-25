@@ -238,11 +238,13 @@ struct Child {
     activation_probe: Option<CallbackProbe>,
     callback_argument: i64,
     resource_callback: bool,
+    owning_callback: bool,
     callback_member: &'static str,
     callback_index: u32,
     previous_arguments: RefCell<Option<Vec<EntryArgument>>>,
     replay_refusals: Cell<usize>,
     resumed_access: Cell<usize>,
+    consumed_indices: Cell<usize>,
     expected_wire: Option<Rc<Cell<usize>>>,
     wire_scope_address: Cell<Option<usize>>,
     wire_scope_before: Cell<Option<wire::Usage>>,
@@ -285,11 +287,13 @@ impl Child {
             activation_probe: None,
             callback_argument: 41,
             resource_callback: false,
+            owning_callback: false,
             callback_member: "nested-loan",
             callback_index: 1,
             previous_arguments: RefCell::new(None),
             replay_refusals: Cell::new(0),
             resumed_access: Cell::new(0),
+            consumed_indices: Cell::new(0),
             expected_wire: None,
             wire_scope_address: Cell::new(None),
             wire_scope_before: Cell::new(None),
@@ -568,7 +572,7 @@ impl execution::CallbackOperation for ProbeActivation<'_> {
         memory: &mut dyn storage::Memory,
         budget: &mut m::Budget,
         session: &mut wire::Session,
-        _: &execution::CallbackArguments<'_, '_>,
+        callback_arguments: &execution::CallbackArguments<'_, '_>,
         _: storage::Holder,
         _: &e::InvocationAccounting,
         _: &mut lang_runtime::task::CurrentTask<'_>,
@@ -583,7 +587,7 @@ impl execution::CallbackOperation for ProbeActivation<'_> {
         )
         .map_err(|_| 1u32)?;
         invocation
-            .prepare_callback_output(session, budget)
+            .prepare_callback_output(session, budget, callback_arguments)
             .map_err(|e| {
                 let _ = e;
                 1u32
@@ -721,7 +725,7 @@ impl execution::CallbackOperation for OriginalInstanceOperation<'_, '_> {
             vec![EntryArgument::I64(self.target.callback_argument)]
         };
         invocation
-            .prepare_callback_output(session, budget)
+            .prepare_callback_output(session, budget, callback_arguments)
             .map_err(|e| {
                 self.target.failure.replace(Some(format!("{e:?}")));
                 1u32
@@ -1053,6 +1057,13 @@ unsafe extern "C" fn bounce_resource(
             let status = unsafe {
                 lang_codegen_clif::component::context_resource_read(context, 1, &mut original)
             };
+            if child.owning_callback && owner.destroyed.get() != 0 {
+                assert_eq!(status, 7, "consumed native index remains usable");
+                assert!(original.data.is_null() && original.length == 0);
+                child.consumed_indices.set(child.consumed_indices.get() + 1);
+                value = called?;
+                continue;
+            }
             if status != 0 {
                 return Err(status);
             }
@@ -1079,7 +1090,7 @@ unsafe extern "C" fn bounce_resource(
     result.map_or_else(|_| 1, |()| 0)
 }
 
-fn host_document_for(resource: bool) -> serde_json::Value {
+fn host_document_for(resource: bool, owning: bool) -> serde_json::Value {
     let mut doc: serde_json::Value =
         serde_json::from_slice(include_bytes!("fixtures/component_counter.idl.json")).unwrap();
     doc["interfaces"][0]["functions"].as_array_mut().unwrap().push(json!({
@@ -1090,7 +1101,7 @@ fn host_document_for(resource: bool) -> serde_json::Value {
     }));
     if resource {
         doc["interfaces"][0]["functions"].as_array_mut().unwrap().push(json!({
-            "name":"bounce","effect":"sync","params":[{"name":"state","type":{"borrow-mut":"counter"}}],
+            "name":"bounce","effect":"sync","params":[{"name":"state","type":if owning {json!({"own":"counter"})} else {json!({"borrow-mut":"counter"})}}],
             "result":"i64","capability":"demo.counter.bounce"
         }));
     }
@@ -1101,7 +1112,11 @@ fn provider(owner: Rc<Owner>) -> native::Provider<'static> {
         .child
         .as_ref()
         .is_some_and(|child| child.resource_callback);
-    let bytes = serde_json::to_vec(&host_document_for(resource)).unwrap();
+    let owning = owner
+        .child
+        .as_ref()
+        .is_some_and(|child| child.owning_callback);
+    let bytes = serde_json::to_vec(&host_document_for(resource, owning)).unwrap();
     let doc = idl::check(m::SourceId(71), &bytes, Default::default()).unwrap();
     let mut session = wire::Session::new(Default::default());
     let contract = wire::Contract::new(doc, vec![], &mut session).unwrap();
@@ -1182,7 +1197,16 @@ fn stored_unit_boundary(
     callback: bool,
     resource: bool,
 ) -> bindings::Unit {
-    let host = host_document_for(resource);
+    stored_unit_boundary_ownership(source, task, callback, resource, false)
+}
+fn stored_unit_boundary_ownership(
+    source: &[u8],
+    task: bool,
+    callback: bool,
+    resource: bool,
+    owning: bool,
+) -> bindings::Unit {
+    let host = host_document_for(resource, owning);
     let members = if resource {
         vec!["apply", "make", "tick", "bounce"]
     } else {
@@ -1974,7 +1998,7 @@ fn scoped_allocator_views_execute_source_and_native_resource_callbacks_without_n
 
 #[test]
 fn original_resource_callback_uses_the_existing_non_root_task_at_exhausted_task_limits() {
-    for compiled in [false, true] {
+    for (compiled, owning) in [(false, false), (true, false), (false, true), (true, true)] {
         let mut h = Harness::new();
         let mut budget = m::Budget::new(Default::default());
         h.values = storage::Resources::prepare(&h.allocator, 4, 1, &mut budget).unwrap();
@@ -1983,8 +2007,11 @@ fn original_resource_callback_uses_the_existing_non_root_task_at_exhausted_task_
             live_tasks: 2,
             total_tasks: 2,
         };
-        let mut source =
-            include_bytes!("fixtures/component_scoped_roots_resource_callback.lang").to_vec();
+        let mut source = if owning {
+            include_bytes!("fixtures/component_scoped_roots_own_callback.lang").to_vec()
+        } else {
+            include_bytes!("fixtures/component_scoped_roots_resource_callback.lang").to_vec()
+        };
         source.extend_from_slice(
             br#"
 async fn worker() -> i64 {
@@ -1997,10 +2024,17 @@ pub async fn start() -> i64 {
 }
 "#,
         );
-        h.unit = stored_unit_boundary(&source, true, false, true);
-        let mut child = Child::new(&mut h.values, compiled, 2, usize::MAX);
+        h.unit = stored_unit_boundary_ownership(&source, true, false, true, owning);
+        let mut child = Child::new(
+            &mut h.values,
+            compiled,
+            if owning { 1 } else { 2 },
+            usize::MAX,
+        );
         child.original_instance = true;
         child.resource_callback = true;
+        child.owning_callback = owning;
+        child.callback_member = if owning { "nested-own" } else { "nested-loan" };
         child.expected_wire = Some(h.wire_address.clone());
         let child = Rc::new(child);
         let (registration, watch) = h.registration_child(false, Some(child.clone()));
@@ -2009,7 +2043,7 @@ pub async fn start() -> i64 {
             .unwrap_or_else(|e| panic!("{e:?}; child={:?}", child.failure.borrow()));
         assert!(matches!(
             result.value,
-            execution::Value::Copy(lang_runtime::layout::Immediate::I64(43))
+            execution::Value::Copy(lang_runtime::layout::Immediate::I64(value)) if value == if owning { 42 } else { 43 }
         ));
         assert_eq!(
             result.tasks,
@@ -2028,8 +2062,9 @@ pub async fn start() -> i64 {
                 peak_live: 2
             })
         );
-        assert_eq!(child.resumed_access.get(), 2);
-        assert_eq!(child.replay_refusals.get(), 1);
+        assert_eq!(child.resumed_access.get(), if owning { 0 } else { 2 });
+        assert_eq!(child.replay_refusals.get(), if owning { 0 } else { 1 });
+        assert_eq!(child.consumed_indices.get(), usize::from(owning));
         assert_eq!(watch.produced.get(), 1);
         assert_eq!(watch.destroyed.get(), 1);
         assert_eq!(watch.released.get(), 1);
@@ -2140,6 +2175,226 @@ fn forwarded_resource_callbacks_retire_every_fuel_and_provider_refusal_prefix() 
                 run(compiled, repetitions, None, Some(index));
             }
         }
+    }
+}
+
+#[test]
+fn owning_callbacks_commit_native_custody_once_and_expire_consumed_indices() {
+    for compiled in [false, true] {
+        for (member, index, repetitions, succeeds, consumed) in [
+            ("nested-own", 1, 1, true, 1),
+            ("nested-own", 1, 2, false, 2),
+            ("nested-own", 99, 1, false, 0),
+            ("nested-return", 1, 1, false, 0),
+            ("nested-pair", 1, 1, false, 0),
+        ] {
+            let mut h = Harness::new();
+            h.unit = stored_unit_boundary_ownership(
+                include_bytes!("fixtures/component_scoped_roots_own_callback.lang"),
+                false,
+                false,
+                true,
+                true,
+            );
+            for attempt in 0..2 {
+                let mut child = Child::new(&mut h.values, compiled, repetitions, usize::MAX);
+                child.original_instance = true;
+                child.resource_callback = true;
+                child.owning_callback = true;
+                child.callback_member = if attempt == 0 { member } else { "nested-own" };
+                child.callback_index = if attempt == 0 { index } else { 1 };
+                child.repetitions = if attempt == 0 { repetitions } else { 1 };
+                child.expected_wire = Some(h.wire_address.clone());
+                let child = Rc::new(child);
+                let (registration, watch) = h.registration_child(false, Some(child.clone()));
+                let claim = h.publish(&registration, &watch);
+                let result = h.call(registration, "run", Some(claim), compiled);
+                assert_eq!(
+                    result.is_ok(),
+                    succeeds || attempt == 1,
+                    "{:?}; {:?}",
+                    result.as_ref().err(),
+                    child.failure.borrow()
+                );
+                match result {
+                    Ok(outcome) => assert!(matches!(
+                        outcome.value,
+                        execution::Value::Copy(lang_runtime::layout::Immediate::I64(42))
+                    )),
+                    Err(failure) => assert!(!failure.poisoned, "{failure:?}"),
+                }
+                assert_eq!(
+                    child.consumed_indices.get(),
+                    if attempt == 0 { consumed } else { 1 }
+                );
+                assert_eq!(watch.destroyed.get(), 1);
+                assert_eq!(watch.released.get(), 1);
+                assert!(watch.owner.upgrade().is_none());
+                assert_eq!(watch.produced.get(), 0);
+                assert!(!h.state.poisoned());
+                assert!(h.values.is_empty());
+                assert_eq!(h.allocator.stats().live_allocations, 0);
+                for context in [child.parent.get(), child.nested.get()]
+                    .into_iter()
+                    .flatten()
+                {
+                    assert_eq!(h.engine.check(&context), 5);
+                }
+            }
+        }
+    }
+}
+
+#[test]
+fn owning_callback_custody_survives_every_fuel_and_provider_refusal_prefix() {
+    fn run(compiled: bool, fuel: Option<u64>, refused: Option<usize>) -> (bool, e::Usage, usize) {
+        let mut h = Harness::new();
+        h.unit = stored_unit_boundary_ownership(
+            include_bytes!("fixtures/component_scoped_roots_own_callback.lang"),
+            false,
+            false,
+            true,
+            true,
+        );
+        let mut child = Child::new(&mut h.values, compiled, 1, usize::MAX);
+        child.original_instance = true;
+        child.resource_callback = true;
+        child.owning_callback = true;
+        child.callback_member = "nested-own";
+        child.expected_wire = Some(h.wire_address.clone());
+        let child = Rc::new(child);
+        let (registration, watch) = h.registration_child(false, Some(child.clone()));
+        let claim = h.publish(&registration, &watch);
+        let start = h.provider_calls.get();
+        h.provider_failure.set(refused.map(|index| start + index));
+        let result = h.call_control(
+            registration,
+            "run",
+            Some(claim),
+            compiled,
+            e::Control::with_limits(e::Limits {
+                fuel,
+                ..Default::default()
+            }),
+        );
+        let calls = h.provider_calls.get() - start;
+        let (success, usage) = match result {
+            Ok(outcome) => {
+                assert!(matches!(
+                    outcome.value,
+                    execution::Value::Copy(lang_runtime::layout::Immediate::I64(42))
+                ));
+                assert!(!outcome.poisoned);
+                (true, outcome.usage)
+            }
+            Err(failure) => {
+                assert!(
+                    !failure.poisoned,
+                    "{failure:?}; {:?}",
+                    child.failure.borrow()
+                );
+                (false, failure.usage)
+            }
+        };
+        if let Some(index) = refused {
+            assert!(calls > index);
+        }
+        h.provider_failure.set(None);
+        let key = ResourceTypeKey::new(
+            InterfaceKey::new(PackageKey::new("demo", "counter"), "api"),
+            "counter",
+        );
+        if h.values
+            .validate(claim, h.state.holder(), &key, &h.allocator)
+            .is_ok()
+        {
+            let mut cleanup = Child::new(&mut h.values, compiled, 1, usize::MAX);
+            cleanup.resource_callback = true;
+            cleanup.owning_callback = true;
+            let (registration, _) = h.registration_child(false, Some(Rc::new(cleanup)));
+            h.call(registration, "consume", Some(claim), compiled)
+                .unwrap();
+        }
+        assert_eq!(watch.destroyed.get(), 1);
+        assert_eq!(watch.released.get(), 1);
+        assert!(!h.state.poisoned());
+        assert!(h.values.is_empty());
+        assert_eq!(h.allocator.stats().live_allocations, 0);
+        for context in [child.parent.get(), child.nested.get()]
+            .into_iter()
+            .flatten()
+        {
+            assert_eq!(h.engine.check(&context), 5);
+        }
+        (success, usage, calls)
+    }
+    for compiled in [false, true] {
+        let (success, full, calls) = run(compiled, None, None);
+        assert!(success);
+        for fuel in 0..full.fuel {
+            assert!(!run(compiled, Some(fuel), None).0, "fuel {fuel}");
+        }
+        for index in 0..calls {
+            run(compiled, None, Some(index));
+        }
+    }
+}
+
+#[test]
+fn owning_callback_cleanup_failure_retires_the_receipt_and_preserves_poison() {
+    for compiled in [false, true] {
+        let mut h = Harness::new();
+        h.unit = stored_unit_boundary_ownership(
+            include_bytes!("fixtures/component_scoped_roots_own_callback.lang"),
+            false,
+            false,
+            true,
+            true,
+        );
+        let mut child = Child::new(&mut h.values, compiled, 1, usize::MAX);
+        child.original_instance = true;
+        child.resource_callback = true;
+        child.owning_callback = true;
+        child.callback_member = "nested-own";
+        child.expected_wire = Some(h.wire_address.clone());
+        let child = Rc::new(child);
+        let (registration, watch) = h.registration_child(true, Some(child.clone()));
+        let claim = h.publish(&registration, &watch);
+        let failure = h
+            .call(registration, "run", Some(claim), compiled)
+            .err()
+            .expect("child destructor failure");
+        assert!(failure.poisoned && h.state.poisoned());
+        assert!(failure.span.is_some());
+        assert!(
+            child
+                .failure
+                .borrow()
+                .as_ref()
+                .is_some_and(|failure| failure.contains("poisoned: true"))
+        );
+        assert_eq!(child.consumed_indices.get(), 1);
+        assert_eq!(watch.destroyed.get(), 1);
+        assert_eq!(watch.released.get(), 1);
+        assert!(h.values.is_empty());
+        assert_eq!(h.allocator.stats().live_allocations, 0);
+        for context in [child.parent.get(), child.nested.get()]
+            .into_iter()
+            .flatten()
+        {
+            assert_eq!(h.engine.check(&context), 5);
+        }
+        let (registration, next) = h.registration_child(false, Some(child));
+        prepared(registration, |program, _| {
+            let called = Cell::new(false);
+            assert!(matches!(
+                h.state.with_program(program, |_| called.set(true)),
+                Err(r::Reason::Instance(execution::InstanceError::Poisoned))
+            ));
+            assert!(!called.get());
+        });
+        assert_eq!(next.destroyed.get(), 0);
+        assert_eq!(next.released.get(), 1);
     }
 }
 

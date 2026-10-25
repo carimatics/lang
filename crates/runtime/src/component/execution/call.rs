@@ -2,6 +2,7 @@
 //! handle headers are bounded caller metadata and remain until callback close.
 use super::*;
 use crate::allocation as a;
+use std::cell::Cell;
 use std::ptr;
 
 #[derive(Clone, Copy)]
@@ -97,9 +98,67 @@ pub trait TaskStorageOperation {
 /// Wire indices alone never construct this resource authority.
 pub struct CallbackArguments<'a, 'code> {
     views: &'a [NativeView<'code>],
+    owners: &'a [NativeOwner],
     holder: Holder,
 }
+/// A custody receipt is retired only after the original table commits its move.
+/// It carries no resource authority and never outlives the native call.
+pub(crate) struct NativeOwner {
+    pub claim: Claim,
+    pub position: usize,
+    pub held: Cell<bool>,
+}
+impl NativeOwner {
+    pub fn new(claim: Claim, position: usize) -> Self {
+        Self {
+            claim,
+            position,
+            held: Cell::new(true),
+        }
+    }
+}
+pub(crate) trait CallbackCustody {
+    fn holder(&self) -> Holder;
+    fn check(&self, inputs: &[storage::Input]) -> Result<(), Reason>;
+    fn committed(&self, inputs: &[storage::Input]);
+}
+impl CallbackCustody for CallbackArguments<'_, '_> {
+    fn holder(&self) -> Holder {
+        self.holder
+    }
+    fn check(&self, inputs: &[storage::Input]) -> Result<(), Reason> {
+        for input in inputs
+            .iter()
+            .filter(|input| matches!(input.access, storage::Access::Own))
+        {
+            if !self
+                .owners
+                .iter()
+                .any(|owner| owner.claim == input.claim && owner.held.get())
+            {
+                return Err(fault(storage::Error::State));
+            }
+        }
+        Ok(())
+    }
+    fn committed(&self, inputs: &[storage::Input]) {
+        for owner in self.owners {
+            if inputs.iter().any(|input| {
+                input.claim == owner.claim && matches!(input.access, storage::Access::Own)
+            }) {
+                owner.held.set(false);
+            }
+        }
+    }
+}
 impl CallbackArguments<'_, '_> {
+    pub(crate) fn receipt_work(&self, inputs: usize) -> usize {
+        self.owners
+            .len()
+            .saturating_add(1)
+            .saturating_mul(inputs)
+            .saturating_mul(3)
+    }
     pub(crate) fn input(
         &self,
         used: &wire::ResourceUse<'_>,
@@ -133,9 +192,6 @@ impl CallbackArguments<'_, '_> {
         }
         match view.authority {
             NativeAuthority::Own(claim, holder) => {
-                if matches!(access, storage::Access::Own) {
-                    return Err(Reason::Unsupported);
-                }
                 if holder != caller {
                     return Err(fault(storage::Error::WrongHolder));
                 }
@@ -251,7 +307,7 @@ pub(crate) struct CallContext<'r, 'm, 'b, 'scope, 'code> {
     pub memory: &'m mut dyn Memory,
     pub budget: &'b mut m::Budget,
     pub views: &'r mut Vec<NativeView<'code>>,
-    pub owners: &'r mut Vec<(Claim, usize)>,
+    pub owners: &'r mut Vec<NativeOwner>,
     pub holder: Holder,
     kind: &'scope KindResolver<'scope, 'code>,
     buffers: Vec<BufferSlot>,
@@ -268,7 +324,7 @@ impl<'r, 'm, 'b, 'scope, 'code> CallContext<'r, 'm, 'b, 'scope, 'code> {
         memory: &'m mut dyn Memory,
         budget: &'b mut m::Budget,
         views: &'r mut Vec<NativeView<'code>>,
-        owners: &'r mut Vec<(Claim, usize)>,
+        owners: &'r mut Vec<NativeOwner>,
         holder: Holder,
         kind: &'scope KindResolver<'scope, 'code>,
     ) -> Self {
@@ -404,6 +460,7 @@ impl NativeContext for CallContext<'_, '_, '_, '_, '_> {
         let session = self.session.as_deref_mut().ok_or(4u32)?;
         let arguments = CallbackArguments {
             views: self.views,
+            owners: self.owners,
             holder: self.holder,
         };
         instance.with_callback(self.holder, &mut |child| {
@@ -486,7 +543,7 @@ impl NativeContext for CallContext<'_, '_, '_, '_, '_> {
         // The complete metadata capacity and index were checked before custody
         // moved; publication now performs no allocation or foreign callback.
         self.buffers[slot].header[0].allocation = None;
-        self.owners.push((claim, self.views.len()));
+        self.owners.push(NativeOwner::new(claim, self.views.len()));
         self.views.push(NativeView {
             authority: NativeAuthority::Own(claim, self.holder),
             kind,

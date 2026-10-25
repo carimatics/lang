@@ -237,6 +237,7 @@ pub struct Invocation<'state, 'p, 'u, 'resources, 'code, 'native> {
     input_frame: Option<InputFrame>,
     next_frame: Option<u64>,
     output_session: Option<wire::WorkScope<'native>>,
+    callback_custody: Option<&'native dyn call::CallbackCustody>,
     resource_namespace: Option<ResourceNamespace>,
     output_claims: Vec<(Claim, Option<m::Span>)>,
     holding_output: bool,
@@ -335,6 +336,7 @@ impl<'state, 'p, 'u, 'resources, 'code, 'native>
             input_frame: None,
             next_frame: Some(1),
             output_session: None,
+            callback_custody: None,
             resource_namespace: None,
             output_claims,
             holding_output: false,
@@ -409,28 +411,34 @@ impl<'state, 'p, 'u, 'resources, 'code, 'native>
         }
         self.prepare_output_inner(session)
     }
-    /// Checked callback profile: borrowed resources and data-only results until
-    /// native ownership receipts and result-index publication are connected.
+    /// Checked callback arguments retain the original native custody receipts.
+    /// Resource results remain refused until fresh-index publication is ready.
     pub fn prepare_callback_output(
         &mut self,
         session: &'native mut wire::Session,
         budget: &mut m::Budget,
+        arguments: &'native CallbackArguments<'_, '_>,
     ) -> Result<(), Reason> {
         self.check_work()?;
-        if !self.instance.callback {
+        if !self.instance.callback || call::CallbackCustody::holder(arguments) != self.caller {
             return Err(Reason::Entry);
         }
         {
             let mut scope = session.scope_preparation(budget).map_err(Reason::from)?;
+            scope
+                .value_work(arguments.receipt_work(self.resources.input_capacity()), 0)
+                .map_err(Reason::from)?;
             let signature = self.frame_signature(&mut scope)?;
             if !signature
-                .supports_borrowed_callback(&mut scope)
+                .supports_callback_result(&mut scope)
                 .map_err(Reason::from)?
             {
                 return Err(Reason::Unsupported);
             }
         }
-        self.prepare_output_inner(session)
+        self.prepare_output_inner(session)?;
+        self.callback_custody = Some(arguments);
+        Ok(())
     }
     fn prepare_output_inner(&mut self, session: &'native mut wire::Session) -> Result<(), Reason> {
         if self.committed || self.transfer.is_some() || self.output_session.is_some() {
@@ -932,7 +940,7 @@ impl<'state, 'p, 'u, 'resources, 'code, 'native> Host
                 for (index, position) in positions.iter().enumerate() {
                     if matches!(uses[*position].access, wire::ResourceAccess::Own) {
                         match self.resources.prepared_claim(transfer, index) {
-                            Ok(claim) => accepted.push((claim, *position)),
+                            Ok(claim) => accepted.push(call::NativeOwner::new(claim, *position)),
                             Err(error) => {
                                 let _ = self.resources.abort_transfer(transfer);
                                 return Err(fault(error));
@@ -947,8 +955,8 @@ impl<'state, 'p, 'u, 'resources, 'code, 'native> Host
                 for (index, position) in positions.iter().enumerate() {
                     loans[*position] = created[index];
                 }
-                for (_, position) in &accepted {
-                    let used = &uses[*position];
+                for owner in &accepted {
+                    let used = &uses[owner.position];
                     arguments
                         .consumed
                         .push(arguments.resources[(used.index.get() - 1) as usize].claim);
@@ -960,8 +968,8 @@ impl<'state, 'p, 'u, 'resources, 'code, 'native> Host
                 {
                     let claim = owned
                         .iter()
-                        .find(|(_, position)| *position == index)
-                        .map(|(claim, _)| *claim)
+                        .find(|owner| owner.position == index)
+                        .map(|owner| owner.claim)
                         .ok_or(Reason::Invariant)?;
                     let holder = native_holder.ok_or(Reason::Invariant)?;
                     (
@@ -1122,7 +1130,13 @@ impl<'state, 'p, 'u, 'resources, 'code, 'native> Host
             }
         }
         let mut cleanup_failed = false;
-        for (claim, position) in owned.into_iter().rev() {
+        for owner in owned.into_iter().rev() {
+            if !owner.held.get() {
+                continue;
+            }
+            let call::NativeOwner {
+                claim, position, ..
+            } = owner;
             if result
                 .as_ref()
                 .is_ok_and(|value| value.originals.contains(&claim))
@@ -1353,6 +1367,16 @@ impl<'state, 'p, 'u, 'resources, 'code, 'native> Host
         }
         self.loans.clear();
         self.loans.resize(self.inputs.len(), None);
+        if let Some(custody) = self.callback_custody {
+            custody.check(&self.inputs)?;
+        } else if self.instance.callback
+            && self
+                .inputs
+                .iter()
+                .any(|input| matches!(input.access, storage::Access::Own))
+        {
+            return Err(Reason::Unsupported);
+        }
         self.transfer = Some(
             self.resources
                 .prepare_call(self.inputs.iter().copied(), self.caller, self.guest, memory)
@@ -1371,6 +1395,9 @@ impl<'state, 'p, 'u, 'resources, 'code, 'native> Host
             .map_err(fault)
     }
     fn commit_arguments(&mut self, memory: &mut dyn Memory) -> Result<(), Reason> {
+        if let Some(custody) = self.callback_custody {
+            custody.check(&self.inputs)?;
+        }
         self.resources
             .commit_call(
                 self.transfer.ok_or(Reason::Invariant)?,
@@ -1379,6 +1406,9 @@ impl<'state, 'p, 'u, 'resources, 'code, 'native> Host
             )
             .map_err(fault)?;
         self.transfer = None;
+        if let Some(custody) = self.callback_custody {
+            custody.committed(&self.inputs);
+        }
         self.committed = true;
         Ok(())
     }

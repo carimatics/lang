@@ -1,0 +1,23 @@
+pub struct CounterKind {}
+pub struct Request { delta: i64, label: core::Text }
+extern "component" fn host_apply(state: &mut core::ComponentResource<CounterKind>, request: Request) -> core::Result<i64, core::Text>;
+extern "component" fn host_make() -> core::ComponentResource<CounterKind>;
+extern "component" fn host_tick() -> i64;
+extern "component" fn host_bounce(state: core::ComponentResource<CounterKind>) -> i64;
+pub fn relay(value: core::ComponentResource<CounterKind>) -> core::ComponentResource<CounterKind> { return value; }
+pub fn consume(value: core::ComponentResource<CounterKind>) -> i64 { return 42; }
+pub fn create() -> core::ComponentResource<CounterKind> { return host_make(); }
+pub fn answer() -> i64 { return 42; }
+pub fn run(value: core::ComponentResource<CounterKind>) -> i64 { return host_bounce(value); }
+pub fn nested_loan(state: &mut core::ComponentResource<CounterKind>) -> i64 {
+    let mut raw: core::Bytes = core::result_unwrap::<core::Bytes, core::AllocError>(core::bytes_new(core::allocator()));
+    let mut label: core::Text = core::result_unwrap::<core::Text, core::Utf8Error>(core::text_from_utf8(raw));
+    return core::result_unwrap::<i64, core::Text>(host_apply(state, Request { delta: 1, label: label }));
+}
+pub fn nested_own(value: core::ComponentResource<CounterKind>) -> i64 {
+    let mut state: core::ComponentResource<CounterKind> = value;
+    return nested_loan(state);
+}
+pub fn nested_return() -> core::ComponentResource<CounterKind> { return host_make(); }
+pub fn nested_pair(first: &mut core::ComponentResource<CounterKind>, second: &mut core::ComponentResource<CounterKind>) -> i64 { return 0; }
+pub fn nested_alias_shared(first: &core::ComponentResource<CounterKind>, second: &core::ComponentResource<CounterKind>) -> i64 { return host_tick(); }

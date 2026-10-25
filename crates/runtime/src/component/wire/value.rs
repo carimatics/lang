@@ -72,7 +72,6 @@ struct Projection<'a> {
     definitions: Vec<&'a Definition>,
     resources: Vec<&'a ResourceTypeKey>,
     minimum: Vec<Option<usize>>,
-    owns: bool,
 }
 fn projection<'a>(d: &'a Document, f: &Function, s: &mut Session) -> Result<Projection<'a>, Error> {
     projection_roots(
@@ -95,7 +94,6 @@ fn projection_roots<'a>(
     let mut work = Vec::new();
     let mut definitions = Vec::new();
     let mut resources = Vec::new();
-    let mut owns = false;
     for ty in roots {
         s.push(&mut work, (ty, false), 0)?;
     }
@@ -122,7 +120,6 @@ fn projection_roots<'a>(
             TypeKind::Text | TypeKind::Bytes | TypeKind::List(_) => 4,
             TypeKind::Option(_) | TypeKind::Result(_, _) => 1,
             TypeKind::Own(k) => {
-                owns = true;
                 s.push(&mut resources, &k.value, 0)?;
                 4
             }
@@ -185,7 +182,6 @@ fn projection_roots<'a>(
         definitions,
         resources,
         minimum,
-        owns,
     })
 }
 fn schema_type(w: &mut Writer<'_>, d: &Document, root: TypeId) -> Result<(), Error> {
@@ -343,20 +339,15 @@ impl<'a> Signature<'a> {
             })
         })
     }
-    pub(crate) fn supports_borrowed_callback(&self, session: &mut Session) -> Result<bool, Error> {
+    pub(crate) fn supports_callback_result(&self, session: &mut Session) -> Result<bool, Error> {
         session.metadata(|session, limits| {
             super::contract::proof_limits(self.metadata_usage, limits, session)?;
-            let parameters = projection_roots(
-                self.document,
-                self.function.params.iter().map(|p| p.ty),
-                session,
-            )?;
             let result = projection_roots(
                 self.document,
                 std::iter::once(self.function.result),
                 session,
             )?;
-            Ok(!parameters.owns && result.resources.is_empty())
+            Ok(result.resources.is_empty())
         })
     }
     pub const fn digest(&self) -> [u8; 32] {

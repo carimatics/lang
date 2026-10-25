@@ -10,6 +10,8 @@
 
 **次: M3-E02 → owning callbackのcustody receipt・新indexと公開C11経路を接続。**
 
+E02の選択scope（2026-10-25 JST）: native所有引数のcustody receiptを既存child引数commitへ接続し、実owning guest→native→guest→native消費をVM/JITで実行します。receipt検査workを副作用前に予約し、準備中断ではnative custodyを保持、child commitではreceiptを一度だけ退役します。消費済みindex拒否・入れ子での元backing access・失敗/fuel/provider各位置と後続fresh rootを検証します。resource結果/新index escrow・binding対象権限・公開C11は、見積り3 ptを維持したE02の次の必須条件です。行/見積りを追加しません。
+
 E02の元Session・borrowed-resource callback checkpointを実行できました。次はnative ownership receipt/新返却indexを接続し、binding対象権限と公開context_call/C11へ進みます。scoped loan viewは実parent leaseを保持し、この部分の完成をE02やE03/E04/L04の完了とはしません。
 
 R06 実装/検証 checkpoint（**2026-10-24 04:35 JST**、macOS AArch64 検証）: 実 native holder の custody、直接/record/list の所有引数、own/loan 混在 batch、元 backing の変更と一度だけの破棄を含む **source 回帰47件**が VM/生成 native で成功しました。宣言済み error、不正/欠落/foreign 結果、割り込み、destructor 失敗、160通りの fuel 上限と provider 失敗位置で、受入済み owner を保持または退役し、元 allocation を全解放します。消費済み token の receipt は共通の反復 container drain まで届き、直接引数の metadata 拡張も同じ有限 wire Session を使います。破棄も失敗した場合は native failure を primary に維持し、suppressed span と永続 poison を保持します。**runtime 単体151件**も成功しました。入力固定の全 baseline は **141 suites / 2,136 passed / 0 failed / 1 existing timing ignore**、suite-time 合計 **728.29 s**、test log の時間幅は test build を含め **2,840.94 s**です。workspace/fuzz fmt、warnings-denied workspace Clippy（**2m 43s**）、rustdoc（**44.90s**）、全 **14 fuzz target** の compile/lint が成功し、campaign は主張しません。**追跡対象790ファイル**の前後 hash が一致しました（`8d3a5b1d8feb3ab0f64627d0a1dbb3889f55e47deb71d6b47463c383af632bfe`）。先の修正前/中断 run は最終証拠ではありません。非公開 import profile は native 所有結果をまだ拒否し、完全 public embedding/reentry・永続 provider 所有権・installed profile・統一 control・両 host runtime 証拠は追跡済み後続作業です。code 証拠は `8914a50` です。
