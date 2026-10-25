@@ -1210,6 +1210,8 @@ uint32_t fixture(void) {{
         String::from_utf8_lossy(&output.stderr)
     );
     let driver = files.0.join("driver.rs");
+    let registry_provider_digest: [u8; 32] =
+        <sha2::Sha256 as sha2::Digest>::digest(&native_contract).into();
     let resource_provider_digest: [u8; 32] =
         <sha2::Sha256 as sha2::Digest>::digest(&resource_host_contract).into();
     let resource_module_digests: [[u8; 32]; 2] = [
@@ -1217,6 +1219,10 @@ uint32_t fixture(void) {{
         <sha2::Sha256 as sha2::Digest>::digest(&resource_artifact).into(),
     ];
     let driver_source = include_str!("support/component_input_host.rs")
+        .replace(
+            "const REGISTRY_PROVIDER_DIGEST: [u8; 32] = [0; 32];",
+            &format!("const REGISTRY_PROVIDER_DIGEST: [u8; 32] = {registry_provider_digest:?};"),
+        )
         .replace(
             "const RESOURCE_RUN_MEMBER: u32 = 0;",
             &format!("const RESOURCE_RUN_MEMBER: u32 = {resource_run_member};"),

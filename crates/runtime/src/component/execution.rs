@@ -19,9 +19,9 @@ mod result;
 pub(crate) use call::ReadRoot;
 pub use call::{
     CallbackArguments, CallbackFailure, CallbackOperation, LatchedFailure, NativeArguments,
-    NativeContext, NativeFailure, NativeReport, NativeResourceFailure, NativeResult, NativeReturn,
-    PersistentReservation, PersistentResources, ResourceArgument, StorageOperation,
-    TaskStorageOperation,
+    NativeCallFrame, NativeContext, NativeFailure, NativeReport, NativeResourceFailure,
+    NativeResult, NativeReturn, PersistentReservation, PersistentResources, ResourceArgument,
+    StorageOperation, TaskStorageOperation,
 };
 use instance::Phase;
 pub use instance::{Completion, Instance, InstanceError, InstanceState};
@@ -926,6 +926,12 @@ impl<'state, 'p, 'u, 'resources, 'code, 'native> Host
                 accesses.push(access);
             }
             let native = self.resources.new_holder().map_err(fault)?;
+            let native_frame = NativeCallFrame::prepare(
+                native,
+                target.provider(),
+                target.method(),
+                prepared_session.preparation_budget(),
+            )?;
             native_holder = Some(native);
             if !inputs.is_empty() {
                 created = prepared_session
@@ -1012,6 +1018,7 @@ impl<'state, 'p, 'u, 'resources, 'code, 'native> Host
             )
             .with_implementation(&implementation)
             .with_provider(target.provider())
+            .with_native_frame(&native_frame)
             .with_index_limit(
                 self.resource_namespace
                     .map_or(u32::MAX, |namespace| namespace.maximum),
@@ -1042,12 +1049,20 @@ impl<'state, 'p, 'u, 'resources, 'code, 'native> Host
                         return Err(Reason::Native(NativeFailure::Context {
                             failure,
                             canonical_indices,
+                            native_frame: self.accounting.failure_frame(),
                         }));
                     }
                     return Err(Reason::Native(NativeFailure::Child(failure)));
                 }
                 if let Some(failure) = self.accounting.boundary_failure() {
-                    return Err(Reason::Native(NativeFailure::Latched(failure)));
+                    return Err(Reason::Native(if failure.context_frame().is_some() {
+                        NativeFailure::Propagated {
+                            failure,
+                            native_frame: native_frame.clone(),
+                        }
+                    } else {
+                        NativeFailure::Latched(failure)
+                    }));
                 }
                 if let Some(failure) = self.accounting.preparation_failure() {
                     return Err(Reason::Control(failure));

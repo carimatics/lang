@@ -17,10 +17,15 @@ pub enum NativeFailure {
     Invocation(u32),
     Report(NativeReport),
     Latched(std::rc::Rc<LatchedFailure>),
+    Propagated {
+        failure: std::rc::Rc<LatchedFailure>,
+        native_frame: NativeCallFrame,
+    },
     Child(std::rc::Rc<crate::task::runner::Failure>),
     Context {
         failure: std::rc::Rc<crate::task::runner::Failure>,
         canonical_indices: u64,
+        native_frame: Option<NativeCallFrame>,
     },
     /// Unvalidated legacy evidence. It never grants report provenance.
     Status {
@@ -33,6 +38,54 @@ pub enum NativeFailure {
         index: u32,
         kind: NativeResourceFailure,
     },
+}
+
+/// Passive checked provenance for one actual native activation. The original
+/// holder identifies this call; it grants no resource or reentry authority.
+#[derive(Clone, Debug)]
+pub struct NativeCallFrame {
+    scope: Holder,
+    origin: wire::Frame,
+    _owner: Option<crate::cleanup::CodeOwnerLease>,
+}
+impl NativeCallFrame {
+    pub(crate) fn prepare(
+        scope: Holder,
+        provider: &super::super::native::Provider<'_>,
+        method: &super::super::native::Method,
+        budget: &mut m::Budget,
+    ) -> Result<Self, Reason> {
+        budget.allocate::<Self>(1)?;
+        budget.charge(method.interface.saturating_add(1))?;
+        let metadata = provider.metadata();
+        let member = metadata.contract.document().interfaces[..method.interface]
+            .iter()
+            .try_fold(method.member, |ordinal, interface| {
+                ordinal.checked_add(interface.functions.len())
+            })
+            .and_then(|ordinal| u32::try_from(ordinal).ok())
+            .ok_or(Reason::Invariant)?;
+        Ok(Self {
+            scope,
+            origin: wire::Frame {
+                mode: wire::Mode::Host,
+                digest: metadata
+                    .digest
+                    .as_bytes()
+                    .try_into()
+                    .map_err(|_| Reason::Invariant)?,
+                member,
+                span: None,
+            },
+            _owner: provider.code_owner_lease(),
+        })
+    }
+    pub fn origin(&self) -> &wire::Frame {
+        &self.origin
+    }
+    pub fn same_activation(&self, other: &Self) -> bool {
+        self.scope == other.scope
+    }
 }
 
 /// A fresh callback report admitted on its original canonical Session.
@@ -135,6 +188,27 @@ impl LatchedFailure {
     }
     pub fn cause(&self) -> Option<&crate::task::runner::Failure> {
         self.cause.as_deref()
+    }
+    pub fn context_frame(&self) -> Option<&NativeCallFrame> {
+        let mut failure = self.cause()?;
+        loop {
+            failure = match &failure.reason {
+                Reason::Native(NativeFailure::Context {
+                    native_frame: Some(frame),
+                    ..
+                }) => return Some(frame),
+                Reason::Native(
+                    NativeFailure::Context { failure, .. } | NativeFailure::Child(failure),
+                ) => failure,
+                Reason::Native(
+                    NativeFailure::Latched(packet)
+                    | NativeFailure::Propagated {
+                        failure: packet, ..
+                    },
+                ) => packet.cause()?,
+                _ => return None,
+            };
+        }
     }
 }
 #[cfg(test)]
@@ -815,6 +889,7 @@ pub(crate) struct CallContext<'r, 'm, 'b, 'scope, 'code> {
     kind: &'scope KindResolver<'scope, 'code>,
     implementation: Option<&'scope KindAuthority<'scope>>,
     provider: Option<&'scope super::super::native::Provider<'scope>>,
+    native_frame: Option<&'scope NativeCallFrame>,
     buffers: Vec<BufferSlot>,
     index_limit: u32,
     accounting: Option<&'scope crate::execution::InvocationAccounting>,
@@ -845,6 +920,7 @@ impl<'r, 'm, 'b, 'scope, 'code> CallContext<'r, 'm, 'b, 'scope, 'code> {
             kind,
             implementation: None,
             provider: None,
+            native_frame: None,
             buffers: Vec::new(),
             index_limit: u32::MAX,
             accounting: None,
@@ -865,6 +941,10 @@ impl<'r, 'm, 'b, 'scope, 'code> CallContext<'r, 'm, 'b, 'scope, 'code> {
         provider: &'scope super::super::native::Provider<'scope>,
     ) -> Self {
         self.provider = Some(provider);
+        self
+    }
+    pub fn with_native_frame(mut self, frame: &'scope NativeCallFrame) -> Self {
+        self.native_frame = Some(frame);
         self
     }
     pub fn with_implementation(mut self, check: &'scope KindAuthority<'scope>) -> Self {
@@ -904,6 +984,7 @@ impl<'r, 'm, 'b, 'scope, 'code> CallContext<'r, 'm, 'b, 'scope, 'code> {
                     poisoned: false,
                 },
                 self.resource_indices(),
+                self.native_frame.cloned(),
             );
         }
     }

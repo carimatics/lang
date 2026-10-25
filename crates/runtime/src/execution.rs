@@ -186,6 +186,7 @@ struct ScopedFailure {
     task: Option<crate::task::TaskId>,
     failure: InvocationFailure,
     canonical_indices: Option<u64>,
+    native_frame: Option<crate::component::execution::NativeCallFrame>,
 }
 #[derive(Debug)]
 struct Accounting {
@@ -244,6 +245,10 @@ impl InvocationAccounting {
         self.current_failure()
             .and_then(|slot| slot.canonical_indices)
     }
+    pub fn failure_frame(&self) -> Option<crate::component::execution::NativeCallFrame> {
+        self.current_failure()
+            .and_then(|slot| slot.native_frame.clone())
+    }
     pub fn has_failure(&self) -> bool {
         self.current_failure().is_some()
     }
@@ -252,6 +257,7 @@ impl InvocationAccounting {
         failure: InvocationFailure,
         indices: Option<u64>,
         cause: Option<&crate::task::runner::Failure>,
+        native_frame: Option<crate::component::execution::NativeCallFrame>,
     ) {
         let task = self.0.task.borrow().clone();
         let mut slot = self.0.boundary_failure.borrow_mut();
@@ -273,18 +279,25 @@ impl InvocationAccounting {
                 task,
                 failure,
                 canonical_indices: indices,
+                native_frame,
             });
         }
     }
     /// Internal borrowed Rust child adapters retain the actual typed failure.
     pub fn latch_child_failure(&self, child: crate::task::runner::Failure) {
-        self.install_failure(InvocationFailure::Child(Rc::new(child)), None, None);
+        self.install_failure(InvocationFailure::Child(Rc::new(child)), None, None, None);
     }
-    pub(crate) fn latch_context_failure(&self, child: crate::task::runner::Failure, indices: u64) {
+    pub(crate) fn latch_context_failure(
+        &self,
+        child: crate::task::runner::Failure,
+        indices: u64,
+        native_frame: Option<crate::component::execution::NativeCallFrame>,
+    ) {
         self.install_failure(
             InvocationFailure::Child(Rc::new(child)),
             Some(indices),
             None,
+            native_frame,
         );
     }
     pub fn latch_boundary_failure(
@@ -297,6 +310,7 @@ impl InvocationAccounting {
             InvocationFailure::Report(Rc::new(crate::component::execution::LatchedFailure::new(
                 report, bytes, owner, None,
             ))),
+            None,
             None,
             None,
         );
@@ -315,7 +329,7 @@ impl InvocationAccounting {
             owner,
             Some(cause.clone()),
         ));
-        self.install_failure(InvocationFailure::Report(packet), None, Some(&cause));
+        self.install_failure(InvocationFailure::Report(packet), None, Some(&cause), None);
     }
     /// Lend actual suspended guest live counts for one synchronous child. This
     /// changes no counter identity or authority, and restores the prior scope.

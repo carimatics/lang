@@ -9,6 +9,7 @@ use lang_runtime::{
 };
 use std::{ffi::c_void, ptr};
 const RESOURCE_PROVIDER_DIGEST: [u8; 32] = [0; 32];
+const REGISTRY_PROVIDER_DIGEST: [u8; 32] = [0; 32];
 const RESOURCE_RUN_MEMBER: u32 = 0;
 thread_local! { static CALLBACK_SNAPSHOT_WORK: std::cell::Cell<u64> = const { std::cell::Cell::new(0) }; }
 #[unsafe(no_mangle)]
@@ -541,6 +542,35 @@ unsafe extern "C" fn probe_report(bytes: ffi::Bytes, mode: u32, case: u32) -> u3
         assert_eq!(report.omitted, 0);
         return 0;
     }
+    if (54..=56).contains(&case) {
+        assert!(!report.poisoned && report.suppressed.is_empty());
+        assert_eq!(report.primary.category, wire::Category::Limit);
+        assert_eq!(report.primary.phase, wire::Phase::Call);
+        assert_eq!(report.primary.diagnostic, wire::Diagnostic::Limit);
+        assert_eq!(report.primary.limit, Some(wire::LimitDetail {
+            kind: wire::ReportLimitKind::PreparationWork,
+            limit: 10_000_000, attempted: 10_000_001,
+        }));
+        let origin = report.primary.origin.as_ref().unwrap();
+        assert_eq!(report.frames.len(), if case == 54 { 2 } else if case == 55 { 4 } else { 3 });
+        assert_eq!(report.omitted, u64::from(case == 56));
+        for (i, frame) in report.frames.iter().enumerate() {
+            if i % 2 == 0 {
+                assert_eq!((frame.mode, frame.digest, frame.member), (origin.mode, origin.digest, origin.member));
+                assert!(frame.span.is_some());
+            } else {
+                assert_eq!(frame.mode, wire::Mode::Host);
+                assert_eq!(frame.digest, REGISTRY_PROVIDER_DIGEST);
+                assert_eq!(frame.member, 0);
+                assert!(frame.span.is_none());
+            }
+        }
+        if case != 54 { assert_eq!(report.frames[0], report.frames[2]); }
+        if case == 55 { assert_eq!(report.frames[1], report.frames[3]); }
+        assert_eq!(report.usage.host_calls, 2);
+        assert_eq!(report.usage.canonical_indices, 0);
+        return 0;
+    }
     if matches!(case, 42 | 53) {
         assert!(report.poisoned);
         assert_eq!(report.primary.category, wire::Category::Destructor);
@@ -580,10 +610,12 @@ unsafe extern "C" fn probe_report(bytes: ffi::Bytes, mode: u32, case: u32) -> u3
         }
         let origin = report.primary.origin.as_ref().unwrap();
         assert_resource_guest_frame(origin, mode, RESOURCE_RUN_MEMBER);
-        assert!((1..=2).contains(&report.frames.len()));
-        for frame in &report.frames {
-            assert_resource_guest_frame(frame, mode, RESOURCE_RUN_MEMBER);
-        }
+        assert_eq!(report.frames.len(), 2);
+        assert_resource_guest_frame(&report.frames[0], mode, RESOURCE_RUN_MEMBER);
+        assert_eq!(report.frames[1].mode, wire::Mode::Host);
+        assert_eq!(report.frames[1].digest, RESOURCE_PROVIDER_DIGEST);
+        assert_eq!(report.frames[1].member, 0);
+        assert!(report.frames[1].span.is_none());
         assert_eq!(report.suppressed.len(), usize::from(failed_cleanup));
         for record in &report.suppressed {
             assert_eq!(record.category, wire::Category::Destructor);
@@ -779,16 +811,17 @@ unsafe extern "C" fn probe_report(bytes: ffi::Bytes, mode: u32, case: u32) -> u3
             }
             assert!(!report.poisoned && report.suppressed.is_empty());
             assert_eq!(report.omitted, 0);
-            // The first packet contains the caller; outer native propagation
-            // can prepend it again until E04 supplies activation identities.
-            assert!((1..=2).contains(&report.frames.len()));
-            for frame in &report.frames {
-                assert_eq!(
-                    (frame.mode, frame.digest, frame.member),
-                    (origin.mode, origin.digest, origin.member)
-                );
-                assert!(frame.span.is_some());
-            }
+            // Preparation refused before guest entry. There is one source
+            // activation and the actual host callback, without a new child.
+            assert_eq!(report.frames.iter().filter(|frame| {
+                (frame.mode, frame.digest, frame.member) == (origin.mode, origin.digest, origin.member)
+            }).count(), 1);
+            let hosts = report.frames.iter().filter(|frame| frame.mode == wire::Mode::Host).collect::<Vec<_>>();
+            assert_eq!(hosts.len(), 1);
+            assert!(hosts[0].span.is_none());
+            assert_eq!(hosts[0].digest, REGISTRY_PROVIDER_DIGEST);
+            assert_eq!(hosts[0].member, 0);
+            assert_ne!(hosts[0].digest, origin.digest);
             assert_eq!(report.usage.host_calls, 1);
             assert_eq!(report.usage.canonical_indices, 0);
         }

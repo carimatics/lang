@@ -115,7 +115,10 @@ impl Reason {
                     crate::component::execution::NativeFailure::Child(failure)
                     | crate::component::execution::NativeFailure::Context { failure, .. },
                 ) => &failure.reason,
-                Self::Native(crate::component::execution::NativeFailure::Latched(failure)) => {
+                Self::Native(
+                    crate::component::execution::NativeFailure::Latched(failure)
+                    | crate::component::execution::NativeFailure::Propagated { failure, .. },
+                ) => {
                     let Some(failure) = failure.cause() else {
                         return cause;
                     };

@@ -470,7 +470,9 @@ fn project_failure(
             (wire::Category::Admission, wire::Diagnostic::Reentry)
         }
         r::Reason::Native(
-            execution::NativeFailure::Report(_) | execution::NativeFailure::Latched(_),
+            execution::NativeFailure::Report(_)
+            | execution::NativeFailure::Latched(_)
+            | execution::NativeFailure::Propagated { .. },
         ) => (wire::Category::Trap, wire::Diagnostic::Trap),
         r::Reason::Native(_)
         | r::Reason::Invariant
@@ -529,16 +531,41 @@ fn project_failure(
                 .map(|function| function.signature_span)
         }),
     };
-    let frames = if ceiling.trace_frames == 0 {
-        vec![]
-    } else {
-        vec![frame.clone()]
+    let native_frame = match &failure.reason {
+        r::Reason::Native(execution::NativeFailure::Context { native_frame, .. }) => {
+            native_frame.as_ref()
+        }
+        r::Reason::Native(execution::NativeFailure::Propagated { native_frame, .. }) => {
+            Some(native_frame)
+        }
+        _ => None,
     };
+    let repeated = matches!(&failure.reason,
+        r::Reason::Native(execution::NativeFailure::Propagated { failure, native_frame })
+            if failure.context_frame().is_some_and(|original| original.same_activation(native_frame))
+    );
+    let mut frames = Vec::new();
+    let mut omitted_frames = 0u64;
+    if !repeated {
+        for frame in [
+            Some(&frame),
+            native_frame.map(execution::NativeCallFrame::origin),
+        ]
+        .into_iter()
+        .flatten()
+        {
+            if frames.len() < ceiling.trace_frames.min(64) as usize {
+                frames.push(frame.clone());
+            } else {
+                omitted_frames = omitted_frames.saturating_add(1);
+            }
+        }
+    }
     let mut omitted = failure
         .report
         .as_ref()
         .map_or(0, |r| r.truncated() as u64)
-        .saturating_add(u64::from(ceiling.trace_frames == 0));
+        .saturating_add(omitted_frames);
     let mut origin_work = 4096usize;
     let mut cleanup_origin = |span: m::Span| {
         if Some(span) == failure.span {
@@ -646,6 +673,9 @@ fn project_failure(
     let native = match &failure.reason {
         r::Reason::Native(execution::NativeFailure::Report(native)) => Some(native.report()),
         r::Reason::Native(execution::NativeFailure::Latched(native)) => Some(native.report()),
+        r::Reason::Native(execution::NativeFailure::Propagated { failure, .. }) => {
+            Some(failure.report())
+        }
         _ => None,
     };
     if let Some(native) = native {

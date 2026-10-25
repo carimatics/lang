@@ -126,6 +126,7 @@ impl execution::CallbackOperation for Call<'_, '_> {
                 reason: r::Reason::Native(execution::NativeFailure::Context {
                     failure: first,
                     canonical_indices,
+                    native_frame: accounting.failure_frame(),
                 }),
             });
             let report = project_failure(
