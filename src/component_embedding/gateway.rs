@@ -545,20 +545,32 @@ fn project_failure(
             if failure.context_frame().is_some_and(|original| original.same_activation(native_frame))
     );
     let mut frames = Vec::new();
-    let mut omitted_frames = 0u64;
+    let mut omitted_frames = if repeated {
+        0
+    } else {
+        native_frame.map_or(0, execution::NativeCallFrame::omitted_callers)
+    };
     if !repeated {
-        for frame in [
-            Some(&frame),
-            native_frame.map(execution::NativeCallFrame::origin),
-        ]
-        .into_iter()
-        .flatten()
-        {
+        let mut push = |frame: wire::Frame| {
             if frames.len() < ceiling.trace_frames.min(64) as usize {
-                frames.push(frame.clone());
+                frames.push(frame);
             } else {
                 omitted_frames = omitted_frames.saturating_add(1);
             }
+        };
+        if let Some(native) = native_frame.filter(|native| !native.callers().is_empty()) {
+            for caller in native.callers() {
+                push(wire::Frame {
+                    member: caller.function.0,
+                    span: Some(caller.span),
+                    ..frame.clone()
+                });
+            }
+        } else {
+            push(frame.clone());
+        }
+        if let Some(native) = native_frame {
+            push(native.origin().clone());
         }
     }
     let mut omitted = failure

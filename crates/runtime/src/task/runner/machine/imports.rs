@@ -54,6 +54,7 @@ impl<P: a::Provider> Machine<'_, '_, '_, '_, '_, P> {
         let current = self.services.scheduler.current(&id)?;
         let accounting = self.accounting.as_ref().ok_or(Reason::Invariant)?.clone();
         let logical = current.id().clone();
+        let callers = guest_callers(&self.records, self.proof, task, &logical, self.budget)?;
         let result = accounting.with_task(logical, || {
             self.services
                 .component
@@ -64,6 +65,7 @@ impl<P: a::Provider> Machine<'_, '_, '_, '_, '_, P> {
                     &mut values,
                     span,
                     caller,
+                    callers,
                     self.allocator,
                     self.budget,
                     parent_live,
@@ -200,4 +202,73 @@ impl<P: a::Provider> Machine<'_, '_, '_, '_, '_, P> {
             }
         }
     }
+}
+
+fn guest_callers(
+    records: &[Record<'_, '_>],
+    proof: &o::tasks::VerifiedTasks,
+    task: usize,
+    logical: &t::TaskId,
+    budget: &mut m::Budget,
+) -> Result<execution::GuestCallFrames, Reason> {
+    let mut at = task;
+    let mut total = 0usize;
+    let mut ancestors = 0usize;
+    loop {
+        let record = records.get(at).ok_or(Reason::Invariant)?;
+        total = total
+            .checked_add(record.frames.len())
+            .ok_or(Reason::Invariant)?;
+        ancestors = ancestors.checked_add(1).ok_or(Reason::Invariant)?;
+        match record.parent {
+            Some(parent) if parent < at => at = parent,
+            Some(_) => return Err(Reason::Invariant),
+            None => break,
+        }
+    }
+    if total == 0 {
+        return Err(Reason::Invariant);
+    }
+    budget.charge(total.saturating_add(ancestors))?;
+    let capacity = total.min(64);
+    let mut frames = budget.vector(capacity)?;
+    let mut cursor = 0usize;
+    at = task;
+    loop {
+        let record = &records[at];
+        let id = if at == task { logical } else { &record.id };
+        for frame in record.frames.iter().rev() {
+            let span = proof
+                .plan()
+                .functions()
+                .get(frame.function.0 as usize)
+                .and_then(|function| function.nodes().get(frame.node.0 as usize))
+                .ok_or(Reason::Invariant)?
+                .span;
+            let frame = execution::GuestCallFrame {
+                activation: frame.activation,
+                task: id.clone(),
+                function: frame.function,
+                span,
+            };
+            if frames.len() < capacity {
+                frames.push(frame);
+            } else {
+                frames[cursor] = frame;
+                cursor = (cursor + 1) % capacity;
+            }
+        }
+        match record.parent {
+            Some(parent) => at = parent,
+            None => break,
+        }
+    }
+    if total > capacity {
+        frames.rotate_left(cursor);
+    }
+    frames.reverse();
+    Ok(execution::GuestCallFrames {
+        frames,
+        omitted: total.saturating_sub(capacity) as u64,
+    })
 }

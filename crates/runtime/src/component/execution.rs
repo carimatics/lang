@@ -18,10 +18,10 @@ mod native_result;
 mod result;
 pub(crate) use call::ReadRoot;
 pub use call::{
-    CallbackArguments, CallbackFailure, CallbackOperation, LatchedFailure, NativeArguments,
-    NativeCallFrame, NativeContext, NativeFailure, NativeReport, NativeResourceFailure,
-    NativeResult, NativeReturn, PersistentReservation, PersistentResources, ResourceArgument,
-    StorageOperation, TaskStorageOperation,
+    CallbackArguments, CallbackFailure, CallbackOperation, GuestCallFrame, GuestCallFrames,
+    LatchedFailure, NativeArguments, NativeCallFrame, NativeContext, NativeFailure, NativeReport,
+    NativeResourceFailure, NativeResult, NativeReturn, PersistentReservation, PersistentResources,
+    ResourceArgument, StorageOperation, TaskStorageOperation,
 };
 use instance::Phase;
 pub use instance::{Completion, Instance, InstanceError, InstanceState};
@@ -160,6 +160,7 @@ pub trait Host {
         arguments: &mut NativeArguments,
         span: m::Span,
         caller: m::FunctionId,
+        callers: GuestCallFrames,
         memory: &mut dyn Memory,
         budget: &mut m::Budget,
         parent_live: crate::execution::LiveUsage,
@@ -762,6 +763,7 @@ impl<'state, 'p, 'u, 'resources, 'code, 'native> Host
         arguments: &mut NativeArguments,
         span: m::Span,
         caller: m::FunctionId,
+        callers: GuestCallFrames,
         memory: &mut dyn Memory,
         budget: &mut m::Budget,
         parent_live: crate::execution::LiveUsage,
@@ -928,6 +930,8 @@ impl<'state, 'p, 'u, 'resources, 'code, 'native> Host
             let native = self.resources.new_holder().map_err(fault)?;
             let native_frame = NativeCallFrame::prepare(
                 native,
+                self.guest,
+                callers,
                 target.provider(),
                 target.method(),
                 prepared_session.preparation_budget(),

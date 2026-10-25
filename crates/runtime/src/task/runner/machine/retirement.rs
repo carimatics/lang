@@ -12,9 +12,10 @@ impl<'p, 'l, 'ty, 'host, 'ctrl, P: a::Provider> Machine<'p, 'l, 'ty, 'host, 'ctr
                 crate::component::execution::NativeFailure::Child(failure)
                 | crate::component::execution::NativeFailure::Context { failure, .. },
             ) => failure.poisoned,
-            Reason::Native(crate::component::execution::NativeFailure::Latched(failure)) => {
-                failure.report().poisoned
-            }
+            Reason::Native(
+                crate::component::execution::NativeFailure::Latched(failure)
+                | crate::component::execution::NativeFailure::Propagated { failure, .. },
+            ) => failure.report().poisoned,
             _ => false,
         };
         let failure = if poisoned_cause {

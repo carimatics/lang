@@ -254,6 +254,7 @@ struct Child {
     control_failure: Cell<Option<ChildControlFailure>>,
     task: RefCell<Option<lang_runtime::task::TaskId>>,
     task_usage: Cell<Option<lang_runtime::task::Usage>>,
+    caller_frames: RefCell<Vec<execution::GuestCallFrame>>,
     cancel_task: Cell<bool>,
     task_observations: Cell<usize>,
     original_instance: bool,
@@ -307,6 +308,7 @@ impl Child {
             control_failure: Cell::new(None),
             task: RefCell::new(None),
             task_usage: Cell::new(None),
+            caller_frames: RefCell::new(Vec::new()),
             cancel_task: Cell::new(false),
             task_observations: Cell::new(0),
             original_instance: false,
@@ -374,6 +376,8 @@ impl Child {
         // SAFETY: invoked only by make with its exact live original context.
         let value = unsafe {
             lang_codegen_clif::component::with_child(context, |invoker, call, control| {
+                self.caller_frames
+                    .replace(call.call_frame().ok_or(4u32)?.callers().to_vec());
                 self.before
                     .set(Some(call.accounting().ok_or(4u32)?.snapshot()));
                 assert_eq!(lang_codegen_clif::component::context_check(context), 5);
@@ -3278,6 +3282,26 @@ fn original_non_root_task_survives_repeated_guest_callback_scopes() {
                 }
             );
             assert_eq!(child.task.borrow().as_ref().unwrap().index(), 1);
+            {
+                let callers = child.caller_frames.borrow();
+                assert_eq!(callers.len(), 2);
+                assert_eq!(
+                    callers
+                        .iter()
+                        .map(|frame| frame.task.index())
+                        .collect::<Vec<_>>(),
+                    [0, 1]
+                );
+                assert_eq!(&callers[1].task, child.task.borrow().as_ref().unwrap());
+                assert_ne!(callers[0].activation, callers[1].activation);
+                let source = include_str!("fixtures/component_scoped_roots_task.lang");
+                for (frame, expected) in callers.iter().zip(["await", "host_make"]) {
+                    assert!(
+                        source[frame.span.start as usize..frame.span.end as usize]
+                            .contains(expected)
+                    );
+                }
+            }
             assert_eq!(
                 child.task_usage.get(),
                 Some(lang_runtime::task::Usage {

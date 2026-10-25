@@ -43,19 +43,38 @@ pub enum NativeFailure {
 /// Passive checked provenance for one actual native activation. The original
 /// holder identifies this call; it grants no resource or reentry authority.
 #[derive(Clone, Debug)]
-pub struct NativeCallFrame {
+pub struct NativeCallFrame(std::rc::Rc<NativeCallData>);
+#[derive(Debug)]
+struct NativeCallData {
     scope: Holder,
+    guest_scope: Holder,
+    callers: GuestCallFrames,
     origin: wire::Frame,
     _owner: Option<crate::cleanup::CodeOwnerLease>,
+}
+#[derive(Clone, Debug)]
+pub struct GuestCallFrame {
+    pub activation: crate::task::runner::frame::ActivationId,
+    pub task: crate::task::TaskId,
+    pub function: m::FunctionId,
+    pub span: m::Span,
+}
+#[derive(Debug)]
+pub struct GuestCallFrames {
+    pub frames: Vec<GuestCallFrame>,
+    pub omitted: u64,
 }
 impl NativeCallFrame {
     pub(crate) fn prepare(
         scope: Holder,
+        guest_scope: Holder,
+        callers: GuestCallFrames,
         provider: &super::super::native::Provider<'_>,
         method: &super::super::native::Method,
         budget: &mut m::Budget,
     ) -> Result<Self, Reason> {
-        budget.allocate::<Self>(1)?;
+        budget.allocate::<NativeCallData>(1)?;
+        budget.allocate::<usize>(2)?;
         budget.charge(method.interface.saturating_add(1))?;
         let metadata = provider.metadata();
         let member = metadata.contract.document().interfaces[..method.interface]
@@ -65,8 +84,10 @@ impl NativeCallFrame {
             })
             .and_then(|ordinal| u32::try_from(ordinal).ok())
             .ok_or(Reason::Invariant)?;
-        Ok(Self {
+        Ok(Self(std::rc::Rc::new(NativeCallData {
             scope,
+            guest_scope,
+            callers,
             origin: wire::Frame {
                 mode: wire::Mode::Host,
                 digest: metadata
@@ -78,13 +99,19 @@ impl NativeCallFrame {
                 span: None,
             },
             _owner: provider.code_owner_lease(),
-        })
+        })))
     }
     pub fn origin(&self) -> &wire::Frame {
-        &self.origin
+        &self.0.origin
+    }
+    pub fn callers(&self) -> &[GuestCallFrame] {
+        &self.0.callers.frames
+    }
+    pub fn omitted_callers(&self) -> u64 {
+        self.0.callers.omitted
     }
     pub fn same_activation(&self, other: &Self) -> bool {
-        self.scope == other.scope
+        self.0.scope == other.0.scope && self.0.guest_scope == other.0.guest_scope
     }
 }
 
@@ -803,6 +830,9 @@ pub trait CallbackOperation {
     ) -> Result<(), CallbackFailure>;
 }
 pub trait NativeContext {
+    fn call_frame(&self) -> Option<&NativeCallFrame> {
+        None
+    }
     fn matches_provider(&self, _: &super::super::native::Provider<'_>) -> bool {
         false
     }
@@ -1084,6 +1114,9 @@ impl<'r, 'm, 'b, 'scope, 'code> CallContext<'r, 'm, 'b, 'scope, 'code> {
     }
 }
 impl NativeContext for CallContext<'_, '_, '_, '_, '_> {
+    fn call_frame(&self) -> Option<&NativeCallFrame> {
+        self.native_frame
+    }
     fn matches_provider(&self, provider: &super::super::native::Provider<'_>) -> bool {
         self.provider
             .is_some_and(|current| current.same_registration(provider))

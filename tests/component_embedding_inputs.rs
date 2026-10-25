@@ -508,7 +508,73 @@ fn native_c_host_loads_snapshots_and_repeats_generated_typed_calls_on_vm_and_jit
     )
     .unwrap();
     host_json["package"] = serde_json::json!("demo:grant");
+    let stack_document = idl::check(m::SourceId(1), &native_idl, Default::default()).unwrap();
+    let stack_guest = g::guest(&stack_document, Default::default()).unwrap();
+    let native_stack_source = format!(
+        "{}\n{} {{return trace_recur(p0, true, true);}}\nfn trace_recur(value: i64, again: bool, next: bool) -> i64 {{if again {{return trace_recur(value, next, false);}} return {}(value);}}",
+        stack_guest.declarations,
+        stack_guest.exports[0].declaration,
+        stack_guest.bindings.imports[0].source,
+    );
+    let stack_analysis = f::analyze(f::Request {
+        sources: SourceMap::new(),
+        display: Path::new("component-stack.lang"),
+        bytes: native_stack_source.as_bytes(),
+        root: None,
+        compile: Default::default(),
+        document: stack_document,
+        bindings: stack_guest.bindings,
+        limits: Default::default(),
+    });
+    assert!(
+        stack_analysis.diagnostics.is_empty(),
+        "{:?}",
+        stack_analysis.diagnostics
+    );
+    let native_stack_artifact = lang::artifact::component::encode(
+        stack_analysis.result.unwrap(),
+        m::Source {
+            path: "component-idl.json".into(),
+            text: std::str::from_utf8(&native_idl).unwrap().into(),
+        },
+        None,
+        Default::default(),
+    )
+    .unwrap();
     host_json["exports"] = serde_json::json!([]);
+    let long_document = idl::check(m::SourceId(1), &native_idl, Default::default()).unwrap();
+    let long_guest = g::guest(&long_document, Default::default()).unwrap();
+    let native_long_source = format!(
+        "{}\n{} {{return trace_long(p0, 0);}}\nfn trace_long(value: i64, depth: i64) -> i64 {{if depth < 70 {{return trace_long(value, depth + 1);}} return {}(value);}}",
+        long_guest.declarations,
+        long_guest.exports[0].declaration,
+        long_guest.bindings.imports[0].source,
+    );
+    let long_analysis = f::analyze(f::Request {
+        sources: SourceMap::new(),
+        display: Path::new("component-long-stack.lang"),
+        bytes: native_long_source.as_bytes(),
+        root: None,
+        compile: Default::default(),
+        document: long_document,
+        bindings: long_guest.bindings,
+        limits: Default::default(),
+    });
+    assert!(
+        long_analysis.diagnostics.is_empty(),
+        "{:?}",
+        long_analysis.diagnostics
+    );
+    let native_long_artifact = lang::artifact::component::encode(
+        long_analysis.result.unwrap(),
+        m::Source {
+            path: "component-idl.json".into(),
+            text: std::str::from_utf8(&native_idl).unwrap().into(),
+        },
+        None,
+        Default::default(),
+    )
+    .unwrap();
     host_json["imports"] = script_json["imports"].clone();
     let grant_json = serde_json::to_vec(&host_json).unwrap();
     let grant = wire::Contract::new(
@@ -833,6 +899,10 @@ fn native_c_host_loads_snapshots_and_repeats_generated_typed_calls_on_vm_and_jit
         + &array("native_idl", &native_idl)
         + &array("native_source", native_source.as_bytes())
         + &array("native_artifact", &native_artifact)
+        + &array("native_stack_source", native_stack_source.as_bytes())
+        + &array("native_stack_artifact", &native_stack_artifact)
+        + &array("native_long_source", native_long_source.as_bytes())
+        + &array("native_long_artifact", &native_long_artifact)
         + &array("native_grant", &native_grant)
         + &array("resource_host_contract", &resource_host_contract)
         + &array("resource_method_signature", &resource_method_signature)
@@ -1071,10 +1141,15 @@ static void decoder_refusal_case(const lang_component_v1_api *api,const lang_com
     assert(api->engine_destroy(engine,&error)==0);
 }}
 typedef struct request {{void *data;uint64_t size,alignment;uint32_t live;}} request;
-typedef struct owner {{request requests[8192];uint64_t allocated,released,live;}} owner;
+typedef struct owner {{request *requests;uint64_t capacity,allocated,released,live;}} owner;
 static uint8_t *LANG_COMPONENT_V1_CALL allocate(void *user,uint64_t size,uint64_t alignment) {{
     owner *o=(owner *)user;void *data=NULL;assert(size&&alignment);
-    assert(o->allocated<8192);
+    if(o->allocated==o->capacity){{
+        uint64_t capacity=o->capacity?o->capacity*2:8192;
+        request *requests;assert(capacity>o->capacity&&capacity<=SIZE_MAX/sizeof(request));
+        requests=(request *)realloc(o->requests,(size_t)capacity*sizeof(request));assert(requests);
+        o->requests=requests;o->capacity=capacity;
+    }}
 #ifdef _WIN32
     data=_aligned_malloc((size_t)size,(size_t)(alignment<sizeof(void *)?sizeof(void *):alignment));
 #else
@@ -1178,7 +1253,7 @@ uint32_t fixture(void) {{
         }}
         probe_drop(module);assert(o->live==0&&o->allocated==o->released);
     }}
-    assert(o->allocated>=2&&o->allocated==o->released);free(o);return 0;
+    assert(o->allocated>=2&&o->allocated==o->released);free(o->requests);free(o);return 0;
 }}
 "#,
         header = header.header,
@@ -1212,6 +1287,12 @@ uint32_t fixture(void) {{
     let driver = files.0.join("driver.rs");
     let registry_provider_digest: [u8; 32] =
         <sha2::Sha256 as sha2::Digest>::digest(&native_contract).into();
+    let registry_stack_digests: [[u8; 32]; 4] = [
+        <sha2::Sha256 as sha2::Digest>::digest(native_stack_source.as_bytes()).into(),
+        <sha2::Sha256 as sha2::Digest>::digest(&native_stack_artifact).into(),
+        <sha2::Sha256 as sha2::Digest>::digest(native_long_source.as_bytes()).into(),
+        <sha2::Sha256 as sha2::Digest>::digest(&native_long_artifact).into(),
+    ];
     let resource_provider_digest: [u8; 32] =
         <sha2::Sha256 as sha2::Digest>::digest(&resource_host_contract).into();
     let resource_module_digests: [[u8; 32]; 2] = [
@@ -1219,6 +1300,10 @@ uint32_t fixture(void) {{
         <sha2::Sha256 as sha2::Digest>::digest(&resource_artifact).into(),
     ];
     let driver_source = include_str!("support/component_input_host.rs")
+        .replace(
+            "const REGISTRY_STACK_DIGESTS: [[u8; 32]; 4] = [[0; 32]; 4];",
+            &format!("const REGISTRY_STACK_DIGESTS: [[u8; 32]; 4] = {registry_stack_digests:?};"),
+        )
         .replace(
             "const REGISTRY_PROVIDER_DIGEST: [u8; 32] = [0; 32];",
             &format!("const REGISTRY_PROVIDER_DIGEST: [u8; 32] = {registry_provider_digest:?};"),
