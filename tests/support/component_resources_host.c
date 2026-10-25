@@ -5,6 +5,7 @@ typedef struct {
     lang_component_v1_instance *busy_instance;
     lang_component_v1_binding *callback;
     lang_component_v1_binding *relay_callback;
+    lang_component_v1_control *interrupt_control;
     uintptr_t auxiliary;
     uint32_t auxiliary_destroyed;
     uintptr_t backing;
@@ -45,8 +46,42 @@ static uint32_t resource_destroy(void *user,const lang_component_v1_context *con
     error.header.size=sizeof(error);error.header.version=1;
     assert(context->engine==owner->engine&&owner->api->context_check(context,&error)==0);
     assert(bytes.length==8&&((uintptr_t)bytes.data%64)==0&&*failure==NULL);
+    {
+        lang_component_v1_buffer *scratch=NULL;lang_component_v1_mut_bytes view;
+        lang_component_v1_bytes key={resource_key,sizeof(resource_key)},unchanged={(const uint8_t *)(uintptr_t)42,42};
+        uint32_t index=42;
+        assert(owner->api->context_buffer_create(context,64,8,&scratch,&error)==0);
+        assert(owner->api->buffer_mut_bytes(context,scratch,&view,&error)==0&&view.length==64);
+        assert(view.data[0]==0&&view.data[63]==0);
+        memset(view.data,0,64);
+        assert(owner->api->context_resource_read(context,1,&unchanged,&error)==4);
+        assert(unchanged.data==(const uint8_t *)(uintptr_t)42&&unchanged.length==42);
+        assert(owner->api->context_resource_publish(context,key,scratch,&index,&error)==4&&index==42);
+        assert(owner->api->buffer_mut_bytes(context,scratch,&view,&error)==0&&view.length==64);
+        assert(owner->api->context_buffer_drop(context,scratch,&error)==0);
+        assert(owner->api->buffer_mut_bytes(context,scratch,&view,&error)==5);
+        assert(owner->api->context_buffer_drop(context,scratch,&error)==5);
+        /* Leave nearly all remaining arena live. Callback exit must reclaim it
+         * before the next destructor, including after a failed destructor. */
+        assert(owner->api->context_buffer_create(context,16313,1,&scratch,&error)==0);
+        assert(owner->api->buffer_mut_bytes(context,scratch,&view,&error)==0&&view.length==16313);
+        memset(view.data,0xa5,16313);
+    }
     memcpy(&value,bytes.data,8);
-    if(value>=1000){assert((uintptr_t)bytes.data==owner->auxiliary);owner->auxiliary_destroyed++;return owner->profile==4?1u:0u;}
+    if(value>=1000){
+        lang_component_v1_bytes input={NULL,0};
+        lang_component_v1_result *unchanged=(lang_component_v1_result *)(uintptr_t)42;
+        assert(owner->callback);
+        assert(owner->api->context_call(context,owner->callback,input,&unchanged,&error)==4);
+        assert(unchanged==(lang_component_v1_result *)(uintptr_t)42);
+        if(owner->profile>=3) {
+            lang_component_v1_buffer *untouched=(lang_component_v1_buffer *)(uintptr_t)42;
+            assert(owner->api->context_buffer_create(context,16384,1,&untouched,&error)==6);
+            assert(untouched==(lang_component_v1_buffer *)(uintptr_t)42);
+            assert(owner->api->context_check(context,&error)==0);
+        }
+        assert((uintptr_t)bytes.data==owner->auxiliary);owner->auxiliary_destroyed++;return owner->profile==4?1u:0u;
+    }
     {
         lang_component_v1_result *unchanged=(lang_component_v1_result *)(uintptr_t)42;
         assert(owner->api->resource_drop(owner->busy_instance,1,&unchanged,&error)==4);
@@ -155,7 +190,9 @@ static uint32_t resource_touch(void *user,const lang_component_v1_context *conte
     assert(@RESOURCE_HOST_NAME@_encode_result(&writer,&result));
     assert(owner->api->context_buffer_create(context,writer.at,1,output,&error)==0);
     assert(owner->api->buffer_mut_bytes(context,*output,&buffer,&error)==0);
-    memcpy(buffer.data,scratch,(size_t)writer.at);return 0;
+    memcpy(buffer.data,scratch,(size_t)writer.at);
+    if(owner->interrupt_control)owner->api->interrupt(owner->interrupt_control);
+    return 0;
 }
 static void resource_profile(const lang_component_v1_api *api,const lang_component_v1_config *original,uint32_t format,uint32_t fail,uint32_t profile) {
     lang_component_v1_bytes retained_drop={NULL,0},retained_close={NULL,0};
@@ -234,6 +271,7 @@ static void resource_profile(const lang_component_v1_api *api,const lang_compone
             assert(outcome.status==1&&outcome.commit==1&&outcome.poisoned==(profile==4)&&outcome.result);
             info.header.size=sizeof(info);info.header.version=1;
             assert(api->result_info(outcome.result,&info,&error)==0&&info.kind==1&&info.flags==(profile==4?3u:1u));
+            assert(info.omitted_records==1);
             assert(api->result_bytes(outcome.result,&bytes,&error)==0&&bytes.length>4&&memcmp(bytes.data,"LCMP",4)==0);
             assert(probe_report(bytes,config.mode,profile==4?4u:6u)==0);
             {lang_component_v1_usage observed={0};observed.header.size=sizeof(observed);observed.header.version=1;
@@ -378,7 +416,7 @@ static void resource_failure_case(const lang_component_v1_api *api,const lang_co
     lang_component_v1_bytes request={primary_cleanup?resource_retire_projection:resource_explode_projection,primary_cleanup?sizeof(resource_retire_projection):sizeof(resource_explode_projection)};
     lang_component_v1_bytes projection={resource_projection,sizeof(resource_projection)},input,retained,bytes;
     lc_value_writer writer={0};lc_value_outcome outcome;uint8_t scratch[1024];uint32_t index=0;
-    int64_t value=41;uint32_t report_case=primary_cleanup?21u:16u+fail;
+    int64_t value=41;uint32_t report_case=primary_cleanup==2?26u+fail:primary_cleanup?21u:16u+fail;
     config.ceiling.preparation_work=10000000;config.ceiling.metadata_bytes=16777216;
     config.ceiling.serialization_bytes=16777216;config.ceiling.value_elements=1000000;
     error.header.size=sizeof(error);error.header.version=1;
@@ -402,6 +440,7 @@ static void resource_failure_case(const lang_component_v1_api *api,const lang_co
     input.data=(const uint8_t *)&value;input.length=8;
     assert(api->resource_publish(instance,provider,key,input,64,&index,&error)==0&&index==1);
     assert(api->control_create(engine,&config.ceiling,&control,&error)==0);
+    if(primary_cleanup==2)owner.interrupt_control=control;
     writer.data=scratch;writer.capacity=sizeof(scratch);writer.contextual=1;
     writer.left.work=1000000;writer.left.elements=1000;writer.left.depth=128;
     if(primary_cleanup) {
@@ -411,6 +450,7 @@ static void resource_failure_case(const lang_component_v1_api *api,const lang_co
         @RESOURCE_EXPLODE_ARGS@ arguments={0};arguments.p0.index=index;
         outcome=@RESOURCE_EXPLODE_NAME@_call(api,control,failed,&arguments,&writer,&error);
     }
+    owner.interrupt_control=NULL;
     assert(outcome.status==1&&outcome.commit==1&&outcome.poisoned==fail&&outcome.result);
     assert(owner.calls==1&&owner.destroyed==1&&owner.released==0);report=outcome.result;
     assert(api->result_bytes(report,&retained,&error)==0&&probe_report(retained,config.mode,report_case)==0);
@@ -448,4 +488,5 @@ static void resource_failure_case(const lang_component_v1_api *api,const lang_co
 static void resource_case(const lang_component_v1_api *api,const lang_component_v1_config *config,uint32_t format,uint32_t fail) {
     uint32_t profile;for(profile=0;profile<5;++profile)resource_profile(api,config,format,fail,profile);
     resource_failure_case(api,config,format,fail,0);if(fail)resource_failure_case(api,config,format,fail,1);
+    resource_failure_case(api,config,format,fail,2);
 }

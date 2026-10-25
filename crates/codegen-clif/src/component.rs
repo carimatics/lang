@@ -17,6 +17,7 @@ use std::{
     thread::{self, ThreadId},
 };
 mod context;
+mod scratch;
 pub use context::{
     buffer_mut_bytes, context_buffer_create, context_buffer_drop, context_resource_publish,
     context_resource_read, context_resource_write,
@@ -34,6 +35,7 @@ struct State {
     control: *const e::Control<'static>,
     memory: Option<*mut (dyn Memory + 'static)>,
     call: Option<*mut (dyn NativeContext + 'static)>,
+    scratch: scratch::Scratch,
     last: Option<native::Context>,
     gateway: Option<NonNull<c_void>>,
 }
@@ -53,6 +55,7 @@ impl Engine {
             control: ptr::null(),
             memory: None,
             call: None,
+            scratch: scratch::Scratch::prepare(budget)?,
             last: None,
             gateway: None,
         });
@@ -169,6 +172,10 @@ pub unsafe extern "C" fn context_check(context: *const native::Context) -> u32 {
     if status != 0 {
         return status;
     }
+    if state.memory.is_some() {
+        // Mandatory cleanup remains usable after interruption or quota failure.
+        return 0;
+    }
     // SAFETY: the active scope guard keeps the original control alive and clears
     // this pointer before callback return; no stack address is in the token.
     if let Some(call) = state.call {
@@ -242,6 +249,7 @@ impl Drop for Active {
         state.control = ptr::null();
         state.memory = None;
         state.call = None;
+        state.scratch.reset();
     }
 }
 impl Invoker for Invocation<'_, '_> {
@@ -319,7 +327,7 @@ impl Invoker for Invocation<'_, '_> {
         kind: native::ResourceKind<'_>,
         backing: &mut Detached<'_>,
         memory: &mut dyn Memory,
-        _: &mut c::Context<'_>,
+        cleanup: &mut c::Context<'_>,
     ) -> Result<(), u32> {
         let state = &mut *self.state;
         if state.thread != thread::current().id() || state.scope.is_some() {
@@ -367,6 +375,7 @@ impl Invoker for Invocation<'_, '_> {
         // points at stable engine storage with this live owner-thread scope;
         // the native provider obeys the component-v1 no-unwind/view contract.
         let status = unsafe { (record.destroy)(record.user, &context, bytes, &mut failure) };
+        cleanup.omit(state.scratch.take_omitted());
         if !failure.is_null() {
             return Err(18);
         }

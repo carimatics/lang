@@ -34,7 +34,6 @@ struct Destroyed {
     allocator: Cell<u64>,
     context: Cell<Option<native::Context>>,
     fail: bool,
-    cancelled: bool,
 }
 #[derive(Clone, Copy)]
 enum NativeCase {
@@ -700,8 +699,9 @@ unsafe extern "C" fn destroy(
     // SAFETY: registration retains this actual user object and engine scope;
     // the runtime supplies the unique live detached eight-byte backing region.
     let state = unsafe { &*user.cast::<Destroyed>() };
-    if unsafe { lang_codegen_clif::component::context_check(context) } != u32::from(state.cancelled)
-    {
+    // Mandatory cleanup has a live report context even when the original
+    // invocation is interrupted. Its scratch never borrows guest allocation.
+    if unsafe { lang_codegen_clif::component::context_check(context) } != 0 {
         return 1;
     }
     if unsafe { lang_codegen_clif::component::context_allocator_identity(context) }
@@ -711,6 +711,26 @@ unsafe extern "C" fn destroy(
     }
     if backing.length != 8 || backing.data.is_null() {
         return 1;
+    }
+    let mut buffer = std::ptr::null_mut();
+    let mut view = native::MutBytes {
+        data: std::ptr::null_mut(),
+        length: 0,
+    };
+    // SAFETY: this callback retains the exact live cleanup context and unique
+    // initialized output slots. The view expires before its buffer is dropped.
+    unsafe {
+        if lang_codegen_clif::component::context_buffer_create(context, 64, 64, &mut buffer) != 0
+            || lang_codegen_clif::component::buffer_mut_bytes(context, buffer, &mut view) != 0
+            || view.length != 64
+            || !(view.data as usize).is_multiple_of(64)
+        {
+            return 1;
+        }
+        view.data.write_bytes(0xa5, 64);
+        if lang_codegen_clif::component::context_buffer_drop(context, buffer) != 0 {
+            return 1;
+        }
     }
     let bytes = unsafe { std::slice::from_raw_parts(backing.data, 8) };
     state.calls.set(state.calls.get() + 1);
@@ -1830,8 +1850,6 @@ fn run_source_namespace(
         allocator: Cell::new(0),
         context: Cell::new(None),
         fail: cleanup_failure,
-        cancelled: matches!(case.native(), Some(NativeCase::Interrupt))
-            || matches!(case, Case::Cancelled | Case::LoanCancelled),
     });
     let methods = [native::Method {
         interface: 0,

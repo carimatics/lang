@@ -21,6 +21,11 @@ unsafe fn with_call<T>(
     if status != 0 {
         return Err(status);
     }
+    if state.memory.is_some() {
+        // Cleanup uses only the reserved report arena. Its NativeContext
+        // implementation refuses every resource operation and nested entry.
+        return operation(&mut state.scratch);
+    }
     // SAFETY: the active scope retains the original control until callback end.
     if !cleanup && unsafe { &*state.control }.check().is_err() {
         return Err(1);

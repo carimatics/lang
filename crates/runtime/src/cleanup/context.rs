@@ -64,6 +64,11 @@ impl Context<'_> {
     pub const fn reason(&self) -> Reason {
         self.reason
     }
+    /// Account for optional cleanup evidence that could not be retained.
+    /// This does not introduce a failure or change instance poison state.
+    pub fn omit(&mut self, count: usize) {
+        self.report.truncated = self.report.truncated.saturating_add(count);
+    }
     /// Record a generated container-cleanup failure without stopping siblings.
     pub fn fail(&mut self, code: u32) {
         self.failure(FailureKind::Cleanup(code));

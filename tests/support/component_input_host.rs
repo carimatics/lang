@@ -299,7 +299,7 @@ unsafe extern "C" fn probe_report(bytes: ffi::Bytes, mode: u32, case: u32) -> u3
     }
     assert_eq!(
         report.poisoned,
-        matches!(case, 4 | 5 | 7 | 8 | 9 | 10 | 17 | 21 | 22 | 24)
+        matches!(case, 4 | 5 | 7 | 8 | 9 | 10 | 17 | 21 | 22 | 24 | 27)
     );
     let origin = report.primary.origin.as_ref().unwrap();
     assert_eq!(
@@ -333,6 +333,28 @@ unsafe extern "C" fn probe_report(bytes: ffi::Bytes, mode: u32, case: u32) -> u3
             assert_eq!(report.primary.diagnostic, wire::Diagnostic::Interrupted);
             assert!(report.primary.limit.is_none());
         }
+        26 | 27 => {
+            assert_eq!(report.primary.category, wire::Category::Interruption);
+            assert_eq!(report.primary.phase, wire::Phase::Call);
+            assert_eq!(report.primary.diagnostic, wire::Diagnostic::Interrupted);
+            assert!(report.primary.limit.is_none());
+            assert_eq!(report.suppressed.len(), usize::from(case == 27));
+            for record in &report.suppressed {
+                assert_eq!(record.category, wire::Category::Destructor);
+                assert_eq!(record.phase, wire::Phase::Cleanup);
+                assert!(record.message.is_none() && record.limit.is_none());
+                let cleanup = record.origin.as_ref().unwrap();
+                assert_eq!(cleanup.mode, origin.mode);
+                assert_eq!(cleanup.digest, origin.digest);
+                assert_eq!(cleanup.member, origin.member);
+                let call = origin.span.unwrap();
+                let scope = cleanup.span.unwrap();
+                assert_eq!(scope.source, call.source);
+                assert!(scope.start <= call.start && scope.end >= call.end);
+            }
+            assert_eq!(report.omitted, 0);
+            assert_eq!(report.usage.host_calls, 1);
+        }
         3 => {
             let limit = report.primary.limit.unwrap();
             assert_eq!(limit.kind, wire::ReportLimitKind::ServiceWork);
@@ -356,6 +378,7 @@ unsafe extern "C" fn probe_report(bytes: ffi::Bytes, mode: u32, case: u32) -> u3
             }
             assert_eq!(report.usage.host_calls, 3, "case {case}: {report:?}");
             assert_eq!(report.usage.canonical_indices, 3);
+            assert_eq!(report.omitted, 1);
         }
         5 => {
             assert_eq!(report.primary.category, wire::Category::Admission);
