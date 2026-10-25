@@ -400,3 +400,99 @@ pub fn decode_report(bytes: &[u8], session: &mut Session) -> Result<Report, Erro
     report.validate(r.session)?;
     Ok(report)
 }
+
+/// Allocation-free validated cleanup evidence. Foreign text/origins/usage are
+/// never retained; a caller supplies the actual registered destructor origin.
+#[derive(Debug)]
+pub struct CleanupReport {
+    records: [Diagnostic; 64],
+    length: usize,
+    omitted: u64,
+}
+impl CleanupReport {
+    pub fn records(&self) -> &[Diagnostic] {
+        &self.records[..self.length]
+    }
+    pub const fn omitted(&self) -> u64 {
+        self.omitted
+    }
+}
+
+/// Decode the native destructor subset of schema 3. Complete validation ends
+/// before any record is exposed, including when the fixed prefix overflows.
+pub fn decode_cleanup_report(bytes: &[u8], session: &mut Session) -> Result<CleanupReport, Error> {
+    fn frame(r: &mut Reader<'_, '_>) -> Result<(), Error> {
+        let frame = read_frame(r)?;
+        if frame.span.is_some_and(|span| span.start > span.end) {
+            return Err(r.session.error(r.at, ErrorKind::InvalidReport));
+        }
+        Ok(())
+    }
+    fn record(r: &mut Reader<'_, '_>, policy: MessagePolicy) -> Result<Diagnostic, Error> {
+        depth(r.session, 2, r.at)?;
+        let category = Category::read(r)?;
+        let phase = Phase::read(r)?;
+        let at = r.at;
+        let name = r.borrowed_string()?;
+        r.session
+            .charge(18usize.saturating_mul(name.len().min(37) + 1), at)?;
+        let diagnostic =
+            Diagnostic::parse(name).ok_or_else(|| r.session.error(at, ErrorKind::InvalidReport))?;
+        if phase != Phase::Cleanup
+            || !matches!(category, Category::Destructor | Category::HostContract)
+            || !diagnostic.matches(category, phase)
+        {
+            return Err(r.session.error(at, ErrorKind::InvalidReport));
+        }
+        if r.boolean()? {
+            r.borrowed_string()?;
+            if policy == MessagePolicy::Redacted {
+                return Err(r.session.error(at, ErrorKind::InvalidReport));
+            }
+        }
+        if r.boolean()? {
+            // Neither admitted cleanup category permits numeric limit claims.
+            return Err(r.session.error(r.at, ErrorKind::InvalidReport));
+        }
+        if r.boolean()? {
+            r.session.count(1, r.at)?;
+            frame(r)?;
+        }
+        Ok(diagnostic)
+    }
+    depth(session, 1, 0)?;
+    session.count(1, 0)?;
+    let mut r = Reader::new(bytes, session)?;
+    r.header(b"LCMP", 3, 1)?;
+    let policy = MessagePolicy::read(&mut r)?;
+    let mut output = CleanupReport {
+        records: [Diagnostic::Destructor; 64],
+        length: 1,
+        omitted: 0,
+    };
+    output.records[0] = record(&mut r, policy)?;
+    let count = r.count(32)?;
+    for _ in 0..count {
+        let diagnostic = record(&mut r, policy)?;
+        if output.length < output.records.len() {
+            output.records[output.length] = diagnostic;
+            output.length += 1;
+        } else {
+            output.omitted = output.omitted.saturating_add(1);
+        }
+    }
+    if !r.boolean()? {
+        return Err(r.session.error(r.at, ErrorKind::InvalidReport));
+    }
+    output.omitted = output.omitted.saturating_add(r.u64()?);
+    for _ in 0..9 {
+        r.u64()?;
+    }
+    let count = r.count(38)?;
+    for _ in 0..count {
+        frame(&mut r)?;
+        output.omitted = output.omitted.saturating_add(1);
+    }
+    r.finish()?;
+    Ok(output)
+}

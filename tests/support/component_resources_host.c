@@ -10,7 +10,7 @@ typedef struct {
     uint32_t auxiliary_destroyed;
     uintptr_t backing;
     uint32_t calls,destroyed,released,fail;
-    uint32_t depth,profile,mode,panic_fixture;
+    uint32_t depth,profile,mode,panic_fixture,report_kind;
 } ResourceOwner;
 
 /* A refused public callback retains the live owner and restores its context. */
@@ -63,9 +63,11 @@ static uint32_t resource_destroy(void *user,const lang_component_v1_context *con
         assert(owner->api->context_buffer_drop(context,scratch,&error)==5);
         /* Leave nearly all remaining arena live. Callback exit must reclaim it
          * before the next destructor, including after a failed destructor. */
-        assert(owner->api->context_buffer_create(context,16313,1,&scratch,&error)==0);
-        assert(owner->api->buffer_mut_bytes(context,scratch,&view,&error)==0&&view.length==16313);
-        memset(view.data,0xa5,16313);
+        if(!owner->report_kind) {
+            assert(owner->api->context_buffer_create(context,16313,1,&scratch,&error)==0);
+            assert(owner->api->buffer_mut_bytes(context,scratch,&view,&error)==0&&view.length==16313);
+            memset(view.data,0xa5,16313);
+        }
     }
     memcpy(&value,bytes.data,8);
     if(value>=1000){
@@ -89,7 +91,33 @@ static uint32_t resource_destroy(void *user,const lang_component_v1_context *con
     }
     if(owner->panic_fixture) {
         assert(value==41+(int64_t)owner->calls&&(uintptr_t)bytes.data==owner->backing);
-        owner->destroyed++;return owner->fail;
+        owner->destroyed++;
+        if(owner->report_kind==6){*failure=(lang_component_v1_buffer *)(uintptr_t)42;return 1;}
+        if(owner->report_kind==7||owner->report_kind==8) {
+            lang_component_v1_mut_bytes view;
+            assert(owner->api->context_buffer_create(context,1,1,failure,&error)==0);
+            assert(owner->api->buffer_mut_bytes(context,*failure,&view,&error)==0);
+            view.data[0]=0;
+            if(owner->report_kind==8)assert(owner->api->context_buffer_drop(context,*failure,&error)==0);
+            return 1;
+        }
+        if(owner->report_kind==15) {
+            lang_component_v1_buffer *untouched=(lang_component_v1_buffer *)(uintptr_t)42;
+            assert(owner->api->context_buffer_create(context,16384,1,&untouched,&error)==6);
+            assert(untouched==(lang_component_v1_buffer *)(uintptr_t)42&&*failure==NULL);
+            assert(owner->api->context_check(context,&error)==0);
+            return 1;
+        }
+        if(owner->report_kind==16)return 99;
+        if(owner->report_kind) {
+            uint32_t kind=owner->report_kind;
+            if(kind==9||kind==10)kind=4;
+            else if(kind==11)kind=3;
+            else if(kind==12)kind=2;
+            assert(probe_native_failure_report(context,failure,kind)==1);
+            return owner->report_kind==9?0:owner->report_kind==10?2:1;
+        }
+        return owner->fail;
     }
     if(owner->destroyed==0)assert(value==41+(int64_t)owner->calls&&(uintptr_t)bytes.data==owner->backing);
     else if(value==91)assert(owner->destroyed==4);
@@ -401,7 +429,7 @@ static void resource_profile(const lang_component_v1_api *api,const lang_compone
     }
     assert(owner.released==1&&api->engine_destroy(engine,&error)==0);
 }
-static void resource_failure_case(const lang_component_v1_api *api,const lang_component_v1_config *original,uint32_t format,uint32_t fail,uint32_t primary_cleanup) {
+static void resource_failure_case(const lang_component_v1_api *api,const lang_component_v1_config *original,uint32_t format,uint32_t fail,uint32_t scenario) {
     ResourceOwner owner={0};lang_component_v1_config config=*original;
     lang_component_v1_engine *engine=NULL;lang_component_v1_module *module=NULL;
     lang_component_v1_instance *instance=NULL;lang_component_v1_provider *provider=NULL;
@@ -413,15 +441,22 @@ static void resource_failure_case(const lang_component_v1_api *api,const lang_co
     lang_component_v1_bytes key={resource_key,sizeof(resource_key)},grant={resource_grant,sizeof(resource_grant)};
     lang_component_v1_bytes program={format?resource_artifact:resource_program,format?sizeof(resource_artifact):sizeof(resource_program)};
     lang_component_v1_bytes idl_input={format?NULL:resource_idl,format?0:sizeof(resource_idl)};
-    lang_component_v1_bytes request={primary_cleanup?resource_retire_projection:resource_explode_projection,primary_cleanup?sizeof(resource_retire_projection):sizeof(resource_explode_projection)};
+    int cleanup_body=scenario!=0&&scenario!=12&&scenario!=13&&scenario!=18;
+    lang_component_v1_bytes request={cleanup_body?resource_retire_projection:resource_explode_projection,cleanup_body?sizeof(resource_retire_projection):sizeof(resource_explode_projection)};
     lang_component_v1_bytes projection={resource_projection,sizeof(resource_projection)},input,retained,bytes;
     lc_value_writer writer={0};lc_value_outcome outcome;uint8_t scratch[1024];uint32_t index=0;
-    int64_t value=41;uint32_t report_case=primary_cleanup==2?26u+fail:primary_cleanup?21u:16u+fail;
+    /* 3+: contract/destructor packets, unknown/malformed/dropped buffers,
+     * success/undefined status, forged control/call phase, existing panic or
+     * interruption, optional capacity failure, ordered records, saturation. */
+    static const uint32_t report_kinds[]={0,0,0,5,4,6,7,8,9,10,11,12,4,5,4,15,13,14,10,16};
+    static const uint32_t report_cases[]={0,0,0,28,29,30,30,30,30,30,30,30,31,32,33,29,35,36,37,30};
+    int64_t value=41;uint32_t report_case=scenario>=3?report_cases[scenario]:scenario==2?26u+fail:scenario?21u:16u+fail;
     config.ceiling.preparation_work=10000000;config.ceiling.metadata_bytes=16777216;
     config.ceiling.serialization_bytes=16777216;config.ceiling.value_elements=1000000;
     error.header.size=sizeof(error);error.header.version=1;
     assert(api->engine_create(&config,&engine,&error)==0);
     owner.api=api;owner.engine=engine;owner.fail=fail;owner.panic_fixture=1;owner.mode=config.mode;
+    owner.report_kind=report_kinds[scenario];
     method.header.size=sizeof(method);method.header.version=1;
     method.function_key.data=resource_method_key;method.function_key.length=sizeof(resource_method_key);
     memcpy(method.signature,resource_method_signature,32);method.invoke=resource_touch;method.user=&owner;
@@ -440,10 +475,10 @@ static void resource_failure_case(const lang_component_v1_api *api,const lang_co
     input.data=(const uint8_t *)&value;input.length=8;
     assert(api->resource_publish(instance,provider,key,input,64,&index,&error)==0&&index==1);
     assert(api->control_create(engine,&config.ceiling,&control,&error)==0);
-    if(primary_cleanup==2)owner.interrupt_control=control;
+    if(scenario==2||scenario==14)owner.interrupt_control=control;
     writer.data=scratch;writer.capacity=sizeof(scratch);writer.contextual=1;
     writer.left.work=1000000;writer.left.elements=1000;writer.left.depth=128;
-    if(primary_cleanup) {
+    if(cleanup_body) {
         @RESOURCE_RETIRE_ARGS@ arguments={0};arguments.p0.index=index;
         outcome=@RESOURCE_RETIRE_NAME@_call(api,control,failed,&arguments,&writer,&error);
     } else {
@@ -489,4 +524,5 @@ static void resource_case(const lang_component_v1_api *api,const lang_component_
     uint32_t profile;for(profile=0;profile<5;++profile)resource_profile(api,config,format,fail,profile);
     resource_failure_case(api,config,format,fail,0);if(fail)resource_failure_case(api,config,format,fail,1);
     resource_failure_case(api,config,format,fail,2);
+    if(fail)for(profile=3;profile<20;++profile)resource_failure_case(api,config,format,fail,profile);
 }

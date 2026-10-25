@@ -7,6 +7,7 @@ use lang_runtime::{
         execution::{Invoker, NativeContext, NativeReturn},
         native,
         storage::{Detached, Memory},
+        wire,
     },
     execution as e,
 };
@@ -239,6 +240,26 @@ impl Invocation<'_, '_> {
 struct Active {
     state: *mut State,
 }
+fn cleanup_origin(kind: &native::ResourceKind<'_>) -> Option<c::NativeOrigin> {
+    let metadata = kind.provider().metadata();
+    let registration = kind.registration();
+    let interfaces = &metadata.contract.document().interfaces;
+    let mut member = interfaces.iter().try_fold(0usize, |n, interface| {
+        n.checked_add(interface.functions.len())
+    })?;
+    for interface in interfaces.get(..registration.interface)? {
+        member = member.checked_add(interface.resources.len())?;
+    }
+    interfaces
+        .get(registration.interface)?
+        .resources
+        .get(registration.resource)?;
+    member = member.checked_add(registration.resource)?;
+    Some(c::NativeOrigin {
+        provider: metadata.digest.as_bytes().try_into().ok()?,
+        member: u32::try_from(member).ok()?,
+    })
+}
 impl Drop for Active {
     fn drop(&mut self) {
         // SAFETY: the engine's reserved single state never moves; the guard ends
@@ -369,6 +390,8 @@ impl Invoker for Invocation<'_, '_> {
             length: bytes.len() as u64,
         };
         let record = kind.registration();
+        let origin = cleanup_origin(&kind);
+        let owner = kind.provider().code_owner_lease();
         let mut failure = ptr::null_mut();
         // SAFETY: the registration retains the real code/user owner. Backing is
         // uniquely detached and remains live through the call. The context
@@ -376,14 +399,44 @@ impl Invoker for Invocation<'_, '_> {
         // the native provider obeys the component-v1 no-unwind/view contract.
         let status = unsafe { (record.destroy)(record.user, &context, bytes, &mut failure) };
         cleanup.omit(state.scratch.take_omitted());
-        if !failure.is_null() {
-            return Err(18);
-        }
         match status {
-            0 => Ok(()),
-            1 => Err(19),
-            _ => Err(18),
+            0 if failure.is_null() => {}
+            1 if failure.is_null() => {
+                cleanup.native_failure(c::NativeCleanupKind::Destructor, origin, owner.clone());
+            }
+            1 => {
+                let mut session = wire::Session::new(wire::Limits {
+                    bytes: 16 * 1024,
+                    serialization_bytes: 16 * 1024,
+                    allocation_bytes: 0,
+                    string_bytes: 16 * 1024,
+                    ..Default::default()
+                });
+                let decoded = state
+                    .scratch
+                    .buffer_bytes(failure)
+                    .ok()
+                    .and_then(|bytes| wire::decode_cleanup_report(bytes, &mut session).ok());
+                if let Some(report) = decoded {
+                    cleanup.omit(usize::try_from(report.omitted()).unwrap_or(usize::MAX));
+                    for diagnostic in report.records() {
+                        let kind = match diagnostic {
+                            wire::Diagnostic::Destructor => c::NativeCleanupKind::Destructor,
+                            _ => c::NativeCleanupKind::HostContract,
+                        };
+                        cleanup.native_failure(kind, origin, owner.clone());
+                    }
+                } else {
+                    cleanup.native_failure(
+                        c::NativeCleanupKind::HostContract,
+                        origin,
+                        owner.clone(),
+                    );
+                }
+            }
+            _ => cleanup.native_failure(c::NativeCleanupKind::HostContract, origin, owner),
         }
+        Ok(())
     }
 }
 

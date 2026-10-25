@@ -141,9 +141,17 @@ struct CallResult {
 fn cleanup_description(
     kind: lang_runtime::cleanup::FailureKind,
 ) -> Option<(wire::Category, wire::Diagnostic)> {
-    use lang_runtime::cleanup::{ExecutionFailure, FailureKind};
+    use lang_runtime::cleanup::{ExecutionFailure, FailureKind, NativeCleanupKind};
     match kind {
         FailureKind::Cleanup(_) => Some((wire::Category::Destructor, wire::Diagnostic::Destructor)),
+        FailureKind::NativeCleanup {
+            kind: NativeCleanupKind::Destructor,
+            ..
+        } => Some((wire::Category::Destructor, wire::Diagnostic::Destructor)),
+        FailureKind::NativeCleanup {
+            kind: NativeCleanupKind::HostContract,
+            ..
+        } => Some((wire::Category::HostContract, wire::Diagnostic::HostContract)),
         FailureKind::CleanupPanic
         | FailureKind::PayloadDropPanic
         | FailureKind::PanicPayloadDropPanic
@@ -158,6 +166,20 @@ struct FailureCode<'a> {
     mode: u32,
     entry: m::FunctionId,
     functions: &'a [m::ownership::declarations::Function],
+}
+fn native_cleanup_origin(kind: lang_runtime::cleanup::FailureKind) -> Option<wire::Frame> {
+    match kind {
+        lang_runtime::cleanup::FailureKind::NativeCleanup {
+            origin: Some(origin),
+            ..
+        } => Some(wire::Frame {
+            mode: wire::Mode::Host,
+            digest: origin.provider,
+            member: origin.member,
+            span: None,
+        }),
+        _ => None,
+    }
 }
 fn project_failure(
     failure: &r::Failure,
@@ -443,7 +465,13 @@ fn project_failure(
             .and_then(|report| report.primary())
             .map(|r| r.kind)
         {
-            Some(lang_runtime::cleanup::FailureKind::Cleanup(_)) => {
+            Some(
+                lang_runtime::cleanup::FailureKind::Cleanup(_)
+                | lang_runtime::cleanup::FailureKind::NativeCleanup {
+                    kind: lang_runtime::cleanup::NativeCleanupKind::Destructor,
+                    ..
+                },
+            ) => {
                 phase = wire::Phase::Cleanup;
                 (wire::Category::Destructor, wire::Diagnostic::Destructor)
             }
@@ -520,8 +548,16 @@ fn project_failure(
             ..frame.clone()
         })
     };
-    let primary_origin = if matches!(failure.reason, r::Reason::Cleanup) {
+    let primary_origin = if matches!(failure.reason.primary_cause(), r::Reason::Cleanup) {
         match failure.report.as_ref().and_then(|report| report.primary()) {
+            Some(record)
+                if matches!(
+                    record.kind,
+                    lang_runtime::cleanup::FailureKind::NativeCleanup { .. }
+                ) =>
+            {
+                native_cleanup_origin(record.kind)
+            }
             Some(record) if cleanup_description(record.kind).is_some() => record
                 .span
                 .map_or_else(|| Some(frame.clone()), &mut cleanup_origin),
@@ -544,7 +580,14 @@ fn project_failure(
                     diagnostic,
                     message: None,
                     limit: None,
-                    origin: record.span.and_then(&mut cleanup_origin),
+                    origin: if matches!(
+                        record.kind,
+                        lang_runtime::cleanup::FailureKind::NativeCleanup { .. }
+                    ) {
+                        native_cleanup_origin(record.kind)
+                    } else {
+                        record.span.and_then(&mut cleanup_origin)
+                    },
                 });
             } else {
                 omitted = omitted.saturating_add(1);

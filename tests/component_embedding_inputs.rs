@@ -1140,7 +1140,22 @@ uint32_t fixture(void) {{
         String::from_utf8_lossy(&output.stderr)
     );
     let driver = files.0.join("driver.rs");
-    std::fs::write(&driver, include_str!("support/component_input_host.rs")).unwrap();
+    let resource_provider_digest: [u8; 32] =
+        <sha2::Sha256 as sha2::Digest>::digest(&resource_host_contract).into();
+    let resource_module_digests: [[u8; 32]; 2] = [
+        <sha2::Sha256 as sha2::Digest>::digest(resource_program.as_bytes()).into(),
+        <sha2::Sha256 as sha2::Digest>::digest(&resource_artifact).into(),
+    ];
+    let driver_source = include_str!("support/component_input_host.rs")
+        .replace(
+            "const RESOURCE_PROVIDER_DIGEST: [u8; 32] = [0; 32];",
+            &format!("const RESOURCE_PROVIDER_DIGEST: [u8; 32] = {resource_provider_digest:?};"),
+        )
+        .replace(
+            "const RESOURCE_MODULE_DIGESTS: [[u8; 32]; 2] = [[0; 32]; 2];",
+            &format!("const RESOURCE_MODULE_DIGESTS: [[u8; 32]; 2] = {resource_module_digests:?};"),
+        );
+    std::fs::write(&driver, driver_source).unwrap();
     let dependency = artifacts::library("lang_runtime");
     let mut rustc = Command::new("rustc");
     rustc

@@ -555,6 +555,94 @@ fn owning_registration_acquires_owner_only_after_complete_budget_admission() {
 }
 
 #[test]
+fn retained_cleanup_record_owns_the_actual_registration_without_an_instance() {
+    use lang_runtime::{
+        allocation as a, cleanup as c,
+        component::{execution, storage},
+        execution as e,
+    };
+    use std::{num::NonZeroUsize, rc::Rc};
+    struct Owner(Rc<Cell<usize>>);
+    impl Drop for Owner {
+        fn drop(&mut self) {
+            self.0.set(self.0.get() + 1);
+        }
+    }
+    unsafe extern "C" fn fail(
+        _: *mut std::ffi::c_void,
+        _: *const native::Context,
+        bytes: native::MutBytes,
+        _: *mut *mut native::Buffer,
+    ) -> u32 {
+        assert_eq!(bytes.length, 8);
+        1
+    }
+    let drops = Rc::new(Cell::new(0));
+    let actual = Rc::new(Owner(drops.clone()));
+    let (contract, digest, methods, mut descriptors) = owning_inputs();
+    descriptors[0].destroy = fail;
+    let provider = native::Provider::new_owned(
+        contract,
+        digest,
+        methods,
+        descriptors,
+        &mut || actual.clone(),
+        &mut wire::Session::new(Default::default()),
+    )
+    .unwrap();
+    let key = provider.metadata().contract.document().interfaces[0].resources[0]
+        .value
+        .clone();
+    let kind = provider
+        .resource_kind(&key, &mut wire::Session::new(Default::default()))
+        .unwrap();
+    let mut memory = a::Allocator::new(a::System, Default::default()).unwrap();
+    let mut budget = m::Budget::new(Default::default());
+    let mut resources = storage::Resources::prepare(&memory, 1, 1, &mut budget).unwrap();
+    let holder = resources.new_holder().unwrap();
+    let claim = resources
+        .publish(kind.clone(), holder, &41i64.to_le_bytes(), &mut memory)
+        .unwrap();
+    let mut backing = resources.detach(claim, holder, &memory).unwrap();
+    let mut cleanup = c::Session::prepare(NonZeroUsize::new(2).unwrap(), &mut budget).unwrap();
+    let mut bridge = lang_codegen_clif::component::Engine::prepare(&mut budget).unwrap();
+    {
+        let mut invocation = bridge
+            .begin(e::Control::with_limits(e::Limits::unbounded()))
+            .unwrap();
+        let mut cleaner = c::Contextual::new(|_: &mut (), _, context: &mut c::Context<'_>| {
+            execution::Invoker::destroy(
+                &mut invocation,
+                kind.clone(),
+                &mut backing,
+                &mut memory,
+                context,
+            )
+        });
+        assert!(
+            cleanup
+                .retire(c::Slot(0), (), None, c::Reason::ScopeExit, &mut cleaner)
+                .is_err()
+        );
+    }
+    backing.release(&mut memory).unwrap();
+    assert_eq!(a::Memory::stats(&memory).live_allocations, 0);
+    drop(backing);
+    drop(resources);
+    drop(kind);
+    drop(provider);
+    drop(actual);
+    assert_eq!(drops.get(), 0);
+    let report = cleanup.into_report();
+    let record = report.primary().unwrap().clone();
+    assert!(record.code_owner.is_some());
+    drop(report);
+    assert_eq!(drops.get(), 0);
+    drop(record);
+    assert_eq!(drops.get(), 1);
+}
+
+#[test]
 fn refused_registration_leaves_the_owner_factory_with_its_caller() {
     use std::rc::Rc;
     let owner = Rc::new(());

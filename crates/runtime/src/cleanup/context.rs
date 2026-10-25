@@ -3,7 +3,10 @@
 //! or frame construction. The context invokes no guest body and allocates no
 //! bookkeeping; its individual trusted cleanup calls are contained separately.
 
-use super::{FailureKind, FailureRecord, Instance, Reason, Report, Slot};
+use super::{
+    CodeOwnerLease, FailureKind, FailureRecord, Instance, NativeCleanupKind, NativeOrigin, Reason,
+    Report, Slot,
+};
 use lang_mir::unit::Span;
 use std::mem::ManuallyDrop;
 use std::panic::{AssertUnwindSafe, catch_unwind};
@@ -73,6 +76,17 @@ impl Context<'_> {
     pub fn fail(&mut self, code: u32) {
         self.failure(FailureKind::Cleanup(code));
     }
+    /// Record an attributed native cleanup failure in the original bounded
+    /// ledger, retaining its supplied owned registration lease. Borrowed
+    /// registrations keep the existing Rust caller lifetime contract.
+    pub fn native_failure(
+        &mut self,
+        kind: NativeCleanupKind,
+        origin: Option<NativeOrigin>,
+        owner: Option<CodeOwnerLease>,
+    ) {
+        self.failure_with_owner(FailureKind::NativeCleanup { kind, origin }, owner);
+    }
     /// Take an already detached child obligation before invoking its cleanup.
     /// All failures share the entry report and poison state. No new report or
     /// diagnostic string is allocated, including after the buffer overflows.
@@ -86,11 +100,15 @@ impl Context<'_> {
         self.span = previous;
     }
     fn failure(&mut self, kind: FailureKind) {
+        self.failure_with_owner(kind, None);
+    }
+    fn failure_with_owner(&mut self, kind: FailureKind, owner: Option<CodeOwnerLease>) {
         self.instance.poisoned = true;
         self.report.record(FailureRecord {
             kind,
             slot: Some(self.slot),
             span: self.span,
+            code_owner: owner,
         });
     }
     fn panic_payload(&mut self, payload: Box<dyn std::any::Any + Send>) {

@@ -2809,10 +2809,13 @@ fn run_source_namespace(
                 case,
                 Case::DestructorFailure | Case::ReturnCleanupFailure | Case::LoanCleanup
             ) {
-                assert_eq!(
+                assert!(matches!(
                     failure.report.as_ref().unwrap().primary().unwrap().kind,
-                    lang_runtime::cleanup::FailureKind::Cleanup(19)
-                );
+                    lang_runtime::cleanup::FailureKind::NativeCleanup {
+                        kind: lang_runtime::cleanup::NativeCleanupKind::Destructor,
+                        origin: Some(_),
+                    }
+                ));
             }
             if matches!(
                 case,

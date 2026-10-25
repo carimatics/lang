@@ -35,6 +35,11 @@ impl Scratch {
     pub(super) fn take_omitted(&mut self) -> usize {
         std::mem::take(&mut self.omitted)
     }
+    pub(super) fn buffer_bytes(&self, buffer: *mut native::Buffer) -> Result<&[u8], u32> {
+        let index = self.slot(buffer)?;
+        let range = self.slots[index].range.clone().ok_or(5u32)?;
+        Ok(&self.bytes[range])
+    }
     fn refuse(&mut self) -> u32 {
         self.omitted = self.omitted.saturating_add(1);
         12

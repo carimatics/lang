@@ -179,6 +179,21 @@ impl<'b, 's> Reader<'b, 's> {
     pub fn string(&mut self) -> Result<String, Error> {
         self.string_work(DataWork::Framing)
     }
+    /// Validate report metadata without allocating owned optional text during
+    /// mandatory cleanup. The view cannot outlive the original input frame.
+    pub fn borrowed_string(&mut self) -> Result<&'b str, Error> {
+        let at = self.at;
+        let n = self.u32()? as usize;
+        self.session.cap(
+            n,
+            self.session.limits.string_bytes,
+            LimitKind::StringBytes,
+            at,
+        )?;
+        let raw = self.raw(n)?;
+        self.session.charge(n, at)?;
+        std::str::from_utf8(raw).map_err(|_| self.session.error(at, ErrorKind::Utf8))
+    }
     pub fn value_string(&mut self) -> Result<String, Error> {
         if self.session.service_work.is_some() {
             self.string_work(DataWork::Utf8Payload)

@@ -8,6 +8,33 @@ use lang_runtime::{
     execution as e,
 };
 use std::{ffi::c_void, ptr};
+const RESOURCE_PROVIDER_DIGEST: [u8; 32] = [0; 32];
+const RESOURCE_MODULE_DIGESTS: [[u8; 32]; 2] = [[0; 32]; 2];
+
+fn assert_resource_guest_frame(frame: &wire::Frame, mode: u32, member: u32) {
+    assert_eq!(
+        frame.mode,
+        if mode == 1 {
+            wire::Mode::Jit
+        } else {
+            wire::Mode::Vm
+        }
+    );
+    assert!(RESOURCE_MODULE_DIGESTS.contains(&frame.digest));
+    assert_eq!(frame.member, member);
+    assert!(frame.span.is_some());
+}
+
+fn assert_resource_cleanup_origin(record: &wire::Record) {
+    let origin = record
+        .origin
+        .as_ref()
+        .expect("actual registered destructor origin");
+    assert_eq!(origin.mode, wire::Mode::Host);
+    assert_eq!(origin.digest, RESOURCE_PROVIDER_DIGEST);
+    assert_eq!(origin.member, 1);
+    assert!(origin.span.is_none());
+}
 
 macro_rules! operation {
     ($name:ident,$target:ident,($($arg:ident:$ty:ty),*$(,)?)->$out:ty) => {
@@ -281,17 +308,123 @@ unsafe extern "C" fn probe_report(bytes: ffi::Bytes, mode: u32, case: u32) -> u3
     let report = wire::decode_report(bytes, &mut wire::Session::new(Default::default())).unwrap();
     assert_eq!(report.policy, wire::MessagePolicy::Redacted);
     assert!(report.primary.message.is_none());
+    if matches!(case, 28 | 29 | 30 | 35 | 36) {
+        assert!(report.poisoned);
+        assert_eq!(
+            report.primary.category,
+            if matches!(case, 28 | 30) {
+                wire::Category::HostContract
+            } else {
+                wire::Category::Destructor
+            }
+        );
+        assert_eq!(report.primary.phase, wire::Phase::Cleanup);
+        assert_eq!(
+            report.primary.diagnostic,
+            if matches!(case, 28 | 30) {
+                wire::Diagnostic::HostContract
+            } else {
+                wire::Diagnostic::Destructor
+            }
+        );
+        assert_resource_cleanup_origin(&report.primary);
+        if case == 35 {
+            assert_eq!(report.suppressed.len(), 2);
+            assert_eq!(
+                report.suppressed[0].diagnostic,
+                wire::Diagnostic::HostContract
+            );
+            assert_eq!(
+                report.suppressed[1].diagnostic,
+                wire::Diagnostic::Destructor
+            );
+            for record in &report.suppressed {
+                assert_eq!(record.phase, wire::Phase::Cleanup);
+                assert!(record.message.is_none() && record.limit.is_none());
+                assert_resource_cleanup_origin(record);
+            }
+        } else {
+            assert!(report.suppressed.is_empty());
+        }
+        assert_eq!(
+            report.omitted,
+            if case == 36 {
+                u64::MAX
+            } else {
+                u64::from(case != 30)
+            }
+        );
+        assert_eq!(report.usage.host_calls, 1);
+        assert_eq!(report.frames.len(), 1);
+        assert_resource_guest_frame(&report.frames[0], mode, 2);
+        assert!(report.frames.iter().all(|f| f.digest != [17; 32]));
+        return 0;
+    }
+    if matches!(case, 31 | 32 | 33 | 37) {
+        assert!(report.poisoned);
+        assert_eq!(
+            report.primary.category,
+            if case == 33 {
+                wire::Category::Interruption
+            } else {
+                wire::Category::Panic
+            }
+        );
+        assert_eq!(
+            report.primary.diagnostic,
+            if case == 33 {
+                wire::Diagnostic::Interrupted
+            } else {
+                wire::Diagnostic::Panic
+            }
+        );
+        assert_eq!(report.primary.phase, wire::Phase::Call);
+        let origin = report.primary.origin.as_ref().unwrap();
+        // Generated source bodies are ordered explode, relay, retire, run.
+        assert_resource_guest_frame(origin, mode, if case == 33 { 2 } else { 0 });
+        assert_eq!(
+            origin.mode,
+            if mode == 1 {
+                wire::Mode::Jit
+            } else {
+                wire::Mode::Vm
+            }
+        );
+        assert_ne!(origin.digest, [17; 32]);
+        assert!(origin.span.is_some());
+        assert_eq!(report.suppressed.len(), 1);
+        let record = &report.suppressed[0];
+        assert_eq!(
+            record.category,
+            if matches!(case, 32 | 37) {
+                wire::Category::HostContract
+            } else {
+                wire::Category::Destructor
+            }
+        );
+        assert_eq!(record.phase, wire::Phase::Cleanup);
+        assert!(record.message.is_none() && record.limit.is_none());
+        assert_resource_cleanup_origin(record);
+        assert_eq!(report.omitted, u64::from(case != 37));
+        assert_eq!(report.usage.host_calls, 1);
+        assert_eq!(report.frames.len(), 1);
+        assert_resource_guest_frame(&report.frames[0], mode, if case == 33 { 2 } else { 0 });
+        assert!(report.frames.iter().all(|f| f.digest != [17; 32]));
+        return 0;
+    }
     if matches!(case, 14 | 15) {
         assert!(report.poisoned);
         assert_eq!(report.primary.category, wire::Category::Destructor);
         assert_eq!(report.primary.phase, wire::Phase::Cleanup);
         assert_eq!(report.primary.diagnostic, wire::Diagnostic::Destructor);
-        assert!(report.primary.origin.is_none() && report.primary.limit.is_none());
+        assert_resource_cleanup_origin(&report.primary);
+        assert!(report.primary.limit.is_none());
         assert_eq!(report.suppressed.len(), usize::from(case == 15));
         for record in &report.suppressed {
             assert_eq!(record.category, wire::Category::Destructor);
             assert_eq!(record.phase, wire::Phase::Cleanup);
-            assert!(record.origin.is_none() && record.message.is_none() && record.limit.is_none());
+            assert_resource_cleanup_origin(record);
+            assert!(record.message.is_none() && record.limit.is_none());
         }
         assert!(report.frames.is_empty());
         assert_eq!(report.omitted, 0);
@@ -304,7 +437,7 @@ unsafe extern "C" fn probe_report(bytes: ffi::Bytes, mode: u32, case: u32) -> u3
     let origin = report.primary.origin.as_ref().unwrap();
     assert_eq!(
         origin.mode,
-        if matches!(case, 7 | 8 | 10 | 23) {
+        if matches!(case, 7 | 8 | 10 | 21 | 23) {
             wire::Mode::Host
         } else if mode == 1 {
             wire::Mode::Jit
@@ -316,7 +449,7 @@ unsafe extern "C" fn probe_report(bytes: ffi::Bytes, mode: u32, case: u32) -> u3
     assert_ne!(origin.digest, [0; 32]);
     assert_eq!(
         origin.span.is_none(),
-        matches!(case, 7 | 8 | 10 | 23),
+        matches!(case, 7 | 8 | 10 | 21 | 23),
         "{report:?}"
     );
     match case {
@@ -343,14 +476,7 @@ unsafe extern "C" fn probe_report(bytes: ffi::Bytes, mode: u32, case: u32) -> u3
                 assert_eq!(record.category, wire::Category::Destructor);
                 assert_eq!(record.phase, wire::Phase::Cleanup);
                 assert!(record.message.is_none() && record.limit.is_none());
-                let cleanup = record.origin.as_ref().unwrap();
-                assert_eq!(cleanup.mode, origin.mode);
-                assert_eq!(cleanup.digest, origin.digest);
-                assert_eq!(cleanup.member, origin.member);
-                let call = origin.span.unwrap();
-                let scope = cleanup.span.unwrap();
-                assert_eq!(scope.source, call.source);
-                assert!(scope.start <= call.start && scope.end >= call.end);
+                assert_resource_cleanup_origin(record);
             }
             assert_eq!(report.omitted, 0);
             assert_eq!(report.usage.host_calls, 1);
@@ -374,7 +500,7 @@ unsafe extern "C" fn probe_report(bytes: ffi::Bytes, mode: u32, case: u32) -> u3
                 assert_eq!(record.phase, wire::Phase::Cleanup);
                 assert_eq!(record.diagnostic, wire::Diagnostic::Destructor);
                 assert!(record.message.is_none() && record.limit.is_none());
-                assert_eq!(record.origin, report.primary.origin);
+                assert_resource_cleanup_origin(record);
             }
             assert_eq!(report.usage.host_calls, 3, "case {case}: {report:?}");
             assert_eq!(report.usage.canonical_indices, 3);
@@ -510,18 +636,7 @@ unsafe extern "C" fn probe_report(bytes: ffi::Bytes, mode: u32, case: u32) -> u3
             for record in &report.suppressed {
                 assert_eq!(record.category, wire::Category::Destructor);
                 assert_eq!(record.phase, wire::Phase::Cleanup);
-                let cleanup = record
-                    .origin
-                    .as_ref()
-                    .expect("resolved source cleanup origin");
-                assert_eq!(
-                    (cleanup.mode, cleanup.digest, cleanup.member),
-                    (origin.mode, origin.digest, origin.member)
-                );
-                assert!(
-                    cleanup.span.is_some() && cleanup.span != origin.span,
-                    "{report:?}"
-                );
+                assert_resource_cleanup_origin(record);
                 assert!(record.message.is_none());
             }
             assert_eq!(report.omitted, 0);
@@ -547,6 +662,7 @@ unsafe extern "C" fn probe_report(bytes: ffi::Bytes, mode: u32, case: u32) -> u3
             assert_eq!(report.primary.category, wire::Category::Destructor);
             assert_eq!(report.primary.diagnostic, wire::Diagnostic::Destructor);
             assert_eq!(report.primary.phase, wire::Phase::Cleanup);
+            assert_resource_cleanup_origin(&report.primary);
             assert!(report.primary.limit.is_none() && report.suppressed.is_empty());
             assert_eq!(report.omitted, 0);
             assert_eq!(report.usage.host_calls, 1);
@@ -610,7 +726,29 @@ unsafe extern "C" fn probe_native_failure_report(
         },
         frames: vec![origin],
     };
-    if kind != 0 {
+    if matches!(kind, 4 | 5 | 13 | 14) {
+        report.primary.category = if kind != 5 {
+            wire::Category::Destructor
+        } else {
+            wire::Category::HostContract
+        };
+        report.primary.phase = wire::Phase::Cleanup;
+        report.primary.diagnostic = if kind != 5 {
+            wire::Diagnostic::Destructor
+        } else {
+            wire::Diagnostic::HostContract
+        };
+        report.suppressed.clear();
+        if kind == 13 {
+            report.suppressed.push(wire::Record {
+                category: wire::Category::HostContract,
+                diagnostic: wire::Diagnostic::HostContract,
+                ..report.primary.clone()
+            });
+            report.suppressed.push(report.primary.clone());
+        }
+        report.omitted = if kind == 14 { u64::MAX } else { 0 };
+    } else if kind != 0 {
         report.primary.category = match kind {
             1 => wire::Category::Panic,
             2 => wire::Category::Trap,

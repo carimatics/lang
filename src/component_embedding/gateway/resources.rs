@@ -144,13 +144,13 @@ fn cleanup_projection(
     canonical_indices: u64,
     maximum: u64,
 ) -> (wire::Report, Vec<u8>) {
-    let record = |(category, diagnostic)| wire::Record {
+    let record = |(category, diagnostic), kind: Option<c::FailureKind>| wire::Record {
         category,
         phase: wire::Phase::Cleanup,
         diagnostic,
         message: None,
         limit: None,
-        origin: None,
+        origin: kind.and_then(native_cleanup_origin),
     };
     let primary = report
         .primary()
@@ -162,14 +162,14 @@ fn cleanup_projection(
         if let Some(description) = cleanup_description(failure.kind)
             && suppressed.len() < maximum.min(64) as usize
         {
-            suppressed.push(record(description));
+            suppressed.push(record(description, Some(failure.kind)));
         } else {
             omitted = omitted.saturating_add(1);
         }
     }
     let output = wire::Report {
         policy: wire::MessagePolicy::Redacted,
-        primary: record(primary),
+        primary: record(primary, report.primary().map(|record| record.kind)),
         suppressed,
         poisoned: true,
         omitted,

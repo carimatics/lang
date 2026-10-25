@@ -202,6 +202,15 @@ impl<'a> Provider<'a> {
     pub fn is_owned(&self) -> bool {
         matches!(&self.data, Registration::Owned(_))
     }
+    /// A diagnostic lease keeps the actual owned registration/code alive,
+    /// independent of the instance that happened to retire this resource.
+    /// Borrowed Rust registrations retain their original caller lifetime rule.
+    pub fn code_owner_lease(&self) -> Option<crate::cleanup::CodeOwnerLease> {
+        match &self.data {
+            Registration::Owned(data) => Some(crate::cleanup::CodeOwnerLease::new(data.clone())),
+            Registration::Borrowed(_) => None,
+        }
+    }
     pub fn metadata(&self) -> wire::Provider<'_> {
         match &self.data {
             Registration::Borrowed(data) => data.metadata,

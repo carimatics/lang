@@ -12,6 +12,7 @@ use lang_mir::unit::Span;
 use std::error::Error;
 use std::fmt::{Display, Formatter};
 use std::mem::ManuallyDrop;
+use std::{any::Any, rc::Rc};
 
 mod context;
 mod mir;
@@ -101,19 +102,54 @@ fn poisons(failure: ExecutionFailure) -> bool {
     )
 }
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum NativeCleanupKind {
+    Destructor,
+    HostContract,
+}
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct NativeOrigin {
+    pub provider: [u8; 32],
+    pub member: u32,
+}
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum FailureKind {
     Execution(ExecutionFailure),
     /// A trusted cleanup function's structured, allocation-free error code.
     Cleanup(u32),
+    NativeCleanup {
+        kind: NativeCleanupKind,
+        origin: Option<NativeOrigin>,
+    },
     CleanupPanic,
     PayloadDropPanic,
     PanicPayloadDropPanic,
 }
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+/// Passive owner retention for checked native diagnostic metadata. The lease
+/// exposes no code, user pointer or resource authority.
+#[derive(Clone)]
+pub struct CodeOwnerLease(Rc<dyn Any>);
+impl CodeOwnerLease {
+    pub(crate) fn new(owner: Rc<dyn Any>) -> Self {
+        Self(owner)
+    }
+}
+impl std::fmt::Debug for CodeOwnerLease {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        f.write_str("CodeOwnerLease")
+    }
+}
+impl PartialEq for CodeOwnerLease {
+    fn eq(&self, other: &Self) -> bool {
+        Rc::ptr_eq(&self.0, &other.0)
+    }
+}
+impl Eq for CodeOwnerLease {}
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct FailureRecord {
     pub kind: FailureKind,
     pub span: Option<Span>,
     pub slot: Option<Slot>,
+    pub code_owner: Option<CodeOwnerLease>,
 }
 
 #[derive(Debug)]
@@ -131,6 +167,7 @@ impl Report {
             kind: FailureKind::Execution(ExecutionFailure::Invariant),
             span,
             slot: None,
+            code_owner: None,
         });
     }
     pub const fn primary(&self) -> Option<&FailureRecord> {
@@ -167,6 +204,7 @@ impl Report {
             kind: FailureKind::Execution(failure),
             span,
             slot: None,
+            code_owner: None,
         });
         if let Some(old) = old {
             // Preserve an original execution failure ahead of cleanup errors
@@ -942,7 +980,7 @@ impl<T, C: Cleaner<T>> Frame<'_, T, C> {
         Completion {
             value,
             report: Report {
-                primary: self.report.primary,
+                primary: self.report.primary.take(),
                 secondary: std::mem::take(&mut self.report.secondary),
                 limit: self.report.limit,
                 truncated: self.report.truncated,

@@ -2771,7 +2771,7 @@ fn owning_callback_cleanup_failure_retires_the_receipt_and_preserves_poison() {
         );
         assert_eq!(child.consumed_indices.get(), 1);
         assert_eq!(watch.destroyed.get(), 1);
-        assert_eq!(watch.released.get(), 1);
+        assert_eq!(watch.released.get(), 0);
         assert!(h.values.is_empty());
         assert_eq!(h.allocator.stats().live_allocations, 0);
         for context in [child.parent.get(), child.nested.get()]
@@ -2791,6 +2791,8 @@ fn owning_callback_cleanup_failure_retires_the_receipt_and_preserves_poison() {
         });
         assert_eq!(next.destroyed.get(), 0);
         assert_eq!(next.released.get(), 1);
+        drop(failure);
+        assert_eq!(watch.released.get(), 1);
     }
 }
 
@@ -4064,12 +4066,23 @@ fn cleanup_poison_survives_program_scopes_and_refuses_a_fresh_preparation() {
         assert!(failure.poisoned);
         assert!(failure.span.is_some());
         assert!(failure.report.as_ref().unwrap().primary().is_some());
+        assert!(
+            failure
+                .report
+                .as_ref()
+                .unwrap()
+                .primary()
+                .unwrap()
+                .code_owner
+                .is_some()
+        );
         assert!(h.state.poisoned());
         assert!(h.values.is_empty());
         assert_eq!(h.allocator.stats().live_allocations, 0);
         assert_eq!(watch.destroyed.get(), 1);
-        assert_eq!(watch.released.get(), 1);
+        assert_eq!(watch.released.get(), 0);
         assert_eq!(other.destroyed.get(), 0);
+        assert_eq!(other.released.get(), 1);
         let (next, next_watch) = h.registration(false);
         let before = h.allocator.stats();
         prepared(next, |program, _| {
@@ -4083,6 +4096,8 @@ fn cleanup_poison_survives_program_scopes_and_refuses_a_fresh_preparation() {
         assert_eq!(h.allocator.stats(), before);
         assert_eq!(next_watch.produced.get(), 0);
         assert_eq!(next_watch.destroyed.get(), 0);
+        drop(failure);
+        assert_eq!(watch.released.get(), 1);
     }
 }
 

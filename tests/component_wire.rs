@@ -23,6 +23,152 @@ fn admission() -> Report {
 fn session() -> Session {
     Session::new(Limits::default())
 }
+fn cleanup_packet() -> Report {
+    let mut report = admission();
+    report.policy = MessagePolicy::Sanitized;
+    report.primary = Record {
+        category: Category::Destructor,
+        phase: Phase::Cleanup,
+        diagnostic: Diagnostic::Destructor,
+        message: Some("private cleanup λ".into()),
+        limit: None,
+        origin: Some(Frame {
+            mode: Mode::Vm,
+            digest: [17; 32],
+            member: 99,
+            span: Some(lang_mir::unit::Span {
+                source: SourceId(0),
+                start: 3,
+                end: 11,
+            }),
+        }),
+    };
+    report.suppressed.push(Record {
+        category: Category::HostContract,
+        diagnostic: Diagnostic::HostContract,
+        ..report.primary.clone()
+    });
+    report.frames.push(report.primary.origin.clone().unwrap());
+    report.poisoned = true;
+    report.omitted = 7;
+    report.usage.host_calls = 9999;
+    report
+}
+
+#[test]
+fn cleanup_report_decoder_validates_without_any_decoder_allocation() {
+    let bytes = encode_report(&cleanup_packet(), &mut session()).unwrap();
+    let mut bounded = Session::new(Limits {
+        allocation_bytes: 0,
+        ..Default::default()
+    });
+    let report = decode_cleanup_report(&bytes, &mut bounded).unwrap();
+    assert_eq!(
+        report.records(),
+        &[Diagnostic::Destructor, Diagnostic::HostContract]
+    );
+    assert_eq!(report.omitted(), 8);
+    assert_eq!(bounded.usage().allocation_bytes, 0);
+    assert!(
+        decode_report(
+            &bytes,
+            &mut Session::new(Limits {
+                allocation_bytes: 0,
+                ..Default::default()
+            })
+        )
+        .is_err()
+    );
+    assert!(
+        decode_cleanup_report(
+            &encode_report(&admission(), &mut session()).unwrap(),
+            &mut session()
+        )
+        .is_err()
+    );
+}
+
+#[test]
+fn cleanup_report_decoder_keeps_order_and_validates_even_the_omitted_suffix() {
+    let mut report = cleanup_packet();
+    report.suppressed = (0..70)
+        .map(|index| Record {
+            category: if index % 2 == 0 {
+                Category::HostContract
+            } else {
+                Category::Destructor
+            },
+            diagnostic: if index % 2 == 0 {
+                Diagnostic::HostContract
+            } else {
+                Diagnostic::Destructor
+            },
+            ..report.primary.clone()
+        })
+        .collect();
+    report.omitted = 5;
+    let mut bytes = encode_report(&report, &mut session()).unwrap();
+    let decoded = decode_cleanup_report(&bytes, &mut session()).unwrap();
+    assert_eq!(decoded.records().len(), 64);
+    assert_eq!(decoded.omitted(), 13);
+    for (index, diagnostic) in decoded.records().iter().enumerate() {
+        assert_eq!(
+            *diagnostic,
+            if index % 2 == 0 {
+                Diagnostic::Destructor
+            } else {
+                Diagnostic::HostContract
+            }
+        );
+    }
+    let name = Diagnostic::Destructor.as_str().as_bytes();
+    let at = bytes
+        .windows(name.len())
+        .rposition(|part| part == name)
+        .unwrap();
+    bytes[at - 5] = Phase::Call as u8;
+    assert!(decode_cleanup_report(&bytes, &mut session()).is_err());
+    report.omitted = u64::MAX;
+    let bytes = encode_report(&report, &mut session()).unwrap();
+    assert_eq!(
+        decode_cleanup_report(&bytes, &mut session())
+            .unwrap()
+            .omitted(),
+        u64::MAX
+    );
+}
+
+#[test]
+fn cleanup_report_decoder_refuses_truncation_trailing_and_invalid_schema_claims() {
+    let bytes = encode_report(&cleanup_packet(), &mut session()).unwrap();
+    for length in 0..bytes.len() {
+        assert!(
+            decode_cleanup_report(&bytes[..length], &mut session()).is_err(),
+            "prefix {length}"
+        );
+    }
+    let mut trailing = bytes.clone();
+    trailing.push(0);
+    assert!(decode_cleanup_report(&trailing, &mut session()).is_err());
+    for at in 0..bytes.len() {
+        for value in [0, 1, 255] {
+            let mut changed = bytes.clone();
+            changed[at] = value;
+            if let Ok(decoded) = decode_cleanup_report(&changed, &mut session()) {
+                let complete = decode_report(&changed, &mut session()).unwrap();
+                let records: Vec<_> = std::iter::once(&complete.primary)
+                    .chain(&complete.suppressed)
+                    .collect();
+                assert!(records.iter().all(|r| r.phase == Phase::Cleanup
+                    && matches!(r.category, Category::Destructor | Category::HostContract)));
+                assert_eq!(
+                    decoded.records(),
+                    records.iter().map(|r| r.diagnostic).collect::<Vec<_>>()
+                );
+            }
+        }
+    }
+}
 fn hex(s: &str) -> Vec<u8> {
     s.split_whitespace()
         .flat_map(|w| {
