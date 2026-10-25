@@ -437,7 +437,7 @@ fn constructor_loan_pool_limits_and_oom_fail_before_publication_and_zero_slots_s
                 v::Vector::new_with_limits(&layouts, o::Type::I64, v::Limits { loans: 2 }, &mut a);
             if short {
                 assert!(
-                    matches!(result,Err(v::Error::Allocation(a::Error::Limit(actual)))if actual==which)
+                    matches!(result,Err(v::Error::Allocation(a::Error::Limit(actual)))if actual.kind==which&&actual.attempted>actual.limit)
                 );
                 assert!(t.borrow().requests.is_empty());
             } else {

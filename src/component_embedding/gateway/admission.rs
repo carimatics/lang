@@ -7,11 +7,13 @@ use lang_runtime::component::{idl, wire};
 pub(super) struct Failure {
     pub status: u32,
     pub error: ffi::Error,
+    allocation_kind: wire::ReportLimitKind,
 }
 impl Failure {
     pub fn new(diagnostic: wire::Diagnostic) -> Self {
         Self {
             status: 2,
+            allocation_kind: wire::ReportLimitKind::MetadataBytes,
             error: ffi::Error {
                 header: ffi::Header {
                     size: std::mem::size_of::<ffi::Error>() as u32,
@@ -58,9 +60,10 @@ impl Failure {
             } => {
                 let kind = match kind {
                     m::LimitKind::Work => wire::ReportLimitKind::PreparationWork,
-                    m::LimitKind::Allocations
-                    | m::LimitKind::SourceBytes
-                    | m::LimitKind::TotalSourceBytes => wire::ReportLimitKind::MetadataBytes,
+                    m::LimitKind::Allocations => self.allocation_kind,
+                    m::LimitKind::SourceBytes | m::LimitKind::TotalSourceBytes => {
+                        wire::ReportLimitKind::MetadataBytes
+                    }
                     m::LimitKind::Depth => wire::ReportLimitKind::Depth,
                     _ => wire::ReportLimitKind::ValueElements,
                 };
@@ -119,6 +122,9 @@ impl Failure {
                         wire::ReportLimitKind::SerializationBytes
                     }
                     wire::LimitKind::Depth => wire::ReportLimitKind::Depth,
+                    wire::LimitKind::DecoderAllocationBytes => {
+                        wire::ReportLimitKind::DecoderAllocationBytes
+                    }
                     _ => wire::ReportLimitKind::ValueElements,
                 };
                 let details = Self::limit(kind, *limit, *requested);
@@ -133,7 +139,15 @@ impl Failure {
 }
 
 pub(super) fn module(reason: &Error, digests: Option<([u8; 32], [u8; 32])>) -> Failure {
+    module_with_allocation(reason, digests, wire::ReportLimitKind::MetadataBytes)
+}
+pub(super) fn module_with_allocation(
+    reason: &Error,
+    digests: Option<([u8; 32], [u8; 32])>,
+    allocation_kind: wire::ReportLimitKind,
+) -> Failure {
     let mut failure = Failure::new(wire::Diagnostic::InvalidMetadata);
+    failure.allocation_kind = allocation_kind;
     let kind = match reason {
         Error::Idl(_) | Error::Utf8(_) => 2,
         Error::Source(_) => 1,

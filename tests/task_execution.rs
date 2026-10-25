@@ -280,9 +280,7 @@ fn task_and_frame_limits_refuse_before_child_admission_and_cleanup_the_tree() {
                 error.reason,
                 vm::Reason::Schedule(
                     t::Error::LiveTaskLimit { .. } | t::Error::TotalTaskLimit { .. }
-                ) | vm::Reason::Execution(
-                    lang_mir::unit::ownership::failure::ExecutionFailure::FrameLimit
-                )
+                ) | vm::Reason::FrameLimit { .. }
             ),
             "{error:?}"
         );
@@ -303,7 +301,10 @@ fn task_and_frame_limits_refuse_before_child_admission_and_cleanup_the_tree() {
     .unwrap();
     assert!(matches!(
         error.reason,
-        vm::Reason::Execution(lang_mir::unit::ownership::failure::ExecutionFailure::FrameLimit)
+        vm::Reason::FrameLimit {
+            limit: 0,
+            attempted: 1
+        }
     ));
     assert_eq!(allocator.stats().requests, 0);
 }

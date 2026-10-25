@@ -9,7 +9,7 @@ typedef struct {
     uint32_t auxiliary_destroyed;
     uintptr_t backing;
     uint32_t calls,destroyed,released,fail;
-    uint32_t depth,profile,mode;
+    uint32_t depth,profile,mode,panic_fixture;
 } ResourceOwner;
 
 /* A refused public callback retains the live owner and restores its context. */
@@ -52,6 +52,10 @@ static uint32_t resource_destroy(void *user,const lang_component_v1_context *con
         assert(owner->api->resource_drop(owner->busy_instance,1,&unchanged,&error)==4);
         assert(unchanged==(lang_component_v1_result *)(uintptr_t)42);
     }
+    if(owner->panic_fixture) {
+        assert(value==41+(int64_t)owner->calls&&(uintptr_t)bytes.data==owner->backing);
+        owner->destroyed++;return owner->fail;
+    }
     if(owner->destroyed==0)assert(value==41+(int64_t)owner->calls&&(uintptr_t)bytes.data==owner->backing);
     else if(value==91)assert(owner->destroyed==4);
     else assert(value==80-(int64_t)owner->destroyed);
@@ -70,10 +74,10 @@ static uint32_t resource_touch(void *user,const lang_component_v1_context *conte
     assert(@RESOURCE_HOST_NAME@_decode_arguments(&reader,&arguments));
     assert(owner->api->context_resource_write(context,arguments.p0.index,&backing,&error)==0);
     assert(backing.length==8&&((uintptr_t)backing.data%64)==0);
-    if(owner->calls)assert(owner->backing==(uintptr_t)backing.data);
+    if(owner->calls&&!owner->panic_fixture)assert(owner->backing==(uintptr_t)backing.data);
     owner->backing=(uintptr_t)backing.data;memcpy(&result,backing.data,8);
     assert(result==41+(int64_t)owner->calls);result++;memcpy(backing.data,&result,8);owner->calls++;
-    if(!owner->depth) {
+    if(!owner->depth&&!owner->panic_fixture) {
         uint32_t i;owner->depth++;
         for(i=0;i<(owner->profile?2u:1u);++i) {
             @RESOURCE_ROOT_ARGS@ args={0};@RESOURCE_ROOT_RESULT@ value=0;
@@ -152,6 +156,7 @@ static uint32_t resource_touch(void *user,const lang_component_v1_context *conte
     memcpy(buffer.data,scratch,(size_t)writer.at);return 0;
 }
 static void resource_profile(const lang_component_v1_api *api,const lang_component_v1_config *original,uint32_t format,uint32_t fail,uint32_t profile) {
+    lang_component_v1_bytes retained_drop={NULL,0},retained_close={NULL,0};
     ResourceOwner owner={0};lang_component_v1_config config=*original;
     lang_component_v1_engine *engine=NULL;lang_component_v1_module *module=NULL;
     lang_component_v1_provider *provider=NULL;lang_component_v1_instance *a=NULL,*b=NULL,*c=NULL;
@@ -300,6 +305,7 @@ static void resource_profile(const lang_component_v1_api *api,const lang_compone
         info.header.size=sizeof(info);info.header.version=1;
         assert(report&&api->result_info(report,&info,&error)==0&&info.kind==1&&info.flags==3);
         assert(api->result_bytes(report,&bytes,&error)==0&&bytes.length>0);
+        assert(probe_report(bytes,config.mode,14)==0);retained_drop=bytes;
     } else assert(report==NULL);
     assert(api->resource_drop(a,first,&closed,&error)==5&&closed==(lang_component_v1_result *)(uintptr_t)42&&owner.destroyed==1);
     assert(api->instance_close(a,&closed,&error)==0&&closed==NULL&&owner.destroyed==1);
@@ -312,6 +318,7 @@ static void resource_profile(const lang_component_v1_api *api,const lang_compone
         assert(info.suppressed_count==1&&info.omitted_records==0);
         assert(api->result_usage(close_report,&usage,&error)==0&&usage.canonical_indices==3);
         assert(api->result_bytes(close_report,&bytes,&error)==0&&bytes.length>0);
+        assert(probe_report(bytes,config.mode,15)==0);retained_close=bytes;
     } else assert(close_report==NULL);
     {
         lang_component_v1_binding *relay=NULL;lang_component_v1_control *control=NULL;
@@ -340,9 +347,100 @@ static void resource_profile(const lang_component_v1_api *api,const lang_compone
     assert(api->binding_drop(callback,&error)==0);
     assert(api->binding_drop(relay_callback,&error)==0);
     assert(api->provider_drop(provider,&closed,&error)==0&&closed==NULL);
-    if(fail){assert(owner.released==0);assert(api->result_drop(report,&error)==0);assert(owner.released==0);assert(api->result_drop(close_report,&error)==0);}
+    if(fail){
+        lang_component_v1_bytes bytes;
+        assert(owner.released==0&&api->engine_destroy(engine,&error)==4);
+        assert(api->result_bytes(report,&bytes,&error)==0&&bytes.data==retained_drop.data&&bytes.length==retained_drop.length);
+        assert(probe_report(bytes,config.mode,14)==0);
+        assert(api->result_bytes(close_report,&bytes,&error)==0&&bytes.data==retained_close.data&&bytes.length==retained_close.length);
+        assert(probe_report(bytes,config.mode,15)==0);
+        assert(api->result_drop(report,&error)==0);assert(owner.released==0);assert(api->result_drop(close_report,&error)==0);
+    }
     assert(owner.released==1&&api->engine_destroy(engine,&error)==0);
+}
+static void resource_failure_case(const lang_component_v1_api *api,const lang_component_v1_config *original,uint32_t format,uint32_t fail,uint32_t primary_cleanup) {
+    ResourceOwner owner={0};lang_component_v1_config config=*original;
+    lang_component_v1_engine *engine=NULL;lang_component_v1_module *module=NULL;
+    lang_component_v1_instance *instance=NULL;lang_component_v1_provider *provider=NULL;
+    lang_component_v1_binding *failed=NULL,*run=NULL;lang_component_v1_control *control=NULL;
+    lang_component_v1_provider_config registration={0};lang_component_v1_import method={0};
+    lang_component_v1_resource_type type={0};lang_component_v1_instance_config options={0};
+    lang_component_v1_error error={0};lang_component_v1_result *report=NULL,*closed=NULL;
+    lang_component_v1_bytes host={resource_host_contract,sizeof(resource_host_contract)};
+    lang_component_v1_bytes key={resource_key,sizeof(resource_key)},grant={resource_grant,sizeof(resource_grant)};
+    lang_component_v1_bytes program={format?resource_artifact:resource_program,format?sizeof(resource_artifact):sizeof(resource_program)};
+    lang_component_v1_bytes idl_input={format?NULL:resource_idl,format?0:sizeof(resource_idl)};
+    lang_component_v1_bytes request={primary_cleanup?resource_retire_projection:resource_explode_projection,primary_cleanup?sizeof(resource_retire_projection):sizeof(resource_explode_projection)};
+    lang_component_v1_bytes projection={resource_projection,sizeof(resource_projection)},input,retained,bytes;
+    lc_value_writer writer={0};lc_value_outcome outcome;uint8_t scratch[1024];uint32_t index=0;
+    int64_t value=41;uint32_t report_case=primary_cleanup?21u:16u+fail;
+    config.ceiling.preparation_work=10000000;config.ceiling.metadata_bytes=16777216;
+    config.ceiling.serialization_bytes=16777216;config.ceiling.value_elements=1000000;
+    error.header.size=sizeof(error);error.header.version=1;
+    assert(api->engine_create(&config,&engine,&error)==0);
+    owner.api=api;owner.engine=engine;owner.fail=fail;owner.panic_fixture=1;owner.mode=config.mode;
+    method.header.size=sizeof(method);method.header.version=1;
+    method.function_key.data=resource_method_key;method.function_key.length=sizeof(resource_method_key);
+    memcpy(method.signature,resource_method_signature,32);method.invoke=resource_touch;method.user=&owner;
+    type.header.size=sizeof(type);type.header.version=1;type.resource_key=key;type.destroy=resource_destroy;type.user=&owner;
+    registration.header.size=sizeof(registration);registration.header.version=1;registration.contract=host;
+    registration.imports=&method;registration.import_count=1;registration.resource_types=&type;registration.resource_type_count=1;
+    registration.owner=&owner;registration.release_owner=resource_release_owner;
+    assert(api->provider_register(engine,&registration,&provider,&error)==0);
+    assert(api->module_load(engine,format,program,idl_input,&module,&error)==0);
+    options.header.size=sizeof(options);options.header.version=1;options.ceiling=config.ceiling;
+    options.grants=&grant;options.grant_count=1;
+    assert(api->instance_create(module,&options,&instance,&error)==0);owner.busy_instance=instance;
+    assert(api->bind_export(instance,request,&failed,&error)==0);
+    assert(api->bind_export(instance,projection,&run,&error)==0);
+    assert(api->module_drop(module,&error)==0);
+    input.data=(const uint8_t *)&value;input.length=8;
+    assert(api->resource_publish(instance,provider,key,input,64,&index,&error)==0&&index==1);
+    assert(api->control_create(engine,&config.ceiling,&control,&error)==0);
+    writer.data=scratch;writer.capacity=sizeof(scratch);writer.contextual=1;
+    writer.left.work=1000000;writer.left.elements=1000;writer.left.depth=128;
+    if(primary_cleanup) {
+        @RESOURCE_RETIRE_ARGS@ arguments={0};arguments.p0.index=index;
+        outcome=@RESOURCE_RETIRE_NAME@_call(api,control,failed,&arguments,&writer,&error);
+    } else {
+        @RESOURCE_EXPLODE_ARGS@ arguments={0};arguments.p0.index=index;
+        outcome=@RESOURCE_EXPLODE_NAME@_call(api,control,failed,&arguments,&writer,&error);
+    }
+    assert(outcome.status==1&&outcome.commit==1&&outcome.poisoned==fail&&outcome.result);
+    assert(owner.calls==1&&owner.destroyed==1&&owner.released==0);report=outcome.result;
+    assert(api->result_bytes(report,&retained,&error)==0&&probe_report(retained,config.mode,report_case)==0);
+    assert(api->control_drop(control,&error)==0);
+    if(!fail) {
+        value=42;assert(api->resource_publish(instance,provider,key,input,64,&index,&error)==0&&index==2);
+    }
+    {
+        @RESOURCE_ROOT_ARGS@ arguments={0};@RESOURCE_ROOT_RESULT@ result=0;lc_value_reader reader={0};
+        memset(&writer,0,sizeof(writer));arguments.p0.index=index;writer.data=scratch;writer.capacity=sizeof(scratch);
+        writer.contextual=1;writer.left.work=1000000;writer.left.elements=1000;writer.left.depth=128;
+        assert(api->control_create(engine,&config.ceiling,&control,&error)==0);
+        outcome=@RESOURCE_ROOT_NAME@_call(api,control,run,&arguments,&writer,&error);
+        if(fail)assert(outcome.status==2&&outcome.commit==0&&!outcome.result&&owner.calls==1&&owner.destroyed==1);
+        else {
+            assert(outcome.status==0&&outcome.commit==1&&!outcome.poisoned&&outcome.result);
+            assert(api->result_bytes(outcome.result,&bytes,&error)==0);
+            reader.data=bytes.data;reader.length=bytes.length;reader.contextual=1;
+            reader.left.work=1000000;reader.left.elements=1000;reader.left.depth=128;
+            assert(@RESOURCE_ROOT_NAME@_decode_result(&reader,&result)&&result==43);
+            assert(api->result_drop(outcome.result,&error)==0);
+            assert(api->resource_drop(instance,index,&closed,&error)==0&&closed==NULL&&owner.destroyed==2);
+        }
+        assert(api->control_drop(control,&error)==0);
+    }
+    assert(api->instance_close(instance,&closed,&error)==0&&closed==NULL);
+    assert(api->binding_drop(failed,&error)==0&&api->binding_drop(run,&error)==0);
+    assert(api->provider_drop(provider,&closed,&error)==0&&closed==NULL&&owner.released==0);
+    assert(api->engine_destroy(engine,&error)==4);
+    assert(api->result_bytes(report,&bytes,&error)==0&&bytes.data==retained.data&&bytes.length==retained.length);
+    assert(probe_report(bytes,config.mode,report_case)==0);
+    assert(api->result_drop(report,&error)==0&&owner.released==1&&owner.destroyed==(fail?1u:2u));
+    assert(api->engine_destroy(engine,&error)==0);
 }
 static void resource_case(const lang_component_v1_api *api,const lang_component_v1_config *config,uint32_t format,uint32_t fail) {
     uint32_t profile;for(profile=0;profile<5;++profile)resource_profile(api,config,format,fail,profile);
+    resource_failure_case(api,config,format,fail,0);if(fail)resource_failure_case(api,config,format,fail,1);
 }

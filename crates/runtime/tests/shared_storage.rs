@@ -400,7 +400,21 @@ fn complete_plan_checks_exact_and_one_below_live_cumulative_and_count_limits_bef
             if below {
                 assert_eq!(
                     result.err().unwrap(),
-                    s::Error::Allocation(a::Error::Limit(limit))
+                    s::Error::Allocation(a::Error::Limit(a::LimitViolation {
+                        kind: limit,
+                        limit: match limit {
+                            a::Limit::LiveBytes => limits.live_bytes,
+                            a::Limit::CumulativeBytes => limits.cumulative_bytes,
+                            a::Limit::LiveAllocations => limits.live_allocations as u64,
+                            _ => unreachable!(),
+                        },
+                        attempted: match limit {
+                            a::Limit::LiveBytes => baseline.live_bytes + added,
+                            a::Limit::CumulativeBytes => baseline.cumulative_bytes + added,
+                            a::Limit::LiveAllocations => baseline.live_allocations as u64 + 3,
+                            _ => unreachable!(),
+                        },
+                    }))
                 );
                 assert_eq!(allocator.stats(), before);
                 assert_eq!(trace.borrow().requests.len(), calls);

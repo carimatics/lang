@@ -8,7 +8,7 @@ typedef struct {
     lang_component_v1_binding *callback;
     lang_component_v1_result *retained;
     lang_component_v1_control *control;
-    uint32_t depth, profile;
+    uint32_t depth, profile, mode;
     uint32_t calls, released;
 } RegistryOwner;
 static void registry_release(void *user) {
@@ -58,10 +58,12 @@ static uint32_t registry_invoke(void *user,const lang_component_v1_context *cont
             owner->retained=child.result;return 1;
         }
         if(owner->profile==4)return probe_native_failure_report(context,output,0);
+        if(owner->profile==14)goto encode_result;
         if(owner->profile==9) {
             if(owner->calls==1)return probe_native_failure_report(context,output,1);
             goto encode_result;
         }
+        if(owner->profile>=10&&owner->calls>1)goto encode_result;
         owner->depth++;
         for(i=0;i<(owner->profile?2u:1u);++i) {
             @ROOT_ARGUMENTS@ args={0};@ROOT_RESULT@ value=0;
@@ -73,10 +75,10 @@ static uint32_t registry_invoke(void *user,const lang_component_v1_context *cont
             child=@ROOT_NAME@_context_call(owner->api,context,owner->callback,&args,&child_writer,&error);
             if(owner->profile>=5) {
                 lang_component_v1_mut_bytes returned;
-                assert(child.status==1&&child.commit==1&&child.poisoned&&child.result);
+                assert(child.status==1&&child.commit==(owner->profile<10)&&child.poisoned==(owner->profile<10)&&child.result);
                 assert(owner->api->context_check(context,&error)==0);
                 assert(owner->api->result_bytes(child.result,&bytes,&error)==0);
-                assert(probe_report(bytes,0,8)==0);
+                assert(probe_report(bytes,owner->mode,owner->profile>=10?11u+((owner->profile-10u)&1u):8u)==0);
                 assert(owner->api->context_buffer_create(context,bytes.length,1,output,&error)==0);
                 assert(owner->api->buffer_mut_bytes(context,*output,&returned,&error)==0&&returned.length==bytes.length);
                 memcpy(returned.data,bytes.data,(size_t)bytes.length);
@@ -131,11 +133,15 @@ static void registry_profile(const lang_component_v1_api *api,const lang_compone
     lang_component_v1_bytes idl_bytes={idl_copy,format?0:sizeof(native_idl)};
     uint32_t i;assert(methods&&grants);
     if(profile>=4){config.ceiling.suppressed_records=4;config.ceiling.trace_frames=4;}
+    if(profile>=10&&profile<14) {
+        if((profile&1u)==0)config.ceiling.frames=1;
+        else config.ceiling.live_cells=5;
+    }
     config.ceiling.preparation_work=10000000;config.ceiling.metadata_bytes=16777216;
     config.ceiling.serialization_bytes=16777216;config.ceiling.value_elements=1000000;
     error.header.size=sizeof(error);error.header.version=1;
     assert(api->engine_create(&config,&engine,&error)==0);
-    owner.api=api;owner.engine=engine;owner.profile=profile;
+    owner.api=api;owner.engine=engine;owner.profile=profile;owner.mode=config.mode;
     methods[0].header.size=sizeof(*methods);methods[0].header.version=1;
     methods[0].function_key.data=key;methods[0].function_key.length=sizeof(native_key);
     memcpy(methods[0].signature,native_signature,32);
@@ -179,7 +185,7 @@ static void registry_profile(const lang_component_v1_api *api,const lang_compone
     options.grants=&grant;
     assert(api->instance_create(module,&options,&second_instance,&error)==0);
     assert(api->bind_export(second_instance,request,&second_binding,&error)==0);
-    owner.callback=(profile==2||profile==6)?second_binding:binding;
+    owner.callback=(profile==2||profile==6||(profile>=12&&profile<14))?second_binding:binding;
     assert(api->provider_drop(owner.provider,&closed,&error)==4&&closed==(lang_component_v1_result *)(uintptr_t)42);
     {
         lang_component_v1_provider_config second={0};lang_component_v1_import method={0};
@@ -202,7 +208,9 @@ static void registry_profile(const lang_component_v1_api *api,const lang_compone
         @ROOT_ARGUMENTS@ arguments={0};@ROOT_RESULT@ result=0;
         lc_value_writer writer={0};lc_value_reader reader={0};lang_component_v1_bytes bytes;
         uint8_t scratch[1024];arguments.p0=41;
-        assert(api->control_create(engine,&config.ceiling,&control,&error)==0);
+        {lang_component_v1_limits limits=config.ceiling;
+         if(profile==14&&i==0)limits.host_calls=0;
+         assert(api->control_create(engine,&limits,&control,&error)==0);}
         owner.control=control;
         writer.data=scratch;writer.capacity=sizeof(scratch);writer.left.work=1000000;
         writer.left.elements=1000;writer.left.depth=128;
@@ -211,17 +219,17 @@ static void registry_profile(const lang_component_v1_api *api,const lang_compone
             assert(outcome.status==2&&outcome.commit==0&&!outcome.result&&owner.calls==((profile==4||profile>=7)?1u:2u));
             assert(api->control_drop(control,&error)==0);continue;
         }
-        assert(outcome.status==((profile==9&&i==1)?0u:profile>=3?1u:0u)&&outcome.commit==1&&outcome.result&&outcome.poisoned==(profile>=4&&profile<=8));
+        assert(outcome.status==((profile>=9&&i==1)?0u:profile>=3?1u:0u)&&outcome.commit==1&&outcome.result&&outcome.poisoned==(profile>=4&&profile<=8));
         assert(api->result_bytes(outcome.result,&bytes,&error)==0);
         reader.data=bytes.data;reader.length=bytes.length;reader.contextual=1;
         reader.left.work=1000000;reader.left.elements=1000;reader.left.depth=128;
-        if(profile>=3&&!(profile==9&&i==1))assert(bytes.length>4&&memcmp(bytes.data,"LCMP",4)==0);
+        if(profile>=3&&!(profile>=9&&i==1))assert(bytes.length>4&&memcmp(bytes.data,"LCMP",4)==0);
         else assert(@ROOT_NAME@_decode_result(&reader,&result)&&result==42);
-        if(profile>=4&&!(profile==9&&i==1)){assert(probe_report(bytes,config.mode,profile==4?7u:profile<7?8u:profile<9?9u:10u)==0);owner.retained=outcome.result;}
+        if(profile>=4&&!(profile>=9&&i==1)){assert(probe_report(bytes,config.mode,profile==4?7u:profile<7?8u:profile<9?9u:profile==9?10u:profile==14?20u:11u+((profile-10u)&1u))==0);owner.retained=outcome.result;}
         else assert(api->result_drop(outcome.result,&error)==0);
         assert(api->control_drop(control,&error)==0);
     }
-    assert(owner.calls==((profile==4||(profile>=7&&profile<=8))?1u:profile>=5?2u:(profile&&profile!=3)?6u:2u)&&other.calls==0&&owner.released==0);
+    assert(owner.calls==((profile==4||profile==14||(profile>=7&&profile<=8))?1u:profile>=5?2u:(profile&&profile!=3)?6u:2u)&&other.calls==0&&owner.released==0);
     if(profile==6) {
         lang_component_v1_control *control=NULL;@ROOT_ARGUMENTS@ arguments={0};
         lc_value_writer writer={0};lc_value_outcome outcome;uint8_t scratch[1024];
@@ -230,6 +238,22 @@ static void registry_profile(const lang_component_v1_api *api,const lang_compone
         assert(api->control_create(engine,&config.ceiling,&control,&error)==0);
         outcome=@ROOT_NAME@_call(api,control,second_binding,&arguments,&writer,&error);
         assert(outcome.status==2&&outcome.commit==0&&!outcome.result&&owner.calls==2);
+        assert(api->control_drop(control,&error)==0);
+    }
+    if(profile>=12&&profile<14) {
+        lang_component_v1_control *control=NULL;@ROOT_ARGUMENTS@ arguments={0};@ROOT_RESULT@ value=0;
+        lc_value_writer writer={0};lc_value_reader reader={0};lc_value_outcome outcome;
+        lang_component_v1_bytes bytes;uint8_t scratch[1024];arguments.p0=41;
+        writer.data=scratch;writer.capacity=sizeof(scratch);
+        writer.left.work=1000000;writer.left.elements=1000;writer.left.depth=128;
+        assert(api->control_create(engine,&config.ceiling,&control,&error)==0);
+        outcome=@ROOT_NAME@_call(api,control,second_binding,&arguments,&writer,&error);
+        assert(outcome.status==0&&outcome.commit==1&&!outcome.poisoned&&outcome.result&&owner.calls==3);
+        assert(api->result_bytes(outcome.result,&bytes,&error)==0);
+        reader.data=bytes.data;reader.length=bytes.length;reader.contextual=1;
+        reader.left.work=1000000;reader.left.elements=1000;reader.left.depth=128;
+        assert(@ROOT_NAME@_decode_result(&reader,&value)&&value==42);
+        assert(api->result_drop(outcome.result,&error)==0);
         assert(api->control_drop(control,&error)==0);
     }
     assert(api->provider_drop(other.provider,&closed,&error)==0&&closed==NULL&&other.released==1);
@@ -255,12 +279,12 @@ static void registry_profile(const lang_component_v1_api *api,const lang_compone
         assert(owner.released==0);assert(api->engine_destroy(engine,&error)==4);
         assert(api->result_bytes(owner.retained,&bytes,&error)==0);
         assert(bytes.data==retained_view.data&&bytes.length==retained_view.length);
-        if(profile>=4)assert(probe_report(bytes,config.mode,profile==4?7u:profile<7?8u:9u)==0);
+        if(profile>=4)assert(probe_report(bytes,config.mode,profile==4?7u:profile<7?8u:profile<9?9u:profile==9?10u:profile==14?20u:11u+((profile-10u)&1u))==0);
         assert(api->result_drop(owner.retained,&error)==0);
     }
     assert(owner.released==1);
     assert(api->engine_destroy(engine,&error)==0);
 }
 static void registry_case(const lang_component_v1_api *api,const lang_component_v1_config *config,uint32_t format) {
-    uint32_t profile;for(profile=0;profile<10;++profile)registry_profile(api,config,format,profile);
+    uint32_t profile;for(profile=0;profile<15;++profile)registry_profile(api,config,format,profile);
 }

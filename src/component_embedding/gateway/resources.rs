@@ -142,22 +142,37 @@ fn cleanup_projection(
     report: &c::Report,
     allocations: a::Stats,
     canonical_indices: u64,
+    maximum: u64,
 ) -> (wire::Report, Vec<u8>) {
-    let record = wire::Record {
-        category: wire::Category::Destructor,
+    let record = |(category, diagnostic)| wire::Record {
+        category,
         phase: wire::Phase::Cleanup,
-        diagnostic: wire::Diagnostic::Destructor,
+        diagnostic,
         message: None,
         limit: None,
         origin: None,
     };
+    let primary = report
+        .primary()
+        .and_then(|r| cleanup_description(r.kind))
+        .unwrap_or((wire::Category::HostContract, wire::Diagnostic::HostContract));
+    let mut suppressed = Vec::new();
+    let mut omitted = report.truncated() as u64;
+    for failure in report.secondary() {
+        if let Some(description) = cleanup_description(failure.kind)
+            && suppressed.len() < maximum.min(64) as usize
+        {
+            suppressed.push(record(description));
+        } else {
+            omitted = omitted.saturating_add(1);
+        }
+    }
     let output = wire::Report {
         policy: wire::MessagePolicy::Redacted,
-        primary: record.clone(),
-        suppressed: vec![record; report.secondary().len().min(64)],
+        primary: record(primary),
+        suppressed,
         poisoned: true,
-        omitted: (report.truncated() as u64)
-            .saturating_add(report.secondary().len().saturating_sub(64) as u64),
+        omitted,
         usage: wire::ReportUsage {
             peak_heap_bytes: allocations.peak_live_bytes,
             peak_live_allocations: allocations.peak_live_allocations as u64,
@@ -306,6 +321,7 @@ fn retire(
         &original,
         data.allocator.stats(),
         instance.indices.borrow().len() as u64,
+        instance.ceiling.suppressed_records,
     );
     Ok(Some(CallResult {
         instance: instance.clone(),
@@ -401,18 +417,58 @@ mod tests {
         }
         let raw = cleanup.into_report();
         assert_eq!(raw.secondary().len(), 79);
-        let (projected, bytes) = cleanup_projection(&raw, Default::default(), 23);
-        assert_eq!(projected.primary.category, wire::Category::Destructor);
-        assert_eq!(projected.primary.phase, wire::Phase::Cleanup);
-        assert!(projected.poisoned);
-        assert_eq!(projected.suppressed.len(), 64);
-        assert_eq!(projected.omitted, 15);
-        assert_eq!(projected.usage.canonical_indices, 23);
-        let mut session = wire::Session::new(Default::default());
-        assert_eq!(
-            wire::decode_report(&bytes, &mut session).unwrap(),
-            projected
-        );
+        for maximum in [0, 3, 64] {
+            let (projected, bytes) = cleanup_projection(&raw, Default::default(), 23, maximum);
+            assert_eq!(projected.primary.category, wire::Category::Destructor);
+            assert_eq!(projected.primary.phase, wire::Phase::Cleanup);
+            assert!(projected.poisoned);
+            assert_eq!(projected.suppressed.len(), maximum as usize);
+            assert_eq!(projected.omitted, 79 - maximum);
+            assert_eq!(projected.usage.canonical_indices, 23);
+            let mut session = wire::Session::new(Default::default());
+            assert_eq!(
+                wire::decode_report(&bytes, &mut session).unwrap(),
+                projected
+            );
+        }
         assert_eq!(raw.secondary().len(), 79);
+    }
+
+    #[test]
+    fn cleanup_projection_preserves_host_contract_and_destructor_order() {
+        let mut budget = m::Budget::new(Default::default());
+        let mut cleanup = c::Session::prepare(NonZeroUsize::new(4).unwrap(), &mut budget).unwrap();
+        cleanup.execution(c::ExecutionFailure::Invariant, None);
+        let mut destructor = c::Contextual::new(|_: &mut (), _, _: &mut c::Context<'_>| Err(19));
+        assert!(
+            cleanup
+                .retire(c::Slot(0), (), None, c::Reason::Explicit, &mut destructor)
+                .is_err()
+        );
+        let mut panicking =
+            c::Contextual::new(|_: &mut (), _, _: &mut c::Context<'_>| -> Result<(), u32> {
+                panic!("contained cleanup panic")
+            });
+        assert!(
+            cleanup
+                .retire(c::Slot(1), (), None, c::Reason::Explicit, &mut panicking)
+                .is_err()
+        );
+        let (report, bytes) = cleanup_projection(&cleanup.into_report(), Default::default(), 3, 3);
+        assert_eq!(report.primary.category, wire::Category::HostContract);
+        assert_eq!(report.primary.phase, wire::Phase::Cleanup);
+        assert_eq!(
+            report
+                .suppressed
+                .iter()
+                .map(|r| r.category)
+                .collect::<Vec<_>>(),
+            [wire::Category::Destructor, wire::Category::HostContract]
+        );
+        assert_eq!(report.omitted, 0);
+        assert_eq!(
+            wire::decode_report(&bytes, &mut wire::Session::new(Default::default())).unwrap(),
+            report
+        );
     }
 }

@@ -138,15 +138,40 @@ struct CallResult {
     report: Option<(wire::Report, Vec<u8>)>,
 }
 
-fn project_failure(
-    failure: &r::Failure,
-    ceiling: ffi::Limits,
+fn cleanup_description(
+    kind: lang_runtime::cleanup::FailureKind,
+) -> Option<(wire::Category, wire::Diagnostic)> {
+    use lang_runtime::cleanup::{ExecutionFailure, FailureKind};
+    match kind {
+        FailureKind::Cleanup(_) => Some((wire::Category::Destructor, wire::Diagnostic::Destructor)),
+        FailureKind::CleanupPanic
+        | FailureKind::PayloadDropPanic
+        | FailureKind::PanicPayloadDropPanic
+        | FailureKind::Execution(ExecutionFailure::HostPanic | ExecutionFailure::Invariant) => {
+            Some((wire::Category::HostContract, wire::Diagnostic::HostContract))
+        }
+        _ => None,
+    }
+}
+struct FailureCode<'a> {
     digest: [u8; 32],
     mode: u32,
     entry: m::FunctionId,
+    functions: &'a [m::ownership::declarations::Function],
+}
+fn project_failure(
+    failure: &r::Failure,
+    ceiling: ffi::Limits,
+    code: FailureCode<'_>,
     allocations: a::Stats,
     canonical_indices: u64,
 ) -> Option<(wire::Report, Vec<u8>)> {
+    let FailureCode {
+        digest,
+        mode,
+        entry,
+        functions,
+    } = code;
     // Preserve the actual primary; cleanup records never replace it.
     let mut limit = None;
     let mut phase = wire::Phase::Call;
@@ -168,11 +193,15 @@ fn project_failure(
         }
         r::Reason::Cancelled => (wire::Category::Cancellation, wire::Diagnostic::Cancelled),
         r::Reason::Control(e::Failure::Interrupted | e::Failure::DeadlineExceeded)
+        | r::Reason::Layout(lang_runtime::layout::Error::ServiceWork(
+            e::Failure::Interrupted | e::Failure::DeadlineExceeded,
+        ))
         | r::Reason::Execution(
             lang_mir::unit::ownership::failure::ExecutionFailure::Interrupted
             | lang_mir::unit::ownership::failure::ExecutionFailure::DeadlineExceeded,
         ) => (wire::Category::Interruption, wire::Diagnostic::Interrupted),
         r::Reason::Control(e::Failure::FuelExhausted)
+        | r::Reason::Layout(lang_runtime::layout::Error::ServiceWork(e::Failure::FuelExhausted))
         | r::Reason::Execution(lang_mir::unit::ownership::failure::ExecutionFailure::FuelLimit) => {
             limit = Some(wire::LimitDetail {
                 kind: wire::ReportLimitKind::Fuel,
@@ -182,6 +211,7 @@ fn project_failure(
             (wire::Category::Limit, wire::Diagnostic::Limit)
         }
         r::Reason::Control(e::Failure::HostCallLimit)
+        | r::Reason::Layout(lang_runtime::layout::Error::ServiceWork(e::Failure::HostCallLimit))
         | r::Reason::Execution(
             lang_mir::unit::ownership::failure::ExecutionFailure::HostCallLimit,
         ) => {
@@ -196,7 +226,21 @@ fn project_failure(
             limit: maximum,
             used,
             requested,
-        }) => {
+        })
+        | r::Reason::Layout(lang_runtime::layout::Error::ServiceWork(
+            e::Failure::ServiceWorkLimit {
+                limit: maximum,
+                used,
+                requested,
+            },
+        ))
+        | r::Reason::Execution(
+            lang_mir::unit::ownership::failure::ExecutionFailure::ServiceWorkLimit {
+                limit: maximum,
+                used,
+                requested,
+            },
+        ) => {
             limit = Some(wire::LimitDetail {
                 kind: wire::ReportLimitKind::ServiceWork,
                 limit: maximum,
@@ -204,6 +248,176 @@ fn project_failure(
             });
             (wire::Category::Limit, wire::Diagnostic::Limit)
         }
+        r::Reason::Resource(m::Error {
+            kind:
+                m::ErrorKind::Limit {
+                    kind,
+                    limit: maximum,
+                    requested,
+                },
+            ..
+        })
+        | r::Reason::Layout(lang_runtime::layout::Error::Resource {
+            error:
+                m::Error {
+                    kind:
+                        m::ErrorKind::Limit {
+                            kind,
+                            limit: maximum,
+                            requested,
+                        },
+                    ..
+                },
+            ..
+        })
+        | r::Reason::ComponentFrame(wire::Error {
+            kind:
+                wire::ErrorKind::Budget(m::ErrorKind::Limit {
+                    kind,
+                    limit: maximum,
+                    requested,
+                }),
+            ..
+        }) => {
+            let kind = match kind {
+                m::LimitKind::Work => wire::ReportLimitKind::PreparationWork,
+                m::LimitKind::Allocations
+                | m::LimitKind::SourceBytes
+                | m::LimitKind::TotalSourceBytes => wire::ReportLimitKind::MetadataBytes,
+                m::LimitKind::Depth => wire::ReportLimitKind::Depth,
+                _ => wire::ReportLimitKind::ValueElements,
+            };
+            limit = Some(wire::LimitDetail {
+                kind,
+                limit: maximum as u64,
+                attempted: requested as u64,
+            });
+            (wire::Category::Limit, wire::Diagnostic::Limit)
+        }
+        r::Reason::ComponentFrame(wire::Error {
+            kind:
+                wire::ErrorKind::Limit {
+                    kind,
+                    limit: maximum,
+                    requested,
+                },
+            ..
+        }) => {
+            let kind = match kind {
+                wire::LimitKind::Bytes | wire::LimitKind::StringBytes => {
+                    wire::ReportLimitKind::MetadataBytes
+                }
+                wire::LimitKind::SerializationBytes => wire::ReportLimitKind::SerializationBytes,
+                wire::LimitKind::DecoderAllocationBytes => {
+                    wire::ReportLimitKind::DecoderAllocationBytes
+                }
+                wire::LimitKind::Depth => wire::ReportLimitKind::Depth,
+                _ => wire::ReportLimitKind::ValueElements,
+            };
+            limit = Some(wire::LimitDetail {
+                kind,
+                limit: maximum as u64,
+                attempted: requested as u64,
+            });
+            (wire::Category::Limit, wire::Diagnostic::Limit)
+        }
+        r::Reason::Layout(lang_runtime::layout::Error::CellLimit {
+            cells,
+            limit: maximum,
+        }) => {
+            limit = Some(wire::LimitDetail {
+                kind: wire::ReportLimitKind::LiveCells,
+                limit: maximum as u64,
+                attempted: cells as u64,
+            });
+            (wire::Category::Limit, wire::Diagnostic::Limit)
+        }
+        r::Reason::FrameLimit {
+            limit: maximum,
+            attempted,
+        }
+        | r::Reason::CellLimit {
+            limit: maximum,
+            attempted,
+        } => {
+            let kind = if matches!(failure.reason, r::Reason::FrameLimit { .. }) {
+                wire::ReportLimitKind::Frames
+            } else {
+                wire::ReportLimitKind::LiveCells
+            };
+            limit = Some(wire::LimitDetail {
+                kind,
+                limit: maximum as u64,
+                attempted: attempted as u64,
+            });
+            (wire::Category::Limit, wire::Diagnostic::Limit)
+        }
+        r::Reason::Schedule(lang_runtime::task::Error::LiveTaskLimit { limit: maximum }) => {
+            // The immutable scheduler admits one task at a time and never
+            // exceeds this bound; the refused reservation is exactly cap + 1.
+            limit = Some(wire::LimitDetail {
+                kind: wire::ReportLimitKind::LiveTasks,
+                limit: maximum as u64,
+                attempted: (maximum as u64).saturating_add(1),
+            });
+            (wire::Category::Limit, wire::Diagnostic::Limit)
+        }
+        r::Reason::Layout(lang_runtime::layout::Error::Allocation(a::Error::Limit(violation))) => {
+            let kind = match violation.kind {
+                a::Limit::RequestBytes | a::Limit::LiveBytes => {
+                    Some(wire::ReportLimitKind::HeapBytes)
+                }
+                a::Limit::LiveAllocations => Some(wire::ReportLimitKind::LiveAllocations),
+                // These are internal provider-profile guards, not additional
+                // public live-heap/count quotas. The raw failure keeps its kind.
+                a::Limit::CumulativeBytes | a::Limit::Alignment => None,
+            };
+            if let Some(kind) = kind {
+                limit = Some(wire::LimitDetail {
+                    kind,
+                    limit: violation.limit,
+                    attempted: violation.attempted,
+                });
+                (wire::Category::Limit, wire::Diagnostic::Limit)
+            } else {
+                (wire::Category::HostContract, wire::Diagnostic::HostContract)
+            }
+        }
+        r::Reason::Execution(
+            lang_mir::unit::ownership::failure::ExecutionFailure::Fault
+            | lang_mir::unit::ownership::failure::ExecutionFailure::HostCall
+            | lang_mir::unit::ownership::failure::ExecutionFailure::CounterOverflow,
+        )
+        | r::Reason::Control(e::Failure::CounterOverflow)
+        | r::Reason::ChannelDeadlock(_)
+        | r::Reason::Layout(
+            lang_runtime::layout::Error::Overflow
+            | lang_runtime::layout::Error::ServiceWork(e::Failure::CounterOverflow)
+            | lang_runtime::layout::Error::Allocation(a::Error::OutOfMemory | a::Error::Overflow),
+        )
+        | r::Reason::Resource(m::Error {
+            kind: m::ErrorKind::AllocationFailed | m::ErrorKind::ArithmeticOverflow,
+            ..
+        })
+        | r::Reason::Layout(lang_runtime::layout::Error::Resource {
+            error:
+                m::Error {
+                    kind: m::ErrorKind::AllocationFailed | m::ErrorKind::ArithmeticOverflow,
+                    ..
+                },
+            ..
+        })
+        | r::Reason::ComponentFrame(wire::Error {
+            kind:
+                wire::ErrorKind::Budget(
+                    m::ErrorKind::AllocationFailed | m::ErrorKind::ArithmeticOverflow,
+                ),
+            ..
+        }) => (wire::Category::Trap, wire::Diagnostic::Trap),
+        r::Reason::Execution(
+            lang_mir::unit::ownership::failure::ExecutionFailure::HostPanic
+            | lang_mir::unit::ownership::failure::ExecutionFailure::Invariant,
+        ) => (wire::Category::HostContract, wire::Diagnostic::HostContract),
         r::Reason::Instance(execution::InstanceError::Poisoned) => {
             phase = wire::Phase::Admission;
             (
@@ -236,24 +450,38 @@ fn project_failure(
             Some(
                 lang_runtime::cleanup::FailureKind::CleanupPanic
                 | lang_runtime::cleanup::FailureKind::PayloadDropPanic
-                | lang_runtime::cleanup::FailureKind::PanicPayloadDropPanic,
+                | lang_runtime::cleanup::FailureKind::PanicPayloadDropPanic
+                | lang_runtime::cleanup::FailureKind::Execution(
+                    lang_runtime::cleanup::ExecutionFailure::HostPanic
+                    | lang_runtime::cleanup::ExecutionFailure::Invariant,
+                ),
             ) => {
                 phase = wire::Phase::Cleanup;
                 (wire::Category::HostContract, wire::Diagnostic::HostContract)
             }
-            _ => (wire::Category::Trap, wire::Diagnostic::Trap),
+            _ => {
+                phase = wire::Phase::Cleanup;
+                (wire::Category::HostContract, wire::Diagnostic::HostContract)
+            }
         },
-        _ => return None,
+        // Invalid verified state, missing boundary evidence or an internal
+        // profile guard is a contract failure. Preserve the raw reason in the
+        // result and publish the mandatory typed envelope instead of None.
+        _ => (wire::Category::HostContract, wire::Diagnostic::HostContract),
     };
     let frame = wire::Frame {
-        mode: if mode == 1 {
-            wire::Mode::Jit
-        } else {
-            wire::Mode::Vm
+        mode: match mode {
+            1 => wire::Mode::Jit,
+            2 => wire::Mode::Aot,
+            _ => wire::Mode::Vm,
         },
         digest,
         member: failure.function.unwrap_or(entry).0,
-        span: failure.span,
+        span: failure.span.or_else(|| {
+            functions
+                .get(failure.function.unwrap_or(entry).0 as usize)
+                .map(|function| function.signature_span)
+        }),
     };
     let frames = if ceiling.trace_frames == 0 {
         vec![]
@@ -265,25 +493,48 @@ fn project_failure(
         .as_ref()
         .map_or(0, |r| r.truncated() as u64)
         .saturating_add(u64::from(ceiling.trace_frames == 0));
+    let mut origin_work = 4096usize;
+    let mut cleanup_origin = |span: m::Span| {
+        if Some(span) == failure.span {
+            return Some(frame.clone());
+        }
+        let mut member = None;
+        for (index, function) in functions.iter().enumerate() {
+            if origin_work == 0 {
+                return None;
+            }
+            origin_work -= 1;
+            if function.span.source == span.source
+                && function.span.start <= span.start
+                && span.end <= function.span.end
+            {
+                if member.is_some() {
+                    return None;
+                }
+                member = u32::try_from(index).ok();
+            }
+        }
+        member.map(|member| wire::Frame {
+            member,
+            span: Some(span),
+            ..frame.clone()
+        })
+    };
+    let primary_origin = if matches!(failure.reason, r::Reason::Cleanup) {
+        match failure.report.as_ref().and_then(|report| report.primary()) {
+            Some(record) if cleanup_description(record.kind).is_some() => record
+                .span
+                .map_or_else(|| Some(frame.clone()), &mut cleanup_origin),
+            _ => Some(frame.clone()),
+        }
+    } else {
+        Some(frame.clone())
+    };
     let mut suppressed = Vec::new();
     if let Some(cleanup) = &failure.report {
         let maximum = ceiling.suppressed_records.min(64) as usize;
         for record in cleanup.secondary() {
-            let description = match record.kind {
-                lang_runtime::cleanup::FailureKind::Cleanup(_) => {
-                    Some((wire::Category::Destructor, wire::Diagnostic::Destructor))
-                }
-                lang_runtime::cleanup::FailureKind::CleanupPanic
-                | lang_runtime::cleanup::FailureKind::PayloadDropPanic
-                | lang_runtime::cleanup::FailureKind::PanicPayloadDropPanic
-                | lang_runtime::cleanup::FailureKind::Execution(
-                    lang_mir::unit::ownership::failure::ExecutionFailure::HostPanic
-                    | lang_mir::unit::ownership::failure::ExecutionFailure::Invariant,
-                ) => Some((wire::Category::HostContract, wire::Diagnostic::HostContract)),
-                // Schema 3 represents suppressed cleanup records. Other
-                // execution evidence remains in the original immutable failure.
-                _ => None,
-            };
+            let description = cleanup_description(record.kind);
             if let Some((category, diagnostic)) = description
                 && suppressed.len() < maximum
             {
@@ -293,10 +544,7 @@ fn project_failure(
                     diagnostic,
                     message: None,
                     limit: None,
-                    origin: record
-                        .span
-                        .filter(|span| Some(*span) == failure.span)
-                        .map(|_| frame.clone()),
+                    origin: record.span.and_then(&mut cleanup_origin),
                 });
             } else {
                 omitted = omitted.saturating_add(1);
@@ -311,7 +559,7 @@ fn project_failure(
             diagnostic,
             message: None,
             limit,
-            origin: Some(frame),
+            origin: primary_origin,
         },
         suppressed,
         poisoned: failure.poisoned,
@@ -590,7 +838,7 @@ fn prepare(config: ffi::Config) -> Result<Box<Data>, u32> {
     let size = |n| usize::try_from(n).map_err(|_| INVALID);
     let budget_limits = m::Limits {
         work: size(config.ceiling.preparation_work)?,
-        allocations: size(config.ceiling.decoder_allocation_bytes)?,
+        allocations: size(config.ceiling.metadata_bytes)?,
         elements: size(config.ceiling.value_elements)?,
         ..Default::default()
     };
@@ -632,7 +880,7 @@ fn prepare(config: ffi::Config) -> Result<Box<Data>, u32> {
     limits.metadata.allocation_bytes = limits
         .metadata
         .allocation_bytes
-        .min(budget_limits.allocations);
+        .min(size(config.ceiling.decoder_allocation_bytes)?);
     limits.metadata.elements = limits.metadata.elements.min(budget_limits.elements);
     Ok(Box::new(Data {
         config,
@@ -792,7 +1040,11 @@ pub unsafe extern "C" fn module_load(
     let module = match load(format, program, contract, load_limits) {
         Ok(module) => module,
         Err(reason) => {
-            let failure = admission::module(&reason, Some((digest, idl_digest)));
+            let failure = admission::module_with_allocation(
+                &reason,
+                Some((digest, idl_digest)),
+                super::common(load_limits).1,
+            );
             // SAFETY: fixed output replaces every old field only after refusal.
             unsafe { error.write(failure.error) };
             return failure.status;
@@ -1458,9 +1710,18 @@ pub unsafe extern "C" fn call(
                     let report = project_failure(
                         &failure,
                         ceiling,
-                        binding.instance.digest,
-                        data.config.mode,
-                        binding.entry,
+                        FailureCode {
+                            digest: binding.instance.digest,
+                            mode: data.config.mode,
+                            entry: binding.entry,
+                            functions: binding
+                                .instance
+                                .module
+                                .unit()
+                                .code()
+                                .declarations()
+                                .functions(),
+                        },
                         allocations,
                         binding.instance.indices.borrow().len() as u64,
                     );
@@ -1562,9 +1823,18 @@ pub unsafe extern "C" fn call(
                         let report = project_failure(
                             &failure,
                             ceiling,
-                            binding.instance.digest,
-                            data.config.mode,
-                            binding.entry,
+                            FailureCode {
+                                digest: binding.instance.digest,
+                                mode: data.config.mode,
+                                entry: binding.entry,
+                                functions: binding
+                                    .instance
+                                    .module
+                                    .unit()
+                                    .code()
+                                    .declarations()
+                                    .functions(),
+                            },
                             allocations,
                             binding.instance.indices.borrow().len() as u64,
                         );

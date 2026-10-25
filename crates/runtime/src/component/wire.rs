@@ -47,6 +47,7 @@ pub enum LimitKind {
     StringBytes,
     Declarations,
     MetadataElements,
+    DecoderAllocationBytes,
 }
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum ErrorKind {
@@ -92,10 +93,43 @@ pub struct Usage {
     pub elements: usize,
     pub serialization_bytes: usize,
 }
+#[derive(Clone, Copy, Default)]
+struct CounterSpace {
+    ledger_start: usize,
+    counter_start: usize,
+}
+impl CounterSpace {
+    fn value(self, value: usize) -> Option<usize> {
+        value
+            .checked_sub(self.ledger_start)?
+            .checked_add(self.counter_start)
+    }
+    fn rebased(self, ledger_start: usize, counter: usize) -> Self {
+        Self {
+            ledger_start,
+            counter_start: self.value(counter).expect("quota history is monotonic"),
+        }
+    }
+}
+#[derive(Clone, Copy, Default)]
+enum AllocationOrigin {
+    Metadata,
+    #[default]
+    Decoder,
+}
+#[derive(Clone, Copy, Default)]
+struct BudgetReporting {
+    work: CounterSpace,
+    allocations: CounterSpace,
+    elements: CounterSpace,
+    data: CounterSpace,
+    allocation_origin: AllocationOrigin,
+}
 /// Reuse one session across codec operations; failures never refund accounting.
 pub struct Session {
     limits: Limits,
     budget: m::Budget,
+    reporting: BudgetReporting,
     elements: usize,
     serialized: usize,
     service_work: Option<crate::execution::ServiceWork>,
@@ -109,6 +143,7 @@ pub struct PreparationScope<'s> {
     local_budget: Option<m::Budget>,
     local_elements: usize,
     local_limits: Limits,
+    local_reporting: BudgetReporting,
 }
 impl std::ops::Deref for PreparationScope<'_> {
     type Target = Session;
@@ -168,6 +203,7 @@ impl Drop for PreparationScope<'_> {
         self.session.budget =
             m::Budget::with_usage(local.limits(), local_usage).expect("scope retains local limits");
         self.session.limits = self.local_limits;
+        self.session.reporting = self.local_reporting;
         self.original
             .advance_to(usage)
             .expect("scope retains original limits and ledger identity");
@@ -204,6 +240,7 @@ impl Session {
                 elements: usize::MAX,
                 ..Default::default()
             }),
+            reporting: BudgetReporting::default(),
             elements: 0,
             serialized: 0,
             service_work: None,
@@ -253,11 +290,61 @@ impl Session {
                 local_limits.elements,
                 local_elements,
             ));
+        let local_reporting = self.reporting;
+        let work_ceiling = ceiling(initial.work, local.work, self.budget.work_used());
+        let allocation_ceiling = ceiling(
+            initial.allocation_bytes,
+            local.allocations,
+            self.budget.allocation_bytes(),
+        );
+        let element_ceiling = ceiling(
+            initial.elements,
+            local.elements,
+            self.budget.elements_used(),
+        );
+        let data_ceiling = ceiling(initial.elements, local_limits.elements, local_elements);
+        let elements = if original_limits.elements <= element_ceiling
+            && original_limits.elements <= data_ceiling
+        {
+            CounterSpace::default()
+        } else if element_ceiling <= data_ceiling {
+            local_reporting
+                .elements
+                .rebased(initial.elements, self.budget.elements_used())
+        } else {
+            local_reporting
+                .data
+                .rebased(initial.elements, local_elements)
+        };
+        let reporting = BudgetReporting {
+            work: if original_limits.work <= work_ceiling {
+                CounterSpace::default()
+            } else {
+                local_reporting
+                    .work
+                    .rebased(initial.work, self.budget.work_used())
+            },
+            allocations: if original_limits.allocations <= allocation_ceiling {
+                CounterSpace::default()
+            } else {
+                local_reporting
+                    .allocations
+                    .rebased(initial.allocation_bytes, self.budget.allocation_bytes())
+            },
+            allocation_origin: if original_limits.allocations <= allocation_ceiling {
+                AllocationOrigin::Metadata
+            } else {
+                local_reporting.allocation_origin
+            },
+            elements,
+            data: elements,
+        };
         let borrowed =
             m::Budget::with_usage(limits, initial).map_err(|error| Self::budget_error(0, error))?;
         let local_budget = std::mem::replace(&mut self.budget, borrowed);
         self.limits.elements = limits.elements;
         self.elements = initial.elements;
+        self.reporting = reporting;
         Ok(PreparationScope {
             session: self,
             original,
@@ -265,6 +352,7 @@ impl Session {
             local_budget: Some(local_budget),
             local_elements,
             local_limits,
+            local_reporting,
         })
     }
     pub(crate) fn scope_work<'s>(
@@ -298,10 +386,10 @@ impl Session {
         at: usize,
     ) -> Result<(), Error> {
         let mut budget = m::Budget::with_usage(self.budget.limits(), self.budget_usage())
-            .map_err(|e| Self::budget_error(at, e))?;
+            .map_err(|e| self.operation_error(at, e))?;
         budget
             .charge(preparation)
-            .map_err(|e| Self::budget_error(at, e))?;
+            .map_err(|e| self.operation_error(at, e))?;
         self.payload_work(service, at)?;
         self.budget = budget;
         Ok(())
@@ -331,7 +419,7 @@ impl Session {
             },
             usage,
         )
-        .map_err(|e| Self::budget_error(0, e))?;
+        .map_err(|e| value.operation_error(0, e))?;
         value.elements = usage.elements;
         Ok(value)
     }
@@ -350,7 +438,7 @@ impl Session {
             return Err(self.error(0, ErrorKind::InvalidSchema));
         }
         self.budget = m::Budget::with_usage(self.budget.limits(), usage)
-            .map_err(|e| Self::budget_error(0, e))?;
+            .map_err(|e| self.operation_error(0, e))?;
         self.elements = self.elements.max(usage.elements);
         Ok(())
     }
@@ -374,6 +462,7 @@ impl Session {
         f: impl FnOnce(&mut Self, super::idl::Limits) -> Result<T, Error>,
     ) -> Result<T, Error> {
         let saved = self.limits;
+        let saved_reporting = self.reporting;
         let limits = saved.metadata;
         let outer = self.budget.limits();
         let usage = self.budget_usage();
@@ -387,6 +476,19 @@ impl Session {
             ..outer
         };
         self.budget = m::Budget::with_usage(inner, usage).map_err(|e| Self::budget_error(0, e))?;
+        if inner.work < outer.work {
+            self.reporting.work = CounterSpace {
+                ledger_start: usage.work,
+                counter_start: 0,
+            };
+        }
+        if inner.allocations < outer.allocations {
+            self.reporting.allocations = CounterSpace {
+                ledger_start: usage.allocation_bytes,
+                counter_start: 0,
+            };
+            self.reporting.allocation_origin = AllocationOrigin::Metadata;
+        }
         self.limits.bytes = self.limits.bytes.min(limits.source_bytes);
         self.limits.string_bytes = self.limits.string_bytes.min(limits.string_bytes);
         self.limits.depth = self.limits.depth.min(limits.depth);
@@ -394,6 +496,7 @@ impl Session {
         self.budget = m::Budget::with_usage(outer, self.budget_usage())
             .expect("nested limits never exceed parent");
         self.limits = saved;
+        self.reporting = saved_reporting;
         result
     }
     fn error(&self, offset: usize, kind: ErrorKind) -> Error {
@@ -412,9 +515,48 @@ impl Session {
             kind: ErrorKind::Budget(error.kind),
         }
     }
+    fn operation_error(&self, offset: usize, error: m::Error) -> Error {
+        let m::ErrorKind::Limit {
+            kind,
+            limit,
+            requested,
+        } = error.kind
+        else {
+            return Self::budget_error(offset, error);
+        };
+        let space = match kind {
+            m::LimitKind::Work => self.reporting.work,
+            m::LimitKind::Allocations => self.reporting.allocations,
+            m::LimitKind::Elements => self.reporting.elements,
+            _ => return Self::budget_error(offset, error),
+        };
+        let (Some(limit), Some(requested)) = (space.value(limit), space.value(requested)) else {
+            return self.error(offset, ErrorKind::Budget(m::ErrorKind::ArithmeticOverflow));
+        };
+        self.error(
+            offset,
+            if kind == m::LimitKind::Allocations
+                && matches!(self.reporting.allocation_origin, AllocationOrigin::Decoder)
+            {
+                ErrorKind::Limit {
+                    kind: LimitKind::DecoderAllocationBytes,
+                    limit,
+                    requested,
+                }
+            } else {
+                ErrorKind::Budget(m::ErrorKind::Limit {
+                    kind,
+                    limit,
+                    requested,
+                })
+            },
+        )
+    }
     /// Charge cumulative preparation work; a refused operation does not refund it.
     pub fn charge(&mut self, n: usize, at: usize) -> Result<(), Error> {
-        self.budget.charge(n).map_err(|e| Self::budget_error(at, e))
+        self.budget
+            .charge(n)
+            .map_err(|e| self.operation_error(at, e))
     }
     fn cap(&self, n: usize, max: usize, kind: LimitKind, at: usize) -> Result<(), Error> {
         if n > max {
@@ -445,7 +587,22 @@ impl Session {
     /// Admit cumulative canonical elements before traversing a native array.
     pub fn count(&mut self, n: usize, at: usize) -> Result<(), Error> {
         let total = Self::add(self.elements, n, at)?;
-        self.cap(total, self.limits.elements, LimitKind::Elements, at)?;
+        if total > self.limits.elements {
+            let (Some(limit), Some(requested)) = (
+                self.reporting.data.value(self.limits.elements),
+                self.reporting.data.value(total),
+            ) else {
+                return Err(self.error(at, ErrorKind::Budget(m::ErrorKind::ArithmeticOverflow)));
+            };
+            return Err(self.error(
+                at,
+                ErrorKind::Limit {
+                    kind: LimitKind::Elements,
+                    limit,
+                    requested,
+                },
+            ));
+        }
         self.charge(n, at)?;
         self.elements = total;
         Ok(())
@@ -465,7 +622,7 @@ impl Session {
     pub fn retained<T>(&mut self, n: usize, at: usize) -> Result<(), Error> {
         self.budget
             .allocate::<T>(n)
-            .map_err(|e| Self::budget_error(at, e))
+            .map_err(|e| self.operation_error(at, e))
     }
     /// Admit payload/reference-count storage before invoking the owner factory.
     pub fn shared<T>(
@@ -481,14 +638,16 @@ impl Session {
     }
     /// Admit and reserve a bounded metadata vector before populating it.
     pub fn vector<T>(&mut self, n: usize, at: usize) -> Result<Vec<T>, Error> {
-        self.budget.vector(n).map_err(|e| Self::budget_error(at, e))
+        self.budget
+            .vector(n)
+            .map_err(|e| self.operation_error(at, e))
     }
     pub(super) fn push<T>(&mut self, v: &mut Vec<T>, value: T, at: usize) -> Result<(), Error> {
         if v.len() == v.capacity() {
             let capacity = v.capacity().saturating_mul(2).max(4);
             self.budget
                 .allocate::<T>(capacity)
-                .map_err(|e| Self::budget_error(at, e))?;
+                .map_err(|e| self.operation_error(at, e))?;
             v.try_reserve_exact(capacity - v.len())
                 .map_err(|_| self.error(at, ErrorKind::Budget(m::ErrorKind::AllocationFailed)))?;
         }

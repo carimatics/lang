@@ -1342,19 +1342,25 @@ fn admit(
         .frames
         .checked_add(1)
         .ok_or(e::Failure::CounterOverflow)?;
-    if control.limits().frames.is_some_and(|limit| frames > limit) {
-        return Err(Reason::Execution(f::ExecutionFailure::FrameLimit));
+    if let Some(limit) = control.limits().frames
+        && frames > limit
+    {
+        return Err(Reason::FrameLimit {
+            limit,
+            attempted: frames,
+        });
     }
     let cells = live
         .cells
         .checked_add(add)
         .ok_or(e::Failure::CounterOverflow)?;
-    if control
-        .limits()
-        .live_cells
-        .is_some_and(|limit| cells > limit)
+    if let Some(limit) = control.limits().live_cells
+        && cells > limit
     {
-        return Err(Reason::Execution(f::ExecutionFailure::CellLimit));
+        return Err(Reason::CellLimit {
+            limit,
+            attempted: cells,
+        });
     }
     Ok(())
 }
@@ -1384,11 +1390,17 @@ mod live_admission_tests {
                         assert!(admit(control, Some(&accounting), 1, 4, 3).is_ok());
                         assert!(matches!(
                             admit(control, Some(&accounting), 1, 4, 4),
-                            Err(Reason::Execution(f::ExecutionFailure::CellLimit))
+                            Err(Reason::CellLimit {
+                                limit: 10,
+                                attempted: 11
+                            })
                         ));
                         assert!(matches!(
                             admit(control, Some(&accounting), 2, 4, 0),
-                            Err(Reason::Execution(f::ExecutionFailure::FrameLimit))
+                            Err(Reason::FrameLimit {
+                                limit: 3,
+                                attempted: 4
+                            })
                         ));
                         accounting
                             .with_parent(
@@ -1400,7 +1412,10 @@ mod live_admission_tests {
                                     assert!(admit(control, Some(&accounting), 0, 0, 5).is_ok());
                                     assert!(matches!(
                                         admit(control, Some(&accounting), 0, 1, 5),
-                                        Err(Reason::Execution(f::ExecutionFailure::CellLimit))
+                                        Err(Reason::CellLimit {
+                                            limit: 10,
+                                            attempted: 11
+                                        })
                                     ));
                                 },
                             )

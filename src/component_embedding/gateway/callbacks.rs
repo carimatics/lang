@@ -128,9 +128,12 @@ impl execution::CallbackOperation for Call<'_, '_> {
             let report = project_failure(
                 &failure,
                 self.current.ceiling,
-                target.digest,
-                self.current.mode,
-                self.entry,
+                FailureCode {
+                    digest: target.digest,
+                    mode: self.current.mode,
+                    entry: self.entry,
+                    functions: target.module.unit().code().declarations().functions(),
+                },
                 allocations,
                 canonical_indices,
             );
@@ -295,9 +298,12 @@ impl Call<'_, '_> {
                 let report = project_failure(
                     &failure,
                     self.current.ceiling,
-                    self.target.digest,
-                    self.current.mode,
-                    self.entry,
+                    FailureCode {
+                        digest: self.target.digest,
+                        mode: self.current.mode,
+                        entry: self.entry,
+                        functions: self.target.module.unit().code().declarations().functions(),
+                    },
                     allocations,
                     canonical_indices,
                 );

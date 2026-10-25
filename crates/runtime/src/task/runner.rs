@@ -57,6 +57,8 @@ pub enum Reason {
     Native(crate::component::execution::NativeFailure),
     ComponentFrame(crate::component::wire::Error),
     ComponentIndices { limit: u64, attempted: u64 },
+    FrameLimit { limit: usize, attempted: usize },
+    CellLimit { limit: usize, attempted: usize },
     Component(crate::component::storage::Error),
     ChannelDeadlock(crate::channel::Deadlock),
     Channel(crate::channel::managed::Error),

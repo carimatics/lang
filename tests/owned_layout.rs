@@ -297,7 +297,9 @@ fn payload_and_retirement_metadata_are_preflighted_together_and_oom_rolls_back()
     .unwrap();
     assert!(matches!(
         l::Reservation::allocate(&layouts, ty, &mut allocator),
-        Err(l::Error::Allocation(a::Error::Limit(a::Limit::LiveBytes)))
+        Err(l::Error::Allocation(a::Error::Limit(a::LimitViolation {
+            kind: a::Limit::LiveBytes, limit, attempted,
+        }))) if limit == total - 1 && attempted == total
     ));
     assert_eq!(trace.borrow().calls, 0);
     assert_eq!(allocator.stats(), a::Stats::default());

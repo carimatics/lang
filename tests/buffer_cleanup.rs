@@ -312,9 +312,10 @@ fn failed_record_storage_preflight_keeps_buffer_temporaries_available_for_failur
             o::Type::Nominal(m::DefinitionId(0)),
             &mut allocator
         ),
-        Err(l::Error::Allocation(a::Error::Limit(
-            a::Limit::RequestBytes
-        )))
+        Err(l::Error::Allocation(a::Error::Limit(a::LimitViolation {
+            kind: a::Limit::RequestBytes,
+            ..
+        })))
     ));
     assert_eq!(allocator.stats(), before);
     assert_eq!(trace.borrow().allocations, 2);

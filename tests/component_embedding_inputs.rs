@@ -564,6 +564,12 @@ fn native_c_host_loads_snapshots_and_repeats_generated_typed_calls_on_vm_and_jit
         "name":"relay","effect":"sync","params":[{"name":"item","type":{"own":"demo:res/api.item"}}],
         "result":{"own":"demo:res/api.item"},"capability":"res.relay"
     }));
+    for member in ["explode", "retire"] {
+        resource_caller["interfaces"][1]["functions"].as_array_mut().unwrap().push(serde_json::json!({
+            "name":member,"effect":"sync","params":[{"name":"item","type":{"own":"demo:res/api.item"}}],
+            "result":"i64","capability":format!("res.{member}")
+        }));
+    }
     let resource_idl = serde_json::to_vec(&resource_caller).unwrap();
     let document = idl::check(m::SourceId(1), &resource_idl, Default::default()).unwrap();
     let guest = g::guest(&document, Default::default()).unwrap();
@@ -571,12 +577,31 @@ fn native_c_host_loads_snapshots_and_repeats_generated_typed_calls_on_vm_and_jit
         .exports
         .iter()
         .map(|export| {
-            let value = if export.member.member == "relay" {
-                "p0".to_owned()
-            } else {
-                format!("{}(p0)", guest.bindings.imports[0].source)
+            let body = match export.member.member.as_str() {
+                "relay" => "return p0;".to_owned(),
+                "explode" | "retire" => {
+                    let parameters = export
+                        .declaration
+                        .split_once('(')
+                        .unwrap()
+                        .1
+                        .split_once(')')
+                        .unwrap()
+                        .0;
+                    let item_type = parameters.split_once(':').unwrap().1.trim();
+                    format!(
+                        "let mut item: {item_type} = p0; let mut value: i64 = {}(item); {}",
+                        guest.bindings.imports[0].source,
+                        if export.member.member == "explode" {
+                            "return core::panic::<i64>(value);"
+                        } else {
+                            "return value;"
+                        }
+                    )
+                }
+                _ => format!("return {}(p0);", guest.bindings.imports[0].source),
             };
-            format!("{} {{return {value};}}", export.declaration)
+            format!("{} {{{body}}}", export.declaration)
         })
         .collect::<Vec<_>>()
         .join("\n");
@@ -666,6 +691,26 @@ fn native_c_host_loads_snapshots_and_repeats_generated_typed_calls_on_vm_and_jit
         &mut resource_session,
     )
     .unwrap();
+    let mut failure_projection = |member: &str| {
+        resource_request_json["imports"][0]["members"] = serde_json::json!([member]);
+        wire::encode_contract(
+            &wire::Contract::new(
+                idl::check(
+                    m::SourceId(3),
+                    &serde_json::to_vec(&resource_request_json).unwrap(),
+                    Default::default(),
+                )
+                .unwrap(),
+                vec![],
+                &mut resource_session,
+            )
+            .unwrap(),
+            &mut resource_session,
+        )
+        .unwrap()
+    };
+    let resource_explode_projection = failure_projection("explode");
+    let resource_retire_projection = failure_projection("retire");
     let resource_header = g::c::generate(&resource_codecs, target, Default::default()).unwrap();
     let resource_host_header = g::c::generate(&resource_host, target, Default::default()).unwrap();
     let resource_touch = resource_host_header
@@ -683,6 +728,16 @@ fn native_c_host_loads_snapshots_and_repeats_generated_typed_calls_on_vm_and_jit
         .iter()
         .find(|f| f.member.member == "relay")
         .unwrap();
+    let resource_explode = resource_header
+        .functions
+        .iter()
+        .find(|f| f.member.member == "explode")
+        .unwrap();
+    let resource_retire = resource_header
+        .functions
+        .iter()
+        .find(|f| f.member.member == "retire")
+        .unwrap();
     let resources_host = include_str!("support/component_resources_host.c")
         .replace("@RESOURCE_HOST_ARGS@", &resource_touch.arguments)
         .replace("@RESOURCE_HOST_RESULT@", &resource_touch.result)
@@ -692,7 +747,11 @@ fn native_c_host_loads_snapshots_and_repeats_generated_typed_calls_on_vm_and_jit
         .replace("@RESOURCE_ROOT_NAME@", &resource_run.name)
         .replace("@RESOURCE_RELAY_ARGS@", &resource_relay.arguments)
         .replace("@RESOURCE_RELAY_RESULT@", &resource_relay.result)
-        .replace("@RESOURCE_RELAY_NAME@", &resource_relay.name);
+        .replace("@RESOURCE_RELAY_NAME@", &resource_relay.name)
+        .replace("@RESOURCE_EXPLODE_ARGS@", &resource_explode.arguments)
+        .replace("@RESOURCE_EXPLODE_NAME@", &resource_explode.name)
+        .replace("@RESOURCE_RETIRE_ARGS@", &resource_retire.arguments)
+        .replace("@RESOURCE_RETIRE_NAME@", &resource_retire.name);
     let declarations = array("source", source.as_bytes())
         + &array("idl", IDL)
         + &array("artifact", &bytes)
@@ -717,6 +776,8 @@ fn native_c_host_loads_snapshots_and_repeats_generated_typed_calls_on_vm_and_jit
         + &array("resource_grant", &resource_grant)
         + &array("resource_projection", &resource_projection)
         + &array("resource_relay_projection", &resource_relay_projection)
+        + &array("resource_explode_projection", &resource_explode_projection)
+        + &array("resource_retire_projection", &resource_retire_projection)
         + &array("resource_program", resource_program.as_bytes())
         + &array("resource_idl", &resource_idl)
         + &array("resource_artifact", &resource_artifact);
@@ -770,7 +831,7 @@ extern uint32_t probe_context_resource_read(const lang_component_v1_context *,ui
 extern uint32_t probe_context_resource_publish(const lang_component_v1_context *,lang_component_v1_bytes,lang_component_v1_buffer *,uint32_t *,lang_component_v1_error *);
 {registry_host}
 {resources_host}
-static void bound_case(const lang_component_v1_api *api,const lang_component_v1_config *config,uint32_t format,lang_component_v1_bytes program,lang_component_v1_bytes contract) {{
+static void bound_case(const lang_component_v1_api *api,const lang_component_v1_config *config,uint32_t format,lang_component_v1_bytes program,lang_component_v1_bytes contract,uint32_t limited) {{
     lang_component_v1_engine *engine=NULL;lang_component_v1_module *module=NULL;
     lang_component_v1_instance *instance=NULL;lang_component_v1_binding *binding=NULL;
     lang_component_v1_error error={{0}};lang_component_v1_instance_config options={{0}};
@@ -863,7 +924,21 @@ static void bound_case(const lang_component_v1_api *api,const lang_component_v1_
         usage.header.size=sizeof(usage);usage.header.version=1;
         assert(api->control_create(engine,&config->ceiling,&control,&error)==0);
         args.p0=41;w.data=scratch;w.capacity=sizeof(scratch);w.left.work=1000000;w.left.elements=1000;w.left.depth=128;
+        if(limited){{memset(&error,0xa5,sizeof(error));error.header.size=sizeof(error);error.header.version=1;}}
         out={name}_call(api,control,binding,&args,&w,&error);
+        if(limited){{
+            assert(out.commit==0&&!out.poisoned);
+            if(out.result){{
+                assert(out.status==1&&api->result_bytes(out.result,&bytes,&error)==0);
+                assert(probe_report(bytes,config->mode,13)==0);
+                assert(api->result_drop(out.result,&error)==0);
+            }}else{{
+                assert(out.status==2&&error.diagnostic==12&&error.limit_kind==10);
+                assert(error.limit==1048576&&error.attempted>error.limit);
+                assert(error.flags==0&&error.detail_code==0&&error.reserved0==0);
+            }}
+            assert(api->control_drop(control,&error)==0);continue;
+        }}
         assert(out.status==0&&out.commit==1&&out.poisoned==0&&out.result);
         assert(api->result_bytes(out.result,&bytes,&error)==0);
         r.data=bytes.data;r.length=bytes.length;r.left.work=1000000;r.left.elements=1000;r.left.depth=128;r.contextual=1;
@@ -873,6 +948,7 @@ static void bound_case(const lang_component_v1_api *api,const lang_component_v1_
         assert(api->result_drop(out.result,&error)==0);
         assert(api->control_drop(control,&error)==0);
     }}
+    if(limited)goto bound_cleanup;
     for(repeat=0;repeat<4;++repeat){{
         lang_component_v1_control *control=NULL;lang_component_v1_limits limits=config->ceiling;
         lang_component_v1_bytes bytes;lang_component_v1_result_info info={{0}};
@@ -904,8 +980,25 @@ static void bound_case(const lang_component_v1_api *api,const lang_component_v1_
         assert({name}_decode_result(&r,&result)&&result==42);
         assert(api->result_drop(out.result,&error)==0);assert(api->control_drop(control,&error)==0);
     }}
+bound_cleanup:
     {{lang_component_v1_result *closed=(lang_component_v1_result *)(uintptr_t)42;assert(api->instance_close(instance,&closed,&error)==0&&closed==NULL);}}
     assert(api->binding_drop(binding,&error)==0);
+    assert(api->engine_destroy(engine,&error)==0);
+}}
+static void decoder_refusal_case(const lang_component_v1_api *api,const lang_component_v1_config *original,uint32_t format,lang_component_v1_bytes program,lang_component_v1_bytes metadata) {{
+    lang_component_v1_config config=*original;lang_component_v1_engine *engine=NULL;
+    lang_component_v1_error error={{0}};uint32_t repeat;
+    config.ceiling.decoder_allocation_bytes=1;
+    error.header.size=sizeof(error);error.header.version=1;
+    assert(api->engine_create(&config,&engine,&error)==0);
+    for(repeat=0;repeat<2;++repeat){{
+        lang_component_v1_module *untouched=(lang_component_v1_module *)(uintptr_t)42;
+        memset(&error,0xa5,sizeof(error));error.header.size=sizeof(error);error.header.version=1;
+        assert(api->module_load(engine,format,program,metadata,&untouched,&error)==2);
+        assert(untouched==(lang_component_v1_module *)(uintptr_t)42);
+        assert(error.diagnostic==12&&error.limit_kind==14&&error.limit==1&&error.attempted>1);
+        assert(error.reserved0==0&&error.reserved[0]==0&&error.reserved[1]==0);
+    }}
     assert(api->engine_destroy(engine,&error)==0);
 }}
 typedef struct request {{void *data;uint64_t size,alignment;uint32_t live;}} request;
@@ -970,7 +1063,7 @@ uint32_t fixture(void) {{
             config.ceiling.fuel=1000000;config.ceiling.service_work=1000000;config.ceiling.host_calls=1000;
             config.ceiling.heap_bytes=1048576;config.ceiling.live_allocations=128;config.ceiling.frames=64;
             config.ceiling.live_cells=10000;config.ceiling.live_tasks=64;config.ceiling.canonical_indices=4;
-            config.ceiling.preparation_work=1000000;config.ceiling.metadata_bytes=1048576;
+            config.ceiling.preparation_work=1000000;config.ceiling.metadata_bytes=16777216;
             config.ceiling.value_elements=65536;config.ceiling.serialization_bytes=1048576;
             config.ceiling.depth=128;config.ceiling.decoder_allocation_bytes=16777216;
             config.ceiling.suppressed_records=64;config.ceiling.trace_frames=64;
@@ -989,7 +1082,14 @@ uint32_t fixture(void) {{
                 api.control_create=probe_control_create;api.control_drop=probe_control_drop;api.interrupt=probe_interrupt;
                 api.call=probe_api_call;api.context_call=probe_context_call;api.result_info=probe_result_info;api.result_usage=probe_result_usage;
                 api.result_bytes=probe_result_bytes;api.result_drop=probe_result_drop;
-                for(mode=0;mode<2;++mode){{config.mode=mode;bound_case(&api,&config,format,program,metadata);registry_case(&api,&config,format);resource_case(&api,&config,format,0);resource_case(&api,&config,format,1);}}
+                for(mode=0;mode<2;++mode){{
+                    lang_component_v1_config reduced=config;config.mode=mode;reduced.mode=mode;
+                    reduced.ceiling.metadata_bytes=1048576;
+                    bound_case(&api,&reduced,format,program,metadata,1);
+                    bound_case(&api,&config,format,program,metadata,0);
+                    decoder_refusal_case(&api,&config,format,program,metadata);
+                    registry_case(&api,&config,format);resource_case(&api,&config,format,0);resource_case(&api,&config,format,1);
+                }}
             }}
         }}
         module=probe_load(format,code,code_length,contract,idl_length,allocator);assert(module);

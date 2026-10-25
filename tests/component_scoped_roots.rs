@@ -192,12 +192,8 @@ enum ChildControlFailure {
 }
 fn control_failure(reason: &r::Reason) -> Option<ChildControlFailure> {
     match reason {
-        r::Reason::Execution(m::ownership::failure::ExecutionFailure::FrameLimit) => {
-            Some(ChildControlFailure::Frames)
-        }
-        r::Reason::Execution(m::ownership::failure::ExecutionFailure::CellLimit) => {
-            Some(ChildControlFailure::Cells)
-        }
+        r::Reason::FrameLimit { .. } => Some(ChildControlFailure::Frames),
+        r::Reason::CellLimit { .. } => Some(ChildControlFailure::Cells),
         r::Reason::Control(failure) => Some(ChildControlFailure::Control(*failure)),
         _ => None,
     }

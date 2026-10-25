@@ -140,6 +140,18 @@ schema 3 report kind `1` は policy u8（redacted 0、sanitized 1）、primary R
 
 limit-kind 0–16は順に fuel・service-work・host-calls・heap-bytes・live-allocations・frames・live-cells・live-tasks・canonical-indices・preparation-work・metadata-bytes・value-elements・serialization-bytes・depth・decoder-allocation-bytes・suppressed-records・trace-frames です。optional suppressed/trace capacity は omitted 数で証拠を打ち切り、必須 cleanup を停止しません。C error の numeric field は component.limit 以外では0です。
 
+失敗数値のprovenance決定（2026-10-25 JST、RFC 0001の実験期委任でaccepted）: provider副作用やcounter変更の前、拒否時点で元quota種別・適用上限・完全な試行値を不変runtime errorへ保持します。cleanup後のpeak・counter・caller上限から数値を再構築しません。不安定なRust `allocation::Error::Limit`のpayloadを、単独の`Limit`から`LimitViolation { kind, limit, attempted }`へ拡張し、payloadをmatchするRust callerは`violation.kind`へ移行します。既存check・順序・quota・authorityとVM/native失敗経路を維持します。C profileのper-request/live byte checkはheap上限を使うため実際の拒否値をheap-bytesへ、live allocation数をlive-allocationsへ投影します。内部cumulative/alignment guardは元Rust種別を保持し、公開live byte/count quotaへ再分類しません。従来errorの維持では必須数値を失い、可変last-error side channelはcleanupで上書きされ得ます。不変payloadはより単純で、失敗側のstorage確保も不要です。C layout・status ID・LCMP tagは不変です。直接/batch/scoped拒否・counter/provider保持・cleanup後の数値report・mode一致を検証し、合算controlと両host conformanceは各deliveryまで未検証とします。
+
+frame/live-cell admissionも、実際の適用上限とparent + local + requestedの合計をrunnerの`FrameLimit`/`CellLimit` reasonへ保持します。Rust callerは対応する単独の`Reason::Execution` patternから移行し、cleanup execution tagとVM/native status識別は維持します。
+
+canonical準備loanは、制限する各quotaの数値座標とoriginを保持します。共有MIR ledgerへ換算した局所decoder上限は元のdecoder上限/試行値を報告し、より厳しいcompiler ledgerはそのledger上のmetadata上限を報告します。全scope終了で数値座標を復元し、受理済みcounter・check優先順・残余枠は変えません。decoder allocation失敗は内部wire errorの専用limit種別を使い、既存LCMPの`decoder-allocation-bytes`へ投影します。保存tagは追加しません。従来の汎用budget allocation errorを調べるRust callerは、原因がdecoder上限の場合に専用limit種別へ移行します。
+
+C engineのcompiler metadata ledgerは`metadata_bytes`、codecの要求buffer枠は`decoder_allocation_bytes`を使います。大きいdecoder枠でcompiler metadata容量を暗黙に増やしません。従来の混同を直すことで、compiler metadataが設定済みmetadata上限を超えるprofileを拒否する場合があり、必要なcallerはmetadata上限を明示設定します。counterと上限を別々の有限値に維持し、C layoutやwireを改訂しません。
+
+cleanup originは保持済み検証moduleの関数spanから解決します。包含する関数が一意ならmember IDと実cleanup spanを付与し、別source・曖昧・未検査metadataは未解決に保ちます。optional originの関数span比較はreport全体で最大4,096回とし、guest実行への課金や再開は行いません。既知のprimary/callsite originには探索が不要です。optional originを解決できなくてもcleanup記録と既存の省略数を維持し、複数moduleのlogical stackはE04で扱います。
+
+module admissionは、既存の合算preparation上限をどのallocation制約が選択したかを保持します。そのloader段階のbudget errorは選択したmetadata/decoder種別を使い、後続module handle公開では元のcompiler metadata種別を維持します。この注記は既存の最小値・check順序・counter・段階上限を保持します。
+
 ### Typed value frame v1
 
 frame header は `LCVL`、u32 version `1`、kind byte（parameter tuple `0`、result `1`）、32-byte signature digest、u32 body length です。直後に body を置き、padding/trailing data はありません。digest は function projection、すなわち完全 function key・effect・capability・順序付き parameter Type・result Type・到達 named 定義/resource を canonical key 順に SHA-256 化します。parameter の綴りと無関係な宣言を除き、参照は完全 key で符号化します。加算的 provider 互換を保ち、body 解釈前に選択した signature を要求します。

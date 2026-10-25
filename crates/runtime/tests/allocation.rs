@@ -1,5 +1,6 @@
 use lang_runtime::allocation::{
-    Allocator, Error, Handle, Limit, Limits, Provider, Region, Request, Stats, Storage, System,
+    Allocator, Error, Handle, Limit, LimitViolation, Limits, Provider, Region, Request, Stats,
+    Storage, System,
 };
 use std::cell::RefCell;
 use std::collections::BTreeMap;
@@ -247,7 +248,9 @@ fn every_quota_is_checked_without_calling_the_provider_or_charging_attempts() {
     ];
     for (limits, request, limit) in cases {
         let (mut allocator, trace) = tracked(limits);
-        assert_eq!(allocator.allocate(request), Err(Error::Limit(limit)));
+        assert!(
+            matches!(allocator.allocate(request), Err(Error::Limit(v)) if v.kind == limit && v.attempted > v.limit)
+        );
         assert_eq!(allocator.stats(), Stats::default());
         assert!(trace.borrow().events.is_empty());
     }
@@ -261,14 +264,22 @@ fn every_quota_is_checked_without_calling_the_provider_or_charging_attempts() {
     let first = allocator.allocate(request_for(8, 1)).unwrap();
     assert_eq!(
         allocator.allocate(request_for(0, 1)),
-        Err(Error::Limit(Limit::LiveAllocations))
+        Err(Error::Limit(LimitViolation {
+            kind: Limit::LiveAllocations,
+            limit: 1,
+            attempted: 2
+        }))
     );
     allocator.release(first).unwrap();
     let second = allocator.allocate(request_for(8, 1)).unwrap();
     allocator.release(second).unwrap();
     assert_eq!(
         allocator.allocate(request_for(1, 1)),
-        Err(Error::Limit(Limit::CumulativeBytes))
+        Err(Error::Limit(LimitViolation {
+            kind: Limit::CumulativeBytes,
+            limit: 16,
+            attempted: 17
+        }))
     );
     assert_eq!(trace.borrow().calls, 2);
     assert_eq!(allocator.stats().cumulative_bytes, 16);
@@ -312,7 +323,11 @@ fn oom_refunds_only_live_storage_and_counts_without_reusing_cumulative_budget() 
     );
     assert_eq!(
         allocator.allocate(request_for(1, 1)),
-        Err(Error::Limit(Limit::CumulativeBytes))
+        Err(Error::Limit(LimitViolation {
+            kind: Limit::CumulativeBytes,
+            limit: 16,
+            attempted: 17
+        }))
     );
     assert_eq!(
         trace.borrow().events,
@@ -421,7 +436,14 @@ fn combined_data_and_metadata_are_preflighted_and_failed_plans_can_be_retired() 
         live_bytes: 23,
         ..limits()
     });
-    assert_eq!(allocator.check(&plan), Err(Error::Limit(Limit::LiveBytes)));
+    assert_eq!(
+        allocator.check(&plan),
+        Err(Error::Limit(LimitViolation {
+            kind: Limit::LiveBytes,
+            limit: 23,
+            attempted: 24
+        }))
+    );
     assert_eq!(allocator.stats(), Stats::default());
     assert!(trace.borrow().events.is_empty());
     let (mut allocator, trace) = tracked(limits());
@@ -518,7 +540,19 @@ fn resize_requires_budget_for_old_and_prepared_storage_before_callbacks() {
         let before = allocator.stats();
         assert_eq!(
             allocator.resize(&mut handle, 8),
-            Err(Error::Limit(expected))
+            Err(Error::Limit(match expected {
+                Limit::LiveBytes => LimitViolation {
+                    kind: expected,
+                    limit: 11,
+                    attempted: 12
+                },
+                Limit::LiveAllocations => LimitViolation {
+                    kind: expected,
+                    limit: 1,
+                    attempted: 2
+                },
+                _ => unreachable!(),
+            }))
         );
         assert_eq!(handle, old);
         assert_eq!(allocator.stats(), before);
@@ -630,7 +664,20 @@ fn generated_allocate_release_sequences_match_an_independent_ledger() {
                 trace.borrow_mut().fail_on = fail.then_some(call);
                 let result = allocator.allocate(request_for(bytes, 8));
                 if let Some(limit) = denied {
-                    assert_eq!(result, Err(Error::Limit(limit)));
+                    let (maximum, attempted) = match limit {
+                        Limit::LiveAllocations => (8, owners.len() as u64 + 1),
+                        Limit::LiveBytes => (64, expected.live_bytes + bytes),
+                        Limit::CumulativeBytes => (256, expected.cumulative_bytes + bytes),
+                        _ => unreachable!(),
+                    };
+                    assert_eq!(
+                        result,
+                        Err(Error::Limit(LimitViolation {
+                            kind: limit,
+                            limit: maximum,
+                            attempted
+                        }))
+                    );
                 } else {
                     expected.requests += 1;
                     expected.cumulative_bytes += bytes;

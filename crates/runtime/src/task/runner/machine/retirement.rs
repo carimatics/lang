@@ -11,6 +11,8 @@ impl<'p, 'l, 'ty, 'host, 'ctrl, P: a::Provider> Machine<'p, 'l, 'ty, 'host, 'ctr
             Reason::Cleanup => return Ok(()),
             Reason::Panic(_) => c::ExecutionFailure::Panic,
             Reason::Execution(failure) => *failure,
+            Reason::FrameLimit { .. } => c::ExecutionFailure::FrameLimit,
+            Reason::CellLimit { .. } => c::ExecutionFailure::CellLimit,
             Reason::Control(failure) | Reason::Layout(l::Error::ServiceWork(failure)) => {
                 match failure {
                     e::Failure::Interrupted => c::ExecutionFailure::Interrupted,

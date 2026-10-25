@@ -301,12 +301,7 @@ fn retained_child_result_stays_in_the_cell_limit_until_it_is_retired() {
             } else {
                 let failure = result.err().unwrap();
                 assert!(
-                    matches!(
-                        failure.reason,
-                        r::Reason::Execution(
-                            lang_mir::unit::ownership::failure::ExecutionFailure::CellLimit
-                        )
-                    ),
+                    matches!(failure.reason, r::Reason::CellLimit { .. }),
                     "{failure:?}"
                 );
                 assert_eq!(failure.tasks.admitted, 2);

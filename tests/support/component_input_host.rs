@@ -281,7 +281,23 @@ unsafe extern "C" fn probe_report(bytes: ffi::Bytes, mode: u32, case: u32) -> u3
     let report = wire::decode_report(bytes, &mut wire::Session::new(Default::default())).unwrap();
     assert_eq!(report.policy, wire::MessagePolicy::Redacted);
     assert!(report.primary.message.is_none());
-    assert_eq!(report.poisoned, matches!(case, 4 | 5 | 7 | 8 | 9));
+    if matches!(case, 14 | 15) {
+        assert!(report.poisoned);
+        assert_eq!(report.primary.category, wire::Category::Destructor);
+        assert_eq!(report.primary.phase, wire::Phase::Cleanup);
+        assert_eq!(report.primary.diagnostic, wire::Diagnostic::Destructor);
+        assert!(report.primary.origin.is_none() && report.primary.limit.is_none());
+        assert_eq!(report.suppressed.len(), usize::from(case == 15));
+        for record in &report.suppressed {
+            assert_eq!(record.category, wire::Category::Destructor);
+            assert_eq!(record.phase, wire::Phase::Cleanup);
+            assert!(record.origin.is_none() && record.message.is_none() && record.limit.is_none());
+        }
+        assert!(report.frames.is_empty());
+        assert_eq!(report.omitted, 0);
+        return 0;
+    }
+    assert_eq!(report.poisoned, matches!(case, 4 | 5 | 7 | 8 | 9 | 17 | 21));
     let origin = report.primary.origin.as_ref().unwrap();
     assert_eq!(
         origin.mode,
@@ -296,7 +312,7 @@ unsafe extern "C" fn probe_report(bytes: ffi::Bytes, mode: u32, case: u32) -> u3
         }
     );
     assert_ne!(origin.digest, [0; 32]);
-    assert!(origin.span.is_some());
+    assert!(origin.span.is_some(), "{report:?}");
     match case {
         0 => {
             assert_eq!(report.primary.diagnostic, wire::Diagnostic::Panic);
@@ -393,6 +409,91 @@ unsafe extern "C" fn probe_report(bytes: ffi::Bytes, mode: u32, case: u32) -> u3
             assert_eq!(report.omitted, 0);
             assert_eq!(report.frames.len(), 1);
             assert_eq!(report.usage.host_calls, 1);
+        }
+        11 | 12 => {
+            assert_eq!(report.primary.category, wire::Category::Limit);
+            assert_eq!(report.primary.phase, wire::Phase::Call);
+            assert_eq!(report.primary.diagnostic, wire::Diagnostic::Limit);
+            let limit = report.primary.limit.unwrap();
+            assert_eq!(
+                limit.kind,
+                if case == 11 {
+                    wire::ReportLimitKind::Frames
+                } else {
+                    wire::ReportLimitKind::LiveCells
+                }
+            );
+            assert_eq!(
+                (limit.limit, limit.attempted),
+                if case == 11 { (1, 2) } else { (5, 8) },
+                "{report:?}"
+            );
+            assert!(report.suppressed.is_empty());
+            assert_eq!(report.omitted, 0);
+            assert_eq!(report.frames.len(), 1);
+            assert_eq!(report.usage.host_calls, 1);
+            assert_eq!(report.usage.canonical_indices, 0);
+        }
+        13 => {
+            assert_eq!(report.primary.category, wire::Category::Limit);
+            assert_eq!(report.primary.diagnostic, wire::Diagnostic::Limit);
+            let limit = report.primary.limit.unwrap();
+            assert_eq!(limit.kind, wire::ReportLimitKind::MetadataBytes);
+            assert_eq!(limit.limit, 1048576);
+            assert!(limit.attempted > limit.limit);
+            assert_eq!(report.usage.host_calls, 0);
+            assert!(report.suppressed.is_empty());
+        }
+        16 | 17 => {
+            assert_eq!(report.primary.category, wire::Category::Panic);
+            assert_eq!(report.primary.phase, wire::Phase::Call);
+            assert_eq!(report.primary.diagnostic, wire::Diagnostic::Panic);
+            assert!(report.primary.limit.is_none());
+            assert_eq!(report.suppressed.len(), (case & 1) as usize);
+            for record in &report.suppressed {
+                assert_eq!(record.category, wire::Category::Destructor);
+                assert_eq!(record.phase, wire::Phase::Cleanup);
+                let cleanup = record
+                    .origin
+                    .as_ref()
+                    .expect("resolved source cleanup origin");
+                assert_eq!(
+                    (cleanup.mode, cleanup.digest, cleanup.member),
+                    (origin.mode, origin.digest, origin.member)
+                );
+                assert!(
+                    cleanup.span.is_some() && cleanup.span != origin.span,
+                    "{report:?}"
+                );
+                assert!(record.message.is_none());
+            }
+            assert_eq!(report.omitted, 0);
+            assert_eq!(report.frames.len(), 1);
+            assert_eq!(report.usage.host_calls, 1);
+            assert_eq!(report.usage.canonical_indices, 1);
+        }
+        20 => {
+            assert_eq!(report.primary.category, wire::Category::Limit);
+            assert_eq!(report.primary.diagnostic, wire::Diagnostic::Limit);
+            assert_eq!(
+                report.primary.limit,
+                Some(wire::LimitDetail {
+                    kind: wire::ReportLimitKind::HostCalls,
+                    limit: 0,
+                    attempted: 1,
+                })
+            );
+            assert_eq!(report.usage.host_calls, 0);
+            assert!(report.suppressed.is_empty());
+        }
+        21 => {
+            assert_eq!(report.primary.category, wire::Category::Destructor);
+            assert_eq!(report.primary.diagnostic, wire::Diagnostic::Destructor);
+            assert_eq!(report.primary.phase, wire::Phase::Cleanup);
+            assert!(report.primary.limit.is_none() && report.suppressed.is_empty());
+            assert_eq!(report.omitted, 0);
+            assert_eq!(report.usage.host_calls, 1);
+            assert_eq!(report.usage.canonical_indices, 1);
         }
         _ => panic!("unknown report case"),
     }

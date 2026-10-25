@@ -25,9 +25,10 @@ fn constructor_admits_all_read_rows_under_exact_header_quotas_and_refuses_overfl
             if short {
                 assert!(matches!(
                     result,
-                    Err(map::Error::Allocation(a::Error::Limit(
-                        a::Limit::RequestBytes
-                    )))
+                    Err(map::Error::Allocation(a::Error::Limit(actual)))
+                        if actual.kind == a::Limit::RequestBytes
+                            && actual.limit == bytes - 1
+                            && actual.attempted == bytes
                 ));
                 assert!(t.borrow().requests.is_empty());
             } else {
@@ -336,7 +337,18 @@ fn budget(limits: a::Limits, count: i64, expected: Option<a::Limit>) -> (a::Stat
     let calls = t.borrow().requests.len();
     let outcome = map.publish_if_absent(&mut k, &mut v, Default::default(), &mut a);
     if let Some(limit) = expected {
-        assert_eq!(outcome, Err(map::Error::Allocation(a::Error::Limit(limit))));
+        assert!(
+            matches!(outcome, Err(map::Error::Allocation(a::Error::Limit(actual)))
+            if actual.kind == limit
+                && actual.limit == match limit {
+                    a::Limit::RequestBytes => limits.request_bytes,
+                    a::Limit::LiveBytes => limits.live_bytes,
+                    a::Limit::CumulativeBytes => limits.cumulative_bytes,
+                    a::Limit::LiveAllocations => limits.live_allocations as u64,
+                    a::Limit::Alignment => limits.alignment,
+                }
+                && actual.attempted > actual.limit)
+        );
         assert_eq!(a.stats(), before);
         assert_eq!(t.borrow().requests.len(), calls);
         assert_eq!(map.len(&a).unwrap(), count);

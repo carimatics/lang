@@ -2741,9 +2741,7 @@ fn run_source_namespace(
             if let Some(NativeCase::Cells(_)) = case.native() {
                 assert!(matches!(
                     failure.reason,
-                    lang_runtime::task::runner::Reason::Execution(
-                        lang_runtime::cleanup::ExecutionFailure::CellLimit
-                    )
+                    lang_runtime::task::runner::Reason::CellLimit { .. }
                 ));
             }
             if matches!(case.native(), Some(NativeCase::Interrupt)) {
@@ -2846,9 +2844,7 @@ fn run_source_namespace(
             if matches!(case, Case::LoanCells(_)) {
                 assert!(matches!(
                     failure.reason,
-                    lang_runtime::task::runner::Reason::Execution(
-                        lang_mir::unit::ownership::failure::ExecutionFailure::CellLimit
-                    )
+                    lang_runtime::task::runner::Reason::CellLimit { .. }
                 ));
             }
             if committed && case.loan().is_none() {

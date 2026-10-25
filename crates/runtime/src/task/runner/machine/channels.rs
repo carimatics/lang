@@ -86,13 +86,13 @@ impl<'p, 'l, 'ty, 'host, 'ctrl, P: a::Provider> Machine<'p, 'l, 'ty, 'host, 'ctr
             .as_ref()
             .map_or(Ok(local), |accounting| accounting.live_with_parent(local))?
             .cells;
-        if self
-            .control
-            .limits()
-            .live_cells
-            .is_some_and(|limit| cells > limit)
+        if let Some(limit) = self.control.limits().live_cells
+            && cells > limit
         {
-            return Err(Reason::Execution(f::ExecutionFailure::CellLimit));
+            return Err(Reason::CellLimit {
+                limit,
+                attempted: cells,
+            });
         }
         Ok(())
     }

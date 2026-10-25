@@ -119,6 +119,13 @@ pub enum Limit {
     LiveAllocations,
     Alignment,
 }
+/// The exact rejected check, retained before effects and mandatory cleanup.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct LimitViolation {
+    pub kind: Limit,
+    pub limit: u64,
+    pub attempted: u64,
+}
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Error {
     MissingAuthority,
@@ -129,7 +136,7 @@ pub enum Error {
     InvalidAlignment(u64),
     InvalidLimits,
     Overflow,
-    Limit(Limit),
+    Limit(LimitViolation),
     OutOfMemory,
     InvalidStorage,
 }
@@ -378,7 +385,11 @@ impl<P: Provider> Allocator<P> {
             .checked_add(requests.len())
             .ok_or(Error::Overflow)?;
         if count > self.limits.live_allocations {
-            return Err(Error::Limit(Limit::LiveAllocations));
+            return Err(Error::Limit(LimitViolation {
+                kind: Limit::LiveAllocations,
+                limit: self.limits.live_allocations as u64,
+                attempted: count as u64,
+            }));
         }
         if !requests.is_empty() {
             let available = self.next_generation.ok_or(Error::Overflow)?;
@@ -401,20 +412,36 @@ impl<P: Provider> Allocator<P> {
             .ok_or(Error::Overflow)?;
         for request in requests {
             if request.alignment > self.limits.alignment {
-                return Err(Error::Limit(Limit::Alignment));
+                return Err(Error::Limit(LimitViolation {
+                    kind: Limit::Alignment,
+                    limit: self.limits.alignment,
+                    attempted: request.alignment,
+                }));
             }
             if request.bytes > self.limits.request_bytes {
-                return Err(Error::Limit(Limit::RequestBytes));
+                return Err(Error::Limit(LimitViolation {
+                    kind: Limit::RequestBytes,
+                    limit: self.limits.request_bytes,
+                    attempted: request.bytes,
+                }));
             }
             live = live.checked_add(request.bytes).ok_or(Error::Overflow)?;
             cumulative = cumulative
                 .checked_add(request.bytes)
                 .ok_or(Error::Overflow)?;
             if live > self.limits.live_bytes {
-                return Err(Error::Limit(Limit::LiveBytes));
+                return Err(Error::Limit(LimitViolation {
+                    kind: Limit::LiveBytes,
+                    limit: self.limits.live_bytes,
+                    attempted: live,
+                }));
             }
             if cumulative > self.limits.cumulative_bytes {
-                return Err(Error::Limit(Limit::CumulativeBytes));
+                return Err(Error::Limit(LimitViolation {
+                    kind: Limit::CumulativeBytes,
+                    limit: self.limits.cumulative_bytes,
+                    attempted: cumulative,
+                }));
             }
         }
         Ok((live, cumulative, count))
@@ -436,10 +463,11 @@ impl<P: Provider> Allocator<P> {
             return memory.allocate(request);
         }
         let (live, cumulative, count) = self.projected(&[request])?;
-        let slot = *self
-            .free
-            .last()
-            .ok_or(Error::Limit(Limit::LiveAllocations))? as usize;
+        let slot = *self.free.last().ok_or(Error::Limit(LimitViolation {
+            kind: Limit::LiveAllocations,
+            limit: self.limits.live_allocations as u64,
+            attempted: count as u64,
+        }))? as usize;
         let generation = self.next_generation.ok_or(Error::Overflow)?;
         self.stats.requests += 1;
         self.stats.cumulative_bytes = cumulative;
@@ -884,7 +912,11 @@ mod tests {
                 assert_eq!(nested.release(alien), Err(Error::ForeignAllocator));
                 assert_eq!(
                     nested.allocate(Request::new(33, 1).unwrap()),
-                    Err(Error::Limit(Limit::RequestBytes))
+                    Err(Error::Limit(LimitViolation {
+                        kind: Limit::RequestBytes,
+                        limit: 32,
+                        attempted: 33
+                    }))
                 );
                 assert_eq!(nested.stats(), before_refusal);
                 nested.copy_bytes(first, 0, second, 0, 8).unwrap();
@@ -1004,8 +1036,19 @@ mod tests {
             for _ in 0..2 {
                 let mut view = Allocator::borrow(&mut original).unwrap();
                 assert_eq!(view.limits(), limits);
-                assert_eq!(view.check(&[next]), Err(Error::Limit(kind)));
-                assert_eq!(view.allocate(next), Err(Error::Limit(kind)));
+                let (limit, attempted) = match kind {
+                    Limit::RequestBytes => (8, 9),
+                    Limit::Alignment => (8, 16),
+                    Limit::LiveAllocations => (1, 2),
+                    _ => (8, 9),
+                };
+                let expected = Error::Limit(LimitViolation {
+                    kind,
+                    limit,
+                    attempted,
+                });
+                assert_eq!(view.check(&[next]), Err(expected));
+                assert_eq!(view.allocate(next), Err(expected));
                 assert_eq!(view.stats(), before);
             }
             assert_eq!(original.stats(), before);

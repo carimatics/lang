@@ -142,8 +142,9 @@ fn restrict(mut limits: m::Limits, available: m::Limits) -> m::Limits {
     limits.elements = limits.elements.min(available.elements);
     limits
 }
-fn common(limits: Limits) -> m::Limits {
+fn common(limits: Limits) -> (m::Limits, wire::ReportLimitKind) {
     let mut budget = limits.preparation;
+    let mut allocation_kind = wire::ReportLimitKind::MetadataBytes;
     for other in [
         limits.generation.budget,
         limits.bindings.budget,
@@ -156,16 +157,27 @@ fn common(limits: Limits) -> m::Limits {
     }
     for other in [limits.metadata, limits.artifact.metadata] {
         budget.work = budget.work.min(other.work).min(other.metadata.work);
-        budget.allocations = budget
-            .allocations
-            .min(other.allocation_bytes)
-            .min(other.metadata.allocation_bytes);
+        for (maximum, kind) in [
+            (
+                other.allocation_bytes,
+                wire::ReportLimitKind::DecoderAllocationBytes,
+            ),
+            (
+                other.metadata.allocation_bytes,
+                wire::ReportLimitKind::MetadataBytes,
+            ),
+        ] {
+            if maximum < budget.allocations {
+                budget.allocations = maximum;
+                allocation_kind = kind;
+            }
+        }
         budget.elements = budget
             .elements
             .min(other.elements)
             .min(other.metadata.elements);
     }
-    budget
+    (budget, allocation_kind)
 }
 
 /// Format 0: one virtual source plus its original IDL JSON. Format 1: a complete
@@ -182,7 +194,7 @@ pub fn load(format: u32, program: &[u8], contract: &[u8], limits: Limits) -> Res
         });
     }
     // Inspect lengths and admit the scan before parsing format-dependent data.
-    let common = common(limits);
+    let (common, _) = common(limits);
     let mut preflight = m::Budget::new(common);
     preflight.charge(bytes)?;
     match format {

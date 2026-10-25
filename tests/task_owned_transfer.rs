@@ -586,12 +586,7 @@ fn retained_owned_result_keeps_its_cell_charge_during_later_frame_admission() {
             } else {
                 let failure = result.err().unwrap();
                 assert!(
-                    matches!(
-                        failure.reason,
-                        r::Reason::Execution(
-                            lang_mir::unit::ownership::failure::ExecutionFailure::CellLimit
-                        )
-                    ),
+                    matches!(failure.reason, r::Reason::CellLimit { .. }),
                     "{failure:?}"
                 );
                 assert_eq!(trace.borrow().buffers, [1]);

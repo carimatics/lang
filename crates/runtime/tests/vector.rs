@@ -279,7 +279,10 @@ fn budget_scenario(limits: a::Limits, count: i64, expected: Option<a::Limit>) ->
     let calls = t.borrow().requests.len();
     let outcome = vector.push_copy(&mut source, None, &mut a);
     if let Some(limit) = expected {
-        assert_eq!(outcome, Err(v::Error::Allocation(a::Error::Limit(limit))));
+        assert!(
+            matches!(outcome, Err(v::Error::Allocation(a::Error::Limit(actual)))
+            if actual.kind == limit && actual.attempted > actual.limit)
+        );
         assert_eq!(a.stats(), before);
         assert_eq!(t.borrow().requests.len(), calls);
         assert_eq!(vector.len(&a).unwrap(), count);
