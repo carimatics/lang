@@ -59,6 +59,7 @@ impl InstanceState {
                 program,
                 phase,
                 caller: Some(caller),
+                callback: false,
             },
         };
         Ok(run(&mut scope.instance))
@@ -78,6 +79,7 @@ pub struct Instance<'p, 'u> {
     pub(super) program: &'p Program<'u>,
     pub(super) phase: Phase,
     pub(super) caller: Option<Holder>,
+    pub(super) callback: bool,
 }
 impl<'p, 'u> Instance<'p, 'u> {
     pub fn new(program: &'p Program<'u>) -> Self {
@@ -85,6 +87,7 @@ impl<'p, 'u> Instance<'p, 'u> {
             program,
             phase: Phase::Ready,
             caller: None,
+            callback: false,
         }
     }
     pub fn program(&self) -> &'p Program<'u> {
@@ -137,6 +140,7 @@ impl CallbackInstance for Instance<'_, '_> {
             program: self.program,
             phase: Phase::Ready,
             caller: Some(caller),
+            callback: true,
         };
         let mut activation = Activation {
             parent: self,

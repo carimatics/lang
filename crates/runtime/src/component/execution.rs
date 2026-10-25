@@ -18,8 +18,9 @@ mod native_result;
 mod result;
 pub(crate) use call::ReadRoot;
 pub use call::{
-    CallbackOperation, NativeArguments, NativeContext, NativeFailure, NativeResourceFailure,
-    NativeResult, NativeReturn, ResourceArgument, StorageOperation, TaskStorageOperation,
+    CallbackArguments, CallbackOperation, NativeArguments, NativeContext, NativeFailure,
+    NativeResourceFailure, NativeResult, NativeReturn, ResourceArgument, StorageOperation,
+    TaskStorageOperation,
 };
 use instance::Phase;
 pub use instance::{Completion, Instance, InstanceError, InstanceState};
@@ -240,6 +241,33 @@ pub struct Invocation<'state, 'p, 'u, 'resources, 'code, 'native> {
     output_claims: Vec<(Claim, Option<m::Span>)>,
     holding_output: bool,
 }
+fn caller_input(
+    used: &wire::ResourceUse<'_>,
+    resources: &[Claim],
+    table: &Resources<'_>,
+    caller: Holder,
+    memory: &dyn Memory,
+) -> Result<storage::Input, Reason> {
+    let claim = *resources
+        .get((used.index.get() - 1) as usize)
+        .ok_or(Reason::ComponentFrame(wire::Error {
+            offset: used.offset,
+            kind: wire::ErrorKind::ValueType,
+        }))?;
+    table
+        .validate(claim, caller, used.key, memory)
+        .map_err(fault)?;
+    let access = match used.access {
+        wire::ResourceAccess::Own => storage::Access::Own,
+        wire::ResourceAccess::Borrow(super::idl::Access::Shared) => storage::Access::Shared,
+        wire::ResourceAccess::Borrow(super::idl::Access::Exclusive) => storage::Access::Exclusive,
+    };
+    Ok(storage::Input {
+        claim,
+        access,
+        parent: None,
+    })
+}
 fn fault(error: storage::Error) -> Reason {
     Reason::Component(error)
 }
@@ -376,6 +404,35 @@ impl<'state, 'p, 'u, 'resources, 'code, 'native>
 
     /// Reuse the caller's cumulative codec budget for rich result publication.
     pub fn prepare_output(&mut self, session: &'native mut wire::Session) -> Result<(), Reason> {
+        if self.instance.callback {
+            return Err(Reason::Unsupported);
+        }
+        self.prepare_output_inner(session)
+    }
+    /// Checked callback profile: borrowed resources and data-only results until
+    /// native ownership receipts and result-index publication are connected.
+    pub fn prepare_callback_output(
+        &mut self,
+        session: &'native mut wire::Session,
+        budget: &mut m::Budget,
+    ) -> Result<(), Reason> {
+        self.check_work()?;
+        if !self.instance.callback {
+            return Err(Reason::Entry);
+        }
+        {
+            let mut scope = session.scope_preparation(budget).map_err(Reason::from)?;
+            let signature = self.frame_signature(&mut scope)?;
+            if !signature
+                .supports_borrowed_callback(&mut scope)
+                .map_err(Reason::from)?
+            {
+                return Err(Reason::Unsupported);
+            }
+        }
+        self.prepare_output_inner(session)
+    }
+    fn prepare_output_inner(&mut self, session: &'native mut wire::Session) -> Result<(), Reason> {
         if self.committed || self.transfer.is_some() || self.output_session.is_some() {
             return Err(Reason::Entry);
         }
@@ -454,7 +511,12 @@ impl<'state, 'p, 'u, 'resources, 'code, 'native>
         &self,
         values: &wire::Values,
         uses: &[wire::ResourceUse<'_>],
-        resources: &[Claim],
+        resolve: impl Fn(
+            &wire::ResourceUse<'_>,
+            &Resources<'_>,
+            Holder,
+            &dyn Memory,
+        ) -> Result<storage::Input, Reason>,
         memory: &dyn Memory,
         session: &mut wire::Session,
     ) -> Result<(Vec<storage::Input>, Vec<usize>), Reason> {
@@ -482,23 +544,7 @@ impl<'state, 'p, 'u, 'resources, 'code, 'native>
             if let Some(namespace) = self.resource_namespace {
                 namespace.check(used.index.get().into())?;
             }
-            let access = match used.access {
-                wire::ResourceAccess::Own => storage::Access::Own,
-                wire::ResourceAccess::Borrow(super::idl::Access::Shared) => storage::Access::Shared,
-                wire::ResourceAccess::Borrow(super::idl::Access::Exclusive) => {
-                    storage::Access::Exclusive
-                }
-            };
-            let claim = *resources.get((used.index.get() - 1) as usize).ok_or({
-                Reason::ComponentFrame(wire::Error {
-                    offset: used.offset,
-                    kind: wire::ErrorKind::ValueType,
-                })
-            })?;
-            self.resources
-                .validate(claim, self.caller, used.key, memory)
-                .map_err(fault)?;
-            claims.push(storage::Input { claim, access });
+            claims.push(resolve(used, self.resources, self.caller, memory)?);
             nodes.push(used.value.0);
         }
         self.resources
@@ -526,6 +572,38 @@ impl<'state, 'p, 'u, 'resources, 'code, 'native>
         memory: &dyn Memory,
         session: &mut wire::Session,
     ) -> Result<Vec<u8>, Reason> {
+        self.encode_arguments_resolving(values, memory, session, |used, table, caller, memory| {
+            caller_input(used, resources, table, caller, memory)
+        })
+    }
+    /// Encode using only the live native context's checked resource views.
+    pub fn encode_callback_arguments(
+        &self,
+        values: &wire::Values,
+        arguments: &CallbackArguments<'_, '_>,
+        memory: &dyn Memory,
+        session: &mut wire::Session,
+    ) -> Result<Vec<u8>, Reason> {
+        self.check_work()?;
+        self.latch_work(self.encode_arguments_resolving(
+            values,
+            memory,
+            session,
+            |used, table, caller, memory| arguments.input(used, table, caller, memory),
+        ))
+    }
+    fn encode_arguments_resolving(
+        &self,
+        values: &wire::Values,
+        memory: &dyn Memory,
+        session: &mut wire::Session,
+        resolve: impl Fn(
+            &wire::ResourceUse<'_>,
+            &Resources<'_>,
+            Holder,
+            &dyn Memory,
+        ) -> Result<storage::Input, Reason>,
+    ) -> Result<Vec<u8>, Reason> {
         let mut scope = session.scope_work(&self.work).map_err(Reason::from)?;
         let session = &mut *scope;
         let signature = self.frame_signature(session)?;
@@ -536,7 +614,7 @@ impl<'state, 'p, 'u, 'resources, 'code, 'native>
             session,
         )
         .map_err(Reason::from)?;
-        self.checked_resources(values, &uses, resources, memory, session)?;
+        self.checked_resources(values, &uses, resolve, memory, session)?;
         Ok(bytes)
     }
 
@@ -560,13 +638,46 @@ impl<'state, 'p, 'u, 'resources, 'code, 'native>
         memory: &dyn Memory,
         session: &mut wire::Session,
     ) -> Result<Vec<EntryArgument>, Reason> {
+        self.decode_arguments_resolving(bytes, memory, session, |used, table, caller, memory| {
+            caller_input(used, resources, table, caller, memory)
+        })
+    }
+    /// Decode against the live native context's original resource-index views.
+    pub fn decode_callback_arguments(
+        &mut self,
+        bytes: &[u8],
+        arguments: &CallbackArguments<'_, '_>,
+        memory: &dyn Memory,
+        session: &mut wire::Session,
+    ) -> Result<Vec<EntryArgument>, Reason> {
+        self.check_work()?;
+        let result = self.decode_arguments_resolving(
+            bytes,
+            memory,
+            session,
+            |used, table, caller, memory| arguments.input(used, table, caller, memory),
+        );
+        self.latch_work(result)
+    }
+    fn decode_arguments_resolving(
+        &mut self,
+        bytes: &[u8],
+        memory: &dyn Memory,
+        session: &mut wire::Session,
+        resolve: impl Fn(
+            &wire::ResourceUse<'_>,
+            &Resources<'_>,
+            Holder,
+            &dyn Memory,
+        ) -> Result<storage::Input, Reason>,
+    ) -> Result<Vec<EntryArgument>, Reason> {
         let mut scope = session.scope_work(&self.work).map_err(Reason::from)?;
         let session = &mut *scope;
         let signature = self.frame_signature(session)?;
         let (values, uses) =
             wire::decode_contextual_values(&signature, wire::FrameKind::Parameters, bytes, session)
                 .map_err(Reason::from)?;
-        let (claims, nodes) = self.checked_resources(&values, &uses, resources, memory, session)?;
+        let (claims, nodes) = self.checked_resources(&values, &uses, resolve, memory, session)?;
         let generation = self
             .next_frame
             .ok_or_else(|| fault(storage::Error::Exhausted))?;
@@ -791,6 +902,7 @@ impl<'state, 'p, 'u, 'resources, 'code, 'native> Host
                         .map_err(fault)?;
                     inputs.push(storage::Input {
                         claim: argument.claim,
+                        parent: None,
                         access: match used.access {
                             wire::ResourceAccess::Own => storage::Access::Own,
                             wire::ResourceAccess::Borrow(super::idl::Access::Shared) => {
@@ -896,8 +1008,10 @@ impl<'state, 'p, 'u, 'resources, 'code, 'native> Host
             .with_accounting(&self.accounting)
             .with_parent_live(parent_live)
             .with_task(task)
-            .with_instance(self.instance, target.method().flags & 1 != 0);
+            .with_instance(self.instance, target.method().flags & 1 != 0)
+            .with_session(session);
             let returned = self.invoker.invoke(target.method(), &bytes, &mut context);
+            let session = context.take_session()?;
             let decoded = (|| -> Result<NativeResult, Reason> {
                 self.invoker.check_control().map_err(Reason::Control)?;
                 let returned =
@@ -1230,6 +1344,7 @@ impl<'state, 'p, 'u, 'resources, 'code, 'native> Host
                 if let EntryArgument::Resource(claim) = arg {
                     self.inputs.push(storage::Input {
                         claim: *claim,
+                        parent: None,
                         access: storage::Access::Own,
                     });
                     self.indices.push(index);

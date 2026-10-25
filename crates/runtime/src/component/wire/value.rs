@@ -72,20 +72,31 @@ struct Projection<'a> {
     definitions: Vec<&'a Definition>,
     resources: Vec<&'a ResourceTypeKey>,
     minimum: Vec<Option<usize>>,
+    owns: bool,
 }
 fn projection<'a>(d: &'a Document, f: &Function, s: &mut Session) -> Result<Projection<'a>, Error> {
+    projection_roots(
+        d,
+        f.params
+            .iter()
+            .map(|p| p.ty)
+            .chain(std::iter::once(f.result)),
+        s,
+    )
+}
+fn projection_roots<'a>(
+    d: &'a Document,
+    roots: impl Iterator<Item = TypeId>,
+    s: &mut Session,
+) -> Result<Projection<'a>, Error> {
     s.charge(d.type_nodes.len(), 0)?;
     let mut minimum = s.vector(d.type_nodes.len(), 0)?;
     minimum.resize(d.type_nodes.len(), None);
     let mut work = Vec::new();
     let mut definitions = Vec::new();
     let mut resources = Vec::new();
-    for ty in f
-        .params
-        .iter()
-        .map(|p| p.ty)
-        .chain(std::iter::once(f.result))
-    {
+    let mut owns = false;
+    for ty in roots {
         s.push(&mut work, (ty, false), 0)?;
     }
     while let Some((id, finish)) = work.pop() {
@@ -110,7 +121,12 @@ fn projection<'a>(d: &'a Document, f: &Function, s: &mut Session) -> Result<Proj
             TypeKind::Bool => 1,
             TypeKind::Text | TypeKind::Bytes | TypeKind::List(_) => 4,
             TypeKind::Option(_) | TypeKind::Result(_, _) => 1,
-            TypeKind::Own(k) | TypeKind::Borrow { resource: k, .. } => {
+            TypeKind::Own(k) => {
+                owns = true;
+                s.push(&mut resources, &k.value, 0)?;
+                4
+            }
+            TypeKind::Borrow { resource: k, .. } => {
                 s.push(&mut resources, &k.value, 0)?;
                 4
             }
@@ -169,6 +185,7 @@ fn projection<'a>(d: &'a Document, f: &Function, s: &mut Session) -> Result<Proj
         definitions,
         resources,
         minimum,
+        owns,
     })
 }
 fn schema_type(w: &mut Writer<'_>, d: &Document, root: TypeId) -> Result<(), Error> {
@@ -324,6 +341,22 @@ impl<'a> Signature<'a> {
                 minimum: p.minimum,
                 metadata_usage: contract.checked().usage(),
             })
+        })
+    }
+    pub(crate) fn supports_borrowed_callback(&self, session: &mut Session) -> Result<bool, Error> {
+        session.metadata(|session, limits| {
+            super::contract::proof_limits(self.metadata_usage, limits, session)?;
+            let parameters = projection_roots(
+                self.document,
+                self.function.params.iter().map(|p| p.ty),
+                session,
+            )?;
+            let result = projection_roots(
+                self.document,
+                std::iter::once(self.function.result),
+                session,
+            )?;
+            Ok(!parameters.owns && result.resources.is_empty())
         })
     }
     pub const fn digest(&self) -> [u8; 32] {

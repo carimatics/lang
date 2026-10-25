@@ -67,6 +67,12 @@ pub(crate) enum Access {
 pub(crate) struct Input {
     pub claim: Claim,
     pub access: Access,
+    pub parent: Option<Loan>,
+}
+#[derive(Clone, Copy)]
+enum LoanRelease {
+    Table,
+    View,
 }
 #[derive(Clone, Copy)]
 pub(crate) struct Loan {
@@ -74,6 +80,8 @@ pub(crate) struct Loan {
     claim: Claim,
     caller: Holder,
     guest: Holder,
+    access: super::idl::Access,
+    release: LoanRelease,
 }
 #[derive(Clone, Copy)]
 struct Plan {
@@ -81,6 +89,7 @@ struct Plan {
     next: Claim,
     header: a::Handle,
     access: Access,
+    parent: Option<Loan>,
 }
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct Transfer {
@@ -443,7 +452,11 @@ impl<'a> Resources<'a> {
             .iter()
             .filter(|input| !matches!(input.access, Access::Own))
         {
-            self.backing(input.claim, caller, memory)?;
+            if let Some(parent) = input.parent {
+                self.check_loan(parent, input.claim, caller, memory)?;
+            } else {
+                self.backing(input.claim, caller, memory)?;
+            }
         }
         match (self.pending, transfer) {
             (None, None) => {}
@@ -519,20 +532,43 @@ impl<'a> Resources<'a> {
         self.check_allocator(allocator)?;
         self.check_holder(from)?;
         self.check_holder(to)?;
+        if inputs
+            .clone()
+            .take(self.input_capacity().saturating_add(1))
+            .count()
+            > self.input_capacity()
+        {
+            return Err(Error::Capacity);
+        }
         let owners = inputs
             .clone()
             .filter(|i| matches!(i.access, Access::Own))
             .count();
         let borrows = inputs
             .clone()
-            .filter(|i| !matches!(i.access, Access::Own))
+            .filter(|i| i.parent.is_none() && !matches!(i.access, Access::Own))
             .count();
         if owners > self.capacity || borrows > self.borrows {
             return Err(Error::Capacity);
         }
         self.values.check_borrow_reservation(borrows)?;
         for (index, input) in inputs.clone().enumerate() {
-            self.backing(input.claim, from, allocator)?;
+            if let Some(parent) = input.parent {
+                if matches!(input.access, Access::Own) {
+                    return Err(Error::State);
+                }
+                self.check_loan(parent, input.claim, from, allocator)?;
+                if matches!(input.access, Access::Exclusive)
+                    && parent.access != super::idl::Access::Exclusive
+                {
+                    return Err(resource::ResourceTableError::SharedBorrowCannotMutate(
+                        parent.borrowed,
+                    )
+                    .into());
+                }
+            } else {
+                self.backing(input.claim, from, allocator)?;
+            }
             if inputs.clone().take(index).any(|prior| {
                 prior.claim.owner == input.claim.owner
                     && !(matches!(prior.access, Access::Shared)
@@ -542,6 +578,7 @@ impl<'a> Resources<'a> {
             }
             match input.access {
                 Access::Own => self.values.check_release(input.claim.owner)?,
+                _ if input.parent.is_some() => {}
                 access => {
                     let shared = inputs
                         .clone()
@@ -574,6 +611,7 @@ impl<'a> Resources<'a> {
             claims.map(|claim| Input {
                 claim,
                 access: Access::Own,
+                parent: None,
             }),
             from,
             to,
@@ -591,6 +629,7 @@ impl<'a> Resources<'a> {
             claims.iter().copied().map(|claim| Input {
                 claim,
                 access: Access::Own,
+                parent: None,
             }),
             from,
             to,
@@ -607,12 +646,17 @@ impl<'a> Resources<'a> {
         self.check_call(inputs.clone(), from, to, allocator)?;
         self.plans.clear();
         for input in inputs {
-            let backing = self.backing(input.claim, from, allocator)?;
+            let backing = self.backing(
+                input.claim,
+                input.parent.map_or(from, |loan| loan.caller),
+                allocator,
+            )?;
             self.plans.push(Plan {
                 original: input.claim,
                 next: input.claim,
                 header: backing.header,
                 access: input.access,
+                parent: input.parent,
             });
         }
         let owners = self
@@ -685,6 +729,7 @@ impl<'a> Resources<'a> {
             self.plans.iter().map(|p| Input {
                 claim: p.original,
                 access: p.access,
+                parent: p.parent,
             }),
             pending.from,
             pending.to,
@@ -702,6 +747,22 @@ impl<'a> Resources<'a> {
                     bytes[40..48].copy_from_slice(&pending.to.scope.to_le_bytes());
                 }
                 access => {
+                    let requested = if matches!(access, Access::Shared) {
+                        super::idl::Access::Shared
+                    } else {
+                        super::idl::Access::Exclusive
+                    };
+                    if let Some(parent) = plan.parent {
+                        loans
+                            .as_deref_mut()
+                            .expect("scoped loan reserves result slot")[index] = Some(Loan {
+                            guest: pending.to,
+                            access: requested,
+                            release: LoanRelease::View,
+                            ..parent
+                        });
+                        continue;
+                    }
                     let borrowed = if matches!(access, Access::Shared) {
                         self.values.borrow_shared(plan.original.owner)
                     } else {
@@ -715,6 +776,8 @@ impl<'a> Resources<'a> {
                         claim: plan.original,
                         caller: pending.from,
                         guest: pending.to,
+                        access: requested,
+                        release: LoanRelease::Table,
                     });
                 }
             }
@@ -738,8 +801,39 @@ impl<'a> Resources<'a> {
         Ok(())
     }
     pub(crate) fn end_loan(&mut self, loan: Loan) -> Result<(), Error> {
-        self.values.end_borrow(loan.borrowed)?;
+        match loan.release {
+            LoanRelease::Table => self.values.end_borrow(loan.borrowed)?,
+            LoanRelease::View => {
+                self.values.get_borrowed(loan.borrowed)?;
+            }
+        }
         Ok(())
+    }
+    pub(crate) fn callback_loan(
+        &self,
+        loan: Loan,
+        kind: ResourceKind<'_>,
+        access: super::idl::Access,
+        caller: Holder,
+        memory: &dyn Memory,
+    ) -> Result<Input, Error> {
+        self.check_holder(caller)?;
+        self.check_loan(loan, loan.claim, loan.guest, memory)?;
+        self.check_view(loan, kind, access)?;
+        Ok(Input {
+            claim: loan.claim,
+            access: if access == super::idl::Access::Shared {
+                Access::Shared
+            } else {
+                Access::Exclusive
+            },
+            parent: Some(Loan {
+                guest: caller,
+                access,
+                release: LoanRelease::View,
+                ..loan
+            }),
+        })
     }
     pub(crate) fn check_view(
         &self,
@@ -752,7 +846,8 @@ impl<'a> Resources<'a> {
             return Err(Error::Implementation);
         }
         if access == super::idl::Access::Exclusive
-            && loan.borrowed.kind() != ResourceBorrowKind::Exclusive
+            && (loan.access != super::idl::Access::Exclusive
+                || loan.borrowed.kind() != ResourceBorrowKind::Exclusive)
         {
             return Err(
                 resource::ResourceTableError::SharedBorrowCannotMutate(loan.borrowed).into(),
@@ -1028,6 +1123,7 @@ mod tests {
         let borrowed = [Input {
             claim: returned,
             access: Access::Shared,
+            parent: None,
         }];
         allocator.bytes_mut(header).unwrap()[32..40].copy_from_slice(&claim.ticket.to_le_bytes());
         assert!(matches!(
@@ -1084,6 +1180,7 @@ mod tests {
         let inputs = [Input {
             claim: first,
             access: Access::Shared,
+            parent: None,
         }];
         let transfer = resources
             .prepare_call(inputs.iter().copied(), caller, guest, &allocator)
@@ -1098,7 +1195,124 @@ mod tests {
                 .is_err()
         );
         assert_eq!(allocator.stats(), before);
-        resources.end_loan(loans[0].unwrap()).unwrap();
+        let parent = loans[0].unwrap();
+        let native_holder = resources.new_holder().unwrap();
+        let child_holder = resources.new_holder().unwrap();
+        let kind = resources
+            .values
+            .owned_value(first.owner)
+            .unwrap()
+            .kind
+            .clone();
+        let view = resources
+            .callback_loan(
+                parent,
+                kind.clone(),
+                super::super::idl::Access::Shared,
+                native_holder,
+                &allocator,
+            )
+            .unwrap();
+        assert!(
+            resources
+                .callback_loan(
+                    parent,
+                    kind.clone(),
+                    super::super::idl::Access::Exclusive,
+                    native_holder,
+                    &allocator
+                )
+                .is_err()
+        );
+        assert!(
+            resources
+                .check_call(
+                    [Input {
+                        access: Access::Own,
+                        ..view
+                    }]
+                    .into_iter(),
+                    native_holder,
+                    child_holder,
+                    &allocator
+                )
+                .is_err()
+        );
+        for _ in 0..2 {
+            let transfer = resources
+                .prepare_call([view].into_iter(), native_holder, child_holder, &allocator)
+                .unwrap();
+            let mut child_loans = [None];
+            resources
+                .commit_call(transfer, &mut allocator, &mut child_loans)
+                .unwrap();
+            resources
+                .check_loan(child_loans[0].unwrap(), first, child_holder, &allocator)
+                .unwrap();
+            resources.end_loan(child_loans[0].unwrap()).unwrap();
+            resources
+                .check_loan(parent, first, guest, &allocator)
+                .unwrap();
+            resources
+                .scope_closed(native_holder, child_holder, &[view], None, &allocator)
+                .unwrap();
+            assert!(
+                resources
+                    .held_claims(caller, &allocator, &mut budget)
+                    .is_err()
+            );
+        }
+        resources.end_loan(parent).unwrap();
+        let exclusive = Input {
+            claim: first,
+            access: Access::Exclusive,
+            parent: None,
+        };
+        let transfer = resources
+            .prepare_call([exclusive].into_iter(), caller, guest, &allocator)
+            .unwrap();
+        resources
+            .commit_call(transfer, &mut allocator, &mut loans)
+            .unwrap();
+        let exclusive = loans[0].unwrap();
+        let narrowed = resources
+            .callback_loan(
+                exclusive,
+                kind.clone(),
+                super::super::idl::Access::Shared,
+                native_holder,
+                &allocator,
+            )
+            .unwrap();
+        assert_eq!(exclusive.borrowed.kind(), ResourceBorrowKind::Exclusive);
+        assert!(
+            resources
+                .check_view(
+                    narrowed.parent.unwrap(),
+                    kind.clone(),
+                    super::super::idl::Access::Exclusive
+                )
+                .is_err()
+        );
+        let transfer = resources
+            .prepare_call(
+                [narrowed, narrowed].into_iter(),
+                native_holder,
+                child_holder,
+                &allocator,
+            )
+            .unwrap();
+        let mut aliases = [None, None];
+        resources
+            .commit_call(transfer, &mut allocator, &mut aliases)
+            .unwrap();
+        for loan in aliases.into_iter().flatten() {
+            resources.end_loan(loan).unwrap();
+        }
+        resources
+            .check_loan(exclusive, first, guest, &allocator)
+            .unwrap();
+        resources.end_loan(exclusive).unwrap();
         for claim in resources
             .held_claims(caller, &allocator, &mut budget)
             .unwrap()

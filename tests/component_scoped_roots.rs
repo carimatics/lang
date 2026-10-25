@@ -31,6 +31,7 @@ struct Owner {
     expected_engine: Cell<usize>,
     expected_gateway: Cell<usize>,
     fail: bool,
+    expected_value: Cell<i64>,
     child: Option<Rc<Child>>,
 }
 impl Drop for Owner {
@@ -72,7 +73,7 @@ unsafe extern "C" fn destroy(
         owner.allocator
     );
     let bytes = unsafe { std::slice::from_raw_parts(backing.data, backing.length as usize) };
-    assert_eq!(bytes, &41_i64.to_le_bytes());
+    assert_eq!(bytes, &owner.expected_value.get().to_le_bytes());
     owner.destroyed.set(owner.destroyed.get() + 1);
     u32::from(owner.fail)
 }
@@ -133,7 +134,11 @@ unsafe extern "C" fn make(
         );
         let parameters = unsafe { std::slice::from_raw_parts(arguments.data, 45) };
         let (backing, view) = unsafe { buffer(context, 8, 8) }?;
-        let value = if let Some(child) = &owner.child {
+        let value = if let Some(child) = owner
+            .child
+            .as_ref()
+            .filter(|child| !child.resource_callback)
+        {
             child.parent.set(Some(unsafe { *context }));
             let mut value = 0;
             for _ in 0..child.repetitions {
@@ -232,6 +237,16 @@ struct Child {
     original_instance: bool,
     activation_probe: Option<CallbackProbe>,
     callback_argument: i64,
+    resource_callback: bool,
+    callback_member: &'static str,
+    callback_index: u32,
+    previous_arguments: RefCell<Option<Vec<EntryArgument>>>,
+    replay_refusals: Cell<usize>,
+    resumed_access: Cell<usize>,
+    expected_wire: Option<Rc<Cell<usize>>>,
+    wire_scope_address: Cell<Option<usize>>,
+    wire_scope_before: Cell<Option<wire::Usage>>,
+    wire_scope_after: Cell<Option<wire::Usage>>,
 }
 impl Child {
     fn new(
@@ -269,6 +284,16 @@ impl Child {
             original_instance: false,
             activation_probe: None,
             callback_argument: 41,
+            resource_callback: false,
+            callback_member: "nested-loan",
+            callback_index: 1,
+            previous_arguments: RefCell::new(None),
+            replay_refusals: Cell::new(0),
+            resumed_access: Cell::new(0),
+            expected_wire: None,
+            wire_scope_address: Cell::new(None),
+            wire_scope_before: Cell::new(None),
+            wire_scope_after: Cell::new(None),
         }
     }
     unsafe fn run(&self, context: *const native::Context) -> Result<i64, u32> {
@@ -464,6 +489,8 @@ impl execution::CallbackOperation for DeniedCallback {
         _: &mut storage::Resources<'_>,
         _: &mut dyn storage::Memory,
         _: &mut m::Budget,
+        _: &mut wire::Session,
+        _: &execution::CallbackArguments<'_, '_>,
         _: storage::Holder,
         _: &e::InvocationAccounting,
         _: &mut lang_runtime::task::CurrentTask<'_>,
@@ -540,12 +567,13 @@ impl execution::CallbackOperation for ProbeActivation<'_> {
         resources: &mut storage::Resources<'_>,
         memory: &mut dyn storage::Memory,
         budget: &mut m::Budget,
+        session: &mut wire::Session,
+        _: &execution::CallbackArguments<'_, '_>,
         _: storage::Holder,
         _: &e::InvocationAccounting,
         _: &mut lang_runtime::task::CurrentTask<'_>,
     ) -> Result<(), u32> {
         let function = entry(instance.program(), "nested");
-        let mut session = wire::Session::new(Default::default());
         let mut invocation = execution::Invocation::prepare_owned(
             instance,
             function,
@@ -554,7 +582,12 @@ impl execution::CallbackOperation for ProbeActivation<'_> {
             budget,
         )
         .map_err(|_| 1u32)?;
-        invocation.prepare_output(&mut session).map_err(|_| 1u32)?;
+        invocation
+            .prepare_callback_output(session, budget)
+            .map_err(|e| {
+                let _ = e;
+                1u32
+            })?;
         execution::Host::prepare_arguments(&mut invocation, &[EntryArgument::I64(41)], memory)
             .map_err(|_| 1u32)?;
         if self.mode == CallbackProbe::Error {
@@ -579,6 +612,8 @@ impl execution::CallbackOperation for OriginalInstanceOperation<'_, '_> {
         resources: &mut storage::Resources<'_>,
         memory: &mut dyn storage::Memory,
         budget: &mut m::Budget,
+        session: &mut wire::Session,
+        callback_arguments: &execution::CallbackArguments<'_, '_>,
         _holder: storage::Holder,
         accounting: &e::InvocationAccounting,
         current: &mut lang_runtime::task::CurrentTask<'_>,
@@ -598,9 +633,35 @@ impl execution::CallbackOperation for OriginalInstanceOperation<'_, '_> {
         self.target
             .preparation_before
             .set(Some(preparation_usage(budget)));
+        let wire_address = std::ptr::from_mut(&mut *session) as usize;
+        if let Some(expected) = &self.target.expected_wire {
+            assert_eq!(wire_address, expected.get());
+        }
+        if let Some(previous) = self.target.wire_scope_address.get() {
+            assert_eq!(previous, wire_address);
+        }
+        self.target.wire_scope_address.set(Some(wire_address));
+        let before = session.usage();
+        assert!(before.work > 0 && before.allocation_bytes > 0 && before.elements > 0);
+        if let Some(previous) = self.target.wire_scope_after.get() {
+            assert!(
+                before.work >= previous.work
+                    && before.allocation_bytes >= previous.allocation_bytes
+                    && before.elements >= previous.elements
+                    && before.serialization_bytes >= previous.serialization_bytes
+            );
+        }
+        self.target.wire_scope_before.set(Some(before));
         let preparation = budget.limits();
         let program = instance.program();
-        let function = entry(program, "nested");
+        let function = entry(
+            program,
+            if self.target.resource_callback {
+                self.target.callback_member
+            } else {
+                "nested"
+            },
+        );
         let generated = self.target.compiled.then(|| {
             lang_codegen_clif::tasks::CompiledProgram::compile_component(
                 program,
@@ -614,7 +675,6 @@ impl execution::CallbackOperation for OriginalInstanceOperation<'_, '_> {
             original: self.invoker,
             target: self.target,
         };
-        let mut session = wire::Session::new(Default::default());
         let mut invocation = execution::Invocation::prepare_owned(
             instance,
             function,
@@ -623,7 +683,60 @@ impl execution::CallbackOperation for OriginalInstanceOperation<'_, '_> {
             budget,
         )
         .map_err(|_| 1u32)?;
-        invocation.prepare_output(&mut session).map_err(|_| 1u32)?;
+        let arguments = if self.target.resource_callback {
+            let mut preparation_scope = session.scope_preparation(budget).map_err(|_| 1u32)?;
+            let session = &mut *preparation_scope;
+            let mut values = wire::Values {
+                roots: vec![wire::ValueId(0)],
+                nodes: vec![wire::Value::Resource(
+                    lang_runtime::component::adapter::BoundaryResourceIndex::new(1).unwrap(),
+                )],
+            };
+            if self.target.callback_member == "nested-return" {
+                values.roots.clear();
+                values.nodes.clear();
+            }
+            if self.target.callback_member == "nested-pair"
+                || self.target.callback_member == "nested-alias-shared"
+            {
+                values.nodes.push(values.nodes[0].clone());
+                values.roots.push(wire::ValueId(1));
+            }
+            let mut encoded = invocation
+                .encode_callback_arguments(&values, callback_arguments, &view, session)
+                .map_err(|e| {
+                    self.target.failure.replace(Some(format!("{e:?}")));
+                    1u32
+                })?;
+            if self.target.callback_index != 1 {
+                encoded[45..49].copy_from_slice(&self.target.callback_index.to_le_bytes());
+            }
+            invocation
+                .decode_callback_arguments(&encoded, callback_arguments, &view, session)
+                .map_err(|e| {
+                    self.target.failure.replace(Some(format!("{e:?}")));
+                    1u32
+                })?
+        } else {
+            vec![EntryArgument::I64(self.target.callback_argument)]
+        };
+        invocation
+            .prepare_callback_output(session, budget)
+            .map_err(|e| {
+                self.target.failure.replace(Some(format!("{e:?}")));
+                1u32
+            })?;
+        if self.target.resource_callback {
+            if let Some(previous) = self.target.previous_arguments.borrow().as_ref() {
+                assert!(execution::Host::validate(&invocation, previous, &view).is_err());
+                self.target
+                    .replay_refusals
+                    .set(self.target.replay_refusals.get() + 1);
+            }
+            self.target
+                .previous_arguments
+                .replace(Some(arguments.clone()));
+        }
         let result = execute_memory_scope(
             program,
             function,
@@ -634,7 +747,7 @@ impl execution::CallbackOperation for OriginalInstanceOperation<'_, '_> {
                 execution: self.control,
                 preparation,
             },
-            &[EntryArgument::I64(self.target.callback_argument)],
+            &arguments,
             &mut invocation,
             Some(budget),
             Some(current.reborrow().map_err(|_| 4u32)?),
@@ -658,6 +771,8 @@ impl execution::CallbackOperation for OriginalInstanceOperation<'_, '_> {
         };
         self.value = Some(*value);
         self.target.after.set(Some(outcome.usage));
+        drop(invocation);
+        self.target.wire_scope_after.set(Some(session.usage()));
         self.target
             .preparation_after
             .set(Some(preparation_usage(budget)));
@@ -851,7 +966,120 @@ unsafe extern "C" fn tick(
     result.map_or_else(|_| 1, |()| 0)
 }
 
-fn host_document() -> serde_json::Value {
+unsafe extern "C" fn apply_callback_resource(
+    user: *mut c_void,
+    context: *const native::Context,
+    input: native::Bytes,
+    output: *mut *mut native::Buffer,
+) -> u32 {
+    let result = (|| -> Result<(), u32> {
+        if output.is_null() || input.data.is_null() || input.length < 57 {
+            return Err(2);
+        }
+        // SAFETY: the owned registration and current callback retain all views.
+        let owner = unsafe { &*user.cast::<Owner>() };
+        let child = owner.child.as_ref().ok_or(4u32)?;
+        let parent = child.parent.get().ok_or(5u32)?;
+        let current = unsafe { *context };
+        if current.engine != parent.engine
+            || current.invocation != parent.invocation
+            || current.scope == parent.scope
+            || unsafe { lang_codegen_clif::component::context_check(&parent) } != 5
+            || unsafe { lang_codegen_clif::component::context_check(context) } != 0
+        {
+            return Err(2);
+        }
+        child.nested.set(Some(current));
+        let parameters = unsafe { std::slice::from_raw_parts(input.data, input.length as usize) };
+        let index = u32::from_le_bytes(parameters[45..49].try_into().unwrap());
+        let delta = i64::from_le_bytes(parameters[49..57].try_into().unwrap());
+        let mut view = native::MutBytes {
+            data: ptr::null_mut(),
+            length: 0,
+        };
+        let status = unsafe {
+            lang_codegen_clif::component::context_resource_write(context, index, &mut view)
+        };
+        if status != 0 {
+            return Err(status);
+        }
+        if view.length != 8 || view.data as usize != owner.backing.get() {
+            return Err(2);
+        }
+        let bytes = unsafe { std::slice::from_raw_parts_mut(view.data, 8) };
+        let after = i64::from_le_bytes(bytes.try_into().unwrap()) + delta;
+        bytes.copy_from_slice(&after.to_le_bytes());
+        owner.expected_value.set(after);
+        let (handle, result) = unsafe { buffer(context, 54, 1) }?;
+        let frame = unsafe { std::slice::from_raw_parts_mut(result.data, 54) };
+        frame[..45].copy_from_slice(&parameters[..45]);
+        frame[8] = 1;
+        frame[41..45].copy_from_slice(&9_u32.to_le_bytes());
+        frame[45] = 0;
+        frame[46..].copy_from_slice(&after.to_le_bytes());
+        unsafe { output.write(handle) };
+        Ok(())
+    })();
+    result.map_or_else(|_| 1, |()| 0)
+}
+unsafe extern "C" fn bounce_resource(
+    user: *mut c_void,
+    context: *const native::Context,
+    input: native::Bytes,
+    output: *mut *mut native::Buffer,
+) -> u32 {
+    let result = (|| -> Result<(), u32> {
+        // SAFETY: the owning registration retains user through the callback.
+        let owner = unsafe { &*user.cast::<Owner>() };
+        let child = owner.child.as_ref().ok_or(4u32)?;
+        if output.is_null() || input.data.is_null() || input.length != 49 {
+            child.failure.replace(Some(format!(
+                "bounce input: length={}, null={}, output_null={}",
+                input.length,
+                input.data.is_null(),
+                output.is_null()
+            )));
+            return Err(2);
+        }
+        // SAFETY: registration retains this owner and invocation retains context/input.
+        child.parent.set(Some(unsafe { *context }));
+        let mut value = 0;
+        for _ in 0..child.repetitions {
+            let called = unsafe { child.run(context) };
+            let mut original = native::Bytes {
+                data: ptr::null(),
+                length: 0,
+            };
+            let status = unsafe {
+                lang_codegen_clif::component::context_resource_read(context, 1, &mut original)
+            };
+            if status != 0 {
+                return Err(status);
+            }
+            if original.length != 8
+                || original.data as usize != owner.backing.get()
+                || unsafe { std::slice::from_raw_parts(original.data, 8) }
+                    != owner.expected_value.get().to_le_bytes()
+            {
+                return Err(2);
+            }
+            child.resumed_access.set(child.resumed_access.get() + 1);
+            value = called?;
+        }
+        let parameters = unsafe { std::slice::from_raw_parts(input.data, 49) };
+        let (handle, bytes) = unsafe { buffer(context, 53, 1) }?;
+        let frame = unsafe { std::slice::from_raw_parts_mut(bytes.data, 53) };
+        frame[..45].copy_from_slice(&parameters[..45]);
+        frame[8] = 1;
+        frame[41..45].copy_from_slice(&8_u32.to_le_bytes());
+        frame[45..].copy_from_slice(&value.to_le_bytes());
+        unsafe { output.write(handle) };
+        Ok(())
+    })();
+    result.map_or_else(|_| 1, |()| 0)
+}
+
+fn host_document_for(resource: bool) -> serde_json::Value {
     let mut doc: serde_json::Value =
         serde_json::from_slice(include_bytes!("fixtures/component_counter.idl.json")).unwrap();
     doc["interfaces"][0]["functions"].as_array_mut().unwrap().push(json!({
@@ -860,39 +1088,71 @@ fn host_document() -> serde_json::Value {
     doc["interfaces"][0]["functions"].as_array_mut().unwrap().push(json!({
         "name":"tick","effect":"sync","params":[],"result":"i64","capability":"demo.counter.tick"
     }));
+    if resource {
+        doc["interfaces"][0]["functions"].as_array_mut().unwrap().push(json!({
+            "name":"bounce","effect":"sync","params":[{"name":"state","type":{"borrow-mut":"counter"}}],
+            "result":"i64","capability":"demo.counter.bounce"
+        }));
+    }
     doc
 }
 fn provider(owner: Rc<Owner>) -> native::Provider<'static> {
-    let bytes = serde_json::to_vec(&host_document()).unwrap();
+    let resource = owner
+        .child
+        .as_ref()
+        .is_some_and(|child| child.resource_callback);
+    let bytes = serde_json::to_vec(&host_document_for(resource)).unwrap();
     let doc = idl::check(m::SourceId(71), &bytes, Default::default()).unwrap();
     let mut session = wire::Session::new(Default::default());
     let contract = wire::Contract::new(doc, vec![], &mut session).unwrap();
+    let mut methods = vec![
+        native::Method {
+            interface: 0,
+            member: 0,
+            invoke: if resource {
+                apply_callback_resource
+            } else {
+                unused
+            },
+            user: Rc::as_ptr(&owner).cast_mut().cast(),
+            flags: 0,
+        },
+        native::Method {
+            interface: 0,
+            member: 1,
+            invoke: make,
+            user: Rc::as_ptr(&owner).cast_mut().cast(),
+            flags: u32::from(owner.child.is_some()),
+        },
+        native::Method {
+            interface: 0,
+            member: 2,
+            invoke: tick,
+            user: Rc::as_ptr(&owner).cast_mut().cast(),
+            flags: 0,
+        },
+    ];
+    if resource {
+        methods.push(native::Method {
+            interface: 0,
+            member: 3,
+            invoke: bounce_resource,
+            user: Rc::as_ptr(&owner).cast_mut().cast(),
+            flags: 1,
+        });
+    }
+    for method in &mut methods {
+        let name = ["apply", "make", "tick", "bounce"][method.member];
+        method.member = contract.document().interfaces[0]
+            .functions
+            .iter()
+            .position(|function| function.name.value == name)
+            .unwrap();
+    }
     native::Provider::new_owned(
         contract,
         VersionedDigest::new(DigestAlgorithm::Sha256, vec![1; 32]).unwrap(),
-        vec![
-            native::Method {
-                interface: 0,
-                member: 0,
-                invoke: unused,
-                user: ptr::null_mut(),
-                flags: 0,
-            },
-            native::Method {
-                interface: 0,
-                member: 1,
-                invoke: make,
-                user: Rc::as_ptr(&owner).cast_mut().cast(),
-                flags: u32::from(owner.child.is_some()),
-            },
-            native::Method {
-                interface: 0,
-                member: 2,
-                invoke: tick,
-                user: Rc::as_ptr(&owner).cast_mut().cast(),
-                flags: 0,
-            },
-        ],
+        methods,
         vec![native::ResourceType {
             interface: 0,
             resource: 0,
@@ -914,7 +1174,20 @@ fn stored_unit_with_task(source: &[u8], task: bool) -> bindings::Unit {
     stored_unit_profile(source, task, false)
 }
 fn stored_unit_profile(source: &[u8], task: bool, callback: bool) -> bindings::Unit {
-    let host = host_document();
+    stored_unit_boundary(source, task, callback, false)
+}
+fn stored_unit_boundary(
+    source: &[u8],
+    task: bool,
+    callback: bool,
+    resource: bool,
+) -> bindings::Unit {
+    let host = host_document_for(resource);
+    let members = if resource {
+        vec!["apply", "make", "tick", "bounce"]
+    } else {
+        vec!["apply", "make", "tick"]
+    };
     let mut document = json!({
         "idl":1,"package":"demo:scope","version":"1.0.0",
         "interfaces":[host["interfaces"][0].clone(),
@@ -926,7 +1199,7 @@ fn stored_unit_profile(source: &[u8], task: bool, callback: bool) -> bindings::U
                 {"name":"create","effect":"sync","params":[],"result":{"own":"demo:counter/api.counter"},"capability":"demo.scope.create"},
                 {"name":"answer","effect":"sync","params":[],"result":"i64","capability":"demo.scope.answer"}
             ]}],
-        "imports":[{"interface":"demo:counter/api","version":{"exact":"1.0.0"},"members":["apply","make","tick"]}],
+        "imports":[{"interface":"demo:counter/api","version":{"exact":"1.0.0"},"members":members}],
         "exports":["demo:scope/api"]
     });
     let mut names = vec!["relay", "consume", "create", "answer"];
@@ -945,6 +1218,26 @@ fn stored_unit_profile(source: &[u8], task: bool, callback: bool) -> bindings::U
                 "result":"i64", "capability":"demo.scope.nested"
             }));
         names.push("nested");
+    }
+    if resource {
+        document["interfaces"][1]["functions"].as_array_mut().unwrap().extend([
+            json!({"name":"run","effect":"sync","params":[{"name":"value","type":{"own":"demo:counter/api.counter"}}],"result":"i64","capability":"demo.scope.run"}),
+            json!({"name":"nested-loan","effect":"sync","params":[{"name":"state","type":{"borrow-mut":"demo:counter/api.counter"}}],"result":"i64","capability":"demo.scope.nested-loan"})
+        ]);
+        document["interfaces"][1]["functions"].as_array_mut().unwrap().extend([
+            json!({"name":"nested-own","effect":"sync","params":[{"name":"value","type":{"own":"demo:counter/api.counter"}}],"result":"i64","capability":"demo.scope.nested-own"}),
+            json!({"name":"nested-pair","effect":"sync","params":[{"name":"first","type":{"borrow-mut":"demo:counter/api.counter"}},{"name":"second","type":{"borrow-mut":"demo:counter/api.counter"}}],"result":"i64","capability":"demo.scope.nested-pair"}),
+            json!({"name":"nested-alias-shared","effect":"sync","params":[{"name":"first","type":{"borrow":"demo:counter/api.counter"}},{"name":"second","type":{"borrow":"demo:counter/api.counter"}}],"result":"i64","capability":"demo.scope.nested-alias-shared"})
+        ]);
+        document["interfaces"][1]["functions"].as_array_mut().unwrap().push(json!({"name":"nested-return","effect":"sync","params":[],"result":{"own":"demo:counter/api.counter"},"capability":"demo.scope.nested-return"}));
+        names.push("nested-return");
+        names.extend([
+            "run",
+            "nested-loan",
+            "nested-own",
+            "nested-pair",
+            "nested-alias-shared",
+        ]);
     }
     let bytes = serde_json::to_vec(&document).unwrap();
     let host = InterfaceKey::new(PackageKey::new("demo", "counter"), "api");
@@ -968,6 +1261,7 @@ fn stored_unit_profile(source: &[u8], task: bool, callback: bool) -> bindings::U
                 ("host_tick", "tick"),
             ]
             .into_iter()
+            .chain(resource.then_some(("host_bounce", "bounce")))
             .map(|(source, member)| f::Import {
                 source: source.into(),
                 member: bindings::MemberKey {
@@ -979,7 +1273,7 @@ fn stored_unit_profile(source: &[u8], task: bool, callback: bool) -> bindings::U
             exports: names
                 .into_iter()
                 .map(|name| f::Export {
-                    source: name.into(),
+                    source: name.replace('-', "_"),
                     member: bindings::MemberKey {
                         interface: script.clone(),
                         member: name.into(),
@@ -1043,6 +1337,7 @@ fn prepared_unit_budget<T>(
     run: impl FnOnce(&program::Program<'_>, &mut wire::Session, Option<&mut m::Budget>) -> T,
 ) -> Result<(T, wire::Usage), u32> {
     let mut limits = wire::Limits::default();
+    limits.work = limits.work.min(wire_work);
     if let Some(budget) = budget.as_deref() {
         let original = budget.limits();
         limits.work = original.work.min(wire_work);
@@ -1080,6 +1375,8 @@ fn prepared_unit_budget<T>(
             member: &map.member,
             capability: if map.member.member == "apply" {
                 "demo.counter.apply"
+            } else if map.member.member == "bounce" {
+                "demo.counter.bounce"
             } else if map.member.member == "tick" {
                 "demo.counter.tick"
             } else {
@@ -1248,6 +1545,9 @@ impl a::Provider for TestProvider {
 struct Harness {
     unit: bindings::Unit,
     task_limits: lang_runtime::task::Limits,
+    wire_address: Rc<Cell<usize>>,
+    wire_work: usize,
+    wire_usage: Cell<Option<wire::Usage>>,
     allocator: a::Allocator<TestProvider>,
     provider_calls: Rc<Cell<usize>>,
     provider_failure: Rc<Cell<Option<usize>>>,
@@ -1277,6 +1577,9 @@ impl Harness {
         Self {
             unit: stored_unit(),
             task_limits: Default::default(),
+            wire_address: Rc::new(Cell::new(0)),
+            wire_work: usize::MAX,
+            wire_usage: Cell::new(None),
             allocator,
             provider_calls,
             provider_failure,
@@ -1308,6 +1611,7 @@ impl Harness {
             expected_engine: Cell::new(0),
             expected_gateway: Cell::new(0),
             fail,
+            expected_value: Cell::new(41),
             child: child.clone(),
         });
         if let Some(child) = child {
@@ -1386,6 +1690,9 @@ impl Harness {
         let Self {
             unit,
             task_limits,
+            wire_address,
+            wire_work,
+            wire_usage,
             allocator,
             values,
             state,
@@ -1397,62 +1704,44 @@ impl Harness {
         } = self;
         let memory_access = *memory_access;
         let preparation_limits = *preparation_limits;
-        prepared_unit(unit, provider, |program, session| {
-            let function = entry(program, name);
-            let generated = compiled.then(|| {
-                lang_codegen_clif::tasks::CompiledProgram::compile_component(
-                    program,
-                    function,
-                    Default::default(),
-                )
-                .unwrap()
-            });
-            let mut invoker = engine.begin(control).unwrap();
-            if let Some(accounting) = accounting {
-                invoker = invoker.with_accounting(accounting).unwrap();
-            }
-            let mut budget = m::Budget::new(preparation_limits);
-            state
-                .with_program(program, |instance| {
-                    let mut invocation = execution::Invocation::prepare_owned(
-                        instance,
+        let (result, usage) =
+            prepared_unit_budget(unit, provider, None, *wire_work, |program, session, _| {
+                wire_address.set(std::ptr::from_mut(&mut *session) as usize);
+                let function = entry(program, name);
+                let generated = compiled.then(|| {
+                    lang_codegen_clif::tasks::CompiledProgram::compile_component(
+                        program,
                         function,
-                        values,
-                        &mut invoker,
-                        &mut budget,
+                        Default::default(),
                     )
-                    .unwrap();
-                    invocation.prepare_output(session).unwrap();
-                    let arguments: Vec<_> =
-                        input.into_iter().map(EntryArgument::Resource).collect();
-                    let mut execution_budget = m::Budget::new(preparation_limits);
-                    let borrowed_preparation = preparation_trace.is_some();
-                    let result = match memory_access {
-                        MemoryAccess::Original => execute_memory_with_budget(
-                            program,
+                    .unwrap()
+                });
+                let mut invoker = engine.begin(control).unwrap();
+                if let Some(accounting) = accounting {
+                    invoker = invoker.with_accounting(accounting).unwrap();
+                }
+                let mut budget = m::Budget::new(preparation_limits);
+                state
+                    .with_program(program, |instance| {
+                        let mut invocation = execution::Invocation::prepare_owned(
+                            instance,
                             function,
-                            generated.as_ref(),
-                            allocator,
-                            CallControl {
-                                tasks: *task_limits,
-                                execution: control,
-                                preparation: preparation_limits,
-                            },
-                            &arguments,
-                            &mut invocation,
-                            if borrowed_preparation {
-                                Some(&mut execution_budget)
-                            } else {
-                                None
-                            },
-                        ),
-                        MemoryAccess::View => {
-                            let mut view = a::Allocator::borrow(allocator).unwrap();
-                            execute_memory_with_budget(
+                            values,
+                            &mut invoker,
+                            &mut budget,
+                        )
+                        .unwrap();
+                        invocation.prepare_output(session).unwrap();
+                        let arguments: Vec<_> =
+                            input.into_iter().map(EntryArgument::Resource).collect();
+                        let mut execution_budget = m::Budget::new(preparation_limits);
+                        let borrowed_preparation = preparation_trace.is_some();
+                        let result = match memory_access {
+                            MemoryAccess::Original => execute_memory_with_budget(
                                 program,
                                 function,
                                 generated.as_ref(),
-                                &mut view,
+                                allocator,
                                 CallControl {
                                     tasks: *task_limits,
                                     execution: control,
@@ -1465,50 +1754,73 @@ impl Harness {
                                 } else {
                                     None
                                 },
-                            )
-                        }
-                        MemoryAccess::NestedView => {
-                            let mut first = a::Allocator::borrow(allocator).unwrap();
-                            let mut second = a::Allocator::borrow(&mut first).unwrap();
-                            execute_memory_with_budget(
-                                program,
-                                function,
-                                generated.as_ref(),
-                                &mut second,
-                                CallControl {
-                                    tasks: *task_limits,
-                                    execution: control,
-                                    preparation: preparation_limits,
-                                },
-                                &arguments,
-                                &mut invocation,
-                                if borrowed_preparation {
-                                    Some(&mut execution_budget)
-                                } else {
-                                    None
-                                },
-                            )
-                        }
-                    };
-                    if let Some(trace) = preparation_trace {
-                        trace.set(Some(preparation_usage(&execution_budget)));
-                    }
-                    let mut outcome = result?;
-                    if let execution::Value::Frame(frame) = &outcome.value {
-                        outcome.value = match frame.values().nodes.as_slice() {
-                            [wire::Value::Resource(_)] if frame.resources().len() == 1 => {
-                                execution::Value::Resource(frame.resources()[0])
+                            ),
+                            MemoryAccess::View => {
+                                let mut view = a::Allocator::borrow(allocator).unwrap();
+                                execute_memory_with_budget(
+                                    program,
+                                    function,
+                                    generated.as_ref(),
+                                    &mut view,
+                                    CallControl {
+                                        tasks: *task_limits,
+                                        execution: control,
+                                        preparation: preparation_limits,
+                                    },
+                                    &arguments,
+                                    &mut invocation,
+                                    if borrowed_preparation {
+                                        Some(&mut execution_budget)
+                                    } else {
+                                        None
+                                    },
+                                )
                             }
-                            [wire::Value::I64(value)] => {
-                                execution::Value::Copy(lang_runtime::layout::Immediate::I64(*value))
+                            MemoryAccess::NestedView => {
+                                let mut first = a::Allocator::borrow(allocator).unwrap();
+                                let mut second = a::Allocator::borrow(&mut first).unwrap();
+                                execute_memory_with_budget(
+                                    program,
+                                    function,
+                                    generated.as_ref(),
+                                    &mut second,
+                                    CallControl {
+                                        tasks: *task_limits,
+                                        execution: control,
+                                        preparation: preparation_limits,
+                                    },
+                                    &arguments,
+                                    &mut invocation,
+                                    if borrowed_preparation {
+                                        Some(&mut execution_budget)
+                                    } else {
+                                        None
+                                    },
+                                )
                             }
-                            _ => panic!("unexpected result frame"),
                         };
-                    }
-                    Ok(outcome)
-                })
-                .unwrap()
-        })
+                        if let Some(trace) = preparation_trace {
+                            trace.set(Some(preparation_usage(&execution_budget)));
+                        }
+                        let mut outcome = result?;
+                        if let execution::Value::Frame(frame) = &outcome.value {
+                            outcome.value = match frame.values().nodes.as_slice() {
+                                [wire::Value::Resource(_)] if frame.resources().len() == 1 => {
+                                    execution::Value::Resource(frame.resources()[0])
+                                }
+                                [wire::Value::I64(value)] => execution::Value::Copy(
+                                    lang_runtime::layout::Immediate::I64(*value),
+                                ),
+                                _ => panic!("unexpected result frame"),
+                            };
+                        }
+                        Ok(outcome)
+                    })
+                    .unwrap()
+            })
+            .unwrap();
+        wire_usage.set(Some(usage));
+        result
     }
 }
 
@@ -1661,6 +1973,410 @@ fn scoped_allocator_views_execute_source_and_native_resource_callbacks_without_n
 }
 
 #[test]
+fn original_resource_callback_uses_the_existing_non_root_task_at_exhausted_task_limits() {
+    for compiled in [false, true] {
+        let mut h = Harness::new();
+        let mut budget = m::Budget::new(Default::default());
+        h.values = storage::Resources::prepare(&h.allocator, 4, 1, &mut budget).unwrap();
+        h.state = execution::InstanceState::prepare(&mut h.values).unwrap();
+        h.task_limits = lang_runtime::task::Limits {
+            live_tasks: 2,
+            total_tasks: 2,
+        };
+        let mut source =
+            include_bytes!("fixtures/component_scoped_roots_resource_callback.lang").to_vec();
+        source.extend_from_slice(
+            br#"
+async fn worker() -> i64 {
+    let mut original: core::ComponentResource<CounterKind> = host_make();
+    return host_bounce(original);
+}
+pub async fn start() -> i64 {
+    let mut child: core::Task<i64> = spawn worker();
+    return core::result_unwrap::<i64, core::TaskError>(await child);
+}
+"#,
+        );
+        h.unit = stored_unit_boundary(&source, true, false, true);
+        let mut child = Child::new(&mut h.values, compiled, 2, usize::MAX);
+        child.original_instance = true;
+        child.resource_callback = true;
+        child.expected_wire = Some(h.wire_address.clone());
+        let child = Rc::new(child);
+        let (registration, watch) = h.registration_child(false, Some(child.clone()));
+        let result = h
+            .call(registration, "start", None, compiled)
+            .unwrap_or_else(|e| panic!("{e:?}; child={:?}", child.failure.borrow()));
+        assert!(matches!(
+            result.value,
+            execution::Value::Copy(lang_runtime::layout::Immediate::I64(43))
+        ));
+        assert_eq!(
+            result.tasks,
+            lang_runtime::task::Usage {
+                admitted: 2,
+                live: 0,
+                peak_live: 2
+            }
+        );
+        assert_eq!(child.task.borrow().as_ref().unwrap().index(), 1);
+        assert_eq!(
+            child.task_usage.get(),
+            Some(lang_runtime::task::Usage {
+                admitted: 2,
+                live: 2,
+                peak_live: 2
+            })
+        );
+        assert_eq!(child.resumed_access.get(), 2);
+        assert_eq!(child.replay_refusals.get(), 1);
+        assert_eq!(watch.produced.get(), 1);
+        assert_eq!(watch.destroyed.get(), 1);
+        assert_eq!(watch.released.get(), 1);
+        assert!(!result.poisoned && !h.state.poisoned());
+        assert!(h.values.is_empty());
+        assert_eq!(h.allocator.stats().live_allocations, 0);
+        for context in [child.parent.get().unwrap(), child.nested.get().unwrap()] {
+            assert_eq!(h.engine.check(&context), 5);
+        }
+    }
+}
+
+#[test]
+fn forwarded_resource_callbacks_retire_every_fuel_and_provider_refusal_prefix() {
+    fn run(
+        compiled: bool,
+        repetitions: usize,
+        fuel: Option<u64>,
+        refused: Option<usize>,
+    ) -> (bool, e::Usage, usize) {
+        let mut h = Harness::new();
+        h.unit = stored_unit_boundary(
+            include_bytes!("fixtures/component_scoped_roots_resource_callback.lang"),
+            false,
+            false,
+            true,
+        );
+        let mut child = Child::new(&mut h.values, compiled, repetitions, usize::MAX);
+        child.original_instance = true;
+        child.resource_callback = true;
+        child.expected_wire = Some(h.wire_address.clone());
+        let child = Rc::new(child);
+        let (registration, watch) = h.registration_child(false, Some(child.clone()));
+        let claim = h.publish(&registration, &watch);
+        let start = h.provider_calls.get();
+        h.provider_failure.set(refused.map(|index| start + index));
+        let result = h.call_control(
+            registration,
+            "run",
+            Some(claim),
+            compiled,
+            e::Control::with_limits(e::Limits {
+                fuel,
+                ..Default::default()
+            }),
+        );
+        let calls = h.provider_calls.get() - start;
+        let (success, usage) = match result {
+            Ok(outcome) => {
+                assert!(
+                    matches!(outcome.value, execution::Value::Copy(lang_runtime::layout::Immediate::I64(value)) if value == 41 + repetitions as i64)
+                );
+                assert!(!outcome.poisoned);
+                (true, outcome.usage)
+            }
+            Err(failure) => {
+                assert!(
+                    !failure.poisoned,
+                    "{failure:?}; child={:?}",
+                    child.failure.borrow()
+                );
+                (false, failure.usage)
+            }
+        };
+        if let Some(index) = refused {
+            assert!(calls > index);
+        }
+        h.provider_failure.set(None);
+        let key = ResourceTypeKey::new(
+            InterfaceKey::new(PackageKey::new("demo", "counter"), "api"),
+            "counter",
+        );
+        if h.values
+            .validate(claim, h.state.holder(), &key, &h.allocator)
+            .is_ok()
+        {
+            let mut cleanup = Child::new(&mut h.values, compiled, 1, usize::MAX);
+            cleanup.original_instance = true;
+            cleanup.resource_callback = true;
+            let (registration, _) = h.registration_child(false, Some(Rc::new(cleanup)));
+            h.call(registration, "consume", Some(claim), compiled)
+                .unwrap();
+        }
+        assert_eq!(watch.destroyed.get(), 1);
+        assert_eq!(watch.released.get(), 1);
+        assert!(!h.state.poisoned());
+        assert!(h.values.is_empty());
+        assert_eq!(h.allocator.stats().live_allocations, 0);
+        for context in [child.parent.get(), child.nested.get()]
+            .into_iter()
+            .flatten()
+        {
+            assert_eq!(h.engine.check(&context), 5);
+        }
+        (success, usage, calls)
+    }
+    for compiled in [false, true] {
+        for repetitions in [1, 2] {
+            let (ok, full, calls) = run(compiled, repetitions, None, None);
+            assert!(ok);
+            for fuel in 0..full.fuel {
+                assert!(
+                    !run(compiled, repetitions, Some(fuel), None).0,
+                    "fuel {fuel}"
+                );
+            }
+            for index in 0..calls {
+                run(compiled, repetitions, None, Some(index));
+            }
+        }
+    }
+}
+
+#[test]
+fn forwarded_callback_loans_refuse_indices_ownership_and_exclusive_aliases_before_effects() {
+    for compiled in [false, true] {
+        for (member, index, expected) in [
+            ("nested-loan", 99, "Entry"),
+            ("nested-own", 1, "State"),
+            ("nested-pair", 1, "AliasedOwner"),
+            ("nested-return", 1, "Unsupported"),
+        ] {
+            let mut h = Harness::new();
+            h.unit = stored_unit_boundary(
+                include_bytes!("fixtures/component_scoped_roots_resource_callback.lang"),
+                false,
+                false,
+                true,
+            );
+            let mut child = Child::new(&mut h.values, compiled, 1, usize::MAX);
+            child.original_instance = true;
+            child.resource_callback = true;
+            child.callback_member = member;
+            child.callback_index = index;
+            child.expected_wire = Some(h.wire_address.clone());
+            let child = Rc::new(child);
+            let (registration, watch) = h.registration_child(false, Some(child.clone()));
+            let claim = h.publish(&registration, &watch);
+            let Err(failure) = h.call(registration, "run", Some(claim), compiled) else {
+                panic!("invalid callback entered");
+            };
+            assert!(!failure.poisoned && !h.state.poisoned(), "{failure:?}");
+            assert!(
+                child.failure.borrow().as_ref().unwrap().contains(expected),
+                "{:?}",
+                child.failure.borrow()
+            );
+            assert_eq!(child.task_observations.get(), 0);
+            assert_eq!(child.resumed_access.get(), 1);
+            assert_eq!(child.value.get(), 0);
+            assert_eq!(watch.produced.get(), 0);
+            assert_eq!(watch.destroyed.get(), 1);
+            assert_eq!(watch.released.get(), 1);
+            assert!(h.values.is_empty());
+            assert_eq!(h.allocator.stats().live_allocations, 0);
+            let mut next = Child::new(&mut h.values, compiled, 1, usize::MAX);
+            next.original_instance = true;
+            next.resource_callback = true;
+            next.expected_wire = Some(h.wire_address.clone());
+            let next = Rc::new(next);
+            let (registration, watch) = h.registration_child(false, Some(next));
+            let claim = h.publish(&registration, &watch);
+            let result = h.call(registration, "run", Some(claim), compiled).unwrap();
+            assert!(matches!(
+                result.value,
+                execution::Value::Copy(lang_runtime::layout::Immediate::I64(42))
+            ));
+            assert_eq!(watch.destroyed.get(), 1);
+            assert_eq!(watch.released.get(), 1);
+            assert!(h.values.is_empty());
+            assert_eq!(h.allocator.stats().live_allocations, 0);
+        }
+    }
+}
+#[test]
+fn forwarded_shared_aliases_retain_one_original_table_loan_and_reject_old_frames() {
+    for compiled in [false, true] {
+        let mut h = Harness::new();
+        let mut budget = m::Budget::new(Default::default());
+        h.values = storage::Resources::prepare(&h.allocator, 4, 1, &mut budget).unwrap();
+        h.state = execution::InstanceState::prepare(&mut h.values).unwrap();
+        h.unit = stored_unit_boundary(
+            include_bytes!("fixtures/component_scoped_roots_resource_callback.lang"),
+            false,
+            false,
+            true,
+        );
+        let mut child = Child::new(&mut h.values, compiled, 2, usize::MAX);
+        child.original_instance = true;
+        child.resource_callback = true;
+        child.callback_member = "nested-alias-shared";
+        child.expected_wire = Some(h.wire_address.clone());
+        let child = Rc::new(child);
+        let (registration, watch) = h.registration_child(false, Some(child.clone()));
+        let claim = h.publish(&registration, &watch);
+        let result = h
+            .call(registration, "run", Some(claim), compiled)
+            .unwrap_or_else(|e| panic!("{e:?}; child={:?}", child.failure.borrow()));
+        assert!(matches!(
+            result.value,
+            execution::Value::Copy(lang_runtime::layout::Immediate::I64(41))
+        ));
+        assert_eq!(child.resumed_access.get(), 2);
+        assert_eq!(child.replay_refusals.get(), 1);
+        assert_eq!(child.task_observations.get(), 2);
+        assert_eq!(watch.destroyed.get(), 1);
+        assert_eq!(watch.released.get(), 1);
+        assert!(!result.poisoned && !h.state.poisoned());
+        assert!(h.values.is_empty());
+        assert_eq!(h.allocator.stats().live_allocations, 0);
+    }
+}
+
+#[test]
+fn original_resource_loan_crosses_guest_native_guest_native_and_resumes_its_parent() {
+    for compiled in [false, true] {
+        for repetitions in [1, 2] {
+            let mut h = Harness::new();
+            let mut budget = m::Budget::new(Default::default());
+            h.values = storage::Resources::prepare(&h.allocator, 4, 1, &mut budget).unwrap();
+            h.state = execution::InstanceState::prepare(&mut h.values).unwrap();
+            h.unit = stored_unit_boundary(
+                include_bytes!("fixtures/component_scoped_roots_resource_callback.lang"),
+                false,
+                false,
+                true,
+            );
+            for _ in 0..2 {
+                let mut child = Child::new(&mut h.values, compiled, repetitions, usize::MAX);
+                child.original_instance = true;
+                child.resource_callback = true;
+                child.expected_wire = Some(h.wire_address.clone());
+                let child = Rc::new(child);
+                let (registration, watch) = h.registration_child(false, Some(child.clone()));
+                let claim = h.publish(&registration, &watch);
+                let result = h
+                    .call(registration, "run", Some(claim), compiled)
+                    .unwrap_or_else(|e| panic!("{e:?}; child={:?}; parent={} before={:?} budget={:?} wire={:?} task={:?}", child.failure.borrow(), child.parent.get().is_some(), child.before.get(), child.budget_address.get(), child.wire_scope_before.get(), child.task.borrow()));
+                assert!(
+                    matches!(result.value, execution::Value::Copy(lang_runtime::layout::Immediate::I64(value)) if value == 41 + repetitions as i64)
+                );
+                assert_eq!(child.value.get(), 41 + repetitions as i64);
+                assert_eq!(child.task_observations.get(), repetitions);
+                assert_eq!(child.resumed_access.get(), repetitions);
+                assert_eq!(child.replay_refusals.get(), repetitions - 1);
+                assert_eq!(result.tasks.admitted, 1);
+                assert_eq!(watch.destroyed.get(), 1);
+                assert_eq!(watch.released.get(), 1);
+                assert!(h.values.is_empty());
+                assert_eq!(h.allocator.stats().live_allocations, 0);
+                assert!(!result.poisoned && !h.state.poisoned());
+                for context in [child.parent.get().unwrap(), child.nested.get().unwrap()] {
+                    assert_eq!(h.engine.check(&context), 5);
+                }
+            }
+        }
+    }
+}
+
+#[test]
+fn original_wire_session_caps_every_callback_and_preserves_cumulative_history() {
+    fn run(compiled: bool, repetitions: usize, ceiling: usize) -> (bool, wire::Usage) {
+        let mut h = Harness::new();
+        h.wire_work = ceiling;
+        h.unit = stored_unit_profile(
+            include_bytes!("fixtures/component_scoped_roots_callback.lang"),
+            false,
+            true,
+        );
+        let mut child = Child::new(&mut h.values, compiled, repetitions, usize::MAX);
+        child.original_instance = true;
+        child.expected_wire = Some(h.wire_address.clone());
+        let child = Rc::new(child);
+        let (registration, watch) = h.registration_child(false, Some(child.clone()));
+        let result = h.call(registration, "create", None, compiled);
+        let usage = h.wire_usage.get().unwrap();
+        let succeeded = result.is_ok();
+        h.wire_work = usize::MAX;
+        if let Ok(created) = result {
+            let execution::Value::Resource(claim) = created.value else {
+                panic!("owner");
+            };
+            assert_eq!(child.value.get(), 42);
+            assert_eq!(child.task_observations.get(), repetitions);
+            let before = child.wire_scope_before.get().unwrap();
+            let after = child.wire_scope_after.get().unwrap();
+            assert!(
+                after.work > before.work
+                    && after.allocation_bytes > before.allocation_bytes
+                    && after.serialization_bytes > before.serialization_bytes
+            );
+            assert_eq!(child.wire_scope_address.get(), Some(h.wire_address.get()));
+            let (cleanup, _) = h.registration(false);
+            h.call(cleanup, "consume", Some(claim), compiled).unwrap();
+        } else {
+            let failure = result.err().unwrap();
+            assert!(
+                !failure.poisoned,
+                "{failure:?}; child={:?}",
+                child.failure.borrow()
+            );
+        }
+        assert_eq!(watch.destroyed.get(), watch.produced.get());
+        assert_eq!(watch.released.get(), 1);
+        assert!(!h.state.poisoned());
+        assert!(h.values.is_empty());
+        assert_eq!(h.allocator.stats().live_allocations, 0);
+        for context in [child.parent.get(), child.nested.get()]
+            .into_iter()
+            .flatten()
+        {
+            assert_eq!(h.engine.check(&context), 5);
+        }
+        let (retry, retry_watch) = h.registration(false);
+        let created = h.call(retry, "create", None, compiled).unwrap();
+        let execution::Value::Resource(claim) = created.value else {
+            panic!("owner");
+        };
+        let (cleanup, _) = h.registration(false);
+        h.call(cleanup, "consume", Some(claim), compiled).unwrap();
+        assert_eq!(retry_watch.destroyed.get(), 1);
+        assert!(h.values.is_empty());
+        assert_eq!(h.allocator.stats().live_allocations, 0);
+        (succeeded, usage)
+    }
+    for compiled in [false, true] {
+        let mut previous = 0;
+        for repetitions in [1, 2] {
+            let (ok, full) = run(compiled, repetitions, usize::MAX);
+            assert!(ok);
+            assert!(full.work > previous);
+            if repetitions == 2 {
+                assert!(
+                    !run(compiled, repetitions, previous).0,
+                    "second callback cannot replenish the first allowance"
+                );
+            }
+            assert_eq!(run(compiled, repetitions, full.work), (true, full));
+            let (ok, refused) = run(compiled, repetitions, full.work - 1);
+            assert!(!ok);
+            assert!(refused.work < full.work);
+            previous = full.work;
+        }
+    }
+}
+
+#[test]
 fn original_active_instance_guest_failure_closes_child_and_allows_the_next_root() {
     for compiled in [false, true] {
         let mut h = Harness::new();
@@ -1671,6 +2387,7 @@ fn original_active_instance_guest_failure_closes_child_and_allows_the_next_root(
         );
         let mut child = Child::new(&mut h.values, compiled, 2, usize::MAX);
         child.original_instance = true;
+        child.expected_wire = Some(h.wire_address.clone());
         child.callback_argument = -7;
         let child = Rc::new(child);
         let (registration, watch) = h.registration_child(false, Some(child.clone()));
@@ -1724,6 +2441,7 @@ fn original_active_instance_restores_clean_error_and_unwind_but_keeps_child_pois
             );
             let mut child = Child::new(&mut h.values, compiled, 2, usize::MAX);
             child.original_instance = true;
+            child.expected_wire = Some(h.wire_address.clone());
             child.activation_probe = Some(mode);
             let child = Rc::new(child);
             let (registration, watch) = h.registration_child(false, Some(child.clone()));

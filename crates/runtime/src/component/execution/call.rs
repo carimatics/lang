@@ -93,6 +93,76 @@ pub trait TaskStorageOperation {
         task: &mut crate::task::CurrentTask<'_>,
     ) -> Result<(), u32>;
 }
+/// A scoped borrow of the current native call's actual index-to-view mapping.
+/// Wire indices alone never construct this resource authority.
+pub struct CallbackArguments<'a, 'code> {
+    views: &'a [NativeView<'code>],
+    holder: Holder,
+}
+impl CallbackArguments<'_, '_> {
+    pub(crate) fn input(
+        &self,
+        used: &wire::ResourceUse<'_>,
+        resources: &Resources<'_>,
+        caller: Holder,
+        memory: &dyn Memory,
+    ) -> Result<storage::Input, Reason> {
+        if caller != self.holder {
+            return Err(fault(storage::Error::WrongHolder));
+        }
+        let view = self
+            .views
+            .get((used.index.get() - 1) as usize)
+            .ok_or(Reason::Entry)?;
+        if view.kind.key() != used.key {
+            return Err(fault(storage::Error::StaticType));
+        }
+        let access = match used.access {
+            wire::ResourceAccess::Own => storage::Access::Own,
+            wire::ResourceAccess::Borrow(super::super::idl::Access::Shared) => {
+                storage::Access::Shared
+            }
+            wire::ResourceAccess::Borrow(super::super::idl::Access::Exclusive) => {
+                storage::Access::Exclusive
+            }
+        };
+        if matches!(access, storage::Access::Exclusive)
+            && view.access != super::super::idl::Access::Exclusive
+        {
+            return Err(fault(storage::Error::State));
+        }
+        match view.authority {
+            NativeAuthority::Own(claim, holder) => {
+                if matches!(access, storage::Access::Own) {
+                    return Err(Reason::Unsupported);
+                }
+                if holder != caller {
+                    return Err(fault(storage::Error::WrongHolder));
+                }
+                resources
+                    .validate(claim, holder, used.key, memory)
+                    .map_err(fault)?;
+                resources
+                    .bytes(claim, holder, view.kind.clone(), memory)
+                    .map_err(fault)?;
+                Ok(storage::Input {
+                    claim,
+                    access,
+                    parent: None,
+                })
+            }
+            NativeAuthority::Loan(loan) => {
+                let requested = match used.access {
+                    wire::ResourceAccess::Own => return Err(fault(storage::Error::State)),
+                    wire::ResourceAccess::Borrow(access) => access,
+                };
+                resources
+                    .callback_loan(loan, view.kind.clone(), requested, caller, memory)
+                    .map_err(fault)
+            }
+        }
+    }
+}
 /// All operands are borrowed from the current dynamic native call.
 pub trait CallbackOperation {
     #[allow(
@@ -105,6 +175,8 @@ pub trait CallbackOperation {
         resources: &mut Resources<'_>,
         memory: &mut dyn Memory,
         budget: &mut m::Budget,
+        session: &mut wire::Session,
+        arguments: &CallbackArguments<'_, '_>,
         holder: Holder,
         accounting: &crate::execution::InvocationAccounting,
         task: &mut crate::task::CurrentTask<'_>,
@@ -188,6 +260,7 @@ pub(crate) struct CallContext<'r, 'm, 'b, 'scope, 'code> {
     parent_live: crate::execution::LiveUsage,
     task: Option<crate::task::CurrentTask<'r>>,
     instance: Option<&'r mut dyn instance::CallbackInstance>,
+    session: Option<&'b mut wire::Session>,
 }
 impl<'r, 'm, 'b, 'scope, 'code> CallContext<'r, 'm, 'b, 'scope, 'code> {
     pub fn new(
@@ -213,6 +286,7 @@ impl<'r, 'm, 'b, 'scope, 'code> CallContext<'r, 'm, 'b, 'scope, 'code> {
             parent_live: Default::default(),
             task: None,
             instance: None,
+            session: None,
         }
     }
     pub fn with_index_limit(mut self, limit: u32) -> Self {
@@ -225,6 +299,13 @@ impl<'r, 'm, 'b, 'scope, 'code> CallContext<'r, 'm, 'b, 'scope, 'code> {
     ) -> Self {
         self.accounting = Some(accounting);
         self
+    }
+    pub fn with_session(mut self, session: &'b mut wire::Session) -> Self {
+        self.session = Some(session);
+        self
+    }
+    pub fn take_session(&mut self) -> Result<&'b mut wire::Session, Reason> {
+        self.session.take().ok_or(Reason::Invariant)
     }
     pub fn with_instance(
         mut self,
@@ -320,12 +401,19 @@ impl NativeContext for CallContext<'_, '_, '_, '_, '_> {
             return Err(4);
         }
         let instance = self.instance.as_deref_mut().ok_or(4u32)?;
+        let session = self.session.as_deref_mut().ok_or(4u32)?;
+        let arguments = CallbackArguments {
+            views: self.views,
+            holder: self.holder,
+        };
         instance.with_callback(self.holder, &mut |child| {
             operation.run(
                 child,
                 self.resources,
                 self.memory,
                 self.budget,
+                session,
+                &arguments,
                 self.holder,
                 accounting,
                 task,
