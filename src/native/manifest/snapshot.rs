@@ -281,10 +281,17 @@ impl ProgramSnapshot {
                 manifest.build_id().to_string(),
             ));
         }
-        if manifest.profile() == Profile::Task && sdk.manifest.version() != 2 {
+        if manifest.profile() == Profile::Task && sdk.manifest.version() < 2 {
             return Err(mismatch(
                 "task SDK version",
-                "2",
+                ">=2",
+                sdk.manifest.version().to_string(),
+            ));
+        }
+        if manifest.profile() == Profile::Component && sdk.manifest.version() != 3 {
+            return Err(mismatch(
+                "component SDK version",
+                "3",
                 sdk.manifest.version().to_string(),
             ));
         }
@@ -371,6 +378,20 @@ fn validate(
         record
             .prepare_copy(p.verified(), &[], Default::default())
             .map_err(|e| error("program.native", ErrorKind::CopyPlan(e)))?;
+    } else if manifest.profile() == Profile::Component {
+        let Kind::Component(entry) = record.kind() else {
+            return Err(invalid("component record kind"));
+        };
+        let program = crate::artifact::component::decode(semantic, Default::default())
+            .map_err(|e| error("program.lbc", ErrorKind::ComponentCodec(Box::new(e))))?;
+        if program.entry().is_some()
+            || Some(entry.0) != manifest.entry()
+            || !program.unit().exports().iter().any(|(id, _)| *id == entry)
+        {
+            return Err(invalid("component export entry"));
+        }
+        // Provider-dependent nodes require the actual consumer Program and
+        // are reconstructed by the binding facade before symbol resolution.
     } else if manifest.profile() == Profile::Task {
         let Kind::Task(recorded_entry) = record.kind() else {
             return Err(invalid("task record kind"));

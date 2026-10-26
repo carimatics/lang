@@ -16,6 +16,8 @@ use std::{
     process::{Command, Output},
     sync::atomic::{AtomicU64, Ordering},
 };
+#[path = "support/component_object_program.rs"]
+mod component_fixture;
 struct Dir(PathBuf);
 impl Dir {
     fn new() -> Self {
@@ -488,17 +490,39 @@ fn public_link_native_runs_all_profiles_without_source_or_installed_sdk_at_start
         ("c", c.as_str(), ""),
         ("task", include_str!("../examples/scripts/tasks.lang"), "42"),
         (
+            "component",
+            "",
+            "component 42/panic -42/reuse 1/fuel refusal; zero inventory",
+        ),
+        (
             "task-owned",
             include_str!("fixtures/task_owned_buffers.lang"),
             "71",
         ),
     ] {
-        let package = program(&compiler, &dir, name, text);
+        let package = if name == "component" {
+            let semantic = component_fixture::artifact();
+            let package = component_fixture::with_artifact(&semantic, |program, _, entry| {
+                lang::native::component::compile(
+                    &semantic,
+                    program,
+                    entry,
+                    lang_codegen_clif::Triple::host(),
+                    Default::default(),
+                )
+                .unwrap()
+            });
+            let output = dir.0.join(name);
+            package.publish(&output).unwrap();
+            output
+        } else {
+            program(&compiler, &dir, name, text)
+        };
         if name == "task" {
             let manifest_path = sdk_root.join("sdk.json");
             let original = fs::read(&manifest_path).unwrap();
             let mut legacy: serde_json::Value = serde_json::from_slice(&original).unwrap();
-            assert_eq!(legacy["version"], 2);
+            assert_eq!(legacy["version"], 3);
             legacy["version"] = serde_json::json!(1);
             fs::write(&manifest_path, serde_json::to_vec(&legacy).unwrap()).unwrap();
             let denied_output = dir.0.join("task-with-legacy-sdk");
@@ -534,6 +558,15 @@ fn public_link_native_runs_all_profiles_without_source_or_installed_sdk_at_start
             .arg(&executable)
             .env("CARGO", dir.0.join("no-cargo"))
             .env("CARGO_HOME", dir.0.join("empty-cargo-home"));
+        if name == "component" {
+            let host = dir.0.join("component-host.rs");
+            fs::write(
+                &host,
+                include_bytes!("../src/native/sdk_startup/component-host.rs"),
+            )
+            .unwrap();
+            link.arg("--host").arg(host);
+        }
         if name == "c" {
             let denied_output = dir.0.join("c-without-host");
             let denied = Command::new(&compiler)

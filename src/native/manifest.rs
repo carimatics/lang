@@ -94,6 +94,7 @@ pub enum ErrorKind {
     CopyCodec(lang_bytecode::unit::CodecError),
     OwnedCodec(lang_bytecode::ownership::CodecError),
     TaskCodec(Box<lang_bytecode::ownership::CodecError>),
+    ComponentCodec(Box<crate::artifact::component::Error>),
     TaskPlan(Box<lang_codegen_clif::tasks::Error>),
     Record(lang_codegen_clif::native_record::Error),
     CopyPlan(lang_codegen_clif::program::BindError),
@@ -254,6 +255,7 @@ pub enum Profile {
     Owned,
     C,
     Task,
+    Component,
 }
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Ord, PartialOrd)]
 #[serde(rename_all = "snake_case")]
@@ -533,10 +535,15 @@ fn common(
 }
 pub fn parse_program(bytes: &[u8], limits: Limits) -> Result<Program, Error> {
     let p: RawProgram = parse(bytes, limits.program_manifest, limits.depth)?;
-    if p.format.0 != "lang-native-program" || !matches!(p.version, 1 | 2) {
+    if p.format.0 != "lang-native-program" || !matches!(p.version, 1..=3) {
         return Err(invalid("program format/version"));
     }
-    if (p.version == 2) != (p.profile == Profile::Task) {
+    if !matches!(
+        (p.version, p.profile),
+        (1, Profile::Copy | Profile::Owned | Profile::C)
+            | (2, Profile::Task)
+            | (3, Profile::Component)
+    ) {
         return Err(invalid("program version/profile"));
     }
     let roles = common(&p.files.0, false, p.target, limits, bytes.len())?;
@@ -545,13 +552,16 @@ pub fn parse_program(bytes: &[u8], limits: Limits) -> Result<Program, Error> {
         Role::NativeRecord,
         Role::Object,
         Role::Bindings,
-        if p.profile == Profile::C {
-            Role::CHeader
-        } else {
-            Role::Main
-        },
     ];
-    if roles.len() != required.len() || required.iter().any(|r| !roles.contains(r)) {
+    let extra = match p.profile {
+        Profile::C => Some(Role::CHeader),
+        Profile::Component => None,
+        _ => Some(Role::Main),
+    };
+    if roles.len() != required.len() + usize::from(extra.is_some())
+        || required.iter().any(|r| !roles.contains(r))
+        || extra.is_some_and(|r| !roles.contains(&r))
+    {
         return Err(invalid("program roles/profile"));
     }
     if (p.profile == Profile::C) != p.entry.0.is_none() {
@@ -561,7 +571,7 @@ pub fn parse_program(bytes: &[u8], limits: Limits) -> Result<Program, Error> {
 }
 pub fn parse_sdk(bytes: &[u8], limits: Limits) -> Result<Sdk, Error> {
     let s: RawSdk = parse(bytes, limits.sdk_manifest, limits.depth)?;
-    if s.format.0 != "lang-native-sdk" || !matches!(s.version, 1 | 2) {
+    if s.format.0 != "lang-native-sdk" || !matches!(s.version, 1..=3) {
         return Err(invalid("SDK format/version"));
     }
     if !matches!(s.build_profile.0.as_str(), "debug" | "release") {

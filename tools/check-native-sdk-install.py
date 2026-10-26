@@ -145,7 +145,7 @@ def verify(args):
         }""",
         "c": (sdk / "startup/c-guest.lang").read_text(encoding="utf-8"),
     }
-    if manifest["version"] == 2:
+    if manifest["version"] >= 2:
         texts.update({
             "task": """async fn worker(value:i64)->i64 {yield;return value;}
                 async fn main()->i64 {task_scope {
@@ -180,13 +180,45 @@ def verify(args):
                      "link_seconds": link_seconds, "executable": str(executable),
                      "files": package_manifest["files"]})
         packages.append(package)
+    if manifest["version"] >= 3:
+        # Compile explicit trusted producer tooling from the same installed SDK.
+        # Its actual source has no imports; neither phase fabricates a provider.
+        producer = output / ("component-producer.exe" if os.name == "nt" else "component-producer")
+        command = [rustc, "--edition=2024", "-Cpanic=unwind",
+                   str(sdk / "startup/component-producer.rs"), "-o", str(producer)]
+        directories = {str((sdk / f["path"]).parent) for f in manifest["files"]
+                       if f["role"] in ("runtime", "dependency")}
+        for directory in sorted(directories):
+            command += ["-L", "dependency=" + directory, "-L", "native=" + directory]
+        for name in ["lang", "lang_codegen_clif", "lang_runtime", "lang_mir", "lang_diagnostics"]:
+            matches = [sdk / f["path"] for f in manifest["files"]
+                       if Path(f["path"]).name.startswith("lib" + name + "-")
+                       and f["path"].endswith(".rlib")]
+            if len(matches) != 1:
+                raise ValueError(f"expected one SDK library for {name}")
+            command += ["--extern", name + "=" + str(matches[0])]
+        _, producer_seconds = run(command, output, env)
+        package = output / "component-package"
+        _, compile_seconds = run([str(producer), str(package)], output, env)
+        producer.unlink()
+        executable = output / ("component.exe" if os.name == "nt" else "component")
+        _, link_seconds = run([str(compiler), "link-native", "--sdk", str(sdk),
+                               "--package", str(package), "--host", str(sdk / "startup/component-host.rs"),
+                               "--output", str(executable)], output, env)
+        package_manifest = json.loads((package / "package.json").read_text(encoding="utf-8"))
+        rows.append({"profile": "component", "manifest_version": package_manifest["version"],
+                     "manifest_profile": package_manifest["profile"], "compile_seconds": compile_seconds,
+                     "producer_compile_seconds": producer_seconds, "link_seconds": link_seconds,
+                     "executable": str(executable), "files": package_manifest["files"]})
+        packages.append(package)
     # All actual linked input paths disappear before any application is started.
     for package in packages:
         shutil.rmtree(package)
     shutil.rmtree(sdk)
     for row in rows:
         stdout, seconds = run([row["executable"]], output, env)
-        expected = "" if row["profile"] == "c" else "42"
+        expected = ("component 42/panic -42/reuse 1/fuel refusal; zero inventory"
+                    if row["profile"] == "component" else "" if row["profile"] == "c" else "42")
         if stdout.strip() != expected:
             raise ValueError(f"{row['profile']} returned unexpected output: {stdout!r}")
         row.update(stdout=stdout.strip(), startup_seconds=seconds, success=True)

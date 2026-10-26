@@ -12,15 +12,19 @@ impl Drop for Files {
 
 #[test]
 fn linked_component_resources_call_vm_jit_and_object_children() {
-    linked_component_profile(false);
+    linked_component_profile(false, false);
 }
 #[test]
 fn stored_component_resources_call_vm_jit_and_recorded_object_children() {
-    linked_component_profile(true);
+    linked_component_profile(true, false);
 }
-fn linked_component_profile(stored: bool) {
+#[test]
+fn installed_component_resources_call_vm_jit_and_recorded_object_children() {
+    linked_component_profile(true, true);
+}
+fn linked_component_profile(stored: bool, installed: bool) {
     let files = Files(std::env::temp_dir().join(format!(
-        "lang component mixed-{}-{stored}",
+        "lang component mixed-{}-{stored}-{installed}",
         std::process::id()
     )));
     fs::create_dir(&files.0).unwrap();
@@ -42,6 +46,9 @@ fn linked_component_profile(stored: bool) {
     let mut declarations = String::new();
     let mut symbols = String::new();
     let mut objects = Vec::new();
+    let mut packages = Vec::new();
+    let mut embedded_objects = String::new();
+    let mut embedded_records = String::new();
     prepared_unit(&h.unit, registration, |program, _| {
         for (object_index, name) in ["create", "consume", "answer"].into_iter().enumerate() {
             let object = lang_codegen_clif::tasks::ObjectArtifact::emit_component(
@@ -50,6 +57,20 @@ fn linked_component_profile(stored: bool) {
                 Default::default(),
             )
             .unwrap();
+            if installed {
+                let package = lang::native::component::compile(
+                    &semantic,
+                    program,
+                    entry(program, name),
+                    lang_codegen_clif::Triple::host(),
+                    Default::default(),
+                )
+                .unwrap();
+                let path = files.0.join(format!("{name}-package"));
+                package.publish(&path).unwrap();
+                packages.push(path);
+            }
+            embedded_objects.push_str(&format!("{name:?} => &{:?},", object.bytes()));
             let path = files.0.join(format!("{name}.o"));
             fs::write(&path, object.bytes()).unwrap();
             objects.push(path);
@@ -68,16 +89,14 @@ fn linked_component_profile(stored: bool) {
                     .into_recorded(Default::default())
                     .unwrap()
                     .into_record();
-                fs::write(
-                    files.0.join(format!("{name}.native")),
-                    record.encode(&semantic, Default::default()).unwrap(),
-                )
-                .unwrap();
+                let native = record.encode(&semantic, Default::default()).unwrap();
+                embedded_records.push_str(&format!("{name:?} => &{native:?},"));
+                fs::write(files.0.join(format!("{name}.native")), native).unwrap();
             }
         }
     });
     drop(h);
-    drop(semantic);
+
     // Reuse the real resource owner and callback probes in a separately linked
     // executable. Embed fixture bytes, so its build has no relative file lookup.
     let mut prelude = include_str!("../component_scoped_roots.rs")
@@ -105,18 +124,19 @@ fn linked_component_profile(stored: bool) {
 #![allow(dead_code, unused_imports)]
 {prelude}
 const STORED:bool={stored};
+const INSTALLED:bool={installed};
+const SEMANTIC:&[u8]=&{semantic:?};
+fn object_bytes(name:&str)->&'static[u8]{{match name{{{embedded_objects}_=>panic!("object")}}}}
+fn native_bytes(name:&str)->&'static[u8]{{match name{{{embedded_records}_=>panic!("record")}}}}
 unsafe extern "C" {{ {declarations} }}
 fn resolve(symbol: &str) -> Option<*const u8> {{ match symbol {{ {symbols} _ => None }} }}
 fn load_unit()->bindings::Unit {{
-    if STORED {{lang::artifact::component::decode(&std::fs::read(std::env::args_os().nth(4).unwrap()).unwrap(),Default::default()).unwrap().into_unit()}}
+    if STORED {{lang::artifact::component::decode(SEMANTIC,Default::default()).unwrap().into_unit()}}
     else {{stored_unit()}}
 }}
 fn object_for<'p>(program:&'p program::Program<'p>,name:&str)->lang_codegen_clif::tasks::ObjectArtifact<'p>{{
     if STORED {{
-        let index=match name{{"create"=>1,"consume"=>2,_=>3}};
-        let path=std::path::PathBuf::from(std::env::args_os().nth(index).unwrap()).with_extension("native");
-        let semantic=std::fs::read(std::env::args_os().nth(4).unwrap()).unwrap();
-        let record=lang_codegen_clif::native_record::Record::decode(&std::fs::read(path).unwrap(),&semantic,Default::default()).unwrap();
+        let record=lang_codegen_clif::native_record::Record::decode(native_bytes(name),SEMANTIC,Default::default()).unwrap();
         lang_codegen_clif::tasks::RecordedObject::from_record(record).unwrap().prepare_component(program,Default::default()).unwrap()
     }}else{{lang_codegen_clif::tasks::ObjectArtifact::emit_component(program,entry(program,name),Default::default()).unwrap()}}
 }}
@@ -124,11 +144,18 @@ fn call_object(h: &mut Harness, provider: native::Provider<'static>, name: &str,
     let unit=load_unit();
     prepared_unit(&unit,provider, |program, session| {{
         let function=entry(program,name);
-        let object=object_for(program,name);
-        let index=if name=="create" {{1}} else {{2}};
-        assert_eq!(object.bytes(),std::fs::read(std::env::args_os().nth(index).unwrap()).unwrap());
-        // SAFETY: exact compared objects are statically linked for process life.
-        let linked=unsafe {{object.bind((),|_,symbol|resolve(symbol),Default::default())}}.unwrap();
+        let linked=if INSTALLED {{
+            let target=lang_codegen_clif::Triple::host().to_string();
+            let build=lang_codegen_clif::sdk::build_id(&lang_codegen_clif::Triple::host());
+            let input=lang_codegen_clif::sdk::runtime::Input{{target:&target,build_id:&build,semantic:SEMANTIC,native:native_bytes(name)}};
+            // SAFETY: exact package objects/addresses are linked by this SDK.
+            unsafe{{lang::native::component::bind(input,program,(),|_,symbol|resolve(symbol).and_then(|p|std::ptr::NonNull::new(p.cast_mut().cast())),Default::default())}}.unwrap()
+        }}else{{
+            let object=object_for(program,name);
+            assert_eq!(object.bytes(),object_bytes(name));
+            // SAFETY: exact compared objects are statically linked for process life.
+            unsafe {{object.bind((),|_,symbol|resolve(symbol),Default::default())}}.unwrap()
+        }};
         let control=e::Control::with_limits(Default::default());
         let mut invoker=h.engine.begin(control).unwrap();
         let mut budget=m::Budget::new(Default::default());
@@ -150,8 +177,7 @@ fn main() {{
         if backend==2 {{
             child.object_resolver=Some(resolve);
             if STORED {{
-                let path=std::path::PathBuf::from(std::env::args_os().nth(3).unwrap()).with_extension("native");
-                child.object_record=Some(ObjectRecord{{native:std::fs::read(path).unwrap().into(),semantic:std::fs::read(std::env::args_os().nth(4).unwrap()).unwrap().into()}});
+                child.object_record=Some(ObjectRecord{{native:native_bytes("answer").into(),semantic:SEMANTIC.into()}});
             }}
         }}
         child.cancel_task.set(cancel);
@@ -160,7 +186,7 @@ fn main() {{
         // Check the child's exact object too before lending the original task.
         prepared(registration.clone(),|program,_|{{
             let object=object_for(program,"answer");
-            assert_eq!(object.bytes(),std::fs::read(std::env::args_os().nth(3).unwrap()).unwrap());
+            assert_eq!(object.bytes(),object_bytes("answer"));
         }});
         let created=call_object(&mut h,registration.clone(),"create",None);
         if cancel {{
@@ -226,47 +252,107 @@ fn main() {{
     } else {
         "consumer"
     });
-    let dependencies = std::env::current_exe()
-        .unwrap()
-        .parent()
-        .unwrap()
-        .to_path_buf();
-    let mut command = Command::new("rustc");
-    command
-        .current_dir(env!("CARGO_MANIFEST_DIR"))
-        .args(["--edition=2024", "--crate-type=bin"])
-        .arg(&source)
-        .arg("-o")
-        .arg(&executable)
-        .arg("-L")
-        .arg(format!("dependency={}", dependencies.display()));
-    for name in [
-        "lang",
-        "lang_codegen_clif",
-        "lang_diagnostics",
-        "lang_mir",
-        "lang_runtime",
-        "lang_vm",
-        "serde_json",
-    ] {
+    if installed {
+        let built = Command::new(env!("CARGO"))
+            .current_dir(env!("CARGO_MANIFEST_DIR"))
+            .args([
+                "build",
+                "--locked",
+                "--bin",
+                "lang",
+                "--example",
+                "native-sdk",
+                "--message-format=json",
+            ])
+            .output()
+            .unwrap();
+        assert!(
+            built.status.success(),
+            "{}",
+            String::from_utf8_lossy(&built.stderr)
+        );
+        let sdk = files.0.join("sdk");
+        lang::native::sdk_package::assemble(&built.stdout, &sdk, Default::default()).unwrap();
+        lang::native::link::link(
+            &lang::native::link::Request {
+                rustc: None,
+                sdk: sdk.clone(),
+                package: packages[0].clone(),
+                host: Some(source.clone()),
+                objects: packages
+                    .iter()
+                    .skip(1)
+                    .map(|p| {
+                        p.join(if cfg!(windows) {
+                            "program.obj"
+                        } else {
+                            "program.o"
+                        })
+                    })
+                    .collect(),
+                output: executable.clone(),
+            },
+            Default::default(),
+        )
+        .unwrap();
+        fs::rename(&sdk, files.0.join("sdk-away")).unwrap();
+        for (index, path) in packages.iter().enumerate() {
+            fs::rename(path, files.0.join(format!("package-away-{index}"))).unwrap();
+        }
+        fs::rename(&source, files.0.join("source-away.rs")).unwrap();
+        fs::rename(&semantic_path, files.0.join("semantic-away")).unwrap();
+        for (index, path) in objects.iter().enumerate() {
+            fs::rename(path, files.0.join(format!("object-away-{index}"))).unwrap();
+            fs::rename(
+                path.with_extension("native"),
+                files.0.join(format!("record-away-{index}")),
+            )
+            .unwrap();
+        }
+    } else {
+        let dependencies = std::env::current_exe()
+            .unwrap()
+            .parent()
+            .unwrap()
+            .to_path_buf();
+        let mut command = Command::new("rustc");
         command
-            .arg("--extern")
-            .arg(format!("{name}={}", artifacts::library(name).display()));
+            .current_dir(env!("CARGO_MANIFEST_DIR"))
+            .args(["--edition=2024", "--crate-type=bin"])
+            .arg(&source)
+            .arg("-o")
+            .arg(&executable)
+            .arg("-L")
+            .arg(format!("dependency={}", dependencies.display()));
+        for name in [
+            "lang",
+            "lang_codegen_clif",
+            "lang_diagnostics",
+            "lang_mir",
+            "lang_runtime",
+            "lang_vm",
+            "serde_json",
+        ] {
+            command
+                .arg("--extern")
+                .arg(format!("{name}={}", artifacts::library(name).display()));
+        }
+        for path in &objects {
+            let mut option = std::ffi::OsString::from("link-arg=");
+            option.push(path);
+            command.arg("-C").arg(option);
+        }
+        let compiled = command.output().unwrap();
+        assert!(
+            compiled.status.success(),
+            "{}",
+            String::from_utf8_lossy(&compiled.stderr)
+        );
     }
-    for path in &objects {
-        let mut option = std::ffi::OsString::from("link-arg=");
-        option.push(path);
-        command.arg("-C").arg(option);
-    }
-    let compiled = command.output().unwrap();
-    assert!(
-        compiled.status.success(),
-        "{}",
-        String::from_utf8_lossy(&compiled.stderr)
-    );
     let output = Command::new(executable)
-        .args(objects)
-        .arg(semantic_path)
+        .current_dir(&files.0)
+        .env("CARGO", files.0.join("must-not-run-cargo"))
+        .env("CARGO_HOME", files.0.join("empty-cargo-home"))
         .output()
         .unwrap();
     assert!(

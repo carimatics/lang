@@ -1,5 +1,6 @@
 //! RFC 0020/0031 whole-source native package production. This module never executes
 //! guest code, grants imports or treats native hashes as authentication.
+pub mod component;
 pub mod link;
 pub mod manifest;
 pub mod sdk_package;
@@ -341,6 +342,22 @@ pub fn compile(
             )
         }
     };
+    assemble_package(semantic, record, profile, entry, symbols, header, target)
+}
+fn assemble_package(
+    semantic: Vec<u8>,
+    record: Record,
+    profile: &str,
+    entry: Option<m::FunctionId>,
+    symbols: Vec<String>,
+    header: Option<String>,
+    target: clif::Triple,
+) -> Result<Package, Error> {
+    let abi_target = match target.to_string().as_str() {
+        "aarch64-apple-darwin" => abi::Target::MacosAarch64,
+        "x86_64-pc-windows-msvc" => abi::Target::WindowsX86_64,
+        _ => return Err(Error::Target(target.to_string())),
+    };
     let native = record
         .encode(&semantic, Default::default())
         .map_err(Error::Record)?;
@@ -375,7 +392,7 @@ pub fn compile(
             16 * 1024 * 1024,
         )?;
     }
-    if profile != "c" {
+    if !matches!(profile, "c" | "component") {
         package.push(
             "main",
             "main.rs",
@@ -384,7 +401,11 @@ pub fn compile(
         )?;
     }
     let files: Vec<_> = package.files.iter().map(|f| serde_json::json!({"role":f.role,"path":f.path,"bytes":f.bytes.len(),"sha256":sdk::digest(&f.bytes)})).collect();
-    let version = if profile == "task" { 2 } else { 1 };
+    let version = match profile {
+        "task" => 2,
+        "component" => 3,
+        _ => 1,
+    };
     let manifest = serde_json::to_vec_pretty(&serde_json::json!({"format":"lang-native-program","version":version,"build_id":build,"target":target.to_string(),"profile":profile,"entry":entry.map(|i|i.0),"files":files})).map_err(Error::Manifest)?;
     package.push("manifest", "package.json", manifest, 64 * 1024)?;
     Ok(package)

@@ -403,7 +403,11 @@ pub fn link(request: &Request, limits: Limits) -> Result<(), Error> {
     }
     let package = m::ProgramSnapshot::open(&request.package, &stage.0, &sdk, limits.manifests)
         .map_err(Error::Manifest)?;
-    if package.manifest().profile() == Profile::C && request.host.is_none() {
+    if matches!(
+        package.manifest().profile(),
+        Profile::C | Profile::Component
+    ) && request.host.is_none()
+    {
         return Err(Error::HostRequired);
     }
     let mut arguments: Vec<OsString> = vec![
@@ -457,6 +461,14 @@ pub fn link(request: &Request, limits: Limits) -> Result<(), Error> {
         let mut arg = OsString::from(format!("{name}="));
         arg.push(sdk.root().join(file.path()));
         arguments.extend([OsString::from("--extern"), arg]);
+    }
+    if package.manifest().profile() == Profile::Component {
+        for name in ["lang", "lang_diagnostics", "lang_vm", "serde_json"] {
+            let file = library(sdk.manifest(), name)?;
+            let mut arg = OsString::from(format!("{name}="));
+            arg.push(sdk.root().join(file.path()));
+            arguments.extend([OsString::from("--extern"), arg]);
+        }
     }
     let object = package
         .manifest()
