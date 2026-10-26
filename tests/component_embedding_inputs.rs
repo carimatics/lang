@@ -868,7 +868,7 @@ fn native_c_host_loads_snapshots_and_repeats_generated_typed_calls_on_vm_and_jit
     let task_document = idl::check(m::SourceId(1), &task_idl, Default::default()).unwrap();
     let task_guest = g::guest(&task_document, Default::default()).unwrap();
     let task_source = format!(
-        "{}\n{} {{return 42;}}",
+        "{}\nasync fn task_worker() -> i64 {{ let mut bytes: core::Bytes = core::result_unwrap::<core::Bytes, core::AllocError>(core::bytes_new(core::allocator())); let mut pushed: core::Unit = core::result_unwrap::<core::Unit, core::BufferError>(core::bytes_push(bytes, 42)); yield; return core::bytes_len(bytes) + 41; }}\n{} {{ let mut child: core::Task<i64> = spawn task_worker(); let mut value: core::Result<i64, core::TaskError> = await child; return core::result_unwrap::<i64, core::TaskError>(value); }}",
         task_guest.declarations, task_guest.exports[0].declaration
     );
     let task_analysis = f::analyze(f::Request {
@@ -914,10 +914,98 @@ fn native_c_host_loads_snapshots_and_repeats_generated_typed_calls_on_vm_and_jit
     .unwrap();
     let task_projection =
         wire::encode_contract(&task_contract, &mut wire::Session::new(Default::default())).unwrap();
+    task_consumer["interfaces"][0]["functions"][0]["effect"] = serde_json::json!("task");
+    task_consumer["package"] = serde_json::json!("demo:callback-task");
+    task_consumer["imports"] = serde_json::json!([]);
+    task_consumer["exports"] = serde_json::json!(["demo:callback-task/api"]);
+    let task_root_contract = wire::Contract::new(
+        idl::check(
+            m::SourceId(1),
+            &serde_json::to_vec(&task_consumer).unwrap(),
+            Default::default(),
+        )
+        .unwrap(),
+        vec![],
+        &mut wire::Session::new(Default::default()),
+    )
+    .unwrap();
+    let task_root_projection = wire::encode_contract(
+        &task_root_contract,
+        &mut wire::Session::new(Default::default()),
+    )
+    .unwrap();
+    let task_module =
+        embedding::load(0, task_source.as_bytes(), &task_idl, Default::default()).unwrap();
+    let task_header = g::c::generate(task_module.contract(), target, Default::default()).unwrap();
+    let task_function = &task_header.functions[0];
+    let tasks_host = include_str!("support/component_tasks_host.c")
+        .replace("@TASK_ARGUMENTS@", &task_function.arguments)
+        .replace("@TASK_RESULT@", &task_function.result)
+        .replace("@TASK_NAME@", &task_function.name);
+    let mut task_refusals = String::new();
+    for case in 0..8 {
+        let mut request = task_consumer.clone();
+        match case {
+            0 => {
+                request["interfaces"][0]["functions"][0]["capability"] =
+                    serde_json::json!("wrong.capability")
+            }
+            1 => request["version"] = serde_json::json!("2.0.0"),
+            2 => request["interfaces"][0]["functions"][0]["result"] = serde_json::json!("bool"),
+            3 => request["interfaces"][0]["functions"][0]["name"] = serde_json::json!("missing"),
+            4 => request["interfaces"][0]["functions"][0]["effect"] = serde_json::json!("sync"),
+            5 => request["exports"] = serde_json::json!([]),
+            6 => {
+                let mut extra = request["interfaces"][0]["functions"][0].clone();
+                extra["name"] = serde_json::json!("other");
+                request["interfaces"][0]["functions"]
+                    .as_array_mut()
+                    .unwrap()
+                    .push(extra);
+            }
+            7 => {
+                request["interfaces"][0]["key"] = serde_json::json!("demo:callback-task/other");
+                request["exports"] = serde_json::json!(["demo:callback-task/other"]);
+            }
+            _ => unreachable!(),
+        }
+        let checked = idl::check(
+            m::SourceId(1),
+            &serde_json::to_vec(&request).unwrap(),
+            Default::default(),
+        )
+        .unwrap();
+        let mut session = wire::Session::new(Default::default());
+        let contract = wire::Contract::new(checked, vec![], &mut session).unwrap();
+        task_refusals += &array(
+            &format!("task_refusal_{case}"),
+            &wire::encode_contract(&contract, &mut session).unwrap(),
+        );
+    }
+    task_refusals += "static const lang_component_v1_bytes task_refusals[]={";
+    for case in 0..8 {
+        task_refusals += &format!("{{task_refusal_{case},sizeof(task_refusal_{case})}},");
+    }
+    task_refusals += "};\n";
+    // The task-root request must not broaden ordinary IDL import validity.
+    let mut task_import = task_consumer.clone();
+    task_import["exports"] = serde_json::json!([]);
+    task_import["imports"] = serde_json::json!([{"interface":"demo:callback-task/api","version":{"exact":"1.0.0"},"members":["later"]}]);
+    assert!(matches!(
+        idl::check(
+            m::SourceId(1),
+            &serde_json::to_vec(&task_import).unwrap(),
+            Default::default()
+        )
+        .unwrap_err()
+        .reason,
+        idl::Reason::InvalidEffect
+    ));
     let declarations = array("task_source", task_source.as_bytes())
         + &array("task_idl", &task_idl)
         + &array("task_artifact", &task_artifact)
         + &array("task_projection", &task_projection)
+        + &array("task_root_projection", &task_root_projection)
         + &array("source", source.as_bytes())
         + &array("idl", IDL)
         + &array("artifact", &bytes)
@@ -959,6 +1047,7 @@ fn native_c_host_loads_snapshots_and_repeats_generated_typed_calls_on_vm_and_jit
 {header}
 {native_header}
 {resource_header}
+{task_header}
 #include <assert.h>
 #include <stdlib.h>
 #include <string.h>
@@ -966,6 +1055,7 @@ fn native_c_host_loads_snapshots_and_repeats_generated_typed_calls_on_vm_and_jit
 #include <malloc.h>
 #endif
 {declarations}
+{task_refusals}
 extern void *probe_load(uint32_t,const uint8_t *,uint64_t,const uint8_t *,uint64_t,lang_component_v1_allocator);
 extern uint32_t probe_call(void *,uint32_t,const uint8_t *,uint64_t,uint8_t *,uint64_t,uint64_t *);
 extern void probe_drop(void *);
@@ -992,6 +1082,7 @@ extern uint32_t probe_result_usage(const lang_component_v1_result *,lang_compone
 extern uint32_t probe_result_bytes(const lang_component_v1_result *,lang_component_v1_bytes *,lang_component_v1_error *);
 extern uint32_t probe_result_drop(lang_component_v1_result *,lang_component_v1_error *);
 extern uint32_t probe_report(lang_component_v1_bytes,uint32_t,uint32_t);
+extern uint32_t probe_task_report(lang_component_v1_bytes,uint32_t,uint32_t,uint64_t);
 extern uint32_t probe_provider_register(lang_component_v1_engine *,const lang_component_v1_provider_config *,lang_component_v1_provider **,lang_component_v1_error *);
 extern uint32_t probe_provider_drop(lang_component_v1_provider *,lang_component_v1_result **,lang_component_v1_error *);
 extern uint32_t probe_context_check(const lang_component_v1_context *,lang_component_v1_error *);
@@ -1005,6 +1096,7 @@ extern uint32_t probe_context_resource_read(const lang_component_v1_context *,ui
 extern uint32_t probe_context_resource_keep(const lang_component_v1_context *,uint32_t,uint32_t *,lang_component_v1_error *);
 extern uint32_t probe_context_resource_take(const lang_component_v1_context *,uint32_t,uint32_t *,lang_component_v1_error *);
 extern uint32_t probe_context_resource_publish(const lang_component_v1_context *,lang_component_v1_bytes,lang_component_v1_buffer *,uint32_t *,lang_component_v1_error *);
+{tasks_host}
 {registry_host}
 {resources_host}
 static void bound_case(const lang_component_v1_api *api,const lang_component_v1_config *config,uint32_t format,lang_component_v1_bytes program,lang_component_v1_bytes contract,uint32_t limited) {{
@@ -1271,6 +1363,8 @@ uint32_t fixture(void) {{
                     bound_case(&api,&config,format,program,metadata,0);
                     decoder_refusal_case(&api,&config,format,program,metadata);
                     registry_case(&api,&config,format);resource_case(&api,&config,format,0);resource_case(&api,&config,format,1);
+                    task_root_case(&api,&config,format);
+                    assert(o->live==0&&o->allocated==o->released);
                 }}
             }}
         }}
@@ -1295,6 +1389,7 @@ uint32_t fixture(void) {{
 "#,
         header = header.header,
         resource_header = resource_host_header.header + &resource_header.header,
+        task_header = task_header.header,
         declarations = declarations,
         arguments_type = function.arguments,
         result_type = function.result,

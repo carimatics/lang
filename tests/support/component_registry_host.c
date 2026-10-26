@@ -7,6 +7,7 @@ typedef struct {
     lang_component_v1_context saved;
     lang_component_v1_context inner;
     lang_component_v1_binding *callback;
+    lang_component_v1_binding *task_callback;
     lang_component_v1_result *retained;
     lang_component_v1_result *snapshots[2];
     lang_component_v1_bytes snapshot_views[2];
@@ -86,6 +87,7 @@ static uint32_t registry_invoke(void *user,const lang_component_v1_context *cont
     lc_value_reader reader={0};lc_value_writer writer={0};uint8_t scratch[1024];
     error.header.size=sizeof(error);error.header.version=1;
     assert(context->engine==owner->engine&&owner->api->context_check(context,&error)==0);
+    if(owner->task_callback)task_nested_refusal(owner->api,context,owner->task_callback);
     if(owner->depth){owner->inner=*context;assert(owner->api->context_check(&owner->saved,&error)==5);}
     else owner->saved=*context;
     owner->calls++;
@@ -413,6 +415,8 @@ static void registry_profile(const lang_component_v1_api *api,const lang_compone
         assert(api->instance_create(task_module,&task_options,&task_instance,&error)==0);
         assert(api->bind_export(task_instance,task_request,&refused,&error)==2);
         assert(refused==(lang_component_v1_binding *)(uintptr_t)42);
+        task_request.data=task_root_projection;task_request.length=sizeof(task_root_projection);
+        assert(api->bind_export(task_instance,task_request,&owner.task_callback,&error)==0);
         assert(api->module_drop(task_module,&error)==0);
     }
     assert(api->provider_drop(owner.provider,&closed,&error)==4&&closed==(lang_component_v1_result *)(uintptr_t)42);
@@ -504,6 +508,7 @@ static void registry_profile(const lang_component_v1_api *api,const lang_compone
     assert(api->instance_close(instance,&closed,&error)==0&&closed==NULL);
     assert(api->instance_close(second_instance,&closed,&error)==0&&closed==NULL);
     if(task_instance) {
+        assert(api->binding_drop(owner.task_callback,&error)==0);
         assert(api->instance_close(task_instance,&closed,&error)==0&&closed==NULL);
     }
     assert(api->provider_drop(owner.provider,&closed,&error)==0&&closed==NULL&&owner.released==0);

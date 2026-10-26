@@ -6,6 +6,7 @@ mod failure_tests;
 mod persistent;
 mod registration;
 mod resources;
+mod selection;
 use super::{Limits as ModuleLimits, Module, ffi, load};
 pub use callbacks::context_call;
 use lang_codegen_clif::{c_abi::allocator::ForeignProvider, component};
@@ -1534,6 +1535,9 @@ pub unsafe extern "C" fn bind_export(
         let consumer =
             wire::decode_contract(m::SourceId(0), projection, &mut session).map_err(|_| INVALID)?;
         let doc = consumer.document();
+        if doc.imports.is_empty() {
+            return selection::task_root(&consumer, &instance.module, &mut session);
+        }
         if doc.imports.len() != 1 || doc.imports[0].members.len() != 1 {
             return Err(INVALID);
         }

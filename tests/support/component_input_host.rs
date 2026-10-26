@@ -417,6 +417,32 @@ unsafe extern "C" {
 }
 
 #[unsafe(no_mangle)]
+unsafe extern "C" fn probe_task_report(bytes: ffi::Bytes, mode: u32, kind: u32, ceiling: u64) -> u32 {
+    // SAFETY: the C host retains this immutable result view until return.
+    let bytes = unsafe { input(bytes.data, bytes.length) }.unwrap();
+    let report = wire::decode_report(bytes, &mut wire::Session::new(Default::default())).unwrap();
+    assert!(!report.poisoned && report.suppressed.is_empty());
+    assert_eq!(report.policy, wire::MessagePolicy::Redacted);
+    assert!(report.primary.message.is_none());
+    assert_eq!(report.primary.phase, wire::Phase::Call);
+    if kind == 1 {
+        assert_eq!(report.primary.category, wire::Category::Interruption);
+        assert_eq!(report.primary.diagnostic, wire::Diagnostic::Interrupted);
+        assert!(report.primary.limit.is_none());
+    } else {
+        assert_eq!(report.primary.category, wire::Category::Limit);
+        assert_eq!(report.primary.diagnostic, wire::Diagnostic::Limit);
+        let limit = report.primary.limit.unwrap();
+        assert_eq!(limit.kind, if kind == 0 {wire::ReportLimitKind::LiveTasks} else {wire::ReportLimitKind::Fuel});
+        assert_eq!((limit.limit, limit.attempted), (ceiling, ceiling + 1));
+    }
+    if let Some(origin) = report.primary.origin {
+        assert_eq!(origin.mode, if mode == 1 {wire::Mode::Jit} else {wire::Mode::Vm});
+    }
+    0
+}
+
+#[unsafe(no_mangle)]
 unsafe extern "C" fn probe_report(bytes: ffi::Bytes, mode: u32, case: u32) -> u32 {
     // SAFETY: the native caller retains this exact immutable result view.
     let bytes = unsafe { input(bytes.data, bytes.length) }.unwrap();
