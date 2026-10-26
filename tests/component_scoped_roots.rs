@@ -134,11 +134,14 @@ unsafe extern "C" fn make(
         );
         let parameters = unsafe { std::slice::from_raw_parts(arguments.data, 45) };
         let (backing, view) = unsafe { buffer(context, 8, 8) }?;
-        let value = if let Some(child) = owner
-            .child
-            .as_ref()
-            .filter(|child| !child.resource_callback)
-        {
+        let value = if let Some(child) = owner.child.as_ref().filter(|child| {
+            if child.resource_callback {
+                return false;
+            }
+            let remaining = child.deferred_makes.get();
+            child.deferred_makes.set(remaining.saturating_sub(1));
+            remaining == 0
+        }) {
             child.parent.set(Some(unsafe { *context }));
             let mut value = 0;
             for _ in 0..child.repetitions {
@@ -257,6 +260,7 @@ struct Child {
     task_usage: Cell<Option<lang_runtime::task::Usage>>,
     caller_frames: RefCell<Vec<execution::GuestCallFrame>>,
     cancel_task: Cell<bool>,
+    deferred_makes: Cell<usize>,
     task_observations: Cell<usize>,
     original_instance: bool,
     activation_probe: Option<CallbackProbe>,
@@ -312,6 +316,7 @@ impl Child {
             task_usage: Cell::new(None),
             caller_frames: RefCell::new(Vec::new()),
             cancel_task: Cell::new(false),
+            deferred_makes: Cell::new(0),
             task_observations: Cell::new(0),
             original_instance: false,
             activation_probe: None,
@@ -920,6 +925,7 @@ impl execution::TaskStorageOperation for ChildOperation<'_, '_> {
             provider(self.owner.clone()),
             Some(&mut *budget),
             self.target.wire_work,
+            None,
             |program, session, budget| {
                 let budget = budget.ok_or(4u32)?;
                 self.target.wire_metadata.set(Some(session.usage()));
@@ -1378,6 +1384,17 @@ fn stored_unit_callback_results(
     owning: bool,
     returning: bool,
 ) -> bindings::Unit {
+    unit_callback_results(source, task, callback, resource, owning, returning, true).0
+}
+fn unit_callback_results(
+    source: &[u8],
+    task: bool,
+    callback: bool,
+    resource: bool,
+    owning: bool,
+    returning: bool,
+    stored: bool,
+) -> (bindings::Unit, Option<Vec<u8>>) {
     let host = host_document_for(resource, owning, returning);
     let members = if resource {
         vec!["apply", "make", "tick", "bounce"]
@@ -1489,8 +1506,12 @@ fn stored_unit_callback_results(
         limits: Default::default(),
     });
     assert!(out.diagnostics.is_empty(), "{:?}", out.diagnostics);
+    let unit = out.result.unwrap();
+    if !stored {
+        return (unit, Some(bytes));
+    }
     let artifact = lang::artifact::component::encode(
-        out.result.unwrap(),
+        unit,
         m::Source {
             path: "component-scoped-roots.idl.json".into(),
             text: String::from_utf8(bytes).unwrap(),
@@ -1499,9 +1520,10 @@ fn stored_unit_callback_results(
         Default::default(),
     )
     .unwrap();
-    lang::artifact::component::decode(&artifact, Default::default())
+    let unit = lang::artifact::component::decode(&artifact, Default::default())
         .unwrap()
-        .into_unit()
+        .into_unit();
+    (unit, None)
 }
 
 fn prepared<T>(
@@ -1541,13 +1563,14 @@ fn prepared_unit_budget<T>(
     wire_work: usize,
     run: impl FnOnce(&program::Program<'_>, &mut wire::Session, Option<&mut m::Budget>) -> T,
 ) -> Result<(T, wire::Usage), u32> {
-    prepared_unit_budget_reason(unit, provider, budget, wire_work, run).map_err(|_| 1)
+    prepared_unit_budget_reason(unit, provider, budget, wire_work, None, run).map_err(|_| 1)
 }
 fn prepared_unit_budget_reason<T>(
     unit: &bindings::Unit,
     provider: native::Provider<'_>,
     mut budget: Option<&mut m::Budget>,
     wire_work: usize,
+    source_idl: Option<&[u8]>,
     run: impl FnOnce(&program::Program<'_>, &mut wire::Session, Option<&mut m::Budget>) -> T,
 ) -> Result<(T, wire::Usage), r::Reason> {
     let mut limits = wire::Limits::default();
@@ -1560,7 +1583,15 @@ fn prepared_unit_budget_reason<T>(
     }
     let mut session = wire::Session::new(limits);
     let contract = preparing(&mut session, &mut budget, |session| {
-        wire::artifact::source_contract(unit, session, 65_536)
+        if let Some(bytes) = source_idl {
+            wire::Contract::new(
+                idl::check(unit.document().document().source, bytes, Default::default()).unwrap(),
+                vec![],
+                session,
+            )
+        } else {
+            wire::artifact::source_contract(unit, session, 65_536)
+        }
     })
     .map_err(r::Reason::from)?;
     let signatures: Vec<_> = unit
@@ -1777,6 +1808,7 @@ impl a::Provider for TestProvider {
 }
 struct Harness {
     unit: bindings::Unit,
+    source_idl: Option<Vec<u8>>,
     task_limits: lang_runtime::task::Limits,
     wire_address: Rc<Cell<usize>>,
     wire_work: usize,
@@ -1810,6 +1842,7 @@ impl Harness {
         let engine = lang_codegen_clif::component::Engine::prepare(&mut budget).unwrap();
         Self {
             unit: stored_unit(),
+            source_idl: None,
             task_limits: Default::default(),
             wire_address: Rc::new(Cell::new(0)),
             wire_work: usize::MAX,
@@ -1924,6 +1957,7 @@ impl Harness {
     ) -> Result<r::Outcome<execution::Value>, Box<r::Failure>> {
         let Self {
             unit,
+            source_idl,
             task_limits,
             wire_address,
             wire_work,
@@ -1940,8 +1974,13 @@ impl Harness {
         } = self;
         let memory_access = *memory_access;
         let preparation_limits = *preparation_limits;
-        let (result, usage) =
-            prepared_unit_budget(unit, provider, None, *wire_work, |program, session, _| {
+        let (result, usage) = prepared_unit_budget_reason(
+            unit,
+            provider,
+            None,
+            *wire_work,
+            source_idl.as_deref(),
+            |program, session, _| {
                 wire_address.set(std::ptr::from_mut(&mut *session) as usize);
                 let function = entry(program, name);
                 let generated = compiled.then(|| {
@@ -2058,8 +2097,9 @@ impl Harness {
                         Ok(outcome)
                     })
                     .unwrap()
-            })
-            .unwrap();
+            },
+        )
+        .unwrap();
         wire_usage.set(Some(usage));
         result
     }
@@ -3274,6 +3314,141 @@ fn callback_cancellation_closes_original_non_root_task_and_resumes_parent() {
         assert_eq!(watch.released.get(), 1);
         assert!(h.values.is_empty());
         assert_eq!(h.allocator.stats().live_allocations, 0);
+    }
+}
+
+#[test]
+fn callback_cancellation_retires_an_independent_owner_before_recovery_or_poison() {
+    for stored in [false, true] {
+        for compiled in [false, true] {
+            for cleanup_failure in [false, true] {
+                let mut h = Harness::new();
+                (h.unit, h.source_idl) = unit_callback_results(
+                    include_bytes!("fixtures/component_scoped_roots_cancel_owner.lang"),
+                    true,
+                    false,
+                    false,
+                    false,
+                    false,
+                    stored,
+                );
+                h.task_limits = lang_runtime::task::Limits {
+                    live_tasks: 2,
+                    total_tasks: 2,
+                };
+                let mut child = Child::new(&mut h.values, compiled, 1, usize::MAX);
+                child.unit = stored_unit_for(include_bytes!(
+                    "fixtures/component_scoped_roots_cancel.lang"
+                ));
+                child.deferred_makes.set(1);
+                child.cancel_task.set(true);
+                let child = Rc::new(child);
+                let (registration, watch) =
+                    h.registration_child(cleanup_failure, Some(child.clone()));
+                let control = e::Control::with_limits(e::Limits {
+                    host_calls: Some(3),
+                    ..Default::default()
+                });
+                let accounting = e::InvocationAccounting::prepare(
+                    control,
+                    &mut m::Budget::new(Default::default()),
+                )
+                .unwrap();
+                let result = h.call_execution(
+                    registration,
+                    "start",
+                    None,
+                    compiled,
+                    control,
+                    Some(&accounting),
+                );
+                let usage = result.as_ref().map_or_else(|f| f.usage, |o| o.usage);
+                assert_eq!(usage, accounting.snapshot());
+                assert_eq!(usage.host_calls, 3);
+                assert!(usage.fuel > child.before.get().unwrap().fuel);
+                drop(accounting);
+                assert_eq!(watch.produced.get(), 1);
+                assert_eq!(watch.destroyed.get(), 1);
+                assert_eq!(child.task.borrow().as_ref().unwrap().index(), 1);
+                assert_eq!(child.task_observations.get(), 1);
+                assert!(
+                    child
+                        .failure
+                        .borrow()
+                        .as_ref()
+                        .unwrap()
+                        .contains("Cancelled")
+                );
+                let observed = child.failure_callers.borrow();
+                let callers = observed.as_ref().expect("original cancelled guest chain");
+                assert_eq!(callers.frames.len(), 2);
+                assert_eq!(callers.omitted, 0);
+                assert!(
+                    callers
+                        .frames
+                        .iter()
+                        .all(|frame| { &frame.task == child.task.borrow().as_ref().unwrap() })
+                );
+                drop(observed);
+                if cleanup_failure {
+                    let failure = result.err().expect("failed mandatory cleanup is terminal");
+                    assert!(failure.poisoned && h.state.poisoned());
+                    assert!(matches!(
+                        failure.reason.primary_cause(),
+                        r::Reason::Cancelled
+                    ));
+                    let report = failure.report.as_ref().unwrap();
+                    assert_eq!(report.cleanup_failures(), 1);
+                    assert_eq!(failure.tasks.admitted, 2);
+                    assert_eq!(failure.tasks.live, 0);
+                    let callers = failure.callers.as_ref().expect("terminal task trace");
+                    assert_eq!(callers.omitted, 0);
+                    assert_eq!(callers.frames.last().unwrap().task.index(), 1);
+                    assert_eq!(
+                        Some(callers.frames.last().unwrap().function),
+                        failure.function
+                    );
+                    assert_eq!(watch.released.get(), 0);
+                    drop(failure);
+                } else {
+                    let outcome = result.unwrap();
+                    assert!(matches!(
+                        outcome.value,
+                        execution::Value::Copy(lang_runtime::layout::Immediate::I64(42))
+                    ));
+                    assert!(!outcome.poisoned && !h.state.poisoned());
+                    assert_eq!(outcome.tasks.admitted, 2);
+                    assert_eq!(outcome.tasks.live, 0);
+                }
+                assert_eq!(watch.released.get(), 1);
+                assert!(h.values.is_empty());
+                assert_eq!(h.allocator.stats().live_allocations, 0);
+                assert!(!child.state.borrow().poisoned());
+                for context in [child.parent.get().unwrap(), child.nested.get().unwrap()] {
+                    assert_eq!(h.engine.check(&context), 5);
+                }
+                let (retry, retried) = h.registration(false);
+                if cleanup_failure {
+                    prepared(retry, |program, _| {
+                        assert!(matches!(
+                            h.state.with_program(program, |_| panic!("poison entered")),
+                            Err(r::Reason::Instance(execution::InstanceError::Poisoned))
+                        ));
+                    });
+                } else {
+                    let outcome = h.call(retry, "answer", None, compiled).unwrap();
+                    assert!(matches!(
+                        outcome.value,
+                        execution::Value::Copy(lang_runtime::layout::Immediate::I64(42))
+                    ));
+                }
+                assert_eq!(retried.produced.get(), 0);
+                assert_eq!(retried.destroyed.get(), 0);
+                assert_eq!(retried.released.get(), 1);
+                assert!(h.values.is_empty());
+                assert_eq!(h.allocator.stats().live_allocations, 0);
+            }
+        }
     }
 }
 

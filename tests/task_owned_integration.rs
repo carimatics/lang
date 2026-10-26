@@ -473,7 +473,7 @@ fn cancelling_a_parent_joins_multiple_owned_generations_before_its_owners() {
 }
 
 #[test]
-fn cancelled_combined_child_retains_typed_join_and_suppressed_cleanup_evidence() {
+fn cancelled_combined_child_retains_typed_join_but_withholds_poisoned_root_result() {
     let definitions = SOURCE.split("async fn main").next().unwrap();
     let source = format!(
         "{definitions}async fn main()->i64{{let mut child:core::Task<i64>=spawn scenario(false);yield;yield;cancel child;let mut result:core::Result<i64,core::TaskError>=await child;match result{{core::Result::Ok(_)=>{{return -1;}},core::Result::Err(core::TaskError::Cancelled)=>{{return 42;}},}}}}"
@@ -485,8 +485,37 @@ fn cancelled_combined_child_retains_typed_join_and_suppressed_cleanup_evidence()
     for compiled in [false, true] {
         let (mut allocator, trace) = allocator(usize::MAX);
         trace.borrow_mut().panic_buffers = vec![40, 0];
-        let result = execute(&program, &native, compiled, &mut allocator, control()).unwrap();
-        assert_eq!(result.value, 42);
+        let result = execute_with(
+            &program,
+            &native,
+            compiled,
+            &mut allocator,
+            control(),
+            lang_runtime::task::runner::Limits {
+                trace_events: 1024,
+                ..Default::default()
+            },
+        )
+        .err()
+        .expect("poisoned cleanup withholds the recovered root result");
+        assert!(matches!(
+            result.reason,
+            lang_runtime::task::runner::Reason::Cleanup
+        ));
+        assert!(result.events.iter().any(|event| {
+            event.task == 1
+                && event.kind
+                    == lang_runtime::task::runner::EventKind::Complete(
+                        lang_runtime::task::Outcome::Cancelled,
+                    )
+        }));
+        assert!(result.events.iter().any(|event| {
+            event.task == 0
+                && event.kind
+                    == lang_runtime::task::runner::EventKind::Complete(
+                        lang_runtime::task::Outcome::Success,
+                    )
+        }));
         assert!(result.poisoned);
         assert_eq!(result.tasks.live, 0);
         assert_eq!(allocator.stats().live_allocations, 0);

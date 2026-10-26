@@ -610,7 +610,7 @@ async fn main()->i64 { task_scope { let mut pending:core::Task<i64> = spawn scop
 }
 
 #[test]
-fn cancelled_child_keeps_cancelled_join_and_exposes_secondary_cleanup_report() {
+fn cancelled_child_keeps_cancelled_join_but_failed_cleanup_withholds_root_result() {
     let program = prepare(include_str!("fixtures/task_owned.lang"));
     let native =
         lang_codegen_clif::tasks::CompiledProgram::compile(program.verified(), Default::default())
@@ -619,18 +619,30 @@ fn cancelled_child_keeps_cancelled_join_and_exposes_secondary_cleanup_report() {
         let (mut allocator, trace) = tracked(usize::MAX);
         trace.borrow_mut().panic_buffers = true;
         let control = e::Control::with_limits(Default::default());
+        let limits = lang_runtime::task::runner::Limits {
+            trace_events: 128,
+            ..Default::default()
+        };
         let result = if compiled {
-            native.execute(&mut allocator, control, Default::default())
+            native.execute(&mut allocator, control, limits)
         } else {
-            lang_vm::unit::tasks::execute_entry(
-                program.verified(),
-                &mut allocator,
-                control,
-                Default::default(),
-            )
+            lang_vm::unit::tasks::execute_entry(program.verified(), &mut allocator, control, limits)
         }
-        .unwrap();
-        assert_eq!(result.value, 7);
+        .err()
+        .expect("poisoned child cleanup withholds the recovered root value");
+        assert!(matches!(
+            result.reason,
+            lang_runtime::task::runner::Reason::Cleanup
+        ));
+        for (task, outcome) in [
+            (1, lang_runtime::task::Outcome::Cancelled),
+            (0, lang_runtime::task::Outcome::Success),
+        ] {
+            assert!(result.events.iter().any(|event| {
+                event.task == task
+                    && event.kind == lang_runtime::task::runner::EventKind::Complete(outcome)
+            }));
+        }
         assert!(result.poisoned);
         let report = result.report.as_ref().unwrap();
         assert_eq!(

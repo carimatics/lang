@@ -1265,7 +1265,13 @@ impl<'p, 'l, 'ty, 'host, 'ctrl, P: a::Provider> Machine<'p, 'l, 'ty, 'host, 'ctr
                 return Err(Reason::Invariant);
             }
             match outcome.map_err(Reason::from)? {
-                t::Status::Complete(t::Outcome::Success) => Ok(()),
+                t::Status::Complete(t::Outcome::Success) => {
+                    if self.poisoned_task().is_some() {
+                        Err(Reason::Cleanup)
+                    } else {
+                        Ok(())
+                    }
+                }
                 t::Status::Complete(t::Outcome::Cancelled) => Err(Reason::Cancelled),
                 t::Status::Complete(t::Outcome::Failed(_)) => Err(Reason::Invariant),
                 _ => Err(Reason::Invariant),

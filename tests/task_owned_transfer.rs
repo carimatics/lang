@@ -375,7 +375,7 @@ fn parent_panic_keeps_precedence_over_published_result_and_local_cleanup_failure
 }
 
 #[test]
-fn cancelled_owned_join_keeps_suppressed_cleanup_poison_without_a_payload() {
+fn cancelled_owned_join_preserves_cancellation_but_withholds_poisoned_root_payload() {
     let prefix = SOURCE.split("async fn main").next().unwrap();
     let source = format!(
         "{prefix}async fn main()->i64{{let mut child:core::Task<core::Bytes>=spawn worker(bytes(42));cancel child;let mut result:core::Result<core::Bytes,core::TaskError>=await child;match result{{core::Result::Ok(_)=>{{return -1;}},core::Result::Err(core::TaskError::Cancelled)=>{{return 7;}},}}}}"
@@ -399,15 +399,24 @@ fn cancelled_owned_join_keeps_suppressed_cleanup_poison_without_a_payload() {
                 ..Default::default()
             },
         )
-        .unwrap();
-        assert_eq!(output.value, 7);
+        .err()
+        .expect("poisoned transferred-owner cleanup withholds the recovered root result");
+        assert!(matches!(output.reason, r::Reason::Cleanup));
+        for (task, outcome) in [
+            (1, lang_runtime::task::Outcome::Cancelled),
+            (0, lang_runtime::task::Outcome::Success),
+        ] {
+            assert!(output.events.iter().any(|event| {
+                event.task == task && event.kind == r::EventKind::Complete(outcome)
+            }));
+        }
         assert!(output.poisoned);
         assert_eq!(trace.borrow().buffers, [42]);
         assert_eq!(output.report.as_ref().unwrap().cleanup_failures(), 1);
         assert_eq!(allocator.stats().live_allocations, 0);
         assert!(trace.borrow().live.is_empty());
         if let Some(previous) = &expected {
-            compare_outcomes(previous, &output);
+            compare_failures(previous, &output);
         } else {
             expected = Some(output);
         }
