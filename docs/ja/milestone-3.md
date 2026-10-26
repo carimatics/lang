@@ -6,11 +6,13 @@
 
 更新日: **2026-10-26 JST**。開始チェックポイント: `984557d`。M2 とリポジトリレビューは完了済みです。
 
-**61 done · 1 doing · 11 todo · 32 remaining pt**
+**62 done · 1 doing · 10 todo · 31 remaining pt**
 
-**次: M3-E04 → callback取消し回復とterminal cleanup失敗の統合。**
+**次: M3-L01 → guest/native callbackを跨ぐ元heap/割当て上限の統合。**
 
-E04取消し/cleanup checkpoint（2026-10-26 JST、全baseline待ち）: source fixtureで独立したnative resourceを先に生成し、2回目のnative呼出しで元の非root taskを取り消します。必須破棄に失敗しても親が成功結果を返す問題を再現しました。adapterの終了処理が公開前に元のadmit済みcleanup Sessionを調べ、明示的scheduler failure/root faultの優先を保ち、それらがなければ元admission順で最初のpoison taskを選びます。schedulerの取消outcomeは不変です。source/再検証済みartifact × VM/JIT × 破棄成功/失敗の8 profileで、元TaskId 1と実guest有界trace・共有accountingと厳密なhost-call上限3回・独立ownerの一度だけの退役・report/code owner寿命・live storage/task 0・失効context・cleanなfresh root再利用とterminal poison時拒否を検証します。後続destructor失敗後も元の物理的な取消causeを保持します。RFC 0027へ委任による明確化と互換性修正を記録しました。通常owned-task/transfer suiteも13/11/15件（1.49/13.06/10.22 s）成功し、実child Complete(Cancelled)と親Complete(Success)の観測を保ちながら、RFC 0008に従ってpoisonされたroot escrowを公開しません。2回の全検証で、通常owned/transfer fixtureにpoison付きroot成功を期待する旧テストが判明しました。3件ともRFC 0008へ合わせ、取消し/join観測・cleanup順序・quarantine・inventory 0を保ち、全targetの結果を集める--no-fail-fast付きで入力固定全検証を繰り返します。入力固定全検証と完了監査までE04は1 ptのdoingです。
+E04取消し/cleanup checkpoint `8227a74`（**2026-10-26 18:14 JST検証**、macOS AArch64）: source fixtureで独立したnative resourceを先に生成し、2回目のnative呼出しで元の非root taskを取り消します。必須破棄に失敗しても親が成功結果を返す問題を再現しました。adapterの終了処理が公開前に元のadmit済みcleanup Sessionを調べ、明示的scheduler failure/root faultの優先を保ち、それらがなければ元admission順で最初のpoison taskを選びます。schedulerの取消outcomeは不変です。source/再検証済みartifact × VM/JIT × 破棄成功/失敗の8 profileで、元TaskId 1と実guest有界trace・共有accountingと厳密なhost-call上限3回・独立ownerの一度だけの退役・report/code owner寿命・live storage/task 0・失効context・cleanなfresh root再利用とterminal poison時拒否を検証しました。後続destructor失敗後も元の物理的な取消causeを保持します。RFC 0027へ委任による明確化と互換性修正を記録しました。通常owned-task/transfer suiteも13/11/15件（1.49/13.06/10.22 s）成功し、実child Complete(Cancelled)と親Complete(Success)の観測を保ちながら、RFC 0008に従ってpoisonされたroot escrowを公開しません。2回の全検証で、通常owned/transfer fixtureにpoison付きroot成功を期待する旧テストが判明しました。3件ともRFC 0008へ合わせ、取消し/join観測・cleanup順序・quarantine・inventory 0を保ち、全targetを実行する--no-fail-fast付き入力固定全検証が成功しました。入力固定全検証と完了監査によりE04を完了し、全task rootのC binding・installed AOT・両host証拠はE01/I08/B01に残します。
+
+E04完了検証 `8227a74`（**2026-10-26 18:14 JST検証**、macOS AArch64）: **147 suites / 2,290 passed / 0 failed / 1 existing timing ignore**、suite-time合計 **800.94 s**、test command時間幅 **964.67 s**で、--no-fail-fastにより全targetを実行しました。workspace/fuzz fmt・warnings-denied workspace Clippy・rustdoc・全15 fuzz target check/Clippyが成功し、campaignは実行していません。835入力 / 非Markdown 735入力の前後hashが一致しました: main `d370b6bf52452d802d66c01a7119db06294c1862fa36df362af8e367794dc809`、検証 `32c0bfe7969611e94152377f78f910ea2d8032cb0c8fe7e75995d0bf04742826`。未変更Windows benchmarkのCRLF/LF差だけを正規化し、検証側の余分な入力はありません。focused scoped/resource/controlは44/64/7件（42.24/16.66/1.06 s）、通常owned-task/transferは13/11/15件（1.49/13.06/10.22 s）成功しました。**完了: 1 delivery / 消化1 pt、追加/再見積り0 pt**。E04をdoneにし、L01だけを3 ptのdoingにします。件数62/1/10/31・net additions +89・消化168 pt・台帳110 + 89 − 168 = 31で、gateは3/15・18/96を維持します。RFC 0027/architectureは2026-10-26 JST更新、codeには更新日記載がありません。
 
 E04退役境界checkpoint `1ba394b`（**2026-10-26 16:33 JST検証**、macOS AArch64）: 各taskの元64件vectorをcleanup前の受動snapshotと最初の実faultへ再利用し、公開前に検査済みancestorごとに132 workを予約します。scheduler/取消し状態を変えず、完了済みhost frameを作らず、実task/activation/node spanを保ちます。activeが消えた後もdriver失敗の実dispatch recordを保持し、child Completeのtrace拒否で汎用rootではなくchildと退役済み祖先を報告します。source/再検証済みtask artifact × VM/JITで2/5/67 frame・上限64/省略3・task/function/span identity・live割当て/task 0を確認しました。native成功後の最終結果preparationを1小さい上限で拒否してもroot snapshotを保持します。escrow破棄の成否にかかわらず、元の型付きquota cause・一度だけの退役・code owner寿命・cleanなfresh root再利用またはterminal poison/拒否を保ちます。借用task取消しも実answer/incrementの2 frameと元TaskId 1を保持します。report処理が失敗してもabortの元causeを保ち、後続の構造的invariantを既存の有界secondary bufferとpoisonへ記録し、省略時もpoisonを維持します。focused scoped/resource/control 43/64/7件（42.30/17.07/1.06 s）と有界invariant単体1件が成功しました。入力固定全検証は下記に記録しました。
 
@@ -50,7 +52,7 @@ E04 native activation checkpoint `38ef893`（**2026-10-26 07:39 JST検証**、ma
 
 E04 native activation検証 `38ef893`（**2026-10-26 07:39 JST検証**、macOS AArch64）: **147 suites / 2,284 passed / 0 failed / 1 existing timing ignore**、suite-time合計 **774.91 s**、command interval **1498 s**。workspace/fuzz fmt、警告をエラーとしたClippy（**49.48 s**）、rustdoc（**15.53 s**）、全15 fuzz targetのcheck（**4.69 s**）/Clippy（**0.39 s**）が成功し、campaignは実行していません。**834入力・734 non-Markdown入力**の前後hashは一致し、main `e78d50c7ef0a325cec18c34e4d04c2152786c13dfc3e9d0e36aec051a74d667b`、検証checkout `1b978019cd9f035d90da54940e40e961191da5b45787fed65868daedb4946e0b`です。未変更Windows benchmarkのCRLF/LF差だけを正規化し、余分な検証入力はありません。E04完了ではなくcheckpointです。**消化0 pt、追加/再見積り0 pt**。下記scope監査の残る3成果を再監査し、E04の3 ptを維持します。**73行・61 done · 1 doing · 11 todo · 34 remaining pt**、台帳 **110 + 91 − 167 = 34**、gate **3/15・18/96**は不変です。次は既存Machine activation IDと元guest scopeによる通常guest再帰/task frame chainを実行し、adapter/取消し・installed/両host/P1・全32操作/query・最終guideの受入を残します。RFC 0027/architectureは2026-10-26 JST更新、codeには更新日記載がありません。
 
-E04残scope/見積り監査（2026-10-26 JST）: `1ba394b`でadmit済みprofileの取消し/遅い取得を確認し、元の借用task取消し・退役後driver失敗・最終結果拒否で、有界の実task/function/span証拠・first cause・code owner・cleanup/poisonを保持します。残る観測可能な成果は1つです。callback取消し回復とterminal cleanup失敗を統合し、物理first cause・独立ownerの必須退役・元control/accounting・cleanな再利用とpoison時拒否を保ちます。この減った残一覧に対してE04を**2 → 1 pt**へ再見積りします。delivery完了/完了時消化は0件/0 pt、追加0 pt、net再見積り−1 ptです。73行・61 done/1 doing/11 todoを維持し、残量**33 → 32 pt**・net additions **+90 → +89**・完了時消化**167 pt**・台帳**110 + 89 − 167 = 32**・gate 3/15・18/96です。全task rootのC bindingはE01、installed AOTはI08に残し、E04/G10・L03/L04・E01全32操作/query・両host/P1・最終guideの受入条件も維持します。
+E04完了/L01 scope監査（2026-10-26 JST）: `8227a74`で元の物理的な取消cause・独立ownerの必須退役・実task/callers・共有control/accounting・clean再利用とterminal poisonを統合検証し、最後の成果を確認しました。先行E04 checkpointもadmit済みprofileのnative/adapter帰属・異なるactivation・有界再帰/task/cleanup/遅いtrace・不変のcode owner付きreportを保持します。E04の最後の1 ptを消化し、追加/再見積り0 ptです。元Allocatorのbyte/割当て上限・借用allocator view・既存C heap拒否の証拠を確認し、L01だけを選択して3 ptを維持します。残る観測可能な成果は、guest/native callback/childが同時に割り当てるfixtureで元byte/件数上限の厳密値と1小さい値・provider前拒否・型付きfirst cause・独立した必須cleanup/再利用を検証することです。既存allocator/context/accountingを再利用し、並行するallocatorや権限を加えません。L02/L03/L04・E01全32操作/query・I08 installed AOT・両host/P1・最終guideは残します。73行・62 done/1 doing/10 todo・残31 pt・net additions +89・消化168 pt・台帳110 + 89 − 168 = 31・gate 3/15・18/96です。
 
 E02 callback準備失敗統合（2026-10-26 JST）: 内部CallbackFailureは通常のadmission statusと、元ledgerのpreparation/allocator/control失敗を区別します。contract/grant/proof・引数/出力準備は型付きquota原因を同一/別instanceのactivation復元後まで保持し、native再開前に元CallContextがcaller FunctionId/Span・CurrentTask・issued index prefixを既存first-failure slotへ記録します。不正claim/bytes・規則違反・unsupported entryはpreflight拒否を維持します。最初の拒否はinput/outputとno-commitを保ち、再context_callはguestへ入らず同じ不変reportを返し、親の成功/nullで原因を置換しません。cleanなquota失敗後はfresh rootを再利用できます。実C11 source/artifact × VM/JITで同一/別instanceの元work・metadata bytes・elementsを厳密な上限まで使い、数値limit/attempt・report/usage・host-call/namespace回数の不変・owner寿命を検証しました。snapshot比較の要求量は検査済みdocumentの実work/byte costから導きます。実task source/artifact exportを同期callbackとしてbindできず、handleを公開せず、その後の通常callbackは実行できます。C-input 5・scoped 41 testが成功し、owning-result escrow・active loan・元non-root task/取消し・allocator/control identityを維持します。native compileのadmission/cost規則は不変です。E02完了は下記の全検証/受入監査に記録し、E04のactivation付きframe重複除去とL04合算controlは別の受入条件に残します。
 
@@ -389,9 +391,9 @@ C04 は `f882074`（2026-10-22 02:05 JST）で完了しました。明示的で�
 | M3-E14 | done | 0 | M3-E07,M3-E12,M3-E13 | G09 | 再開するcomponent検証で元preparation ledger・失敗prefix・固有proof cost・一度だけのentry課金を維持 | `078e9b4` |
 | M3-E02 | done | 0 | M3-E08,M3-E07,M3-E06,M3-E10,M3-E11,M3-E12,M3-E13,M3-E14,M3-E03 | G09 | script から native host を呼び入れ子 guest callback を受信 | `082d1de` |
 | M3-E03 | done | 0 | M3-E06,M3-E07,M3-E14,M3-R03 | G09 | typed failure、元の context、再入規則、poison を mode 間で維持 | 52b20e0 |
-| M3-E04 | doing | 1 | M3-E03,M3-T07,M3-E09 | G10 | callback を跨いで logical mixed stack、取消、cleanup を維持 | — |
+| M3-E04 | done | 0 | M3-E03,M3-T07,M3-E09 | G10 | callback を跨いで logical mixed stack、取消、cleanup を維持 | `8227a74` |
 | M3-E05 | done | 0 | M3-I04,M3-P01,M3-R01 | G07,G09 | canonical transport・実直接 Resource backing 変更・元 allocator/context・scope の完全 cleanup により VM/native source から保持済み native member を実行 | `a13272b` |
-| M3-L01 | todo | 3 | M3-E03 | G11 | callback の確保を含む heap/allocation の共有上限を適用 | — |
+| M3-L01 | doing | 3 | M3-E03 | G11 | callback の確保を含む heap/allocation の共有上限を適用 | — |
 | M3-L02 | todo | 3 | M3-T08,M3-E03 | G12 | guest/host を跨ぐ再帰/frame/live-task 合算上限を適用 | — |
 | M3-L03 | todo | 3 | M3-E04,M3-T08 | G13 | VM/JIT/AOT と callback 境界で interruption を一貫して観測 | — |
 | M3-L04 | todo | 3 | M3-L01,M3-L02,M3-L03,M3-P02 | G11,G12,G13 | 敵対的な資源枯渇でも必須 cleanup を完了 | — |
@@ -476,7 +478,7 @@ T05 を `2f58084` で完了（2026-10-21 JST）: TaskProgram で source claim/lo
 
 T05 roadmap 監査: 最初の source VM fixture が実行できたため、G03/G12/G13 完了判定前に **T06 → T07 → T08** を進めます。`crates/codegen-clif/src/owned.rs` と `src/native.rs` を確認し、既存 native 経路は TaskProgram/async metadata を拒否する一方、検証済み MIR、managed task layout、scope identity、result storage が揃ったことを確認しました。T06 は元の 3 pt の compiled continuation と値/event 一致の成果を維持し、VM/MIR fallback なしに生成 code を実行する必要があります。初期 native fixture で serialized task revision や package/startup 公開を決めたことにはしません。明示 format 判断と native/owned/loan/foreign/共有 control の受入条件を維持し、次の実行 fixture 前に scheduler/IDL 基盤を追加しません。全 15 gate、全 P1 作業、channel、Send/Share、production embedding を M3 に残します。
 
-**110 + 89 − 167 = 32 pt**
+**110 + 89 − 168 = 31 pt**
 
 T06 を `8d6c283` で完了（2026-10-21 JST）: 実装前に RFC 0023 へ native 境界を記録しました。invocation/frame/claim/result 状態と scheduling/storage service を共有し、VM/native に別の resume/cleanup entry を持ちます。Cranelift が演算、分岐、失敗/取消 CFG、検査付き continuation 選択を生成し、実行時 MIR evaluator や VM 依存はありません。source fixture は VM/native ともに 42 を出力します。integration test 12 件で値/event/使用量/割り当て状態、取消、有限 record/enum と field 更新、通常 call、loop scope identity、子/同期 panic 起点、全 fuel/trace prefix、task/frame/cell/preparation 上限、各 provider 拒否を比較します。別途リンクした実行形式では join/aggregate/cancel/panic profile、再生成 object/compiler/SDK byte の一致、全 fuel prefix を検証し、JIT compile/invoke API を呼びません。private 境界 2 テストで callback 前の範囲外 PC 拒否と source 証拠付き callback panic の封じ込めを確認します。受理した storage/task はすべて解放します。全 baseline: **106 suites / 1,712 passed / 0 failed / 1 existing timing ignore**、完了 suite 時間合計 **471.21 s**。fmt、warnings-denied workspace Clippy **6.24 s**、rustdoc **26.34 s**、全 11 fuzz target の compile/lint **3.11 s** が通過しました。fuzz campaign、性能主張、より広い platform/native package 完了ではありません。T06 の 3 pt を消化し、作業追加/再見積りはありません。
 
@@ -524,7 +526,7 @@ A06 roadmap audit: `Machine::spawn`、`Frame::copy_from_frame`、`Frame::result`
 
 | Initial remaining | Net additions/re-estimates | Retired at completion | Remaining |
 | ---: | ---: | ---: | ---: |
-| 110 pt | +89 pt | −167 pt | 32 pt |
+| 110 pt | +89 pt | −168 pt | 31 pt |
 
 ## Exit audit
 
