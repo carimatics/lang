@@ -6,9 +6,11 @@
 
 更新日: **2026-10-27 JST**。開始チェックポイント: `984557d`。M2 とリポジトリレビューは完了済みです。
 
-**70 done · 1 doing · 6 todo · 17 remaining pt**
+**70 done · 1 doing · 8 todo · 20 remaining pt**
 
-**次: M3-E01 → 全32操作/queryのC entryと対応installed modeを公開する。**
+**次: M3-E15 → task importを許可せず生成Cからroot taskを呼び出す。**
+
+E01 scope/見積り監査（2026-10-27 07:24 JST）: 最初のtyped task実験はIDLの`InvalidEffect`で停止しました。task import禁止により既存の単一import選択ではroot taskを指定できません。gatewayのnative image bindingも未実装でmode 2は拒否します。受理済みRFC 0027のtask root要求とC呼出し/拒否/cleanupを**E15（2 pt、唯一doing）**、厳密SDK所有native imageの受入とinstalled gateway実行を**E16（3 pt、todo）**に明示し、後者のopaque metadata契約は実装前に決定します。**E01は3→1 pt（todo）**として両前提後の完全table/query・公開・対応modeのtyped host受入に限定します。純追加**+3 pt**、消化0、**17 + 3 − 0 = 20**、**79行 / 70 done / 1 doing / 8 todo**、純追加**+97**、消化**187**、台帳**110 + 97 − 187 = 20**です。最後の完了した実行checkpointはL04 `d5ee99a`です。今回の失敗実験は実装完了ではありません。gateは**3/15・18/96**を維持し、Windows環境はなくpushもしません。
 
 L04完了 `d5ee99a`（**2026-10-27 07:00 JST検証**、macOS AArch64）: source/artifact × VM/JITの96 profileと、VM/JIT/AOT childを呼ぶinstalled AOTの72 profileで、元taskに保持入力resource・親guest Bytes・native backing・child guest Bytesを重ねました。全backendはVMのallocator統計・request trace・usageと一致します。同時exact上限はrequest 112 bytes/alignment 8・live 2,745 bytes/122 allocations・累積3,083 bytes・fuel 46・host calls 2・frames 3・cells 71・service work 112・task 1/1です。選択した1未満/provider OOM拒否は、必須cleanupと後続destructor失敗を越えて元の型付き原因・数値上限・provider prefixを保ちます。入力commit前のcaller custodyを保持し、別の明示検査済みcleanup packageが同じresourceを不変allocator上限/履歴で退役させます。backingを一度だけ試行してinventoryを0にし、正常入場資格を保ち、poisoned入場は拒否します。failureはnative ownerを最終releaseまで保持します。installed consumerはproducer/package/SDK path除去後、source parse/コード生成せず元の保存codeを実行します。scoped全55 testと下記の入力固定150 suite・2,311 testのbaselineが成功しました。変更は実行fixture・共有期待値・明示test profile enumで、production compiler/runtime・言語/ABI・formatは未変更です。L04の最後の3 ptを消化し、追加/再見積り0です。実両host受入はI08/B01に残し、Windowsは利用できずpushもしません。
 
@@ -431,7 +433,9 @@ C04 は `f882074`（2026-10-22 02:05 JST）で完了しました。明示的で�
 | M3-E07 | done | 0 | M3-E06,M3-I07,M3-R05 | G07,G09 | 元 resource table/allocator と holder 権限・lifecycle を保持し scoped program から連続保存 source root を VM/native で実行 | `39c9265` |
 | M3-E08 | done | 0 | M3-R03,M3-E07,M3-P01 | G07,G09 | 元table/allocatorでC resource index・typed移動/借用/結果/drop・holder単位のcloseを実行 | `75ca09c` |
 | M3-E09 | done | 0 | M3-E08,M3-E03 | G07,G09 | C callbackの永続keep/takeとprovider closeを元owner/destructor・loan/poison/cleanup規則で実行 | `7ba6a45` |
-| M3-E01 | doing | 3 | M3-I04,M3-P01,M3-I07,M3-E06,M3-E07,M3-E08,M3-E09,M3-E04,M3-L04,M3-I15 | G09 | 全32操作のC entryを公開し、対応installed modeで生成typed host callを実行 | — |
+| M3-E01 | todo | 1 | M3-I04,M3-P01,M3-I07,M3-E06,M3-E07,M3-E08,M3-E09,M3-E04,M3-L04,M3-I15,M3-E15,M3-E16 | G09 | 全32操作のC entryを公開し、対応installed modeで生成typed host callを実行 | — |
+| M3-E15 | doing | 2 | M3-I04,M3-I07,M3-E04,M3-L04 | G09 | 検査済みtask root export要求をbindingし生成Cのtask呼出し・拒否・cleanupを実行 | — |
+| M3-E16 | todo | 3 | M3-I15,M3-E15,M3-L04 | G09 | 厳密SDK所有native imageをbindingしC gatewayからinstalled AOTを実行 | — |
 | M3-E10 | done | 0 | M3-E08,M3-P02 | G09,G12 | child entry統合前にscoped VM/JIT source呼び出し間で元fuel/host-call/service-workの累積計量を実行 | `879a534` |
 | M3-E11 | done | 0 | M3-E08,M3-E10 | G09,G12 | 元handle・limit・統計・provider副作用を保つscoped allocator viewでVM/JIT sourceを実行 | `93f9b52` |
 | M3-E12 | done | 0 | M3-E07,M3-E10,M3-E11 | G09,G12 | frame pool・arena・inspector・shared heap・retirementの準備失敗時に元課金を保持し、有限予算のVM/JIT child callbackを実行 | `44823d6` |
@@ -530,7 +534,7 @@ T05 を `2f58084` で完了（2026-10-21 JST）: TaskProgram で source claim/lo
 
 T05 roadmap 監査: 最初の source VM fixture が実行できたため、G03/G12/G13 完了判定前に **T06 → T07 → T08** を進めます。`crates/codegen-clif/src/owned.rs` と `src/native.rs` を確認し、既存 native 経路は TaskProgram/async metadata を拒否する一方、検証済み MIR、managed task layout、scope identity、result storage が揃ったことを確認しました。T06 は元の 3 pt の compiled continuation と値/event 一致の成果を維持し、VM/MIR fallback なしに生成 code を実行する必要があります。初期 native fixture で serialized task revision や package/startup 公開を決めたことにはしません。明示 format 判断と native/owned/loan/foreign/共有 control の受入条件を維持し、次の実行 fixture 前に scheduler/IDL 基盤を追加しません。全 15 gate、全 P1 作業、channel、Send/Share、production embedding を M3 に残します。
 
-**110 + 94 − 187 = 17 pt**
+**110 + 97 − 187 = 20 pt**
 
 T06 を `8d6c283` で完了（2026-10-21 JST）: 実装前に RFC 0023 へ native 境界を記録しました。invocation/frame/claim/result 状態と scheduling/storage service を共有し、VM/native に別の resume/cleanup entry を持ちます。Cranelift が演算、分岐、失敗/取消 CFG、検査付き continuation 選択を生成し、実行時 MIR evaluator や VM 依存はありません。source fixture は VM/native ともに 42 を出力します。integration test 12 件で値/event/使用量/割り当て状態、取消、有限 record/enum と field 更新、通常 call、loop scope identity、子/同期 panic 起点、全 fuel/trace prefix、task/frame/cell/preparation 上限、各 provider 拒否を比較します。別途リンクした実行形式では join/aggregate/cancel/panic profile、再生成 object/compiler/SDK byte の一致、全 fuel prefix を検証し、JIT compile/invoke API を呼びません。private 境界 2 テストで callback 前の範囲外 PC 拒否と source 証拠付き callback panic の封じ込めを確認します。受理した storage/task はすべて解放します。全 baseline: **106 suites / 1,712 passed / 0 failed / 1 existing timing ignore**、完了 suite 時間合計 **471.21 s**。fmt、warnings-denied workspace Clippy **6.24 s**、rustdoc **26.34 s**、全 11 fuzz target の compile/lint **3.11 s** が通過しました。fuzz campaign、性能主張、より広い platform/native package 完了ではありません。T06 の 3 pt を消化し、作業追加/再見積りはありません。
 
@@ -578,7 +582,7 @@ A06 roadmap audit: `Machine::spawn`、`Frame::copy_from_frame`、`Frame::result`
 
 | Initial remaining | Net additions/re-estimates | Retired at completion | Remaining |
 | ---: | ---: | ---: | ---: |
-| 110 pt | +94 pt | −187 pt | 17 pt |
+| 110 pt | +97 pt | −187 pt | 20 pt |
 
 ## Exit audit
 

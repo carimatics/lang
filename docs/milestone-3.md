@@ -6,9 +6,11 @@
 
 Updated: **2026-10-27 JST**. Entry checkpoint: `984557d`; M2 and the repository review are complete.
 
-**70 done · 1 doing · 6 todo · 17 remaining pt**
+**70 done · 1 doing · 8 todo · 20 remaining pt**
 
-**Next: M3-E01 → publish the complete 32-operation/query C entry in supported installed modes.**
+**Next: M3-E15 → execute generated C root task calls without admitting task imports.**
+
+E01 scope/estimate audit (2026-10-27 07:24 JST): the first typed task experiment stops at IDL `InvalidEffect`: prohibited task imports make the existing single-import selection unable to name a root task. Gateway native-image binding is also absent and mode 2 is refused. Expose **E15 (2 pt, sole doing)** for the accepted RFC 0027 task-root request and C calls/refusal/cleanup; **E16 (3 pt, todo)** for exact SDK-owned native-image admission and installed gateway execution, deciding its opaque metadata contract before implementation. Re-estimate **E01 3→1 pt (todo)** for final complete table/query, publication and supported-mode typed host acceptance after both prerequisites. Net addition **+3 pt**, zero retirement: **17 + 3 − 0 = 20**, **79 rows / 70 done / 1 doing / 8 todo**, net additions **+97**, retired **187**, ledger **110 + 97 − 187 = 20**. Last completed executable checkpoint remains L04 `d5ee99a`; this failing experiment is not completed implementation. Gates remain **3/15, 18/96**. Windows is unavailable and no push is authorized.
 
 L04 completion `d5ee99a` (verified **2026-10-27 07:00 JST**, macOS AArch64): 96 source/artifact × VM/JIT profiles and 72 installed-AOT profiles with VM/JIT/AOT children exercise a retained input resource, parent guest Bytes, native backing and child guest Bytes on the original task. All backends match the VM allocator statistics, request trace and usage. Simultaneous exact ceilings are request 112 bytes/alignment 8, live 2,745 bytes/122 allocations, cumulative 3,083 bytes, fuel 46, host calls 2, frames 3, cells 71, service work 112 and task limits 1/1. Selected one-below and provider OOM refusals preserve original typed causes, numeric bounds and provider prefixes through mandatory cleanup and later destructor failure. Caller custody before input commit is preserved; a smaller explicitly checked cleanup package retires the same resource under unchanged allocator ceilings/history. Every backing is attempted once, inventory drains, clean admission remains eligible and poison refuses entry. Failures retain native owners until final release. The installed consumer uses original stored code after producer/package/SDK paths disappear, without source parsing or code generation. All 55 scoped tests and the fixed-input 150-suite/2,311-test baseline below pass. Changes are execution fixtures/shared expectations and an explicit test-profile enum; production compiler/runtime, language/ABI and formats are unchanged. Retire L04's last 3 pt with zero added/re-estimated work. Actual both-host acceptance remains I08/B01; Windows is unavailable and no push is authorized.
 
@@ -431,7 +433,9 @@ Estimates describe remaining work, not elapsed time. Each row is an observable 1
 | M3-E07 | done | 0 | M3-E06,M3-I07,M3-R05 | G07,G09 | Execute successive stored-source VM/native roots from scoped programs over retained resources/allocator, holder authority and lifecycle | `39c9265` |
 | M3-E08 | done | 0 | M3-R03,M3-E07,M3-P01 | G07,G09 | Execute C resource indices, typed move/borrow/result/drop and holder-specific close over the original table/allocator | `75ca09c` |
 | M3-E09 | done | 0 | M3-E08,M3-E03 | G07,G09 | Execute persistent C callback keep/take and provider close with original owners/destructors and loan/poison/cleanup rules | `7ba6a45` |
-| M3-E01 | doing | 3 | M3-I04,M3-P01,M3-I07,M3-E06,M3-E07,M3-E08,M3-E09,M3-E04,M3-L04,M3-I15 | G09 | Publish the complete 32-operation C entry and execute generated typed host calls in supported installed modes | — |
+| M3-E01 | todo | 1 | M3-I04,M3-P01,M3-I07,M3-E06,M3-E07,M3-E08,M3-E09,M3-E04,M3-L04,M3-I15,M3-E15,M3-E16 | G09 | Publish the complete 32-operation C entry and execute generated typed host calls in supported installed modes | — |
+| M3-E15 | doing | 2 | M3-I04,M3-I07,M3-E04,M3-L04 | G09 | Bind checked task-root export requests and execute generated C task calls, refusal and cleanup | — |
+| M3-E16 | todo | 3 | M3-I15,M3-E15,M3-L04 | G09 | Bind exact SDK-owned native images and execute installed AOT through the C gateway | — |
 | M3-E10 | done | 0 | M3-E08,M3-P02 | G09,G12 | Execute cumulative original fuel/host-call/service-work accounting across scoped VM/JIT source calls before child-entry integration | `879a534` |
 | M3-E11 | done | 0 | M3-E08,M3-E10 | G09,G12 | Execute VM/JIT source on a scoped original-allocator view with unchanged handles, limits, statistics and provider effects | `93f9b52` |
 | M3-E12 | done | 0 | M3-E07,M3-E10,M3-E11 | G09,G12 | Preserve original preparation charges through frame-pool, arena, inspector, shared-heap and retirement failures, then execute finite-budget VM/JIT child callbacks | `44823d6` |
@@ -530,7 +534,7 @@ T05 completed at `2f58084` (2026-10-21 JST): connected source claim/loan evidenc
 
 T05 roadmap audit: the first source VM fixture is now executable, so proceed **T06 → T07 → T08** before treating G03/G12/G13 as complete. Inspected `crates/codegen-clif/src/owned.rs` and `src/native.rs`: current native paths still refuse TaskProgram/async metadata, while verified MIR, managed task layouts, scope identities and result storage are now available. T06 retains its original 3-point compiled-continuation/value-event parity outcome; it must execute generated code without a VM/MIR fallback. An initial native fixture does not select a serialized task revision or complete package/startup publication. Preserve explicit format decisions and all native/owned/loan/foreign/shared-control acceptance; add no scheduler/IDL scaffolding before the next execution fixture. All 15 gates, all P1 work, channels, Send/Share and production embedding remain in M3.
 
-**110 + 94 − 187 = 17 pt**
+**110 + 97 − 187 = 20 pt**
 
 T06 completed at `8d6c283` (2026-10-21 JST): recorded the native boundary in RFC 0023 before implementation. Shared invocation/frame/claim/result state and scheduling/storage services retain separate VM/native resume/cleanup entries; Cranelift emits computation, branches, failure/cancellation CFGs and checked continuation selection, with no runtime MIR evaluator or VM dependency. The source fixture prints 42 through VM and native code. Twelve integration tests cover matching values/events/usage/allocation state, cancellation, finite records/enums and field updates, ordinary calls, loop scope identities, child/synchronous panic origins, every fuel/trace prefix, task/frame/cell/preparation bounds and each provider refusal. The separately linked executable covers join/aggregate/cancel/panic profiles, exact re-emitted object/compiler/SDK bytes and every fuel prefix; it calls no JIT compile/invoke API. Two private-boundary tests prove out-of-range PC refusal before callbacks and contained callback panic with source evidence. All admitted storage/tasks drain. Full baseline: **106 suites / 1,712 passed / 0 failed / 1 existing timing ignore**; summed completed-suite time **471.21 s**. fmt passes, warnings-denied workspace Clippy **6.24 s**, rustdoc **26.34 s**, all 11 fuzz-target compile/lint **3.11 s**. This is no fuzz campaign, performance claim or broader platform/native-package completion. Retire T06's 3 pt; add/re-estimate no work.
 
@@ -578,7 +582,7 @@ A06 roadmap audit: inspected `Machine::spawn`, `Frame::copy_from_frame`, `Frame:
 
 | Initial remaining | Net additions/re-estimates | Retired at completion | Remaining |
 | ---: | ---: | ---: | ---: |
-| 110 pt | +94 pt | −187 pt | 17 pt |
+| 110 pt | +97 pt | −187 pt | 20 pt |
 
 ## Exit audit
 

@@ -12,7 +12,7 @@
 
 M2は完了済みです。18/18ゲート、過去のゲート重み113/113です。[完了ボード](milestone-2.md)に成果と見積もり収支、[機能ガイド](milestone-2-capabilities.md)に実際のsource/VM/native/C/SDK/debugの根拠と制約を記録しています。この件数はM2のもので、将来の全作業ではありません。
 
-**M3 は進行中です。** [実装Todo](milestone-3.md)は **70 done · 1 doing · 6 todo · 17 remaining pt**です。L04は`d5ee99a`で完了しました（2026-10-27 07:00 JST検証）。source/artifact × VM/JIT 96 profileとinstalled AOT 72 profileで、同時exact quota・1未満/OOM拒否・元primary・caller custody・小さい明示cleanup・一度だけの退役・owner保持・poisonを確認し、全backendの統計/trace/usageがVMと一致します。scoped全55件、859入力固定の150 suite・2,311 test、fmt/Clippy/doc、全16 fuzz target compile/lintが成功しました。production compiler/runtime/ABI変更はなく、最後の3 ptを消化し、追加/再見積り0です。E01（3 pt）だけをdoingにし、全32操作/queryと対応installed modeを、受理済み契約の確認後に公開します。L03/I15の割込み・明示component SDKは完了済みです。I08（1 pt、todo）とB01は実両host証拠を要求します。77行、台帳 **110 + 94 − 187 = 17**、gateは **3/15・18/96**です。Windows環境はなくpushも行いません。全32操作/query・両host conformance・安定化・機能ガイドは未完です。
+**M3 は進行中です。** [実装Todo](milestone-3.md)は **70 done · 1 doing · 8 todo · 20 remaining pt**です。L04 `d5ee99a`の全baselineは成功済みです（2026-10-27 07:00 JST）。E01の実行実験（07:24 JST）はtask importの`InvalidEffect`を再現し、native image経路の未実装も確認しました。受理済みRFC 0027のroot task export選択とC呼出し/拒否/cleanupをE15（2 pt、唯一doing）、installed native gatewayをE16（3 pt、todo）に明示します。E01は両前提後の完全32操作/query公開の1 ptへ再見積りします。純追加3 pt、消化0、79行、台帳 **110 + 97 − 187 = 20**、gate **3/15・18/96**です。I08/B01の実両host証拠、安定化、機能ガイドは未完です。Windows環境はなくpushもしません。
 
 E08のcaller resource退役・E10の計量・E11の元allocator view・E02のprivate child実行にはsourceの証拠があります。公開全32操作には検証済みcallbackの完成・永続provider lifetime・合算control・native AOT/SDK統合が必要です。**E03 → E02 → E09 → E04**の後にcontrol/I08を完了し、E01を公開します。B01の両host適合にもE01完了が必要です。元table/allocator・明示accounting・source/MIR・grant・code ownerを再利用します。
 

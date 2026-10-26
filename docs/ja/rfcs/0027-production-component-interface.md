@@ -274,6 +274,12 @@ fresh report受理と失敗状態の実装明確化（2026-10-25 JST、RFC 0001�
 
 host callback は context allocation の value/report buffer を返し、adapter が所有権を消費します。残 temporary buffer/result は callback 終了で解放し、公開 resource backing は owner に保持します。先に latch した child/control failure は callback が成功を返しても元のまま伝搬し、この場合 CALL_FAILED は null を返せます。新callback report は検証して現 host call に帰属させ、先行 guest origin の偽装や primary 置換を許しません。不正 host result は host-contract failure と poison です。通常時の context allocation/control failure は invocation に latch し、optional cleanup-report allocation は primary を変えません。後の task suspension 前に callback の実 C stack は終了しています。result buffer 解放は独立に commit した resource owner を消費せず、生成 binding が明示 owner drop と commit 前 input owner の保存を行います。
 
+### Root task export selection (2026-10-27)
+
+実装前にRFC 0001の実験委任で採択します。`bind_export`は同期export用の既存LCMP3の単一import/member要求を維持し、importがなくexport interfaceが厳密に1つ、そのinterfaceのfunctionが厳密に1つのtask root要求を追加で受け付けます。そのfunctionはtask effectを持ち、検査済みの完全なinterface key・member・capability・厳密なdocument version・規範LCSG preimageが実module exportと一致してからbindingを公開します。他の宣言、到達可能/未使用type graphも元の累積準備Sessionで検証します。要求はmetadataだけで、実行権限は実module・instance grant・provider leaseから得ます。成功するroot callは元の構造化task treeを完了まで駆動します。`context_call`は引き続きguest副作用前にtask bindingを拒否します。
+
+実C実験で追加形式の必要性が判明しました。通常のIDL検査がexport選択より前にtask importを`InvalidEffect`で拒否します。task import禁止は維持します。一般に許可するとsource/native import意味論が広がり、別decoderでその証明を迂回すると同じLCMP3 byteの有効性が入口で変わります。export要求は既に有効な規範contractで、両方の変更を避けられます。library wrapperだけでは許容されるtask importを作れません。このprofileでは厳密なversion一致とし、task rootのversion範囲交渉は提供しません。既存の同期import交渉は維持します。C layout、LCMP/LCSG schema、source構文、task scheduling、native package revisionは変わりません。既存要求の動作を保ち、C tableは未公開なので配備済みの移行は不要です。追加signature検査は既存準備上限を使い、性能改善は主張しません。source/artifact × VM/JITのtyped root call、有限task拒否、割込み、再利用、不一致、元cleanup、nested task拒否はE15の未検証受入条件です。installed AOT統合はE16/E01です。codeに公開更新日はなく、この決定と実験は2026-10-27 JST検証です。
+
 ## Diagnostics and tooling
 
 元 IDL の byte span を正規化宣言・diagnostic・生成 source mapping まで保持します。安定 identity は IDL0001 syntax/UTF-8、IDL0002 重複/未知 field、IDL0003 name/reference、IDL0004 不正 type/effect/borrow、IDL0005 projection/version、IDL0006 resource bound、IDL0007 非互換 version、IDL0008 未対応 profile です。path と primary/related span を含め、構造 runtime failure を string に置換しません。JSON formatter は検証文書の決定的な tooling であり、binary canonicalization は空白/property 順と独立です。language formatter/LSP/debugger の source identity は既存契約を維持します。生成 binding に ownership/access・capability・effect・commit state・buffer release を記載し、diagnostic を IDL/source callsite に対応させます。
