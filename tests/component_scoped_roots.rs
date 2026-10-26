@@ -1790,10 +1790,12 @@ struct CallControl<'a> {
 struct TestProvider {
     calls: Rc<Cell<usize>>,
     failure: Rc<Cell<Option<usize>>>,
+    requests: Rc<RefCell<Vec<a::Request>>>,
 }
 impl a::Provider for TestProvider {
     type Region = <a::System as a::Provider>::Region;
     fn allocate(&mut self, request: a::Request) -> Option<Self::Region> {
+        self.requests.borrow_mut().push(request);
         let index = self.calls.get();
         self.calls.set(index + 1);
         if self.failure.get() == Some(index) {
@@ -1817,6 +1819,7 @@ struct Harness {
     allocator: a::Allocator<TestProvider>,
     provider_calls: Rc<Cell<usize>>,
     provider_failure: Rc<Cell<Option<usize>>>,
+    provider_requests: Rc<RefCell<Vec<a::Request>>>,
     preparation_trace: Option<Rc<Cell<Option<m::Usage>>>>,
     values: storage::Resources<'static>,
     state: execution::InstanceState,
@@ -1826,14 +1829,19 @@ struct Harness {
 }
 impl Harness {
     fn new() -> Self {
+        Self::with_allocator_limits(Default::default())
+    }
+    fn with_allocator_limits(limits: a::Limits) -> Self {
         let provider_calls = Rc::new(Cell::new(0));
         let provider_failure = Rc::new(Cell::new(None));
+        let provider_requests = Rc::new(RefCell::new(Vec::new()));
         let allocator = a::Allocator::new(
             TestProvider {
                 calls: provider_calls.clone(),
                 failure: provider_failure.clone(),
+                requests: provider_requests.clone(),
             },
-            Default::default(),
+            limits,
         )
         .unwrap();
         let mut budget = m::Budget::new(Default::default());
@@ -1851,6 +1859,7 @@ impl Harness {
             allocator,
             provider_calls,
             provider_failure,
+            provider_requests,
             preparation_trace: None,
             values,
             state,
@@ -2248,6 +2257,214 @@ fn scoped_allocator_views_execute_source_and_native_resource_callbacks_without_n
         for access in [MemoryAccess::View, MemoryAccess::NestedView] {
             for compiled in [false, true] {
                 assert_eq!(retained_roundtrip_memory(compiled, fresh, access), expected);
+            }
+        }
+    }
+}
+
+#[test]
+fn nested_guest_native_allocations_share_original_limit_history() {
+    for stored in [false, true] {
+        for compiled in [false, true] {
+            let run = |limits: a::Limits, expected: Option<a::Limit>, cleanup_failure: bool| {
+                let check_refusal = |failure: &r::Failure| {
+                    let kind = expected.expect("unexpected quota refusal");
+                    let r::Reason::Layout(lang_runtime::layout::Error::Allocation(
+                        a::Error::Limit(violation),
+                    )) = failure.reason.primary_cause()
+                    else {
+                        panic!("original allocator refusal required: {failure:?}")
+                    };
+                    assert_eq!(violation.kind, kind);
+                    assert_eq!(
+                        violation.limit,
+                        match kind {
+                            a::Limit::RequestBytes => limits.request_bytes,
+                            a::Limit::LiveBytes => limits.live_bytes,
+                            a::Limit::CumulativeBytes => limits.cumulative_bytes,
+                            a::Limit::LiveAllocations => limits.live_allocations as u64,
+                            a::Limit::Alignment => limits.alignment,
+                        }
+                    );
+                    assert!(violation.attempted > violation.limit);
+                };
+                let mut h = Harness::with_allocator_limits(limits);
+                (h.unit, h.source_idl) = unit_callback_results(
+                    include_bytes!("fixtures/component_scoped_roots_allocation_limits.lang"),
+                    false,
+                    false,
+                    false,
+                    false,
+                    false,
+                    stored,
+                );
+                let (original, retained) = h.registration(cleanup_failure);
+                let created = match h.call(original, "create", None, compiled) {
+                    Ok(created) => created,
+                    Err(failure) => {
+                        assert!(expected.is_some(), "{failure:?}");
+                        check_refusal(&failure);
+                        assert!(!failure.poisoned && !h.state.poisoned());
+                        drop(failure);
+                        assert_eq!(retained.produced.get(), 0);
+                        assert_eq!(retained.destroyed.get(), 0);
+                        assert_eq!(retained.released.get(), 1);
+                        assert!(h.values.is_empty());
+                        assert_eq!(h.allocator.stats().live_allocations, 0);
+                        let requests = h.provider_requests.borrow().clone();
+                        return (h.allocator.stats(), requests);
+                    }
+                };
+                let execution::Value::Resource(claim) = created.value else {
+                    panic!("original retained owner")
+                };
+                assert_eq!(retained.destroyed.get(), 0);
+                assert_eq!(retained.released.get(), 0);
+                let mut child = Child::new(&mut h.values, compiled, 1, usize::MAX);
+                child.unit = stored_unit_for(include_bytes!(
+                    "fixtures/component_scoped_roots_cancel.lang"
+                ));
+                let child = Rc::new(child);
+                let (registration, native) = h.registration_child(false, Some(child.clone()));
+                let mut observed = None;
+                match h.call(registration, "consume", Some(claim), compiled) {
+                    Ok(outcome) => {
+                        assert!(
+                            expected.is_none(),
+                            "quota unexpectedly admitted: {expected:?}"
+                        );
+                        assert!(matches!(
+                            outcome.value,
+                            execution::Value::Copy(lang_runtime::layout::Immediate::I64(42))
+                        ));
+                        assert_eq!(child.value.get(), 42);
+                        assert_eq!(outcome.tasks.live, 0);
+                        assert!(!outcome.poisoned && !h.state.poisoned());
+                    }
+                    Err(failure) => {
+                        assert!(expected.is_some(), "{failure:?}");
+                        check_refusal(&failure);
+                        assert_eq!(failure.poisoned, cleanup_failure);
+                        assert_eq!(h.state.poisoned(), cleanup_failure);
+                        assert_eq!(
+                            failure.report.as_ref().map_or(0, |r| r.cleanup_failures()),
+                            usize::from(cleanup_failure)
+                        );
+                        if cleanup_failure {
+                            assert!(matches!(
+                                failure.report.as_ref().unwrap().primary().unwrap().kind,
+                                lang_runtime::cleanup::FailureKind::Execution(
+                                    lang_runtime::cleanup::ExecutionFailure::AllocationLimit
+                                )
+                            ));
+                            assert_eq!(retained.released.get(), 0);
+                        }
+                        assert_eq!(failure.tasks.live, 0);
+                        drop(failure);
+                        if retained.destroyed.get() == 0 {
+                            assert!(!h.values.is_empty());
+                            assert_eq!(native.produced.get(), 0);
+                            // This rejected call keeps caller custody. Compare
+                            // its prefix before a separate, smaller cleanup entry.
+                            observed =
+                                Some((h.allocator.stats(), h.provider_requests.borrow().clone()));
+                            h.unit = stored_unit();
+                            h.source_idl = None;
+                            let (cleanup, cleanup_watch) = h.registration(false);
+                            h.call(cleanup, "consume", Some(claim), compiled)
+                                .expect("unchanged limits admit the smaller cleanup entry");
+                            assert!(
+                                h.allocator.stats().cumulative_bytes
+                                    >= observed.as_ref().unwrap().0.cumulative_bytes
+                            );
+                            assert_eq!(cleanup_watch.produced.get(), 0);
+                            assert_eq!(cleanup_watch.destroyed.get(), 0);
+                            assert_eq!(cleanup_watch.released.get(), 1);
+                        }
+                    }
+                }
+                assert_eq!(retained.produced.get(), 1);
+                assert_eq!(
+                    retained.destroyed.get(),
+                    1,
+                    "retained input must retire after commit"
+                );
+                for watch in [&retained, &native] {
+                    assert_eq!(watch.destroyed.get(), watch.produced.get());
+                    assert_eq!(watch.released.get(), 1);
+                }
+                assert!(h.values.is_empty());
+                assert_eq!(h.allocator.stats().live_allocations, 0);
+                assert_eq!(h.allocator.limits(), limits);
+                let (retry, retried) = h.registration(false);
+                prepared(retry, |program, _| {
+                    let entered = Cell::new(false);
+                    let result = h.state.with_program(program, |_| entered.set(true));
+                    if cleanup_failure {
+                        assert!(matches!(
+                            result,
+                            Err(r::Reason::Instance(execution::InstanceError::Poisoned))
+                        ));
+                        assert!(!entered.get());
+                    } else {
+                        result.unwrap();
+                        assert!(entered.get());
+                    }
+                });
+                assert_eq!(retried.produced.get(), 0);
+                assert_eq!(retried.released.get(), 1);
+                let requests = h.provider_requests.borrow().clone();
+                observed.unwrap_or((h.allocator.stats(), requests))
+            };
+            let baseline = run(Default::default(), None, false);
+            let max_request = baseline.1.iter().map(|r| r.bytes()).max().unwrap();
+            let max_alignment = baseline.1.iter().map(|r| r.alignment()).max().unwrap();
+            for (kind, maximum) in [
+                (a::Limit::RequestBytes, max_request),
+                (a::Limit::LiveBytes, baseline.0.peak_live_bytes),
+                (a::Limit::CumulativeBytes, baseline.0.cumulative_bytes),
+                (
+                    a::Limit::LiveAllocations,
+                    baseline.0.peak_live_allocations as u64,
+                ),
+                (a::Limit::Alignment, max_alignment),
+            ] {
+                let mut limits = a::Limits::default();
+                let set = |limits: &mut a::Limits, limit| match kind {
+                    a::Limit::RequestBytes => limits.request_bytes = limit,
+                    a::Limit::LiveBytes => limits.live_bytes = limit,
+                    a::Limit::CumulativeBytes => limits.cumulative_bytes = limit,
+                    a::Limit::LiveAllocations => limits.live_allocations = limit as usize,
+                    a::Limit::Alignment => limits.alignment = limit,
+                };
+                set(&mut limits, maximum);
+                assert_eq!(run(limits, None, false), baseline);
+                set(
+                    &mut limits,
+                    if kind == a::Limit::Alignment {
+                        maximum / 2
+                    } else {
+                        maximum - 1
+                    },
+                );
+                let limited = run(limits, Some(kind), false);
+                assert_eq!(limited.1, baseline.1[..limited.1.len()]);
+                assert!(limited.0.peak_live_bytes <= limits.live_bytes);
+                assert!(limited.0.cumulative_bytes <= limits.cumulative_bytes);
+                assert!(limited.0.peak_live_allocations <= limits.live_allocations);
+                assert!(
+                    limited
+                        .1
+                        .iter()
+                        .all(|request| request.bytes() <= limits.request_bytes
+                            && request.alignment() <= limits.alignment)
+                );
+                if matches!(
+                    kind,
+                    a::Limit::LiveBytes | a::Limit::CumulativeBytes | a::Limit::LiveAllocations
+                ) {
+                    assert_eq!(run(limits, Some(kind), true), limited);
+                }
             }
         }
     }

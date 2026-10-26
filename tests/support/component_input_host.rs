@@ -974,13 +974,21 @@ unsafe extern "C" fn probe_report(bytes: ffi::Bytes, mode: u32, case: u32) -> u3
             assert_eq!(report.usage.host_calls, 1);
             assert_eq!(report.usage.canonical_indices, 0);
         }
-        25 => {
+        25 | 200 | 201 => {
             assert_eq!(report.primary.category, wire::Category::Limit);
             assert_eq!(report.primary.phase, wire::Phase::Call);
             assert_eq!(report.primary.diagnostic, wire::Diagnostic::Limit);
             let limit = report.primary.limit.unwrap();
-            assert_eq!(limit.kind, wire::ReportLimitKind::HeapBytes);
-            assert_eq!((limit.limit, limit.attempted), (4096, 4097));
+            if case==201 {
+                assert_eq!(limit.kind, wire::ReportLimitKind::LiveAllocations);
+                assert_eq!((limit.limit,limit.attempted),(128,129));
+            } else {
+                assert_eq!(limit.kind, wire::ReportLimitKind::HeapBytes);
+                assert_eq!(limit.limit,4096);
+                if case==200 {
+                    assert!(limit.attempted>4096&&limit.attempted<=6144,"{report:?}");
+                } else {assert_eq!(limit.attempted,4097);}
+            }
             assert!(report.suppressed.is_empty());
             assert_eq!(report.omitted, 0);
             assert!((1..=2).contains(&report.frames.len()));
