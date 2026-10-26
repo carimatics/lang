@@ -1,0 +1,28 @@
+pub struct CounterKind {}
+pub struct Request { delta: i64, label: core::Text }
+extern "component" fn host_apply(
+    state: &mut core::ComponentResource<CounterKind>, request: Request
+) -> core::Result<i64, core::Text>;
+extern "component" fn host_make() -> core::ComponentResource<CounterKind>;
+extern "component" fn host_tick() -> i64;
+pub fn relay(value: core::ComponentResource<CounterKind>) -> core::ComponentResource<CounterKind> { return value; }
+pub fn consume(value: core::ComponentResource<CounterKind>) -> i64 { return 42; }
+pub fn create() -> core::ComponentResource<CounterKind> { return host_make(); }
+pub fn answer() -> i64 { return 42; }
+
+async fn worker() -> i64 {
+    let mut bytes: core::Bytes = core::result_unwrap::<core::Bytes, core::AllocError>(
+        core::bytes_new(core::allocator()));
+    let mut pushed: core::Unit = core::result_unwrap::<core::Unit, core::BufferError>(
+        core::bytes_push(bytes, 65));
+    let mut owned: core::ComponentResource<CounterKind> = host_make();
+    return 40 + core::bytes_len(bytes);
+}
+pub async fn start() -> i64 {
+    let mut child: core::Task<i64> = spawn worker();
+    let mut result: core::Result<i64, core::TaskError> = await child;
+    match result {
+        core::Result::Ok(value) => { return value + 1; },
+        core::Result::Err(core::TaskError::Cancelled) => { return 42; },
+    }
+}

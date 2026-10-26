@@ -526,7 +526,14 @@ static void registry_profile(const lang_component_v1_api *api,const lang_compone
     assert(api->engine_destroy(engine,&error)==0);
 }
 static void registry_case(const lang_component_v1_api *api,const lang_component_v1_config *config,uint32_t format) {
+    lang_component_v1_config exact=*config;
     uint32_t profile;for(profile=0;profile<44;++profile)registry_profile(api,config,format,profile,0);
     registry_profile(api,config,format,18,1);
     registry_profile(api,config,format,18,2);
+    exact.ceiling.frames=2;exact.ceiling.live_cells=8;exact.ceiling.live_tasks=1;
+    registry_profile(api,&exact,format,1,0);
+    exact.ceiling.live_cells=7;
+    registry_profile(api,&exact,format,10,0);
+    exact.ceiling.live_cells=8;
+    registry_profile(api,&exact,format,11,0);
 }

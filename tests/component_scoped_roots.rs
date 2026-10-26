@@ -4063,6 +4063,236 @@ fn finite_original_preparation_executes_guest_children_and_releases_original_own
     original_native_callback_roundtrip(false);
 }
 #[test]
+fn recursive_callbacks_keep_original_parent_frame_cell_and_task_limits() {
+    #[derive(Clone, Copy, Debug)]
+    enum Expected {
+        Frames,
+        Cells,
+        LiveTasks,
+        TotalTasks,
+    }
+    fn run(
+        stored: bool,
+        compiled: bool,
+        depth: usize,
+        repetitions: usize,
+        limits: e::Limits,
+        tasks: lang_runtime::task::Limits,
+        expected: Option<Expected>,
+    ) -> (e::Usage, lang_runtime::task::Usage, Vec<a::Request>) {
+        let mut h = Harness::new();
+        (h.unit, h.source_idl) = unit_callback_results(
+            include_bytes!("fixtures/component_scoped_roots_recursive_limits.lang"),
+            true,
+            false,
+            false,
+            false,
+            false,
+            stored,
+        );
+        h.task_limits = tasks;
+        let source = include_str!("fixtures/component_scoped_roots.lang")
+            .replace("return host_tick() + 1;", "return recurse(0);")
+            + &format!(
+                "\nfn recurse(value:i64)->i64{{if value<{depth}{{return recurse(value+1);}}return host_tick()+1;}}"
+            );
+        let mut child = Child::new(&mut h.values, compiled, repetitions, usize::MAX);
+        child.unit = stored_unit_for(source.as_bytes());
+        let child = Rc::new(child);
+        let (registration, watch) = h.registration_child(false, Some(child.clone()));
+        let control = e::Control::with_limits(limits);
+        let (usage, task_usage) =
+            match h.call_control(registration, "start", None, compiled, control) {
+                Ok(outcome) => {
+                    assert!(expected.is_none(), "unexpected success: {expected:?}");
+                    assert!(matches!(
+                        outcome.value,
+                        execution::Value::Copy(lang_runtime::layout::Immediate::I64(42))
+                    ));
+                    assert_eq!(outcome.usage.peak_frames, depth + 4);
+                    assert_eq!(outcome.usage.host_calls, 1 + repetitions as u64);
+                    assert_eq!(child.task.borrow().as_ref().unwrap().index(), 1);
+                    assert_eq!(child.task_observations.get(), repetitions);
+                    assert_eq!(child.value.get(), 42);
+                    assert_eq!(watch.produced.get(), 1);
+                    assert!(!outcome.poisoned);
+                    (outcome.usage, outcome.tasks)
+                }
+                Err(failure) => {
+                    match (
+                        expected.expect("unexpected execution refusal"),
+                        failure.reason.primary_cause(),
+                    ) {
+                        (Expected::Frames, r::Reason::FrameLimit { limit, attempted }) => {
+                            assert_eq!(Some(*limit), limits.frames);
+                            assert_eq!(*attempted, limit + 1);
+                        }
+                        (Expected::Cells, r::Reason::CellLimit { limit, attempted }) => {
+                            assert_eq!(Some(*limit), limits.live_cells);
+                            assert_eq!(*attempted, limit + 1);
+                        }
+                        (
+                            Expected::LiveTasks,
+                            r::Reason::Schedule(lang_runtime::task::Error::LiveTaskLimit { limit }),
+                        ) => {
+                            assert_eq!(*limit, tasks.live_tasks);
+                        }
+                        (
+                            Expected::TotalTasks,
+                            r::Reason::Schedule(lang_runtime::task::Error::TotalTaskLimit {
+                                limit,
+                            }),
+                        ) => {
+                            assert_eq!(*limit, tasks.total_tasks);
+                        }
+                        _ => panic!("original typed refusal required: {failure:?}"),
+                    }
+                    assert!(!failure.poisoned);
+                    assert_eq!(watch.produced.get(), 0);
+                    if matches!(expected, Some(Expected::Frames | Expected::Cells)) {
+                        assert_eq!(child.task.borrow().as_ref().unwrap().index(), 1);
+                        assert_eq!(child.task_observations.get(), 0);
+                        let observed = child.failure_callers.borrow();
+                        let callers = observed.as_ref().expect("actual refused callback chain");
+                        assert_eq!(callers.frames.len(), depth + 1);
+                        assert_eq!(callers.omitted, 0);
+                        assert!(
+                            callers.frames.iter().all(|frame| {
+                                &frame.task == child.task.borrow().as_ref().unwrap()
+                            })
+                        );
+                        assert_eq!(failure.tasks.admitted, 2);
+                        assert_eq!(failure.tasks.peak_live, 2);
+                    } else {
+                        assert!(child.task.borrow().is_none());
+                        assert!(child.parent.get().is_none());
+                        assert_eq!(failure.usage.host_calls, 0);
+                        assert_eq!(failure.tasks.admitted, 1);
+                        assert_eq!(failure.tasks.peak_live, 1);
+                    }
+                    (failure.usage, failure.tasks)
+                }
+            };
+        assert_eq!(task_usage.live, 0);
+        if let Some(limit) = limits.frames {
+            assert!(usage.peak_frames <= limit);
+        }
+        if let Some(limit) = limits.live_cells {
+            assert!(usage.peak_live_cells <= limit);
+        }
+        assert_eq!(watch.destroyed.get(), watch.produced.get());
+        assert_eq!(watch.released.get(), 1);
+        assert!(h.values.is_empty());
+        assert_eq!(h.allocator.stats().live_allocations, 0);
+        assert!(!h.state.poisoned() && !child.state.borrow().poisoned());
+        for context in [child.parent.get(), child.nested.get()]
+            .into_iter()
+            .flatten()
+        {
+            assert_eq!(h.engine.check(&context), 5);
+        }
+        let requests = h.provider_requests.borrow().clone();
+        let (retry, retried) = h.registration(false);
+        let result = h
+            .call_control(retry, "answer", None, compiled, control)
+            .unwrap();
+        assert!(matches!(
+            result.value,
+            execution::Value::Copy(lang_runtime::layout::Immediate::I64(42))
+        ));
+        assert_eq!(result.tasks.admitted, 1);
+        assert_eq!(result.tasks.live, 0);
+        assert_eq!(retried.produced.get(), 0);
+        assert_eq!(retried.released.get(), 1);
+        assert!(h.values.is_empty());
+        assert_eq!(h.allocator.stats().live_allocations, 0);
+        (usage, task_usage, requests)
+    }
+    let tasks = lang_runtime::task::Limits {
+        live_tasks: 2,
+        total_tasks: 2,
+    };
+    for stored in [false, true] {
+        for depth in [0, 3, 16] {
+            let mut reference = None;
+            for compiled in [false, true] {
+                let baseline = run(
+                    stored,
+                    compiled,
+                    depth,
+                    1,
+                    e::Limits::unbounded(),
+                    tasks,
+                    None,
+                );
+                if let Some(expected) = reference {
+                    assert_eq!(baseline.0, expected);
+                } else {
+                    reference = Some(baseline.0);
+                }
+                for repetitions in [1, 2] {
+                    let limits = e::Limits {
+                        frames: Some(baseline.0.peak_frames),
+                        live_cells: Some(baseline.0.peak_live_cells),
+                        host_calls: Some(1 + repetitions as u64),
+                        ..e::Limits::unbounded()
+                    };
+                    let exact = run(stored, compiled, depth, repetitions, limits, tasks, None);
+                    assert_eq!(exact.0.peak_frames, baseline.0.peak_frames);
+                    assert_eq!(exact.0.peak_live_cells, baseline.0.peak_live_cells);
+                    assert_eq!(exact.1.admitted, 2);
+                    for (expected, control, task_limits) in [
+                        (
+                            Expected::Frames,
+                            e::Limits {
+                                frames: Some(baseline.0.peak_frames - 1),
+                                ..limits
+                            },
+                            tasks,
+                        ),
+                        (
+                            Expected::Cells,
+                            e::Limits {
+                                live_cells: Some(baseline.0.peak_live_cells - 1),
+                                ..limits
+                            },
+                            tasks,
+                        ),
+                        (
+                            Expected::LiveTasks,
+                            limits,
+                            lang_runtime::task::Limits {
+                                live_tasks: 1,
+                                ..tasks
+                            },
+                        ),
+                        (
+                            Expected::TotalTasks,
+                            limits,
+                            lang_runtime::task::Limits {
+                                total_tasks: 1,
+                                ..tasks
+                            },
+                        ),
+                    ] {
+                        let failed = run(
+                            stored,
+                            compiled,
+                            depth,
+                            repetitions,
+                            control,
+                            task_limits,
+                            Some(expected),
+                        );
+                        assert_eq!(failed.2, exact.2[..failed.2.len()]);
+                    }
+                }
+            }
+        }
+    }
+}
+
+#[test]
 fn finite_callback_live_limits_include_parent_root_helper_and_repeated_children() {
     fn run(
         compiled: bool,
