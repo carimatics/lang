@@ -543,6 +543,7 @@ unsafe extern "C" fn probe_report(bytes: ffi::Bytes, mode: u32, case: u32) -> u3
         assert_eq!(report.omitted, 0);
         return 0;
     }
+    if case==99 {eprintln!("deep refusal: {:?}",report.primary);return 0;}
     if (60..=64).contains(&case) {
         assert!(!report.poisoned && report.suppressed.is_empty());
         assert_eq!(report.primary.phase,wire::Phase::Call);
@@ -602,7 +603,7 @@ unsafe extern "C" fn probe_report(bytes: ffi::Bytes, mode: u32, case: u32) -> u3
         assert_eq!(report.usage.host_calls,1);
         return 0;
     }
-    if (54..=56).contains(&case) {
+    if (54..=56).contains(&case) || (65..=68).contains(&case) || ((102..=166).contains(&case)&&case%2==0) {
         assert!(!report.poisoned && report.suppressed.is_empty());
         assert_eq!(report.primary.category, wire::Category::Limit);
         assert_eq!(report.primary.phase, wire::Phase::Call);
@@ -612,8 +613,9 @@ unsafe extern "C" fn probe_report(bytes: ffi::Bytes, mode: u32, case: u32) -> u3
             limit: 10_000_000, attempted: 10_000_001,
         }));
         let origin = report.primary.origin.as_ref().unwrap();
-        assert_eq!(report.frames.len(), if case == 54 { 2 } else if case == 55 { 4 } else { 3 });
-        assert_eq!(report.omitted, u64::from(case == 56));
+        let expected=if case>=102 {(case-100).min(64) as usize}else{match case {54|67=>2,55|68=>4,56=>3,65=>6,66=>5,_=>unreachable!()}};
+        assert_eq!(report.frames.len(), expected);
+        assert_eq!(report.omitted, if case>=102 {u64::from((case-100).saturating_sub(64))}else{u64::from(case == 56 || case == 66)});
         for (i, frame) in report.frames.iter().enumerate() {
             if i % 2 == 0 {
                 assert_eq!((frame.mode, frame.digest, frame.member), (origin.mode, origin.digest, origin.member));
@@ -625,9 +627,11 @@ unsafe extern "C" fn probe_report(bytes: ffi::Bytes, mode: u32, case: u32) -> u3
                 assert!(frame.span.is_none());
             }
         }
-        if case != 54 { assert_eq!(report.frames[0], report.frames[2]); }
-        if case == 55 { assert_eq!(report.frames[1], report.frames[3]); }
-        assert_eq!(report.usage.host_calls, 2);
+        if expected>2 { assert_eq!(report.frames[0], report.frames[2]); }
+        if expected>3 { assert_eq!(report.frames[1], report.frames[3]); }
+        if expected>4 { assert_eq!(report.frames[0], report.frames[4]); }
+        if expected>5 { assert_eq!(report.frames[1], report.frames[5]); }
+        assert_eq!(report.usage.host_calls, if case>=102 {33}else if case>=65 {3}else{2});
         assert_eq!(report.usage.canonical_indices, 0);
         return 0;
     }

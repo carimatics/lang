@@ -178,12 +178,14 @@ impl NativeReport {
     }
 }
 
-/// Immutable first boundary failure. Retention supplies code/metadata lifetime
+/// Immutable checked snapshot of the selected first boundary failure.
+/// Retention supplies code/metadata lifetime
 /// only; it grants no resource, invocation or callback authority.
 pub struct LatchedFailure {
     report: wire::Report,
     bytes: Vec<u8>,
     cause: Option<std::rc::Rc<crate::task::runner::Failure>>,
+    trace_frame: Option<NativeCallFrame>,
     _owner: std::rc::Rc<dyn std::any::Any>,
 }
 impl std::fmt::Debug for LatchedFailure {
@@ -200,10 +202,19 @@ impl LatchedFailure {
         owner: std::rc::Rc<dyn std::any::Any>,
         cause: Option<std::rc::Rc<crate::task::runner::Failure>>,
     ) -> Self {
+        let trace_frame = cause.as_deref().and_then(|cause| match &cause.reason {
+            Reason::Native(NativeFailure::Context { native_frame, .. }) => native_frame.clone(),
+            Reason::Native(NativeFailure::Propagated { native_frame, .. }) => {
+                Some(native_frame.clone())
+            }
+            Reason::Native(NativeFailure::Latched(packet)) => packet.trace_frame.clone(),
+            _ => None,
+        });
         Self {
             report,
             bytes,
             cause,
+            trace_frame,
             _owner: owner,
         }
     }
@@ -215,6 +226,35 @@ impl LatchedFailure {
     }
     pub fn cause(&self) -> Option<&crate::task::runner::Failure> {
         self.cause.as_deref()
+    }
+    pub fn trace_frame(&self) -> Option<&NativeCallFrame> {
+        self.trace_frame.as_ref()
+    }
+    pub(crate) fn enriches(&self, first: &std::rc::Rc<Self>) -> bool {
+        let Some(Reason::Native(NativeFailure::Propagated { failure, .. })) =
+            self.cause().map(|cause| &cause.reason)
+        else {
+            return false;
+        };
+        if !std::rc::Rc::ptr_eq(first, failure) {
+            return false;
+        }
+        let old = first.report();
+        let next = self.report();
+        let common = old.suppressed.len().min(next.suppressed.len());
+        let dropped = old.suppressed.len().saturating_sub(next.suppressed.len()) as u64;
+        let same_scope = first
+            .trace_frame()
+            .zip(self.trace_frame())
+            .is_some_and(|(first, next)| first.same_activation(next));
+        next.policy == old.policy
+            && next.primary == old.primary
+            && next.usage.canonical_indices == old.usage.canonical_indices
+            && (!old.poisoned || next.poisoned)
+            && next.omitted >= old.omitted.saturating_add(dropped)
+            && next.suppressed[..common] == old.suppressed[..common]
+            // Equal wire values cannot suppress a different actual scope.
+            && (!same_scope || next != old)
     }
     pub fn context_frame(&self) -> Option<&NativeCallFrame> {
         let mut failure = self.cause()?;

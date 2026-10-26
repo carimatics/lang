@@ -272,7 +272,12 @@ impl InvocationAccounting {
             }) => cause.is_some_and(|cause| {
                 std::ptr::eq(cause.reason.primary_cause(), first.reason.primary_cause())
             }),
-            Some(_) => false,
+            Some(ScopedFailure {
+                failure: InvocationFailure::Report(first),
+                ..
+            }) => {
+                matches!(&failure, InvocationFailure::Report(next) if next.enriches(first))
+            }
         };
         if replace {
             *slot = Some(ScopedFailure {

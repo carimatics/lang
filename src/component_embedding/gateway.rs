@@ -542,7 +542,7 @@ fn project_failure(
     };
     let repeated = matches!(&failure.reason,
         r::Reason::Native(execution::NativeFailure::Propagated { failure, native_frame })
-            if failure.context_frame().is_some_and(|original| original.same_activation(native_frame))
+            if failure.trace_frame().is_some_and(|original| original.same_activation(native_frame))
     );
     let mut frames = Vec::new();
     let caller_trace = native_frame
