@@ -12,28 +12,60 @@ impl Drop for Files {
 
 #[test]
 fn linked_component_resources_call_vm_jit_and_object_children() {
-    linked_component_profile(false, false, false);
+    linked_component_profile(Profile::Fresh);
 }
 #[test]
 fn stored_component_resources_call_vm_jit_and_recorded_object_children() {
-    linked_component_profile(true, false, false);
+    linked_component_profile(Profile::Stored);
 }
 #[test]
 fn installed_component_resources_call_vm_jit_and_recorded_object_children() {
-    linked_component_profile(true, true, false);
+    linked_component_profile(Profile::Installed);
 }
 #[test]
 fn installed_component_interruption_preserves_original_vm_jit_aot_callbacks() {
-    linked_component_profile(true, true, true);
+    linked_component_profile(Profile::Interrupted);
 }
-fn linked_component_profile(stored: bool, installed: bool, interruption: bool) {
+#[test]
+fn installed_component_exhaustion_preserves_combined_limits_and_cleanup() {
+    linked_component_profile(Profile::Exhaustion);
+}
+#[derive(Clone, Copy, Debug)]
+enum Profile {
+    Fresh,
+    Stored,
+    Installed,
+    Interrupted,
+    Exhaustion,
+}
+fn linked_component_profile(profile: Profile) {
+    let stored = !matches!(profile, Profile::Fresh);
+    let installed = matches!(
+        profile,
+        Profile::Installed | Profile::Interrupted | Profile::Exhaustion
+    );
+    let interruption = matches!(profile, Profile::Interrupted);
+    let exhaustion = matches!(profile, Profile::Exhaustion);
     let files = Files(std::env::temp_dir().join(format!(
-        "lang component mixed-{}-{stored}-{installed}-{interruption}",
+        "lang component mixed-{}-{profile:?}",
         std::process::id()
     )));
     fs::create_dir(&files.0).unwrap();
     let mut h = Harness::new();
-    let unit = stored_unit();
+    let unit = if exhaustion {
+        unit_callback_results(
+            include_bytes!("../fixtures/component_scoped_roots_exhaustion.lang"),
+            false,
+            false,
+            false,
+            false,
+            false,
+            true,
+        )
+        .0
+    } else {
+        stored_unit()
+    };
     let snapshot = unit.code().declarations().types().table().sources
         [unit.document().document().source.0 as usize]
         .clone();
@@ -53,19 +85,30 @@ fn linked_component_profile(stored: bool, installed: bool, interruption: bool) {
     let mut packages = Vec::new();
     let mut embedded_objects = String::new();
     let mut embedded_records = String::new();
-    prepared_unit(&h.unit, registration, |program, _| {
-        for (object_index, name) in ["create", "consume", "answer"].into_iter().enumerate() {
+    let cleanup_semantic = if exhaustion {
+        let unit = stored_unit();
+        let snapshot = unit.code().declarations().types().table().sources
+            [unit.document().document().source.0 as usize]
+            .clone();
+        lang::artifact::component::encode(unit, snapshot, None, Default::default()).unwrap()
+    } else {
+        Vec::new()
+    };
+    {
+        let mut emit = |program: &program::Program<'_>, name: &str, semantic: &[u8]| {
+            let object_index = objects.len();
+            let entry_name = if name == "cleanup" { "consume" } else { name };
             let object = lang_codegen_clif::tasks::ObjectArtifact::emit_component(
                 program,
-                entry(program, name),
+                entry(program, entry_name),
                 Default::default(),
             )
             .unwrap();
             if installed {
                 let package = lang::native::component::compile(
-                    &semantic,
+                    semantic,
                     program,
-                    entry(program, name),
+                    entry(program, entry_name),
                     lang_codegen_clif::Triple::host(),
                     Default::default(),
                 )
@@ -93,12 +136,25 @@ fn linked_component_profile(stored: bool, installed: bool, interruption: bool) {
                     .into_recorded(Default::default())
                     .unwrap()
                     .into_record();
-                let native = record.encode(&semantic, Default::default()).unwrap();
+                let native = record.encode(semantic, Default::default()).unwrap();
                 embedded_records.push_str(&format!("{name:?} => &{native:?},"));
                 fs::write(files.0.join(format!("{name}.native")), native).unwrap();
             }
+        };
+        prepared_unit(&h.unit, registration.clone(), |program, _| {
+            for name in ["create", "consume", "answer"] {
+                emit(program, name, &semantic);
+            }
+        });
+        if exhaustion {
+            let unit = lang::artifact::component::decode(&cleanup_semantic, Default::default())
+                .unwrap()
+                .into_unit();
+            prepared_unit(&unit, registration, |program, _| {
+                emit(program, "cleanup", &cleanup_semantic)
+            });
         }
-    });
+    }
     drop(h);
 
     // Reuse the real resource owner and callback probes in a separately linked
@@ -124,6 +180,20 @@ fn linked_component_profile(stored: bool, installed: bool, interruption: bool) {
         .replace("unit: stored_unit(),", "unit: load_unit(),")
         .replace("let unit = stored_unit();", "let unit = load_unit();");
     let interruption_body = include_str!("component_interruption_native.rs");
+    let exhaustion_body = include_str!("component_exhaustion_native.rs");
+    let exhaustion_checks = include_str!("component_exhaustion_checks.rs");
+    let exhaustion_reference = if exhaustion {
+        let (stats, requests, usage) = component_exhaustion::reference();
+        let requests: Vec<_> = requests
+            .iter()
+            .map(|r| (r.bytes(), r.alignment()))
+            .collect();
+        format!(
+            "fn verify_exhaustion_reference(value:&quota::Observed){{assert_eq!(value.allocation,a::{stats:?});assert_eq!(value.usage,e::{usage:?});assert_eq!(value.requests.iter().map(|r|(r.bytes(),r.alignment())).collect::<Vec<_>>(),vec!{requests:?});}}"
+        )
+    } else {
+        "fn verify_exhaustion_reference(_: &quota::Observed) {}".into()
+    };
     let source = files.0.join("consumer.rs");
     fs::write(&source, format!(r#"
 #![allow(dead_code, unused_imports)]
@@ -131,6 +201,8 @@ fn linked_component_profile(stored: bool, installed: bool, interruption: bool) {
 const STORED:bool={stored};
 const INSTALLED:bool={installed};
 const INTERRUPTION:bool={interruption};
+const EXHAUSTION:bool={exhaustion};
+const CLEANUP_SEMANTIC:&[u8]=&{cleanup_semantic:?};
 const SEMANTIC:&[u8]=&{semantic:?};
 fn object_bytes(name:&str)->&'static[u8]{{match name{{{embedded_objects}_=>panic!("object")}}}}
 fn native_bytes(name:&str)->&'static[u8]{{match name{{{embedded_records}_=>panic!("record")}}}}
@@ -150,13 +222,14 @@ fn call_object(h: &mut Harness, provider: native::Provider<'static>, name: &str,
     call_object_control(h,provider,name,input,e::Control::with_limits(Default::default()))
 }}
 fn call_object_control(h: &mut Harness, provider: native::Provider<'static>, name: &str, input: Option<storage::Claim>, control:e::Control<'_>) -> Result<r::Outcome<execution::Value>, r::Failure> {{
-    let unit=load_unit();
+    let semantic=if name=="cleanup"{{CLEANUP_SEMANTIC}}else{{SEMANTIC}};
+    let unit=if name=="cleanup"{{lang::artifact::component::decode(semantic,Default::default()).unwrap().into_unit()}}else{{load_unit()}};
     prepared_unit(&unit,provider, |program, session| {{
-        let function=entry(program,name);
+        let function=entry(program,if name=="cleanup"{{"consume"}}else{{name}});
         let linked=if INSTALLED {{
             let target=lang_codegen_clif::Triple::host().to_string();
             let build=lang_codegen_clif::sdk::build_id(&lang_codegen_clif::Triple::host());
-            let input=lang_codegen_clif::sdk::runtime::Input{{target:&target,build_id:&build,semantic:SEMANTIC,native:native_bytes(name)}};
+            let input=lang_codegen_clif::sdk::runtime::Input{{target:&target,build_id:&build,semantic,native:native_bytes(name)}};
             // SAFETY: exact package objects/addresses are linked by this SDK.
             unsafe{{lang::native::component::bind(input,program,(),|_,symbol|resolve(symbol).and_then(|p|std::ptr::NonNull::new(p.cast_mut().cast())),Default::default())}}.unwrap()
         }}else{{
@@ -171,12 +244,20 @@ fn call_object_control(h: &mut Harness, provider: native::Provider<'static>, nam
             let mut invocation=execution::Invocation::prepare_owned(instance,function,&mut h.values,&mut invoker,&mut budget).unwrap();
             invocation.prepare_output(session).unwrap();
             let arguments:Vec<_>=input.into_iter().map(EntryArgument::Resource).collect();
-            linked.execute_component_with_budget(&mut h.allocator,control,Default::default(),&arguments,&mut invocation,&mut budget)
+            linked.execute_component_with_budget(&mut h.allocator,control,r::Limits{{tasks:h.task_limits,..Default::default()}},&arguments,&mut invocation,&mut budget)
         }}).unwrap()
     }})
 }}
 {interruption_body}
+mod quota {{ {exhaustion_checks} }}
+{exhaustion_reference}
+{exhaustion_body}
 fn main() {{
+    if EXHAUSTION {{
+        exhaustion_profiles();
+        println!("installed AOT exhaustion 72 profiles; original limits; custody and cleanup");
+        return;
+    }}
     if INTERRUPTION {{
         interruption_profiles();
         println!("installed AOT interruption 15 profiles; original context; cleanup and reuse");
@@ -376,7 +457,9 @@ fn main() {{
     );
     assert_eq!(
         String::from_utf8(output.stdout).unwrap().trim(),
-        if interruption {
+        if exhaustion {
+            "installed AOT exhaustion 72 profiles; original limits; custody and cleanup"
+        } else if interruption {
             "installed AOT interruption 15 profiles; original context; cleanup and reuse"
         } else {
             "AOT resource callback VM/JIT/AOT 42; destroyed once; original task; cancelled"

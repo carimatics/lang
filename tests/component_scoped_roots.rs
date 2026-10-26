@@ -2193,6 +2193,8 @@ impl Harness {
     }
 }
 
+#[path = "support/component_exhaustion.rs"]
+mod component_exhaustion;
 #[path = "support/component_interruption.rs"]
 mod component_interruption;
 #[path = "support/component_object_mixed.rs"]
