@@ -6,13 +6,15 @@
 
 更新日: **2026-10-27 JST**。開始チェックポイント: `984557d`。M2 とリポジトリレビューは完了済みです。
 
-**69 done · 1 doing · 7 todo · 20 remaining pt**
+**70 done · 1 doing · 6 todo · 17 remaining pt**
 
-**次: M3-L04 → 複合資源枯渇でも必須cleanupを維持する。**
+**次: M3-E01 → 全32操作/queryのC entryと対応installed modeを公開する。**
 
-L04実行checkpoint（`e2c0e48`に基づく作業tree、**2026-10-27 06:41 JST検証**、macOS AArch64）: 元resourceを保持したまま親guest Bytes・native backing・child guest Bytesを元task 1個に重ねます。source/再検証artifact × VM/JITの**96 profile**（有限基準4・同時exact上限4・1未満/provider拒否/cleanup失敗88）と、VM/JIT/AOT childを呼ぶinstalled AOTの**72 profile**が成功しました。AOTはVMのallocator統計・provider request trace・実行usageとも直接一致し、**scoped全55 test**が成功しました（45.35 s）。同時exact上限はrequest 112 bytes/alignment 8・live 2,745 bytes/122 allocations・累積3,083 bytes・fuel 46・host calls 2・frames 3・cells 71・service work 112・元live/total task 1/1です。各選択拒否は元の型付きallocator/control/OOM原因と元limit/attemptedまたはwork prefixを保持し、provider request traceは基準prefixです。必須退役はinventoryを0にしてbackingを一度だけ試行し、元入力の破棄失敗でもprimaryを保ってpoisonし、native ownerを最終releaseまで保持します。入力commit前のrequest拒否はcaller custodyを保ち、別の明示検査済みinstalled cleanup packageが同じresourceを不変上限・累積履歴で退役させます。正常な入場資格とpoisoned拒否は追加guest closureなしで確認します。consumerは保存nodeを使い、producer/package/SDK pathを起動前に除去し、実行時にsource parse・コード生成・quota補充を行いません。実entry経路の期待値を共有し、test profileにはboolの組合せでなく明示enumを使います。runtime・言語/ABI・保存format変更はありません。進捗表に記録した入力固定全baselineは成功しました。L04完了までにsource commitと完了監査を残します。L04は3 ptのdoing、追加/再見積り0を維持します。Windowsは利用できずpushもしません。codeに公開更新日記載はなく、本checkpointは2026-10-27 JST検証です。
+L04完了 `d5ee99a`（**2026-10-27 07:00 JST検証**、macOS AArch64）: source/artifact × VM/JITの96 profileと、VM/JIT/AOT childを呼ぶinstalled AOTの72 profileで、元taskに保持入力resource・親guest Bytes・native backing・child guest Bytesを重ねました。全backendはVMのallocator統計・request trace・usageと一致します。同時exact上限はrequest 112 bytes/alignment 8・live 2,745 bytes/122 allocations・累積3,083 bytes・fuel 46・host calls 2・frames 3・cells 71・service work 112・task 1/1です。選択した1未満/provider OOM拒否は、必須cleanupと後続destructor失敗を越えて元の型付き原因・数値上限・provider prefixを保ちます。入力commit前のcaller custodyを保持し、別の明示検査済みcleanup packageが同じresourceを不変allocator上限/履歴で退役させます。backingを一度だけ試行してinventoryを0にし、正常入場資格を保ち、poisoned入場は拒否します。failureはnative ownerを最終releaseまで保持します。installed consumerはproducer/package/SDK path除去後、source parse/コード生成せず元の保存codeを実行します。scoped全55 testと下記の入力固定150 suite・2,311 testのbaselineが成功しました。変更は実行fixture・共有期待値・明示test profile enumで、production compiler/runtime・言語/ABI・formatは未変更です。L04の最後の3 ptを消化し、追加/再見積り0です。実両host受入はI08/B01に残し、Windowsは利用できずpushもしません。
 
-L04全source検証（**2026-10-27 07:00 JST検証**、macOS AArch64）: **150 suite / 2,311 passed / 0 failed / 既存timing ignore 1件**、suite時間合計**835.28 s**、--no-fail-fast test command時間**896.47 s**です。workspace/fuzz fmt・warnings-denied workspace Clippy（0.94 s、preflight 2.30 s）・rustdoc（13.79 s）・全**16** fuzz targetのcheck/Clippy（0.21/0.23 s）が成功し、campaignは行っていません。scoped component/native-owned/native-task/native-service/native-linkは**55/77/12/33/6件**（45.28/277.39/98.81/49.65/66.63 s）成功し、native-ownedに既存timing ignoreが1件あります。**859入力 / 非Markdown 753入力**の前後hashが一致しました: main `c81b61d20b222d69d15d2cf8d7f5ca77cbe11b4a6b6a9e7e3f1f69df86475892`、検証 `2f3e4cdd40727d46233a0477135407989b1eff9af00ad4f4a7261c161295dc81`。未変更Windows benchmarkのCRLF/LF差だけを正規化し、検証側の余分な入力はありません。複合上限168 profileでexact成功・quota/OOM拒否・caller custody保持・明示的な小さいcleanup・元primary/poison・code owner releaseを検証しました。production compiler/runtimeとformatは未変更です。L04はcode/証拠の整合までdoingとし、実両host受入はI08/B01に残します。codeに公開更新日記載はなく、architecture/checkpointは2026-10-27 JST更新です。
+L04全source検証（**2026-10-27 07:00 JST検証**、macOS AArch64）: **150 suite / 2,311 passed / 0 failed / 既存timing ignore 1件**、suite時間合計**835.28 s**、--no-fail-fast test command時間**896.47 s**です。workspace/fuzz fmt・warnings-denied workspace Clippy（0.94 s、preflight 2.30 s）・rustdoc（13.79 s）・全**16** fuzz targetのcheck/Clippy（0.21/0.23 s）が成功し、campaignは行っていません。scoped component/native-owned/native-task/native-service/native-linkは**55/77/12/33/6件**（45.28/277.39/98.81/49.65/66.63 s）成功し、native-ownedに既存timing ignoreが1件あります。**859入力 / 非Markdown 753入力**の前後hashが一致しました: main `c81b61d20b222d69d15d2cf8d7f5ca77cbe11b4a6b6a9e7e3f1f69df86475892`、検証 `2f3e4cdd40727d46233a0477135407989b1eff9af00ad4f4a7261c161295dc81`。未変更Windows benchmarkのCRLF/LF差だけを正規化し、検証側の余分な入力はありません。複合上限168 profileでexact成功・quota/OOM拒否・caller custody保持・明示的な小さいcleanup・元primary/poison・code owner releaseを検証しました。production compiler/runtimeとformatは未変更です。L04は`d5ee99a`で完了し、実両host受入はI08/B01に残します。codeに公開更新日記載はなく、architecture/checkpointは2026-10-27 JST更新です。
+
+L04完了/次scope監査（2026-10-27 JST）: 最後の**3 pt**を消化し、追加/再見積り**0 pt**、**20 + 0 − 3 = 17 pt**、**77行 / 70 done / 1 doing / 6 todo**です。純追加**+94**、消化**187 pt**、台帳**110 + 94 − 187 = 17**です。全32操作/queryのC entryと対応installed modeの生成typed host callを実装するE01（3 pt）だけをdoingにし、前提L04/I15は完了です。実装前に受理済みquery/native-image/task-root契約を厳密に確認し、新前提や互換性決定変更があれば明示します。I08は実両host起動の1 ptをtodoで保持し、B01は実両hostconformanceを要求します。gateは完全な公開/platform受入まで**3/15・18/96**を維持します。Windows host/runnerは利用できずpushもしません。
 
 L03完了 `c7daed1`（**2026-10-27 05:43 JST検証**、macOS AArch64）: source/再検証artifact × VM/JITのcomponent割込み20 profileと、厳密コピー済みinstalled SDKからVM/JIT/AOT childを呼ぶAOT 15 profileが成功しました。元の協調flagをroot入場前・child native entry・child native return後・外側native result準備後に観測し、型付きInterruptedがcallback伝播と後続destructor失敗を越えてprimaryを保ち、成功値を返しません。入場済みchildは元TaskId 0/admit 1を維持し、遅いresource backingも一度だけ退役し、全resource/allocation inventoryが0となり、期限切れcontextは再利用を拒否します。旧flagをinterruptedのまま保持し、新controlのfresh rootで正常instanceを再利用し、破棄失敗時はpoisonしてclosure実行なしで入場を拒否します。failureはnative ownerを最終releaseまで保持します。既存guest/provider-prefix suiteがsafe pointを網羅し、今回の追加は残るcomponent境界へ絞りました。scoped全51 testと下記の入力固定150 suite・2,307 testのbaselineが成功しました。修正はfixtureの協調停止・診断cache再利用・standalone prelude抽出であり、production runtime・source意味論・ABI/format変更はありません。L03は最後の3 ptで完了し、追加/再見積り0です。実両host証拠はI08/B01に残し、Windowsは利用できずpushもしません。
 
@@ -429,7 +431,7 @@ C04 は `f882074`（2026-10-22 02:05 JST）で完了しました。明示的で�
 | M3-E07 | done | 0 | M3-E06,M3-I07,M3-R05 | G07,G09 | 元 resource table/allocator と holder 権限・lifecycle を保持し scoped program から連続保存 source root を VM/native で実行 | `39c9265` |
 | M3-E08 | done | 0 | M3-R03,M3-E07,M3-P01 | G07,G09 | 元table/allocatorでC resource index・typed移動/借用/結果/drop・holder単位のcloseを実行 | `75ca09c` |
 | M3-E09 | done | 0 | M3-E08,M3-E03 | G07,G09 | C callbackの永続keep/takeとprovider closeを元owner/destructor・loan/poison/cleanup規則で実行 | `7ba6a45` |
-| M3-E01 | todo | 3 | M3-I04,M3-P01,M3-I07,M3-E06,M3-E07,M3-E08,M3-E09,M3-E04,M3-L04,M3-I15 | G09 | 全32操作のC entryを公開し、対応installed modeで生成typed host callを実行 | — |
+| M3-E01 | doing | 3 | M3-I04,M3-P01,M3-I07,M3-E06,M3-E07,M3-E08,M3-E09,M3-E04,M3-L04,M3-I15 | G09 | 全32操作のC entryを公開し、対応installed modeで生成typed host callを実行 | — |
 | M3-E10 | done | 0 | M3-E08,M3-P02 | G09,G12 | child entry統合前にscoped VM/JIT source呼び出し間で元fuel/host-call/service-workの累積計量を実行 | `879a534` |
 | M3-E11 | done | 0 | M3-E08,M3-E10 | G09,G12 | 元handle・limit・統計・provider副作用を保つscoped allocator viewでVM/JIT sourceを実行 | `93f9b52` |
 | M3-E12 | done | 0 | M3-E07,M3-E10,M3-E11 | G09,G12 | frame pool・arena・inspector・shared heap・retirementの準備失敗時に元課金を保持し、有限予算のVM/JIT child callbackを実行 | `44823d6` |
@@ -442,7 +444,7 @@ C04 は `f882074`（2026-10-22 02:05 JST）で完了しました。明示的で�
 | M3-L01 | done | 0 | M3-E03 | G11 | callback の確保を含む heap/allocation の共有上限を適用 | `85e7dce` |
 | M3-L02 | done | 0 | M3-T08,M3-E03 | G12 | guest/host を跨ぐ再帰/frame/live-task 合算上限を適用 | `599d7ee` |
 | M3-L03 | done | 0 | M3-E04,M3-T08,M3-I12 | G13 | VM/JIT/AOT と callback 境界で interruption を一貫して観測 | `c7daed1` |
-| M3-L04 | doing | 3 | M3-L01,M3-L02,M3-L03,M3-P02 | G11,G12,G13 | 敵対的な資源枯渇でも必須 cleanup を完了 | — |
+| M3-L04 | done | 0 | M3-L01,M3-L02,M3-L03,M3-P02 | G11,G12,G13 | 敵対的な資源枯渇でも必須 cleanup を完了 | `d5ee99a` |
 | M3-I08 | todo | 1 | M3-I07,M3-E04,M3-P02,M3-I13,M3-I14,M3-I15 | G08,G09,G14 | 両hostでinstalled task/component startupを実検証する | — |
 | M3-I12 | done | 0 | M3-I07,M3-E04,M3-P02 | G08,G09 | Emit/bind checked component objects and execute scalar/resource VM/JIT/AOT callbacks with original task authority | `47093ef` |
 | M3-I13 | done | 0 | M3-I07,M3-I12 | G08,G09,G14 | Persist/revalidate native task/component records and bind exact linked code without code generation | `8ba2c43` |
@@ -528,7 +530,7 @@ T05 を `2f58084` で完了（2026-10-21 JST）: TaskProgram で source claim/lo
 
 T05 roadmap 監査: 最初の source VM fixture が実行できたため、G03/G12/G13 完了判定前に **T06 → T07 → T08** を進めます。`crates/codegen-clif/src/owned.rs` と `src/native.rs` を確認し、既存 native 経路は TaskProgram/async metadata を拒否する一方、検証済み MIR、managed task layout、scope identity、result storage が揃ったことを確認しました。T06 は元の 3 pt の compiled continuation と値/event 一致の成果を維持し、VM/MIR fallback なしに生成 code を実行する必要があります。初期 native fixture で serialized task revision や package/startup 公開を決めたことにはしません。明示 format 判断と native/owned/loan/foreign/共有 control の受入条件を維持し、次の実行 fixture 前に scheduler/IDL 基盤を追加しません。全 15 gate、全 P1 作業、channel、Send/Share、production embedding を M3 に残します。
 
-**110 + 94 − 184 = 20 pt**
+**110 + 94 − 187 = 17 pt**
 
 T06 を `8d6c283` で完了（2026-10-21 JST）: 実装前に RFC 0023 へ native 境界を記録しました。invocation/frame/claim/result 状態と scheduling/storage service を共有し、VM/native に別の resume/cleanup entry を持ちます。Cranelift が演算、分岐、失敗/取消 CFG、検査付き continuation 選択を生成し、実行時 MIR evaluator や VM 依存はありません。source fixture は VM/native ともに 42 を出力します。integration test 12 件で値/event/使用量/割り当て状態、取消、有限 record/enum と field 更新、通常 call、loop scope identity、子/同期 panic 起点、全 fuel/trace prefix、task/frame/cell/preparation 上限、各 provider 拒否を比較します。別途リンクした実行形式では join/aggregate/cancel/panic profile、再生成 object/compiler/SDK byte の一致、全 fuel prefix を検証し、JIT compile/invoke API を呼びません。private 境界 2 テストで callback 前の範囲外 PC 拒否と source 証拠付き callback panic の封じ込めを確認します。受理した storage/task はすべて解放します。全 baseline: **106 suites / 1,712 passed / 0 failed / 1 existing timing ignore**、完了 suite 時間合計 **471.21 s**。fmt、warnings-denied workspace Clippy **6.24 s**、rustdoc **26.34 s**、全 11 fuzz target の compile/lint **3.11 s** が通過しました。fuzz campaign、性能主張、より広い platform/native package 完了ではありません。T06 の 3 pt を消化し、作業追加/再見積りはありません。
 
@@ -576,7 +578,7 @@ A06 roadmap audit: `Machine::spawn`、`Frame::copy_from_frame`、`Frame::result`
 
 | Initial remaining | Net additions/re-estimates | Retired at completion | Remaining |
 | ---: | ---: | ---: | ---: |
-| 110 pt | +94 pt | −184 pt | 20 pt |
+| 110 pt | +94 pt | −187 pt | 17 pt |
 
 ## Exit audit
 
