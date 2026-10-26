@@ -11,6 +11,8 @@ use std::{ffi::c_void, ptr};
 const RESOURCE_PROVIDER_DIGEST: [u8; 32] = [0; 32];
 const REGISTRY_PROVIDER_DIGEST: [u8; 32] = [0; 32];
 const REGISTRY_STACK_DIGESTS: [[u8; 32]; 6] = [[0; 32]; 6];
+const REGISTRY_ROOT_DIGESTS: [[u8; 32]; 2] = [[0; 32]; 2];
+const REGISTRY_MIXED_SPANS: [[u32; 2]; 5] = [[0; 2]; 5];
 const RESOURCE_RUN_MEMBER: u32 = 0;
 thread_local! { static CALLBACK_SNAPSHOT_WORK: std::cell::Cell<u64> = const { std::cell::Cell::new(0) }; }
 #[unsafe(no_mangle)]
@@ -421,6 +423,56 @@ unsafe extern "C" fn probe_report(bytes: ffi::Bytes, mode: u32, case: u32) -> u3
     let report = wire::decode_report(bytes, &mut wire::Session::new(Default::default())).unwrap();
     assert_eq!(report.policy, wire::MessagePolicy::Redacted);
     assert!(report.primary.message.is_none());
+    if (75..=80).contains(&case) {
+        let outer=case%2==1;
+        let native=case==77||case==78;
+        let capped=case>=79;
+        let guest=match mode {0=>wire::Mode::Vm,1=>wire::Mode::Jit,2=>wire::Mode::Aot,_=>panic!("mode")};
+        let offset=if outer {2}else{0};
+        assert!(!report.poisoned);
+        assert_eq!(report.primary.category,if native {wire::Category::Trap}else{wire::Category::Panic});
+        assert_eq!(report.primary.phase,wire::Phase::Call);
+        assert!(report.primary.limit.is_none()&&report.suppressed.is_empty());
+        assert_eq!(report.primary.diagnostic,if native {wire::Diagnostic::Trap}else{wire::Diagnostic::Panic});
+        if !capped {assert_eq!(report.primary.origin.as_ref(),report.frames.last());}
+        else {assert_ne!(report.primary.origin.as_ref(),report.frames.last());}
+        assert_eq!(report.frames.len(),if capped {3}else{offset+if native {2}else{4}});
+        assert_eq!(report.omitted,if capped {if outer {3}else{1}}else{u64::from(native)});
+        assert_eq!(report.usage.host_calls,2);
+        let child=report.frames[offset].digest;
+        let format=usize::from(child!=REGISTRY_STACK_DIGESTS[4]);
+        assert_eq!(child,REGISTRY_STACK_DIGESTS[4+format]);
+        if !native {
+            let origin=report.primary.origin.as_ref().unwrap();
+            assert_eq!(origin.mode,guest);assert_eq!(origin.digest,child);assert_eq!(origin.member,2);
+            let span=origin.span.unwrap();assert_eq!(span.source,m::SourceId(0));
+            assert_eq!([span.start,span.end],REGISTRY_MIXED_SPANS[3]);
+        }
+        for (i,frame) in report.frames[offset..].iter().take(if native {1}else{4}).enumerate() {
+            assert_eq!(frame.mode,guest);assert_eq!(frame.digest,child);
+            assert_eq!(frame.member,if i==0 {0}else{2});assert!(frame.span.is_some());
+            let span=frame.span.unwrap();assert_eq!(span.source,m::SourceId(0));
+            assert_eq!([span.start,span.end],REGISTRY_MIXED_SPANS[if native {4}else if i==0 {1}else if i<3 {2}else{3}]);
+        }
+        if native {
+            let host=&report.frames[offset+1];
+            assert_eq!(host.mode,wire::Mode::Host);assert_eq!(host.digest,REGISTRY_PROVIDER_DIGEST);
+            assert_eq!(host.member,0);assert!(host.span.is_none());
+            assert!(report.frames.iter().all(|frame|frame.digest!=[17;32]));
+            if outer {assert_eq!(report.frames[1],*host);}
+        }
+        if outer {
+            assert_eq!(report.frames[0].mode,guest);
+            assert_eq!(report.frames[0].digest,REGISTRY_ROOT_DIGESTS[format]);
+            assert_ne!(REGISTRY_ROOT_DIGESTS[format],child);
+            let span=report.frames[0].span.unwrap();assert_eq!(span.source,m::SourceId(0));
+            assert_eq!([span.start,span.end],REGISTRY_MIXED_SPANS[0]);
+            assert_eq!(report.frames[1].mode,wire::Mode::Host);
+            assert_eq!(report.frames[1].digest,REGISTRY_PROVIDER_DIGEST);
+            assert_eq!(report.frames[1].member,0);assert!(report.frames[1].span.is_none());
+        }
+        return 0;
+    }
     if matches!(case, 28 | 29 | 30 | 35 | 36) {
         assert!(report.poisoned);
         assert_eq!(

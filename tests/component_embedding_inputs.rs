@@ -482,6 +482,7 @@ fn native_c_host_loads_snapshots_and_repeats_generated_typed_calls_on_vm_and_jit
         generated.exports[0].declaration,
         generated.bindings.imports[0].source
     );
+    let native_root_call = format!("{}(p0)", generated.bindings.imports[0].source);
     let analysis = f::analyze(f::Request {
         sources: SourceMap::new(),
         display: Path::new("component-source.lang"),
@@ -583,6 +584,7 @@ fn native_c_host_loads_snapshots_and_repeats_generated_typed_calls_on_vm_and_jit
         fail_guest.exports[0].declaration,
         fail_guest.bindings.imports[0].source,
     );
+    let native_child_call = format!("{}(41)", fail_guest.bindings.imports[0].source);
     let fail_analysis = f::analyze(f::Request {
         sources: SourceMap::new(),
         display: Path::new("component-guest-failure.lang"),
@@ -1322,6 +1324,22 @@ uint32_t fixture(void) {{
     let driver = files.0.join("driver.rs");
     let registry_provider_digest: [u8; 32] =
         <sha2::Sha256 as sha2::Digest>::digest(&native_contract).into();
+    let registry_root_digests: [[u8; 32]; 2] = [
+        <sha2::Sha256 as sha2::Digest>::digest(native_source.as_bytes()).into(),
+        <sha2::Sha256 as sha2::Digest>::digest(&native_artifact).into(),
+    ];
+    let source_span = |source: &str, expression: &str| {
+        let start = source.find(expression).expect("unique fixture expression");
+        assert_eq!(source.matches(expression).count(), 1);
+        [start as u32, (start + expression.len()) as u32]
+    };
+    let registry_mixed_spans = [
+        source_span(&native_source, &native_root_call),
+        source_span(&native_fail_source, "trace_panic(p0, true, true)"),
+        source_span(&native_fail_source, "trace_panic(value, next, false)"),
+        source_span(&native_fail_source, "core::panic::<i64>(value)"),
+        source_span(&native_fail_source, &native_child_call),
+    ];
     let registry_stack_digests: [[u8; 32]; 6] = [
         <sha2::Sha256 as sha2::Digest>::digest(native_stack_source.as_bytes()).into(),
         <sha2::Sha256 as sha2::Digest>::digest(&native_stack_artifact).into(),
@@ -1337,6 +1355,14 @@ uint32_t fixture(void) {{
         <sha2::Sha256 as sha2::Digest>::digest(&resource_artifact).into(),
     ];
     let driver_source = include_str!("support/component_input_host.rs")
+        .replace(
+            "const REGISTRY_ROOT_DIGESTS: [[u8; 32]; 2] = [[0; 32]; 2];",
+            &format!("const REGISTRY_ROOT_DIGESTS: [[u8; 32]; 2] = {registry_root_digests:?};"),
+        )
+        .replace(
+            "const REGISTRY_MIXED_SPANS: [[u32; 2]; 5] = [[0; 2]; 5];",
+            &format!("const REGISTRY_MIXED_SPANS: [[u32; 2]; 5] = {registry_mixed_spans:?};"),
+        )
         .replace(
             "const REGISTRY_STACK_DIGESTS: [[u8; 32]; 6] = [[0; 32]; 6];",
             &format!("const REGISTRY_STACK_DIGESTS: [[u8; 32]; 6] = {registry_stack_digests:?};"),
