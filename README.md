@@ -111,7 +111,7 @@ The rationale and unresolved tradeoffs are documented in [the architecture basel
 - [RFC 0028: Serialized task and component MIR (implemented)](docs/rfcs/0028-task-component-artifacts.md)
 - [RFC 0029: Component adapter work and invocation metering (implemented)](docs/rfcs/0029-component-adapter-work.md)
 - [RFC 0030: Native task and component records (implemented)](docs/rfcs/0030-native-task-component-records.md)
-- [RFC 0031: Installed native task packages (accepted)](docs/rfcs/0031-installed-native-task-packages.md)
+- [RFC 0031: Installed native task packages (implemented)](docs/rfcs/0031-installed-native-task-packages.md)
 - [Contribution guide](CONTRIBUTING.md)
 
 ## Development

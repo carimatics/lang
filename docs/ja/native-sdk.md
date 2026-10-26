@@ -6,7 +6,7 @@
 
 更新日：2026-10-27 JST。RFC 0020のversion-1 SDK（copy/owned/C）はimplementedで、両host隔離installの証拠は2026-10-20 JSTの[M2 capability guideと出口監査](https://github.com/carimatics/lang/blob/e12c120/docs/ja/milestone-2-capabilities.md)に記録済みです。以下のversion-2 task拡張は実験段階で、実Windows task/component起動はまだ未検証です。
 
-Task拡張（[RFC 0031](rfcs/0031-installed-native-task-packages.md)、2026-10-27 JST）: SDK assemblyはmanifest version 2を公開します。`lang native`はtask sourceをprogram version 2/task・LANGBC schema 5・元LANGNAT-2 Task objectへ出力し、生成mainが`execute_tasks`でcaller allocator/Control/runner上限を保ちます。task packageはSDK version 2を必要とし、SDK v1ではtool前に拒否します。旧version-1 copy/owned/C packageは対応buildのSDK v2でも動作します。初期task出力はhost targetに限り、component packageには後続受入決定が必要です。最初のmacOSコピー済みSDK実行は42を返しました。完全な自動検証と両host受入条件はM3進捗表で追跡します。
+Task拡張（[RFC 0031](rfcs/0031-installed-native-task-packages.md)、2026-10-27 JST）: SDK assemblyはmanifest version 2を公開します。`lang native`はtask sourceをprogram version 2/task・LANGBC schema 5・元LANGNAT-2 Task objectへ出力し、生成mainが`execute_tasks`でcaller allocator/Control/runner上限を保ちます。task packageはSDK version 2を必要とし、SDK v1ではtool前に拒否します。旧version-1 copy/owned/C packageは対応buildのSDK v2でも動作します。初期task出力はhost targetに限り、component packageには後続受入決定が必要です。`042fc38`のclean producerからSDKを作り、producer退避後のcheckoutなし・Cargoなしconsumerで5 profileの隔離検証に成功しました（2026-10-27 03:49 JST、macOS AArch64）。起動前にsource/package/private SDKリンク入力を除去し、task/owned-taskとも42を返しました。全baselineは149 suite・2,300 test成功です。component/両host受入条件はM3進捗表で追跡し、M2の旧profileの両host証拠とは区別します。
 
 macOS AArch64またはMSVC developer環境のWindows x86-64で、Python 3、固定Rust toolchain、native linker、C11 compilerを用意します。
 

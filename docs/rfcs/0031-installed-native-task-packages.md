@@ -4,11 +4,11 @@
 
 [日本語版](../ja/rfcs/0031-installed-native-task-packages.md)
 
-- Status: accepted
+- Status: implemented
 - Authors: Codex under the owner's experimental delegation
 - Created: 2026-10-27
 - Last updated: 2026-10-27
-- Tracking issue: M3-I08 (first installed task outcome; component/both-host acceptance remains open)
+- Tracking issue: M3-I14 (implemented task outcome); M3-I08 retains component/both-host acceptance
 - Supersedes: None; extends RFC 0020 with independent manifest revisions
 - Superseded by: None
 
@@ -16,7 +16,7 @@
 
 Accept native program manifest **version 2 / profile `task`** and SDK manifest **version 2** for independently checked schema-5 task code and RFC 0030 native records. Link original objects with the exact installed SDK and run through the existing task runner without repository access, source analysis, code generation, Cargo or JIT at consumer startup.
 
-Accepted under RFC 0001's experimental delegation on 2026-10-27 JST. The stored linked task/owned-buffer execution at `8ba2c43` supports the runtime choice. Package/SDK admission, installed execution and actual Windows execution remain unverified until their own checks pass. This first outcome does not complete I08; component package admission requires a follow-up decision before implementation.
+Accepted under RFC 0001's experimental delegation on 2026-10-27 JST and implemented at `042fc38` (verified 03:49 JST that day). A clean exact-commit producer supplied the provenance-bearing SDK; after relocating it, a checkout-free consumer without Cargo successfully linked and ran copy/owned/C/task/owned-task. All source/package/private SDK link inputs were removed before startup; both task fixtures return 42. The complete baseline passes 149 suites/2,300 tests. Windows remains unverified and I08 remains open. Component package admission requires a follow-up decision before implementation.
 
 ## Motivation
 
@@ -100,7 +100,7 @@ Preserve version-1 vectors/profiles. Test task-under-v1, task-with-SDK-v1, unsup
 
 ## Open questions
 
-Component package/host-binding startup and SDK dependency selection require the next I08 decision. No Windows host/runner is available at acceptance; no both-host proof is claimed. Performance and installed task behavior remain unverified until the executable installation fixture passes.
+Component package/host-binding startup and SDK dependency selection require the next I08 decision. No Windows host/runner is available; both-host evidence remains unverified. The isolated fixture above verifies macOS installed task behavior; its startup measurements do not complete a performance gate.
 
 ## Sources
 

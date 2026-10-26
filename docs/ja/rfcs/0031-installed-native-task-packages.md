@@ -4,11 +4,11 @@
 
 [English](../../rfcs/0031-installed-native-task-packages.md)
 
-- Status: accepted
+- Status: implemented
 - Authors: Codex under the owner's experimental delegation
 - Created: 2026-10-27
 - Last updated: 2026-10-27
-- Tracking issue: M3-I08 (first installed task outcome; component/both-host acceptance remains open)
+- Tracking issue: M3-I14 (implemented task outcome); M3-I08 retains component/both-host acceptance
 - Supersedes: None; extends RFC 0020 with independent manifest revisions
 - Superseded by: None
 
@@ -16,7 +16,7 @@
 
 独立検査済みschema-5 task codeとRFC 0030 native recordに対して、native program manifest **version 2 / profile `task`**とSDK manifest **version 2**を受理します。元objectを厳密なinstalled SDKとリンクし、consumer startupでrepositoryアクセス・source解析・コード生成・Cargo・JITを使わず既存task runnerで実行します。
 
-2026-10-27 JST、RFC 0001の実験期委任に基づき受理しました。`8ba2c43`の保存task/owned bufferリンク実行がruntime選択を裏付けます。package/SDK受理・installed実行・実Windows実行は対応検査まで未検証です。この最初の成果でI08を完了せず、component package受理には実装前の後続決定が必要です。
+2026-10-27 JST、RFC 0001の実験期委任で受理し、`042fc38`で実装しました（同日03:49 JST検証）。cleanな厳密commitからprovenance付きSDKを作り、producer退避・checkoutなし・Cargoなしのconsumerでcopy/owned/C/task/owned-taskの5 profileが成功しました。起動前にsource/package/private SDKリンク入力を除去し、両taskは42を返します。149 suite・2,300 testの全baselineも成功しました。Windowsは未検証で、I08は未完です。component package受理には実装前の後続決定が必要です。
 
 ## Motivation
 
@@ -100,7 +100,7 @@ version-1 vector/profileを維持します。v1へのtask・SDK v1でのtask・�
 
 ## Open questions
 
-component package/host binding startupとSDK dependency選択には次のI08決定が必要です。受理時点でWindows host/runnerはなく、両host証拠を主張しません。performanceとinstalled task動作は実installation fixtureが成功するまで未検証です。
+component package/host binding startupとSDK dependency選択には次のI08決定が必要です。Windows host/runnerはなく、両host証拠は未検証です。macOS installed task動作は上記隔離fixtureで検証済みですが、この起動計測は性能gateを完了しません。
 
 ## Sources
 
