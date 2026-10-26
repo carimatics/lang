@@ -531,19 +531,15 @@ fn project_failure(
                 .map(|function| function.signature_span)
         }),
     };
-    let native_frame = match &failure.reason {
-        r::Reason::Native(execution::NativeFailure::Context { native_frame, .. }) => {
-            native_frame.as_ref()
+    let native_frame = failure.reason.native_frame();
+    let repeated = match (failure.reason.without_native_frames(), native_frame) {
+        (r::Reason::Native(execution::NativeFailure::Propagated { failure, .. }), Some(frame)) => {
+            failure
+                .trace_frame()
+                .is_some_and(|original| original.same_activation(frame))
         }
-        r::Reason::Native(execution::NativeFailure::Propagated { native_frame, .. }) => {
-            Some(native_frame)
-        }
-        _ => None,
+        _ => false,
     };
-    let repeated = matches!(&failure.reason,
-        r::Reason::Native(execution::NativeFailure::Propagated { failure, native_frame })
-            if failure.trace_frame().is_some_and(|original| original.same_activation(native_frame))
-    );
     let mut frames = Vec::new();
     let caller_trace = native_frame
         .filter(|native| !native.callers().is_empty())
@@ -682,7 +678,7 @@ fn project_failure(
             peak_frames: failure.usage.peak_frames as u64,
             peak_live_cells: failure.usage.peak_live_cells as u64,
             peak_live_tasks: failure.tasks.peak_live as u64,
-            canonical_indices: match &failure.reason {
+            canonical_indices: match failure.reason.without_native_frames() {
                 r::Reason::Native(execution::NativeFailure::Context {
                     canonical_indices, ..
                 }) => *canonical_indices,
@@ -691,7 +687,7 @@ fn project_failure(
         },
         frames,
     };
-    let native = match &failure.reason {
+    let native = match failure.reason.without_native_frames() {
         r::Reason::Native(execution::NativeFailure::Report(native)) => Some(native.report()),
         r::Reason::Native(execution::NativeFailure::Latched(native)) => Some(native.report()),
         r::Reason::Native(execution::NativeFailure::Propagated { failure, .. }) => {
@@ -1843,7 +1839,10 @@ pub unsafe extern "C" fn call(
                                 .functions()[binding.entry.0 as usize]
                                 .signature_span,
                         ),
-                        callers: None,
+                        callers: Some(execution::GuestCallFrames {
+                            frames: Vec::new(),
+                            omitted: 0,
+                        }),
                         usage: e::Usage {
                             service_work,
                             ..Default::default()

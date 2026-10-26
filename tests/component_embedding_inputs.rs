@@ -1136,7 +1136,7 @@ static void bound_case(const lang_component_v1_api *api,const lang_component_v1_
         if(repeat==0)assert(out.commit==1);
         if(repeat>=2)assert(out.commit==0);
         info.header.size=sizeof(info);info.header.version=1;
-        assert(api->result_info(out.result,&info,&error)==0&&info.kind==1&&info.frame_count==1);
+        assert(api->result_info(out.result,&info,&error)==0&&info.kind==1&&info.frame_count==(repeat<2?1u:0u));
         assert(api->result_bytes(out.result,&bytes,&error)==0);
         assert(probe_report(bytes,config->mode,repeat)==0);
         assert(api->result_drop(out.result,&error)==0);

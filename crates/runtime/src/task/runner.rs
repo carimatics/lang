@@ -105,12 +105,41 @@ impl From<crate::component::wire::Error> for Reason {
     }
 }
 impl Reason {
+    /// The checked native scope carried by this boundary, without inferring
+    /// identity from a foreign report or a different retained child scope.
+    pub fn native_frame(&self) -> Option<&crate::component::execution::NativeCallFrame> {
+        use crate::component::execution::NativeFailure;
+        match self {
+            Self::Native(
+                NativeFailure::Framed { native_frame, .. }
+                | NativeFailure::Propagated { native_frame, .. },
+            ) => Some(native_frame),
+            Self::Native(NativeFailure::Context { native_frame, .. }) => native_frame.as_ref(),
+            _ => None,
+        }
+    }
+    /// Remove only native-scope annotations; retain typed child/packet causes
+    /// for the boundary-specific handling that needs their owned evidence.
+    pub fn without_native_frames(&self) -> &Self {
+        let mut cause = self;
+        while let Self::Native(crate::component::execution::NativeFailure::Framed {
+            failure, ..
+        }) = cause
+        {
+            cause = failure;
+        }
+        cause
+    }
     /// The original typed cause survives native propagation without copying
     /// owned reports or trusting foreign native report bytes.
     pub fn primary_cause(&self) -> &Self {
         let mut cause = self;
         loop {
             cause = match cause {
+                Self::Native(crate::component::execution::NativeFailure::Framed {
+                    failure,
+                    ..
+                }) => failure,
                 Self::Native(
                     crate::component::execution::NativeFailure::Child(failure)
                     | crate::component::execution::NativeFailure::Context { failure, .. },
@@ -555,7 +584,10 @@ fn execute_profile<P: a::Provider, B: Backend<P>>(
         reason,
         function: entry,
         span,
-        callers: None,
+        callers: Some(crate::component::execution::GuestCallFrames {
+            frames: Vec::new(),
+            omitted: 0,
+        }),
         usage: Default::default(),
         tasks: task_usage,
         events: Vec::new(),

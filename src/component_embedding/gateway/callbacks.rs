@@ -205,7 +205,10 @@ impl execution::CallbackOperation for Call<'_, '_> {
                     target.module.unit().code().declarations().functions()[self.entry.0 as usize]
                         .signature_span,
                 ),
-                callers: None,
+                callers: Some(execution::GuestCallFrames {
+                    frames: Vec::new(),
+                    omitted: 0,
+                }),
                 usage,
                 tasks,
                 events: vec![],

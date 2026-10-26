@@ -2674,9 +2674,12 @@ fn run_source_namespace(
                 assert!(!committed);
                 assert_eq!(destroyed.method_calls.get(), 0);
             } else if let Some(limit) = work_limit {
-                let lang_runtime::task::runner::Reason::Control(error) = failure.reason else {
+                let lang_runtime::task::runner::Reason::Control(error) =
+                    failure.reason.primary_cause()
+                else {
                     panic!("finite component work lost control identity: {failure:?}");
                 };
+                let error = *error;
                 assert!(
                     matches!(error, e::Failure::ServiceWorkLimit { limit: actual, used, requested }
                     if actual == limit && used == failure.usage.service_work && used <= limit
@@ -2761,7 +2764,7 @@ fn run_source_namespace(
             }
             if matches!(case.native(), Some(NativeCase::Interrupt)) {
                 assert!(matches!(
-                    failure.reason,
+                    failure.reason.primary_cause(),
                     lang_runtime::task::runner::Reason::Control(e::Failure::Interrupted)
                 ));
                 assert_eq!(destroyed.method_calls.get(), 1);

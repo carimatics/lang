@@ -191,7 +191,7 @@ enum ChildControlFailure {
     Control(e::Failure),
 }
 fn control_failure(reason: &r::Reason) -> Option<ChildControlFailure> {
-    match reason {
+    match reason.without_native_frames() {
         r::Reason::Native(execution::NativeFailure::Child(failure)) => {
             control_failure(&failure.reason)
         }
@@ -2840,6 +2840,8 @@ fn forwarded_callback_loans_refuse_indices_ownership_and_exclusive_aliases_befor
             assert_eq!(child.value.get(), 0);
             assert_eq!(watch.produced.get(), 0);
             assert_eq!(watch.destroyed.get(), 1);
+            assert_eq!(watch.released.get(), 0);
+            drop(failure);
             assert_eq!(watch.released.get(), 1);
             assert!(h.values.is_empty());
             assert_eq!(h.allocator.stats().live_allocations, 0);
@@ -3063,6 +3065,8 @@ fn original_active_instance_guest_failure_closes_child_and_allows_the_next_root(
         );
         assert_eq!(child.task_observations.get(), 1);
         assert_eq!(watch.produced.get(), 0);
+        assert_eq!(watch.released.get(), 0);
+        drop(failure);
         assert_eq!(watch.released.get(), 1);
         assert!(h.values.is_empty());
         assert_eq!(h.allocator.stats().live_allocations, 0);
@@ -3110,7 +3114,7 @@ fn original_active_instance_restores_clean_error_and_unwind_but_keeps_child_pois
                 };
                 assert!(
                     matches!(
-                        failure.reason,
+                        failure.reason.primary_cause(),
                         r::Reason::Instance(execution::InstanceError::Poisoned)
                     ),
                     "{failure:?}"
@@ -4005,7 +4009,7 @@ fn shared_accounting_work_prefixes_preserve_or_retire_every_original_owner() {
             let success = match first {
                 Err(failure) => {
                     assert!(matches!(
-                        failure.reason,
+                        failure.reason.primary_cause(),
                         r::Reason::Control(e::Failure::ServiceWorkLimit { .. })
                     ));
                     assert_eq!(failure.usage, accounting.snapshot());
@@ -4038,7 +4042,7 @@ fn shared_accounting_work_prefixes_preserve_or_retire_every_original_owner() {
                         }
                         Err(failure) => {
                             assert!(matches!(
-                                failure.reason,
+                                failure.reason.primary_cause(),
                                 r::Reason::Control(e::Failure::ServiceWorkLimit { .. })
                             ));
                             assert_eq!(failure.usage, accounting.snapshot());
@@ -4394,7 +4398,7 @@ fn finite_create(compiled: bool, limit: u64) -> (bool, e::Usage) {
         }
         Err(failure) => {
             assert!(matches!(
-                failure.reason,
+                failure.reason.primary_cause(),
                 r::Reason::Control(e::Failure::ServiceWorkLimit { .. })
             ));
             assert!(!failure.poisoned);
@@ -4710,6 +4714,8 @@ fn canonical_reply_copy_spends_the_original_child_ledger_before_decode_refusal()
             assert_eq!(child.value.get(), 0);
             assert_eq!(watch.produced.get(), 0);
             assert_eq!(watch.destroyed.get(), 0);
+            assert_eq!(watch.released.get(), 0);
+            drop(failure);
             assert_eq!(watch.released.get(), 1);
             assert!(h.values.is_empty());
             assert_eq!(h.allocator.stats().live_allocations, 0);

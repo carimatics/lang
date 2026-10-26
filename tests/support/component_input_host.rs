@@ -520,8 +520,13 @@ unsafe extern "C" fn probe_report(bytes: ffi::Bytes, mode: u32, case: u32) -> u3
         assert_resource_cleanup_origin(record);
         assert_eq!(report.omitted, u64::from(case != 37));
         assert_eq!(report.usage.host_calls, 1);
-        assert_eq!(report.frames.len(), 1);
+        assert_eq!(report.frames.len(), if case==33 {2}else{1}, "resource parent case {case}: {report:?}");
         assert_resource_guest_frame(&report.frames[0], mode, if case == 33 { 2 } else { 0 });
+        if case==33 {
+            assert_eq!(report.frames[1].mode,wire::Mode::Host);
+            assert_eq!(report.frames[1].digest,RESOURCE_PROVIDER_DIGEST);
+            assert_eq!(report.frames[1].member,0);assert!(report.frames[1].span.is_none());
+        }
         assert!(report.frames.iter().all(|f| f.digest != [17; 32]));
         return 0;
     }
@@ -541,6 +546,23 @@ unsafe extern "C" fn probe_report(bytes: ffi::Bytes, mode: u32, case: u32) -> u3
         }
         assert!(report.frames.is_empty());
         assert_eq!(report.omitted, 0);
+        return 0;
+    }
+    if (70..=72).contains(&case) {
+        assert_eq!(report.poisoned,case!=71);
+        assert_eq!(report.primary.category,if case==71 {wire::Category::Interruption}else{wire::Category::HostContract});
+        assert_eq!(report.primary.diagnostic,if case==71 {wire::Diagnostic::Interrupted}else{wire::Diagnostic::HostContract});
+        assert_eq!(report.primary.phase,wire::Phase::Call);
+        assert!(report.primary.limit.is_none()&&report.suppressed.is_empty());
+        let origin=report.primary.origin.as_ref().unwrap();
+        assert_eq!(origin.mode,if mode==1 {wire::Mode::Jit}else{wire::Mode::Vm});
+        assert_eq!(report.omitted,0);
+        assert_eq!(report.frames.len(),2);
+        assert_eq!(&report.frames[0],origin);
+        let host=&report.frames[1];
+        assert_eq!(host.mode,wire::Mode::Host);assert_eq!(host.digest,REGISTRY_PROVIDER_DIGEST);
+        assert_eq!(host.member,0);assert!(host.span.is_none());
+        assert_eq!(report.usage.host_calls,1);assert_eq!(report.usage.canonical_indices,0);
         return 0;
     }
     if case==99 {eprintln!("deep refusal: {:?}",report.primary);return 0;}
@@ -694,12 +716,12 @@ unsafe extern "C" fn probe_report(bytes: ffi::Bytes, mode: u32, case: u32) -> u3
     }
     assert_eq!(
         report.poisoned,
-        matches!(case, 4 | 5 | 7 | 8 | 9 | 10 | 17 | 21 | 22 | 24 | 27)
+        matches!(case, 4 | 5 | 7 | 8 | 9 | 10 | 17 | 21 | 22 | 24 | 27 | 69)
     );
     let origin = report.primary.origin.as_ref().unwrap();
     assert_eq!(
         origin.mode,
-        if matches!(case, 7 | 8 | 10 | 21 | 23) {
+        if matches!(case, 7 | 8 | 10 | 21 | 23 | 69) {
             wire::Mode::Host
         } else if mode == 1 {
             wire::Mode::Jit
@@ -711,7 +733,7 @@ unsafe extern "C" fn probe_report(bytes: ffi::Bytes, mode: u32, case: u32) -> u3
     assert_ne!(origin.digest, [0; 32]);
     assert_eq!(
         origin.span.is_none(),
-        matches!(case, 7 | 8 | 10 | 21 | 23),
+        matches!(case, 7 | 8 | 10 | 21 | 23 | 69),
         "{report:?}"
     );
     match case {
@@ -777,7 +799,7 @@ unsafe extern "C" fn probe_report(bytes: ffi::Bytes, mode: u32, case: u32) -> u3
             );
             assert!(report.primary.limit.is_none());
         }
-        7 | 8 => {
+        7 | 8 | 69 => {
             assert_eq!(report.primary.category, wire::Category::HostContract);
             assert_eq!(report.primary.diagnostic, wire::Diagnostic::HostContract);
             assert_eq!(report.primary.phase, wire::Phase::Call);
@@ -795,7 +817,14 @@ unsafe extern "C" fn probe_report(bytes: ffi::Bytes, mode: u32, case: u32) -> u3
             assert!(report.suppressed[0].message.is_none());
             assert!(report.suppressed[0].origin.is_none());
             assert_eq!(report.omitted, 8, "native report case {case}: {report:?}");
-            assert!((1..=if case == 8 { 2 } else { 1 }).contains(&report.frames.len()));
+            if case!=8 {
+                assert_eq!(report.frames.len(),2);
+                assert_eq!(report.frames[0].mode,if mode==1 {wire::Mode::Jit}else{wire::Mode::Vm});
+                assert!(report.frames[0].span.is_some());
+                assert_eq!(&report.frames[1],origin);
+            } else {
+                assert_eq!(report.frames.len(),4);
+            }
             assert_eq!(
                 report.usage.host_calls,
                 if case == 7 { 1 } else { 2 },
@@ -811,7 +840,10 @@ unsafe extern "C" fn probe_report(bytes: ffi::Bytes, mode: u32, case: u32) -> u3
             assert_eq!(report.primary.diagnostic, wire::Diagnostic::HostContract);
             assert!(report.primary.limit.is_none() && report.suppressed.is_empty());
             assert_eq!(report.omitted, 0);
-            assert_eq!(report.frames.len(), 1);
+            assert_eq!(report.frames.len(), 2);
+            assert_eq!(report.frames[1].mode,wire::Mode::Host);
+            assert_eq!(report.frames[1].digest,REGISTRY_PROVIDER_DIGEST);
+            assert_eq!(report.frames[1].member,0);assert!(report.frames[1].span.is_none());
             assert_eq!(report.usage.host_calls, 1);
         }
         10 | 23 => {
@@ -835,7 +867,8 @@ unsafe extern "C" fn probe_report(bytes: ffi::Bytes, mode: u32, case: u32) -> u3
             assert_ne!(origin.digest, [17; 32]);
             assert!(report.primary.limit.is_none() && report.suppressed.is_empty());
             assert_eq!(report.omitted, 1);
-            assert_eq!(report.frames.len(), 1);
+            assert_eq!(report.frames.len(), 2);
+            assert_eq!(&report.frames[1],origin);
             assert_eq!(report.usage.host_calls, 1);
         }
         38 | 39 | 40 | 41 => {
@@ -902,14 +935,14 @@ unsafe extern "C" fn probe_report(bytes: ffi::Bytes, mode: u32, case: u32) -> u3
             assert_eq!(report.usage.host_calls, 1);
             assert_eq!(report.usage.canonical_indices, 0);
         }
-        11 | 12 | 24 => {
+        11 | 12 | 24 | 73 | 74 => {
             assert_eq!(report.primary.category, wire::Category::Limit);
             assert_eq!(report.primary.phase, wire::Phase::Call);
             assert_eq!(report.primary.diagnostic, wire::Diagnostic::Limit);
             let limit = report.primary.limit.unwrap();
             assert_eq!(
                 limit.kind,
-                if case != 12 {
+                if case != 12 && case != 74 {
                     wire::ReportLimitKind::Frames
                 } else {
                     wire::ReportLimitKind::LiveCells
@@ -917,7 +950,7 @@ unsafe extern "C" fn probe_report(bytes: ffi::Bytes, mode: u32, case: u32) -> u3
             );
             assert_eq!(
                 (limit.limit, limit.attempted),
-                if case != 12 { (1, 2) } else { (5, 8) },
+                if case != 12 && case != 74 { (1, 2) } else { (5, 8) },
                 "{report:?}"
             );
             assert_eq!(report.suppressed.len(), usize::from(case == 24));
@@ -926,7 +959,7 @@ unsafe extern "C" fn probe_report(bytes: ffi::Bytes, mode: u32, case: u32) -> u3
                 assert_eq!(report.suppressed[0].phase, wire::Phase::Cleanup);
             }
             assert_eq!(report.omitted, 0);
-            assert!((1..=2).contains(&report.frames.len()));
+            assert_eq!(report.frames.len(),if case==73||case==74 {0}else{2});
             assert_eq!(report.usage.host_calls, 1);
             assert_eq!(report.usage.canonical_indices, 0);
         }

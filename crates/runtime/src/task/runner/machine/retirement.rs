@@ -7,7 +7,7 @@ impl<'p, 'l, 'ty, 'host, 'ctrl, P: a::Provider> Machine<'p, 'l, 'ty, 'host, 'ctr
         reason: &Reason,
         span: m::Span,
     ) -> Result<(), Reason> {
-        let poisoned_cause = match reason {
+        let poisoned_cause = match reason.without_native_frames() {
             Reason::Native(
                 crate::component::execution::NativeFailure::Child(failure)
                 | crate::component::execution::NativeFailure::Context { failure, .. },

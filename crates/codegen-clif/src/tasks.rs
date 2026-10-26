@@ -255,7 +255,10 @@ impl<'p> CompiledProgram<'p> {
                 reason: r::Reason::Entry,
                 function: Some(self.image.entry),
                 span: None,
-                callers: None,
+                callers: Some(lang_runtime::component::execution::GuestCallFrames {
+                    frames: Vec::new(),
+                    omitted: 0,
+                }),
                 usage: Default::default(),
                 tasks: Default::default(),
                 events: Vec::new(),
@@ -325,7 +328,10 @@ impl<'p> CompiledProgram<'p> {
                 reason: r::Reason::Entry,
                 function: Some(self.image.entry),
                 span: None,
-                callers: None,
+                callers: Some(lang_runtime::component::execution::GuestCallFrames {
+                    frames: Vec::new(),
+                    omitted: 0,
+                }),
                 usage: Default::default(),
                 tasks: current.usage(),
                 events: Vec::new(),

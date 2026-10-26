@@ -774,6 +774,7 @@ impl<'state, 'p, 'u, 'resources, 'code, 'native> Host
         let mut created = Vec::new();
         let mut owned = Vec::new();
         let mut native_holder = None;
+        let mut native_exit = None;
         let mut result = (|| -> Result<NativeResult, Reason> {
             let bindings = self.program.bindings();
             let target = bindings.resolve(import).ok_or(Reason::Entry)?;
@@ -936,6 +937,10 @@ impl<'state, 'p, 'u, 'resources, 'code, 'native> Host
                 target.method(),
                 prepared_session.preparation_budget(),
             )?;
+            prepared_session
+                .preparation_budget()
+                .allocate::<Reason>(1)?;
+            let failure_slot = Box::new(Reason::Invariant);
             native_holder = Some(native);
             if !inputs.is_empty() {
                 created = prepared_session
@@ -1033,6 +1038,7 @@ impl<'state, 'p, 'u, 'resources, 'code, 'native> Host
             .with_task(task)
             .with_instance(self.instance, target.method().flags & 1 != 0)
             .with_session(session);
+            native_exit = Some((native_frame.clone(), failure_slot));
             let returned = self.invoker.invoke(target.method(), &bytes, &mut context);
             let session = context.take_session()?;
             let decoded = (|| -> Result<NativeResult, Reason> {
@@ -1059,13 +1065,9 @@ impl<'state, 'p, 'u, 'resources, 'code, 'native> Host
                     return Err(Reason::Native(NativeFailure::Child(failure)));
                 }
                 if let Some(failure) = self.accounting.boundary_failure() {
-                    return Err(Reason::Native(if failure.context_frame().is_some() {
-                        NativeFailure::Propagated {
-                            failure,
-                            native_frame: native_frame.clone(),
-                        }
-                    } else {
-                        NativeFailure::Latched(failure)
+                    return Err(Reason::Native(NativeFailure::Propagated {
+                        failure,
+                        native_frame: native_frame.clone(),
                     }));
                 }
                 if let Some(failure) = self.accounting.preparation_failure() {
@@ -1290,7 +1292,23 @@ impl<'state, 'p, 'u, 'resources, 'code, 'native> Host
             result = Err(error);
         }
         self.output_session = Some(session_scope);
-        result
+        match (result, native_exit) {
+            (Err(reason), Some((native_frame, mut failure))) => {
+                if reason
+                    .native_frame()
+                    .is_some_and(|frame| frame.same_activation(&native_frame))
+                {
+                    Err(reason)
+                } else {
+                    *failure = reason;
+                    Err(Reason::Native(NativeFailure::Framed {
+                        failure,
+                        native_frame,
+                    }))
+                }
+            }
+            (result, _) => result,
+        }
     }
     fn commit_native_result(
         &mut self,

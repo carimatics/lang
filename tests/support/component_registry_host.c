@@ -65,10 +65,13 @@ static uint32_t registry_report_case(uint32_t profile) {
     if(profile==35)return 65;
     if(profile==36)return 66;
     if(profile==37)return 166;
+    if(profile==38)return 70;
+    if(profile==39)return 71;
+    if(profile==40)return 72;
     return 11u+((profile-10u)&1u);
 }
 static uint32_t registry_poisoned_profile(uint32_t profile) {
-    return (profile>=4&&profile<=9)||profile==15||profile==17;
+    return (profile>=4&&profile<=9)||profile==15||profile==17||profile==38||profile==40;
 }
 static uint32_t registry_invoke(void *user,const lang_component_v1_context *context,
                                 lang_component_v1_bytes input,lang_component_v1_buffer **output) {
@@ -129,6 +132,13 @@ static uint32_t registry_invoke(void *user,const lang_component_v1_context *cont
             owner->retained=child.result;return 1;
         }
         if(owner->profile==4)return probe_native_failure_report(context,output,0);
+        if(owner->profile==38)return 0;
+        if(owner->profile==39&&owner->calls==1){owner->api->interrupt(owner->control);return 0;}
+        if(owner->profile==40){
+            assert(owner->api->context_buffer_create(context,4,1,output,&error)==0);
+            assert(owner->api->buffer_mut_bytes(context,*output,&view,&error)==0&&view.length==4);
+            memcpy(view.data,"LCMP",4);return 0;
+        }
         if(owner->profile==14||(owner->profile>=30&&owner->profile<=34))goto encode_result;
         if(owner->profile==15)return probe_native_failure_report(context,output,3);
         if(owner->profile==16){if(owner->calls==1)return probe_native_failure_report(context,output,2);goto encode_result;}
@@ -210,7 +220,7 @@ static uint32_t registry_invoke(void *user,const lang_component_v1_context *cont
                 assert(child.status==1&&child.commit==(owner->profile<10)&&child.poisoned==(owner->profile<10)&&child.result);
                 assert(owner->api->context_check(context,&error)==1);
                 assert(owner->api->result_bytes(child.result,&bytes,&error)==0);
-                assert(probe_report(bytes,owner->mode,owner->profile==17?11u:owner->profile>=10?11u+((owner->profile-10u)&1u):8u)==0);
+                assert(probe_report(bytes,owner->mode,owner->profile==17?73u:owner->profile>=10?73u+((owner->profile-10u)&1u):69u)==0);
                 if(owner->profile>=10) {
                     lc_value_outcome again;lang_component_v1_bytes repeated;
                     lc_value_writer again_writer={0};again_writer.data=child_scratch;again_writer.capacity=sizeof(child_scratch);
@@ -400,7 +410,7 @@ static void registry_profile(const lang_component_v1_api *api,const lang_compone
         else assert(api->result_drop(outcome.result,&error)==0);
         assert(api->control_drop(control,&error)==0);
     }
-    assert(owner.calls==((profile==25||profile==26)?3u:registry_deep_profile(profile)?registry_failure_calls(profile)+1u:(profile==4||profile==14||profile==15||profile==17||(profile>=7&&profile<=9))?1u:profile>=5?2u:(profile&&profile!=3)?6u:2u)&&other.calls==0&&owner.released==0);
+    assert(owner.calls==((profile==25||profile==26)?3u:registry_deep_profile(profile)?registry_failure_calls(profile)+1u:(profile==4||profile==14||profile==15||profile==17||profile==38||profile==40||(profile>=7&&profile<=9))?1u:profile>=5?2u:(profile&&profile!=3)?6u:2u)&&other.calls==0&&owner.released==0);
     registry_check_snapshots(&owner);
     if(profile==6) {
         lang_component_v1_control *control=NULL;@ROOT_ARGUMENTS@ arguments={0};
@@ -466,5 +476,5 @@ static void registry_profile(const lang_component_v1_api *api,const lang_compone
     assert(api->engine_destroy(engine,&error)==0);
 }
 static void registry_case(const lang_component_v1_api *api,const lang_component_v1_config *config,uint32_t format) {
-    uint32_t profile;for(profile=0;profile<38;++profile)registry_profile(api,config,format,profile);
+    uint32_t profile;for(profile=0;profile<41;++profile)registry_profile(api,config,format,profile);
 }

@@ -14,6 +14,10 @@ pub struct NativeReturn {
 }
 #[derive(Debug)]
 pub enum NativeFailure {
+    Framed {
+        failure: Box<Reason>,
+        native_frame: NativeCallFrame,
+    },
     Invocation(u32),
     Report(NativeReport),
     Latched(std::rc::Rc<LatchedFailure>),
@@ -202,13 +206,13 @@ impl LatchedFailure {
         owner: std::rc::Rc<dyn std::any::Any>,
         cause: Option<std::rc::Rc<crate::task::runner::Failure>>,
     ) -> Self {
-        let trace_frame = cause.as_deref().and_then(|cause| match &cause.reason {
-            Reason::Native(NativeFailure::Context { native_frame, .. }) => native_frame.clone(),
-            Reason::Native(NativeFailure::Propagated { native_frame, .. }) => {
-                Some(native_frame.clone())
-            }
-            Reason::Native(NativeFailure::Latched(packet)) => packet.trace_frame.clone(),
-            _ => None,
+        let trace_frame = cause.as_deref().and_then(|cause| {
+            cause.reason.native_frame().cloned().or_else(|| {
+                match cause.reason.without_native_frames() {
+                    Reason::Native(NativeFailure::Latched(packet)) => packet.trace_frame.clone(),
+                    _ => None,
+                }
+            })
         });
         Self {
             report,
@@ -231,8 +235,9 @@ impl LatchedFailure {
         self.trace_frame.as_ref()
     }
     pub(crate) fn enriches(&self, first: &std::rc::Rc<Self>) -> bool {
-        let Some(Reason::Native(NativeFailure::Propagated { failure, .. })) =
-            self.cause().map(|cause| &cause.reason)
+        let Some(Reason::Native(NativeFailure::Propagated { failure, .. })) = self
+            .cause()
+            .map(|cause| cause.reason.without_native_frames())
         else {
             return false;
         };
@@ -257,22 +262,22 @@ impl LatchedFailure {
             && (!same_scope || next != old)
     }
     pub fn context_frame(&self) -> Option<&NativeCallFrame> {
-        let mut failure = self.cause()?;
+        let mut reason = &self.cause()?.reason;
         loop {
-            failure = match &failure.reason {
+            reason = match reason.without_native_frames() {
                 Reason::Native(NativeFailure::Context {
                     native_frame: Some(frame),
                     ..
                 }) => return Some(frame),
                 Reason::Native(
                     NativeFailure::Context { failure, .. } | NativeFailure::Child(failure),
-                ) => failure,
+                ) => &failure.reason,
                 Reason::Native(
                     NativeFailure::Latched(packet)
                     | NativeFailure::Propagated {
                         failure: packet, ..
                     },
-                ) => packet.cause()?,
+                ) => &packet.cause()?.reason,
                 _ => return None,
             };
         }
