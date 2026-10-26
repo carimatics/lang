@@ -112,6 +112,7 @@ The rationale and unresolved tradeoffs are documented in [the architecture basel
 - [RFC 0029: Component adapter work and invocation metering (implemented)](docs/rfcs/0029-component-adapter-work.md)
 - [RFC 0030: Native task and component records (implemented)](docs/rfcs/0030-native-task-component-records.md)
 - [RFC 0031: Installed native task packages (implemented)](docs/rfcs/0031-installed-native-task-packages.md)
+- [RFC 0032: Installed component packages with explicit host bindings (accepted)](docs/rfcs/0032-installed-component-packages.md)
 - [Contribution guide](CONTRIBUTING.md)
 
 ## Development

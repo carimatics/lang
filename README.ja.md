@@ -112,6 +112,7 @@ Typed import grant checkpoint（2026-10-23 JST）: `cargo test --test component_
 - [RFC 0029: Component adapter work と invocation 計量（implemented）](docs/ja/rfcs/0029-component-adapter-work.md)
 - [RFC 0030: Native task/component record（implemented）](docs/ja/rfcs/0030-native-task-component-records.md)
 - [RFC 0031: Installed native task package（implemented）](docs/ja/rfcs/0031-installed-native-task-packages.md)
+- [RFC 0032: 明示host binding付きinstalled component package（accepted）](docs/ja/rfcs/0032-installed-component-packages.md)
 - [コントリビューションガイド](CONTRIBUTING.ja.md)
 
 ## 開発

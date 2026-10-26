@@ -6,9 +6,11 @@
 
 Updated: **2026-10-27 JST**. Entry checkpoint: `984557d`; M2 and the repository review are complete.
 
-**67 done · 1 doing · 8 todo · 23 remaining pt**
+**67 done · 1 doing · 9 todo · 26 remaining pt**
 
-**Next: M3-I08 → installed component packages and both-host task/component startup.**
+**Next: M3-I15 → installed component packages with explicit host bindings.**
+
+I15 scope/estimate audit and executable checkpoint (verified **2026-10-27 03:54 JST**, macOS AArch64): the exact SDK from `042fc38` already includes the root lang library. A standalone consumer independently decodes the actual no-import component artifact, prepares its real empty grant/inventory set, reconstructs the stored Component object and runs 42, panic −42 and clean reuse 1. Producer paths are relocated before execution from a checkout-free directory with Cargo unavailable; resource/allocation inventory drains to zero. This prototype establishes SDK closure availability only. Remaining acceptance: strict program/SDK version-3 publication/snapshots, full Unit correspondence and explicit host binding, actual installed resource/callback/control/cleanup fixtures, fixed-input baseline and final committed-producer isolation. [RFC 0032](rfcs/0032-installed-component-packages.md) accepts the separate component profile under RFC 0001 delegation and makes provider-dependent node preparation explicit before symbol resolution. Expose **I15 (3 pt, sole doing)** for that installed component outcome; retain **I08 (1 pt, todo)** exclusively for actual both-host task/component startup. This is **+3 pt newly exposed**, **0 pt retired**, **77 rows / 67 done / 1 doing / 9 todo / 26 remaining pt**; ledger **110 + 94 − 178 = 26**. Gates remain **3/15, 18/96**. Windows is unavailable and no push is authorized. Code has no published update date; RFC 0032 is updated 2026-10-27 JST.
 
 I14 completion `042fc38` (verified **2026-10-27 03:49 JST**, macOS AArch64): [RFC 0031](rfcs/0031-installed-native-task-packages.md) is implemented for program version 2/task and SDK version 2, preserving version-1 copy/owned/C packages. The compiler publishes canonical schema-5 semantics and original LANGNAT-2 Task code; the SDK runner retains the caller's allocator, Control, task limits and structured failures. Package/SDK version, entry, kind, target and file validation precedes tools; another-host task production refuses before publication. A clean local clone of exact commit `042fc386ba680ebb9c5ff6783a7eb458a2a0dc13` produced the 98-file SDK, build `fc1cbc129a1a4581f7bc674e165abd60a121891c4fa61d45db1efdf4754a8511`, and an actual provenance bundle. After relocating that producer, a checkout-free consumer verifies all 12 absent repository input paths. With Cargo absent from PATH and empty Cargo state, copy/owned/C/task/owned-task link and start successfully; all source, package and private SDK link inputs are removed before startup. Both task fixtures print 42, with task link/startup 6.457/0.294 s and owned-task 6.413/0.336 s. The report records isolated=true and five successes. The fixed-input full baseline below passes 149 suites/2,300 tests. Only pre-guest codec/plan diagnostics are boxed; execution failures retain their original values. I14 is complete at its last 1 pt, with no added/re-estimated work. Installed component packages and actual both-host task/component startup remain I08.
 
@@ -425,10 +427,11 @@ Estimates describe remaining work, not elapsed time. Each row is an observable 1
 | M3-L02 | done | 0 | M3-T08,M3-E03 | G12 | Enforce combined recursion/frame/live-task limits across guest/host calls | `599d7ee` |
 | M3-L03 | todo | 3 | M3-E04,M3-T08,M3-I12 | G13 | Observe interruption consistently in VM/JIT/AOT and callback boundaries | — |
 | M3-L04 | todo | 3 | M3-L01,M3-L02,M3-L03,M3-P02 | G11,G12,G13 | Exercise adversarial resource exhaustion without losing mandatory cleanup | — |
-| M3-I08 | doing | 1 | M3-I07,M3-E04,M3-P02,M3-I13,M3-I14 | G08,G09,G14 | Emit/bind installed component packages with exact SDK records and both-host task/component startup evidence | — |
+| M3-I08 | todo | 1 | M3-I07,M3-E04,M3-P02,M3-I13,M3-I14,M3-I15 | G08,G09,G14 | Verify actual installed task/component startup on both tier-1 hosts | — |
 | M3-I12 | done | 0 | M3-I07,M3-E04,M3-P02 | G08,G09 | Emit/bind checked component objects and execute scalar/resource VM/JIT/AOT callbacks with original task authority | `47093ef` |
 | M3-I13 | done | 0 | M3-I07,M3-I12 | G08,G09,G14 | Persist/revalidate native task/component records and bind exact linked code without code generation | `8ba2c43` |
 | M3-I14 | done | 0 | M3-I13,M3-T08 | G09,G14 | Publish/link installed task packages with exact SDK v2 and original control/cleanup | `042fc38` |
+| M3-I15 | doing | 3 | M3-I13,M3-I14,M3-P02 | G08,G09,G14 | Publish/link installed component packages with explicit bindings/grants and original callbacks/cleanup | — |
 | M3-B01 | todo | 3 | M3-L04,M3-A04,M3-I08,M3-E01 | G14 | Pass ownership/failure/capability/resource conformance on both tier-1 hosts | — |
 | M3-B02 | todo | 3 | M3-B01 | G14 | Stabilize the documented C embedding API and generated bindings with migration tests | — |
 | M3-X01 | todo | 2 | M3-B02 | G15 | Ship runnable trusted-native and verified-script examples with explicit authority | — |
@@ -509,7 +512,7 @@ T05 completed at `2f58084` (2026-10-21 JST): connected source claim/loan evidenc
 
 T05 roadmap audit: the first source VM fixture is now executable, so proceed **T06 → T07 → T08** before treating G03/G12/G13 as complete. Inspected `crates/codegen-clif/src/owned.rs` and `src/native.rs`: current native paths still refuse TaskProgram/async metadata, while verified MIR, managed task layouts, scope identities and result storage are now available. T06 retains its original 3-point compiled-continuation/value-event parity outcome; it must execute generated code without a VM/MIR fallback. An initial native fixture does not select a serialized task revision or complete package/startup publication. Preserve explicit format decisions and all native/owned/loan/foreign/shared-control acceptance; add no scheduler/IDL scaffolding before the next execution fixture. All 15 gates, all P1 work, channels, Send/Share and production embedding remain in M3.
 
-**110 + 91 − 178 = 23 pt**
+**110 + 94 − 178 = 26 pt**
 
 T06 completed at `8d6c283` (2026-10-21 JST): recorded the native boundary in RFC 0023 before implementation. Shared invocation/frame/claim/result state and scheduling/storage services retain separate VM/native resume/cleanup entries; Cranelift emits computation, branches, failure/cancellation CFGs and checked continuation selection, with no runtime MIR evaluator or VM dependency. The source fixture prints 42 through VM and native code. Twelve integration tests cover matching values/events/usage/allocation state, cancellation, finite records/enums and field updates, ordinary calls, loop scope identities, child/synchronous panic origins, every fuel/trace prefix, task/frame/cell/preparation bounds and each provider refusal. The separately linked executable covers join/aggregate/cancel/panic profiles, exact re-emitted object/compiler/SDK bytes and every fuel prefix; it calls no JIT compile/invoke API. Two private-boundary tests prove out-of-range PC refusal before callbacks and contained callback panic with source evidence. All admitted storage/tasks drain. Full baseline: **106 suites / 1,712 passed / 0 failed / 1 existing timing ignore**; summed completed-suite time **471.21 s**. fmt passes, warnings-denied workspace Clippy **6.24 s**, rustdoc **26.34 s**, all 11 fuzz-target compile/lint **3.11 s**. This is no fuzz campaign, performance claim or broader platform/native-package completion. Retire T06's 3 pt; add/re-estimate no work.
 
@@ -557,7 +560,7 @@ A06 roadmap audit: inspected `Machine::spawn`, `Frame::copy_from_frame`, `Frame:
 
 | Initial remaining | Net additions/re-estimates | Retired at completion | Remaining |
 | ---: | ---: | ---: | ---: |
-| 110 pt | +91 pt | −178 pt | 23 pt |
+| 110 pt | +94 pt | −178 pt | 26 pt |
 
 ## Exit audit
 
