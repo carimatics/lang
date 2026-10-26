@@ -12,19 +12,23 @@ impl Drop for Files {
 
 #[test]
 fn linked_component_resources_call_vm_jit_and_object_children() {
-    linked_component_profile(false, false);
+    linked_component_profile(false, false, false);
 }
 #[test]
 fn stored_component_resources_call_vm_jit_and_recorded_object_children() {
-    linked_component_profile(true, false);
+    linked_component_profile(true, false, false);
 }
 #[test]
 fn installed_component_resources_call_vm_jit_and_recorded_object_children() {
-    linked_component_profile(true, true);
+    linked_component_profile(true, true, false);
 }
-fn linked_component_profile(stored: bool, installed: bool) {
+#[test]
+fn installed_component_interruption_preserves_original_vm_jit_aot_callbacks() {
+    linked_component_profile(true, true, true);
+}
+fn linked_component_profile(stored: bool, installed: bool, interruption: bool) {
     let files = Files(std::env::temp_dir().join(format!(
-        "lang component mixed-{}-{stored}-{installed}",
+        "lang component mixed-{}-{stored}-{installed}-{interruption}",
         std::process::id()
     )));
     fs::create_dir(&files.0).unwrap();
@@ -100,7 +104,7 @@ fn linked_component_profile(stored: bool, installed: bool) {
     // Reuse the real resource owner and callback probes in a separately linked
     // executable. Embed fixture bytes, so its build has no relative file lookup.
     let mut prelude = include_str!("../component_scoped_roots.rs")
-        .split("\n#[path = \"support/component_object_mixed.rs\"]")
+        .split("\n#[path = \"support/component_")
         .next()
         .unwrap()
         .to_owned();
@@ -119,12 +123,14 @@ fn linked_component_profile(stored: bool, installed: bool) {
     prelude = prelude
         .replace("unit: stored_unit(),", "unit: load_unit(),")
         .replace("let unit = stored_unit();", "let unit = load_unit();");
+    let interruption_body = include_str!("component_interruption_native.rs");
     let source = files.0.join("consumer.rs");
     fs::write(&source, format!(r#"
 #![allow(dead_code, unused_imports)]
 {prelude}
 const STORED:bool={stored};
 const INSTALLED:bool={installed};
+const INTERRUPTION:bool={interruption};
 const SEMANTIC:&[u8]=&{semantic:?};
 fn object_bytes(name:&str)->&'static[u8]{{match name{{{embedded_objects}_=>panic!("object")}}}}
 fn native_bytes(name:&str)->&'static[u8]{{match name{{{embedded_records}_=>panic!("record")}}}}
@@ -141,6 +147,9 @@ fn object_for<'p>(program:&'p program::Program<'p>,name:&str)->lang_codegen_clif
     }}else{{lang_codegen_clif::tasks::ObjectArtifact::emit_component(program,entry(program,name),Default::default()).unwrap()}}
 }}
 fn call_object(h: &mut Harness, provider: native::Provider<'static>, name: &str, input: Option<storage::Claim>) -> Result<r::Outcome<execution::Value>, r::Failure> {{
+    call_object_control(h,provider,name,input,e::Control::with_limits(Default::default()))
+}}
+fn call_object_control(h: &mut Harness, provider: native::Provider<'static>, name: &str, input: Option<storage::Claim>, control:e::Control<'_>) -> Result<r::Outcome<execution::Value>, r::Failure> {{
     let unit=load_unit();
     prepared_unit(&unit,provider, |program, session| {{
         let function=entry(program,name);
@@ -156,7 +165,6 @@ fn call_object(h: &mut Harness, provider: native::Provider<'static>, name: &str,
             // SAFETY: exact compared objects are statically linked for process life.
             unsafe {{object.bind((),|_,symbol|resolve(symbol),Default::default())}}.unwrap()
         }};
-        let control=e::Control::with_limits(Default::default());
         let mut invoker=h.engine.begin(control).unwrap();
         let mut budget=m::Budget::new(Default::default());
         h.state.with_program(program,|instance| {{
@@ -167,7 +175,13 @@ fn call_object(h: &mut Harness, provider: native::Provider<'static>, name: &str,
         }}).unwrap()
     }})
 }}
+{interruption_body}
 fn main() {{
+    if INTERRUPTION {{
+        interruption_profiles();
+        println!("installed AOT interruption 15 profiles; original context; cleanup and reuse");
+        return;
+    }}
     for cancel in [false,true] {{
     for backend in 0..3 {{
     for cleanup_failure in [false,true] {{
@@ -362,6 +376,10 @@ fn main() {{
     );
     assert_eq!(
         String::from_utf8(output.stdout).unwrap().trim(),
-        "AOT resource callback VM/JIT/AOT 42; destroyed once; original task; cancelled"
+        if interruption {
+            "installed AOT interruption 15 profiles; original context; cleanup and reuse"
+        } else {
+            "AOT resource callback VM/JIT/AOT 42; destroyed once; original task; cancelled"
+        }
     );
 }

@@ -182,10 +182,21 @@ unsafe extern "C" fn make(
         unsafe {
             *output = result;
         }
+        if let Some(child) = &owner.child {
+            child.interrupt(InterruptAt::NativeReturn);
+        }
         Ok(())
     })();
     // Native host-error status is 1; context-operation status codes are separate.
     result.map_or_else(|_| 1, |()| 0)
+}
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum InterruptAt {
+    Never,
+    BeforeAdmission,
+    ChildEntry,
+    ChildReturn,
+    NativeReturn,
 }
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum ChildControlFailure {
@@ -266,6 +277,8 @@ struct Child {
     task_usage: Cell<Option<lang_runtime::task::Usage>>,
     caller_frames: RefCell<Vec<execution::GuestCallFrame>>,
     cancel_task: Cell<bool>,
+    interruption: Option<Rc<e::InterruptionFlag>>,
+    interrupt_at: InterruptAt,
     deferred_makes: Cell<usize>,
     task_observations: Cell<usize>,
     original_instance: bool,
@@ -288,6 +301,14 @@ struct Child {
     wire_scope_after: Cell<Option<wire::Usage>>,
 }
 impl Child {
+    fn interrupt(&self, point: InterruptAt) {
+        if self.interrupt_at == point {
+            self.interruption
+                .as_ref()
+                .expect("original flag")
+                .interrupt();
+        }
+    }
     fn new(
         resources: &mut storage::Resources<'_>,
         compiled: bool,
@@ -324,6 +345,8 @@ impl Child {
             task_usage: Cell::new(None),
             caller_frames: RefCell::new(Vec::new()),
             cancel_task: Cell::new(false),
+            interruption: None,
+            interrupt_at: InterruptAt::Never,
             deferred_makes: Cell::new(0),
             task_observations: Cell::new(0),
             original_instance: false,
@@ -530,6 +553,7 @@ impl execution::TaskStorageOperation for ObserveTask<'_> {
             current.request_cancel().map_err(|_| 4u32)?;
             assert_eq!(current.cancellation_requested(), Ok(true));
         }
+        self.0.interrupt(InterruptAt::ChildEntry);
         Ok(())
     }
 }
@@ -588,6 +612,7 @@ impl execution::Invoker for BudgetInvoker<'_> {
         context.with_storage(&mut OriginalBudget(self.target))?;
         context.with_task_storage(&mut ObserveTask(self.target))?;
         let returned = self.original.invoke(method, parameters, context)?;
+        self.target.interrupt(InterruptAt::ChildReturn);
         if returned.status == 0
             && let Some(remaining) = self.target.reply_work.get()
         {
@@ -1109,10 +1134,12 @@ unsafe extern "C" fn tick(
             unsafe { lang_codegen_clif::component::context_check(&parent) },
             5
         );
-        assert_eq!(
-            unsafe { lang_codegen_clif::component::context_check(context) },
-            0
-        );
+        let status = unsafe { lang_codegen_clif::component::context_check(context) };
+        if status != 0 {
+            // Cooperative interruption may arrive after native call admission.
+            // Preserve its original context failure and perform no host effect.
+            return Err(status);
+        }
         assert_eq!(
             unsafe { lang_codegen_clif::component::context_allocator_identity(context) },
             owner.allocator
@@ -2166,6 +2193,8 @@ impl Harness {
     }
 }
 
+#[path = "support/component_interruption.rs"]
+mod component_interruption;
 #[path = "support/component_object_mixed.rs"]
 mod component_object_mixed;
 
