@@ -4,11 +4,11 @@
 
 [日本語版](../ja/rfcs/0032-installed-component-packages.md)
 
-- Status: accepted
+- Status: implemented
 - Authors: Codex under the owner's experimental delegation
 - Created: 2026-10-27
 - Last updated: 2026-10-27
-- Tracking issue: M3-I15; M3-I08 retains both-host startup
+- Tracking issue: M3-I15 (implemented); M3-I08 retains both-host startup
 - Supersedes: None; extends RFCs 0020, 0030 and 0031
 - Superseded by: None
 
@@ -17,6 +17,8 @@
 Admit native program manifest **version 3 / profile `component`** and SDK manifest **version 3** for a canonical schema-5 component and an explicitly bound host Program. A matching installed SDK links the original LANGNAT-2 Component object and a required trusted Rust host. The host independently decodes the embedded component, supplies its actual contract, grants and providers, then binds the original object without code generation.
 
 Accepted under RFC 0001's experimental delegation on 2026-10-27 JST. A prototype using only the exact SDK from `042fc38` links a stored component, moves the executable away from all producer inputs and executes 42, panic −42 and clean reuse 1 without Cargo, with zero resource/allocation inventory. This proves library availability for the selected path, not package admission, resource callback coverage, isolated final-source installation or Windows startup. Those remain explicit acceptance conditions.
+
+Implementation completes at `8b89aae` (verified 2026-10-27 04:50 JST). The full baseline passes 150 suites/2,305 tests and verifies actual installed resource callbacks/cleanup. A clean exact-commit producer supplied the 100-file SDK and real provenance; after relocating it, a consumer with 12 absent repository input paths and no Cargo passes all six profiles after all link inputs disappear (isolated=true). The component executes 42/panic −42/reuse 1/fuel refusal with zero inventory. Windows remains unverified and I08 remains open.
 
 ## Motivation
 
@@ -89,7 +91,7 @@ Cover every version/profile pairing, missing host, unexported/wrong entry, misma
 
 ## Open questions
 
-Windows task/component startup remains unverified. Further CLI ergonomics and SDK size reduction are not required by this first installed Rust-host profile. The exact API and resource fixture costs remain to be validated; expose any new prerequisite before implementing it.
+Windows task/component startup remains unverified. Further CLI ergonomics and SDK size reduction are not required by this first installed Rust-host profile. The admitted API and resource/callback behavior are validated above; broader performance costs remain unmeasured. Expose new prerequisites before later implementation.
 
 ## Sources
 
@@ -97,3 +99,4 @@ Windows task/component startup remains unverified. Further CLI ergonomics and SD
 - [RFC 0027](0027-production-component-interface.md), updated 2026-10-27; actual component/grant/resource authority.
 - [RFC 0030](0030-native-task-component-records.md) and [RFC 0031](0031-installed-native-task-packages.md), updated 2026-10-27; recorded code and installed task compatibility.
 - `042fc38`, SDK build `fc1cbc129a1a4581f7bc674e165abd60a121891c4fa61d45db1efdf4754a8511`; prototype verified 2026-10-27 03:54 JST on macOS AArch64. Code has no published update date. No external design claims are used.
+- `8b89aae`, verified 2026-10-27 04:50 JST on macOS AArch64: 150-suite/2,305-test baseline, installed resource/callback execution and exact clean-producer isolation for six profiles. Code has no published update date.

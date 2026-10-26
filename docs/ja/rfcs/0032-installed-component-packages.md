@@ -4,11 +4,11 @@
 
 [English](../../rfcs/0032-installed-component-packages.md)
 
-- Status: accepted
+- Status: implemented
 - Authors: Codex under the owner's experimental delegation
 - Created: 2026-10-27
 - Last updated: 2026-10-27
-- Tracking issue: M3-I15; M3-I08 retains both-host startup
+- Tracking issue: M3-I15 (implemented); M3-I08 retains both-host startup
 - Supersedes: None; extends RFCs 0020, 0030 and 0031
 - Superseded by: None
 
@@ -17,6 +17,8 @@
 canonical schema-5 componentと明示的にbind済みのhost Programに対して、native program manifest **version 3 / profile `component`**とSDK manifest **version 3**を受理します。対応installed SDKが元LANGNAT-2 Component objectと必須のtrusted Rust hostをリンクします。hostが埋込みcomponentを独立decodeし、実際のcontract・grant・providerを用意して、コード生成せず元objectをbindします。
 
 2026-10-27 JST、RFC 0001の実験期委任で受理しました。`042fc38`の厳密SDKだけを使うprototypeは保存componentをリンクし、全producer入力から実行形式を移した後、Cargoなしで42・panic −42・正常再利用1を実行してresource/allocation inventoryを0にしました。これは選択経路のlibrary利用可能性を示します。package受理・resource callback網羅・最終sourceの隔離install・Windows起動は未検証の受入条件です。
+
+実装は`8b89aae`で完了しました（2026-10-27 04:50 JST検証）。150 suite・2,305 testと全baselineが成功し、実installed resource callback/cleanupを検証しました。厳密commitのclean producerから100ファイルのSDKと実provenanceを作成し、producer退避・repository入力12 pathなし・Cargoなし・起動前の全リンク入力除去後、consumerで6 profileが成功しました（isolated=true）。componentは42/panic −42/再利用1/fuel拒否を実行し、inventoryは0です。Windowsは未検証で、I08は未完です。
 
 ## Motivation
 
@@ -89,7 +91,7 @@ package/artifact/record/manifestは有限byte/work/storage/depth上限付きの�
 
 ## Open questions
 
-Windows task/component startupは未検証です。さらなるCLI改善とSDK縮小は最初のinstalled Rust-host profileに必須ではありません。厳密APIとresource fixture costは未検証で、新前提が判明したら実装前に明示します。
+Windows task/component startupは未検証です。さらなるCLI改善とSDK縮小は最初のinstalled Rust-host profileに必須ではありません。受理APIとresource/callback動作は上記で検証済みですが、広範な性能costは未計測です。新前提は後続実装前に明示します。
 
 ## Sources
 
@@ -97,3 +99,4 @@ Windows task/component startupは未検証です。さらなるCLI改善とSDK�
 - [RFC 0027](0027-production-component-interface.md)、2026-10-27更新。実component/grant/resource権限。
 - [RFC 0030](0030-native-task-component-records.md)と[RFC 0031](0031-installed-native-task-packages.md)、2026-10-27更新。保存codeとinstalled task互換性。
 - `042fc38`、SDK build `fc1cbc129a1a4581f7bc674e165abd60a121891c4fa61d45db1efdf4754a8511`。prototypeは2026-10-27 03:54 JST、macOS AArch64で検証。codeに公開更新日記載はありません。外部designの主張は使いません。
+- `8b89aae`、2026-10-27 04:50 JST、macOS AArch64で検証。150 suite・2,305 testのbaseline、installed resource/callback実行、6 profileの厳密clean-producer隔離。codeに公開更新日記載はありません。
