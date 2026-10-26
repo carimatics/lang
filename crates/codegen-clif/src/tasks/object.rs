@@ -4,6 +4,37 @@ use cranelift_codegen::settings::{self, Configurable};
 use cranelift_object::{ObjectBuilder, ObjectModule};
 use sha2::{Digest, Sha256};
 
+mod recorded;
+pub use recorded::RecordedObject;
+
+fn object_prefix(proof: &o::tasks::VerifiedTasks, entry: m::FunctionId, component: bool) -> String {
+    // Pairing identity only; trusted binding authenticates the actual image.
+    let mut hash = Sha256::new();
+    hash.update(super::super::sdk::build_id(&super::super::Triple::host()));
+    if component {
+        hash.update(b"checked-component-object-r1");
+    }
+    hash.update(entry.0.to_le_bytes());
+    for source in &proof
+        .typed()
+        .places()
+        .declarations()
+        .types()
+        .table()
+        .sources
+    {
+        hash.update((source.text.len() as u64).to_le_bytes());
+        hash.update(source.text.as_bytes());
+    }
+    let identity: String = hash.finalize().iter().map(|b| format!("{b:02x}")).collect();
+    let namespace = if component {
+        "lang_component_tasks_r1"
+    } else {
+        "lang_tasks_r1"
+    };
+    format!("{namespace}_{identity}")
+}
+
 pub struct ObjectArtifact<'p> {
     bytes: Vec<u8>,
     image: Image<'p>,
@@ -58,32 +89,7 @@ impl<'p> ObjectArtifact<'p> {
             .map_err(backend)?
             .finish(settings::Flags::new(flags))
             .map_err(backend)?;
-        // Namespacing avoids collisions between source units; it is not code
-        // authentication. Binding still requires the exact trusted object.
-        let mut hash = Sha256::new();
-        hash.update(super::super::sdk::build_id(&super::super::Triple::host()));
-        if component.is_some() {
-            hash.update(b"checked-component-object-r1");
-        }
-        hash.update(entry.0.to_le_bytes());
-        for source in &proof
-            .typed()
-            .places()
-            .declarations()
-            .types()
-            .table()
-            .sources
-        {
-            hash.update((source.text.len() as u64).to_le_bytes());
-            hash.update(source.text.as_bytes());
-        }
-        let identity: String = hash.finalize().iter().map(|b| format!("{b:02x}")).collect();
-        let namespace = if component.is_some() {
-            "lang_component_tasks_r1"
-        } else {
-            "lang_tasks_r1"
-        };
-        let prefix = format!("{namespace}_{identity}");
+        let prefix = object_prefix(proof, entry, component.is_some());
         let mut module = ObjectModule::new(
             ObjectBuilder::new(isa, "lang-tasks-r1", default_libcall_names()).map_err(backend)?,
         );

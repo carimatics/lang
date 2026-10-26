@@ -91,7 +91,7 @@ impl RecordedObject {
     ) -> Result<Self, crate::native_record::Error> {
         use crate::native_record::{Error, ErrorKind, Kind};
         let scope = match record.kind {
-            Kind::Copy => {
+            Kind::Copy | Kind::Task(_) | Kind::Component(_) => {
                 return Err(Error {
                     offset: 17,
                     kind: ErrorKind::Profile,

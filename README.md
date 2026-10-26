@@ -110,6 +110,7 @@ The rationale and unresolved tradeoffs are documented in [the architecture basel
 - [RFC 0027: Production component IDL, wire and embedding profile (accepted)](docs/rfcs/0027-production-component-interface.md)
 - [RFC 0028: Serialized task and component MIR (implemented)](docs/rfcs/0028-task-component-artifacts.md)
 - [RFC 0029: Component adapter work and invocation metering (implemented)](docs/rfcs/0029-component-adapter-work.md)
+- [RFC 0030: Native task and component records (implemented)](docs/rfcs/0030-native-task-component-records.md)
 - [Contribution guide](CONTRIBUTING.md)
 
 ## Development

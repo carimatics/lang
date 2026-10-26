@@ -51,6 +51,64 @@ fn native_record_golden_freezes_framing_digests_and_metadata() {
     assert_eq!(loaded.into_copy().unwrap().functions, record.functions);
 }
 #[test]
+fn task_component_revision_two_has_independent_profile_and_entry_vectors() {
+    let task = hex("
+        4c414e474e415400 0200 0000 76000000 00 00 04030201
+        02d087933efc5d76e06f75adf1db3c14dbe271b1769d6b267eaeae29ec57330d
+        772a5fb04f9bad38681a2f56ddfdbd6a15185753df8dcc029788d02bf3b6825b
+        03000000 6f626a 01000000
+        00000000 01000000 66 03000000 01000000
+        00000000 03000000 00000000 00000000 01000000
+    ");
+    for (target, kind, expected) in [
+        (
+            "aarch64-apple-darwin",
+            Kind::Task(m::FunctionId(0x0102_0304)),
+            task.clone(),
+        ),
+        (
+            "x86_64-pc-windows-msvc",
+            Kind::Component(m::FunctionId(0x1122_3344)),
+            {
+                let mut component = task;
+                component[16] = 1;
+                component[17] = 1;
+                component[18..22].copy_from_slice(&[0x44, 0x33, 0x22, 0x11]);
+                component
+            },
+        ),
+    ] {
+        let record = fixture(kind, target);
+        assert_eq!(
+            record.encode(SEMANTIC, Limits::default()).unwrap(),
+            expected
+        );
+        let decoded = Record::decode(&expected, SEMANTIC, Limits::default()).unwrap();
+        assert_eq!(decoded.kind(), kind);
+        assert_eq!(decoded.functions(), record.functions());
+        assert_eq!(decoded.into_copy().unwrap_err().kind, ErrorKind::Profile);
+        let decoded = Record::decode(&expected, SEMANTIC, Limits::default()).unwrap();
+        assert_eq!(
+            crate::owned::RecordedObject::from_record(decoded)
+                .err()
+                .unwrap()
+                .kind,
+            ErrorKind::Profile
+        );
+        let mut invalid = expected.clone();
+        invalid[17] = 2;
+        assert_eq!(
+            Record::decode(&invalid, SEMANTIC, Limits::default()).unwrap_err(),
+            error(17, ErrorKind::Kind(2))
+        );
+        // A revision-2 profile never reuses revision-1's payload interpretation.
+        invalid = expected.clone();
+        invalid[8] = 1;
+        assert!(Record::decode(&invalid, SEMANTIC, Limits::default()).is_err());
+    }
+}
+
+#[test]
 fn both_targets_and_all_native_scopes_round_trip_without_erasing_c_identity() {
     for (target, tag) in [("aarch64-apple-darwin", 0), ("x86_64-pc-windows-msvc", 1)] {
         for (kind, tag_kind) in [
@@ -59,6 +117,8 @@ fn both_targets_and_all_native_scopes_round_trip_without_erasing_c_identity() {
             (Kind::OwnershipUnit, 2),
             (Kind::CUnit, 3),
             (Kind::CObject(Digest([7; 32])), 4),
+            (Kind::Task(m::FunctionId(0)), 0),
+            (Kind::Component(m::FunctionId(0)), 1),
         ] {
             let record = fixture(kind, target);
             let bytes = record.encode(SEMANTIC, Limits::default()).unwrap();
@@ -76,9 +136,18 @@ fn both_targets_and_all_native_scopes_round_trip_without_erasing_c_identity() {
                 assert_eq!(decoded.into_copy().unwrap_err().kind, ErrorKind::Profile);
                 let owned = crate::owned::RecordedObject::from_record(
                     Record::decode(&bytes, SEMANTIC, Limits::default()).unwrap(),
-                )
-                .unwrap();
-                assert_eq!(owned.into_record().kind(), kind);
+                );
+                if matches!(kind, Kind::Task(_) | Kind::Component(_)) {
+                    assert!(matches!(
+                        owned,
+                        Err(Error {
+                            kind: ErrorKind::Profile,
+                            ..
+                        })
+                    ));
+                } else {
+                    assert_eq!(owned.unwrap().into_record().kind(), kind);
+                }
             } else {
                 assert!(matches!(
                     crate::owned::RecordedObject::from_record(decoded),
@@ -106,7 +175,7 @@ fn malformed_native_records_fail_at_the_field_without_loading_code() {
         .unwrap();
     for (offset, data, expected_offset, kind) in [
         (0, vec![0], 0, ErrorKind::Magic),
-        (8, vec![2, 0], 8, ErrorKind::Version(2)),
+        (8, vec![3, 0], 8, ErrorKind::Version(3)),
         (10, vec![1, 0], 10, ErrorKind::Flags(1)),
         (12, vec![0, 0, 0, 0], 12, ErrorKind::Length),
         (16, vec![2], 16, ErrorKind::Target),
@@ -154,7 +223,16 @@ fn cap(limits: &mut Limits, field: usize, value: usize) {
 }
 #[test]
 fn exact_record_limits_cover_hashes_both_writer_passes_and_retained_buffers() {
-    let record = fixture(Kind::Copy, "aarch64-apple-darwin");
+    for kind in [
+        Kind::Copy,
+        Kind::Task(m::FunctionId(0)),
+        Kind::Component(m::FunctionId(0)),
+    ] {
+        exact_record_limits(kind);
+    }
+}
+fn exact_record_limits(kind: Kind) {
+    let record = fixture(kind, "aarch64-apple-darwin");
     let bytes = record.encode(SEMANTIC, Limits::default()).unwrap();
     for maximum in [bytes.len(), bytes.len() - 1] {
         let limits = Limits {

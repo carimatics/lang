@@ -1,4 +1,4 @@
-//! RFC 0018 native compiler records. Validated data never authorizes native execution.
+//! RFC 0018/0030 native compiler records. Data never authorizes native execution.
 use crate::{
     Triple,
     program::{FunctionCode, SourceRange},
@@ -32,6 +32,8 @@ pub enum Kind {
     OwnershipUnit,
     CUnit,
     CObject(Digest),
+    Task(m::FunctionId),
+    Component(m::FunctionId),
 }
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum ErrorKind {
@@ -245,7 +247,7 @@ impl Record {
             return Err(error(0, ErrorKind::Magic));
         }
         let version = u16::from_le_bytes(reader.raw(2)?.try_into().unwrap());
-        if version != 1 {
+        if version != 1 && version != 2 {
             return Err(error(8, ErrorKind::Version(version)));
         }
         let flags = u16::from_le_bytes(reader.raw(2)?.try_into().unwrap());
@@ -262,13 +264,15 @@ impl Record {
         }
         .parse()
         .expect("known target");
-        let kind = match reader.byte()? {
-            0 => Kind::Copy,
-            1 => Kind::OwnershipFunction,
-            2 => Kind::OwnershipUnit,
-            3 => Kind::CUnit,
-            4 => Kind::CObject(Digest(reader.raw(32)?.try_into().unwrap())),
-            tag => return Err(error(HEADER + 1, ErrorKind::Kind(tag))),
+        let kind = match (version, reader.byte()?) {
+            (1, 0) => Kind::Copy,
+            (1, 1) => Kind::OwnershipFunction,
+            (1, 2) => Kind::OwnershipUnit,
+            (1, 3) => Kind::CUnit,
+            (1, 4) => Kind::CObject(Digest(reader.raw(32)?.try_into().unwrap())),
+            (2, 0) => Kind::Task(m::FunctionId(reader.word()?)),
+            (2, 1) => Kind::Component(m::FunctionId(reader.word()?)),
+            (_, tag) => return Err(error(HEADER + 1, ErrorKind::Kind(tag))),
         };
         let offset = reader.offset;
         let expected: [u8; 32] = reader.raw(32)?.try_into().unwrap();
@@ -372,19 +376,24 @@ impl Writer<'_> {
         object: [u8; 32],
         payload: u32,
     ) -> Result<(), Error> {
+        let (version, kind, entry) = match record.kind {
+            Kind::Copy => (1u16, 0, None),
+            Kind::OwnershipFunction => (1, 1, None),
+            Kind::OwnershipUnit => (1, 2, None),
+            Kind::CUnit => (1, 3, None),
+            Kind::CObject(_) => (1, 4, None),
+            Kind::Task(entry) => (2, 0, Some(entry)),
+            Kind::Component(entry) => (2, 1, Some(entry)),
+        };
         self.raw(MAGIC)?;
-        self.raw(&1u16.to_le_bytes())?;
+        self.raw(&version.to_le_bytes())?;
         self.raw(&0u16.to_le_bytes())?;
         self.word(payload as usize)?;
         self.raw(&[target])?;
-        let kind = match record.kind {
-            Kind::Copy => 0,
-            Kind::OwnershipFunction => 1,
-            Kind::OwnershipUnit => 2,
-            Kind::CUnit => 3,
-            Kind::CObject(_) => 4,
-        };
         self.raw(&[kind])?;
+        if let Some(entry) = entry {
+            self.word(entry.0 as usize)?;
+        }
         if let Kind::CObject(digest) = record.kind {
             self.raw(&digest.0)?;
         }

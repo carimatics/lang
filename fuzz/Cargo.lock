@@ -537,6 +537,7 @@ version = "0.0.0"
 dependencies = [
  "lang",
  "lang-bytecode",
+ "lang-codegen-clif",
  "lang-diagnostics",
  "lang-hir",
  "lang-mir",

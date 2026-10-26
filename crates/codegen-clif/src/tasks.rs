@@ -30,7 +30,7 @@ use std::{
 };
 
 mod object;
-pub use object::{LinkedProgram, ObjectArtifact};
+pub use object::{LinkedProgram, ObjectArtifact, RecordedObject};
 #[cfg(all(test, target_pointer_width = "64"))]
 mod tests;
 
@@ -38,9 +38,27 @@ mod tests;
 pub enum Error {
     Resource(m::Error),
     Layout(l::Error),
-    Unsupported { span: m::Span },
+    Unsupported {
+        span: m::Span,
+    },
     Entry,
+    Profile,
+    Target {
+        expected: super::Triple,
+        recorded: super::Triple,
+    },
+    Metadata {
+        function: m::FunctionId,
+        kind: MetadataError,
+    },
     Backend(String),
+}
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum MetadataError {
+    FunctionSet,
+    Symbol,
+    CodeRange,
+    SourceSpan,
 }
 impl From<m::Error> for Error {
     fn from(e: m::Error) -> Self {
@@ -380,11 +398,8 @@ impl<P: a::Provider> r::Backend<P> for Adapter<'_, '_> {
         invoke(self.0, machine, task)
     }
 }
-type PreparedProgram = (
-    Vec<Option<Function>>,
-    Vec<(usize, cranelift_module::FuncId)>,
-    m::Budget,
-);
+type PreparedProgram<I = cranelift_module::FuncId> =
+    (Vec<Option<Function>>, Vec<(usize, I)>, m::Budget);
 fn prepare_program<M: Module>(
     proof: &o::tasks::VerifiedTasks,
     entry: m::FunctionId,
@@ -404,6 +419,36 @@ fn prepare_program_profile<M: Module>(
     arguments: bool,
     component: Option<&lang_runtime::component::program::Program<'_>>,
 ) -> Result<PreparedProgram, Error> {
+    prepare_program_with(
+        proof,
+        entry,
+        limits,
+        arguments,
+        component,
+        |function, nodes, budget| {
+            emit(
+                module,
+                &proof.plan().functions()[function.0 as usize],
+                function,
+                nodes,
+                format!("{prefix}_f{}", function.0),
+                budget,
+            )
+        },
+    )
+}
+fn prepare_program_with<I>(
+    proof: &o::tasks::VerifiedTasks,
+    entry: m::FunctionId,
+    limits: m::Limits,
+    arguments: bool,
+    component: Option<&lang_runtime::component::program::Program<'_>>,
+    mut code: impl FnMut(
+        m::FunctionId,
+        &[Node],
+        &mut m::Budget,
+    ) -> Result<(I, super::program::FunctionCode), Error>,
+) -> Result<PreparedProgram<I>, Error> {
     let typed = proof.typed();
     let declarations = typed.places().declarations();
     if let Some(span) = declarations.component_feature_span()
@@ -554,15 +599,7 @@ fn prepare_program_profile<M: Module>(
         )?;
         budget = m::Budget::with_usage(limits, plan.usage())?;
         let nodes = prepare(proof, function, &plan, &mut budget, component.is_some())?;
-        let symbol = format!("{prefix}_f{index}");
-        let (id, metadata) = emit(
-            module,
-            &proof.plan().functions()[index],
-            function,
-            &nodes,
-            symbol,
-            &mut budget,
-        )?;
+        let (id, metadata) = code(function, &nodes, &mut budget)?;
         functions[index] = Some(Function {
             nodes,
             code: std::ptr::null(),

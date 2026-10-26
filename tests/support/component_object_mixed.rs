@@ -12,15 +12,37 @@ impl Drop for Files {
 
 #[test]
 fn linked_component_resources_call_vm_jit_and_object_children() {
-    let files =
-        Files(std::env::temp_dir().join(format!("lang component mixed-{}", std::process::id())));
+    linked_component_profile(false);
+}
+#[test]
+fn stored_component_resources_call_vm_jit_and_recorded_object_children() {
+    linked_component_profile(true);
+}
+fn linked_component_profile(stored: bool) {
+    let files = Files(std::env::temp_dir().join(format!(
+        "lang component mixed-{}-{stored}",
+        std::process::id()
+    )));
     fs::create_dir(&files.0).unwrap();
-    let h = Harness::new();
+    let mut h = Harness::new();
+    let unit = stored_unit();
+    let snapshot = unit.code().declarations().types().table().sources
+        [unit.document().document().source.0 as usize]
+        .clone();
+    let semantic =
+        lang::artifact::component::encode(unit, snapshot, None, Default::default()).unwrap();
+    if stored {
+        h.unit = lang::artifact::component::decode(&semantic, Default::default())
+            .unwrap()
+            .into_unit();
+    }
+    let semantic_path = files.0.join("component.lbc");
+    fs::write(&semantic_path, &semantic).unwrap();
     let (registration, _) = h.registration(false);
     let mut declarations = String::new();
     let mut symbols = String::new();
     let mut objects = Vec::new();
-    prepared(registration, |program, _| {
+    prepared_unit(&h.unit, registration, |program, _| {
         for (object_index, name) in ["create", "consume", "answer"].into_iter().enumerate() {
             let object = lang_codegen_clif::tasks::ObjectArtifact::emit_component(
                 program,
@@ -41,8 +63,21 @@ fn linked_component_resources_call_vm_jit_and_object_children() {
                     function.symbol
                 ));
             }
+            if stored {
+                let record = object
+                    .into_recorded(Default::default())
+                    .unwrap()
+                    .into_record();
+                fs::write(
+                    files.0.join(format!("{name}.native")),
+                    record.encode(&semantic, Default::default()).unwrap(),
+                )
+                .unwrap();
+            }
         }
     });
+    drop(h);
+    drop(semantic);
     // Reuse the real resource owner and callback probes in a separately linked
     // executable. Embed fixture bytes, so its build has no relative file lookup.
     let mut prelude = include_str!("../component_scoped_roots.rs")
@@ -62,16 +97,34 @@ fn linked_component_resources_call_vm_jit_and_object_children() {
     ] {
         prelude = prelude.replace(expression, &format!("&{bytes:?}"));
     }
+    prelude = prelude
+        .replace("unit: stored_unit(),", "unit: load_unit(),")
+        .replace("let unit = stored_unit();", "let unit = load_unit();");
     let source = files.0.join("consumer.rs");
     fs::write(&source, format!(r#"
 #![allow(dead_code, unused_imports)]
 {prelude}
+const STORED:bool={stored};
 unsafe extern "C" {{ {declarations} }}
 fn resolve(symbol: &str) -> Option<*const u8> {{ match symbol {{ {symbols} _ => None }} }}
+fn load_unit()->bindings::Unit {{
+    if STORED {{lang::artifact::component::decode(&std::fs::read(std::env::args_os().nth(4).unwrap()).unwrap(),Default::default()).unwrap().into_unit()}}
+    else {{stored_unit()}}
+}}
+fn object_for<'p>(program:&'p program::Program<'p>,name:&str)->lang_codegen_clif::tasks::ObjectArtifact<'p>{{
+    if STORED {{
+        let index=match name{{"create"=>1,"consume"=>2,_=>3}};
+        let path=std::path::PathBuf::from(std::env::args_os().nth(index).unwrap()).with_extension("native");
+        let semantic=std::fs::read(std::env::args_os().nth(4).unwrap()).unwrap();
+        let record=lang_codegen_clif::native_record::Record::decode(&std::fs::read(path).unwrap(),&semantic,Default::default()).unwrap();
+        lang_codegen_clif::tasks::RecordedObject::from_record(record).unwrap().prepare_component(program,Default::default()).unwrap()
+    }}else{{lang_codegen_clif::tasks::ObjectArtifact::emit_component(program,entry(program,name),Default::default()).unwrap()}}
+}}
 fn call_object(h: &mut Harness, provider: native::Provider<'static>, name: &str, input: Option<storage::Claim>) -> Result<r::Outcome<execution::Value>, r::Failure> {{
-    prepared(provider, |program, session| {{
+    let unit=load_unit();
+    prepared_unit(&unit,provider, |program, session| {{
         let function=entry(program,name);
-        let object=lang_codegen_clif::tasks::ObjectArtifact::emit_component(program,function,Default::default()).unwrap();
+        let object=object_for(program,name);
         let index=if name=="create" {{1}} else {{2}};
         assert_eq!(object.bytes(),std::fs::read(std::env::args_os().nth(index).unwrap()).unwrap());
         // SAFETY: exact compared objects are statically linked for process life.
@@ -90,15 +143,23 @@ fn call_object(h: &mut Harness, provider: native::Provider<'static>, name: &str,
 fn main() {{
     for cancel in [false,true] {{
     for backend in 0..3 {{
+    for cleanup_failure in [false,true] {{
+        if cancel && cleanup_failure {{continue;}}
         let mut h=Harness::new();
         let mut child=Child::new(&mut h.values,backend==1,1,usize::MAX);
-        if backend==2 {{child.object_resolver=Some(resolve);}}
+        if backend==2 {{
+            child.object_resolver=Some(resolve);
+            if STORED {{
+                let path=std::path::PathBuf::from(std::env::args_os().nth(3).unwrap()).with_extension("native");
+                child.object_record=Some(ObjectRecord{{native:std::fs::read(path).unwrap().into(),semantic:std::fs::read(std::env::args_os().nth(4).unwrap()).unwrap().into()}});
+            }}
+        }}
         child.cancel_task.set(cancel);
         let child=Rc::new(child);
-        let (registration,watch)=h.registration_child(false,Some(child.clone()));
+        let (registration,watch)=h.registration_child(cleanup_failure,Some(child.clone()));
         // Check the child's exact object too before lending the original task.
         prepared(registration.clone(),|program,_|{{
-            let object=lang_codegen_clif::tasks::ObjectArtifact::emit_component(program,entry(program,"answer"),Default::default()).unwrap();
+            let object=object_for(program,"answer");
             assert_eq!(object.bytes(),std::fs::read(std::env::args_os().nth(3).unwrap()).unwrap());
         }});
         let created=call_object(&mut h,registration.clone(),"create",None);
@@ -133,7 +194,18 @@ fn main() {{
         assert_eq!(child.value.get(),42);
         assert_eq!(child.task.borrow().as_ref().unwrap().index(),0);
         assert_eq!(child.task_usage.get().unwrap().admitted,1);
-        let consumed=call_object(&mut h,registration.clone(),"consume",Some(claim)).unwrap();
+        let consumed=call_object(&mut h,registration.clone(),"consume",Some(claim));
+        if cleanup_failure {{
+            let failure=consumed.err().expect("mandatory native destruction fails");
+            assert!(failure.poisoned && h.state.poisoned());
+            assert_eq!(failure.report.as_ref().unwrap().cleanup_failures(),1);
+            assert_eq!(watch.produced.get(),1);assert_eq!(watch.destroyed.get(),1);
+            assert!(h.values.is_empty());assert_eq!(h.allocator.stats().live_allocations,0);
+            drop(registration);assert_eq!(watch.released.get(),0);
+            drop(failure);assert_eq!(watch.released.get(),1);
+            continue;
+        }}
+        let consumed=consumed.unwrap();
         let execution::Value::Frame(frame)=consumed.value else{{panic!("scalar frame")}};
         assert!(matches!(frame.values().nodes.as_slice(),[wire::Value::I64(42)]));
         drop(frame);
@@ -143,6 +215,7 @@ fn main() {{
         assert_eq!(h.engine.check(&child.parent.get().unwrap()),5);
         assert_eq!(h.engine.check(&child.nested.get().unwrap()),5);
         drop(registration);assert_eq!(watch.released.get(),1);
+    }}
     }}
     }}
     println!("AOT resource callback VM/JIT/AOT 42; destroyed once; original task; cancelled");
@@ -191,7 +264,11 @@ fn main() {{
         "{}",
         String::from_utf8_lossy(&compiled.stderr)
     );
-    let output = Command::new(executable).args(objects).output().unwrap();
+    let output = Command::new(executable)
+        .args(objects)
+        .arg(semantic_path)
+        .output()
+        .unwrap();
     assert!(
         output.status.success(),
         "{}",

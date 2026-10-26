@@ -232,12 +232,17 @@ enum CallbackProbe {
     Unwind,
     Unfinished,
 }
+struct ObjectRecord {
+    native: Rc<[u8]>,
+    semantic: Rc<[u8]>,
+}
 struct Child {
     unit: bindings::Unit,
     owner: RefCell<Weak<Owner>>,
     state: RefCell<execution::InstanceState>,
     compiled: bool,
     object_resolver: Option<fn(&str) -> Option<*const u8>>,
+    object_record: Option<ObjectRecord>,
     repetitions: usize,
     parent: Cell<Option<native::Context>>,
     nested: Cell<Option<native::Context>>,
@@ -295,6 +300,7 @@ impl Child {
             state: RefCell::new(execution::InstanceState::prepare(resources).unwrap()),
             compiled,
             object_resolver: None,
+            object_record: None,
             repetitions,
             parent: Cell::new(None),
             nested: Cell::new(None),
@@ -961,12 +967,25 @@ impl execution::TaskStorageOperation for ChildOperation<'_, '_> {
                         .map_err(|_| 1u32)?;
                         invocation.prepare_output(session).map_err(|_| 1u32)?;
                         let result = if let Some(resolve) = self.target.object_resolver {
-                            let object = lang_codegen_clif::tasks::ObjectArtifact::emit_component(
-                                program,
-                                function,
-                                Default::default(),
-                            )
-                            .unwrap();
+                            let object = if let Some(input) = &self.target.object_record {
+                                let record = lang_codegen_clif::native_record::Record::decode(
+                                    &input.native,
+                                    &input.semantic,
+                                    Default::default(),
+                                )
+                                .unwrap();
+                                lang_codegen_clif::tasks::RecordedObject::from_record(record)
+                                    .unwrap()
+                                    .prepare_component(program, Default::default())
+                                    .unwrap()
+                            } else {
+                                lang_codegen_clif::tasks::ObjectArtifact::emit_component(
+                                    program,
+                                    function,
+                                    Default::default(),
+                                )
+                                .unwrap()
+                            };
                             // SAFETY: the fixture resolver supplies the exact compared
                             // object symbols, statically linked until process exit.
                             let linked = unsafe {

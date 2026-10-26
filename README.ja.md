@@ -110,6 +110,7 @@ Typed import grant checkpoint（2026-10-23 JST）: `cargo test --test component_
 - [RFC 0027: Production component IDL・wire・embedding profile（accepted）](docs/ja/rfcs/0027-production-component-interface.md)
 - [RFC 0028: Task と component MIR の直列化（implemented）](docs/ja/rfcs/0028-task-component-artifacts.md)
 - [RFC 0029: Component adapter work と invocation 計量（implemented）](docs/ja/rfcs/0029-component-adapter-work.md)
+- [RFC 0030: Native task/component record（implemented）](docs/ja/rfcs/0030-native-task-component-records.md)
 - [コントリビューションガイド](CONTRIBUTING.ja.md)
 
 ## 開発

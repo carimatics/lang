@@ -17,6 +17,7 @@ lang-hir = { path = "../crates/hir" }
 lang-bytecode = { path = "../crates/bytecode" }
 lang-mir = { path = "../crates/mir" }
 lang-vm = { path = "../crates/vm" }
+lang-codegen-clif = { path = "../crates/codegen-clif" }
 
 [[bin]]
 name = "core_buffers"
@@ -122,6 +123,13 @@ bench = false
 [[bin]]
 name = "component_bindings"
 path = "fuzz_targets/component_bindings.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "native_record_decoder"
+path = "fuzz_targets/native_record_decoder.rs"
 test = false
 doc = false
 bench = false
