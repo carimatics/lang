@@ -237,6 +237,7 @@ struct Child {
     owner: RefCell<Weak<Owner>>,
     state: RefCell<execution::InstanceState>,
     compiled: bool,
+    object_resolver: Option<fn(&str) -> Option<*const u8>>,
     repetitions: usize,
     parent: Cell<Option<native::Context>>,
     nested: Cell<Option<native::Context>>,
@@ -293,6 +294,7 @@ impl Child {
             owner: RefCell::new(Weak::new()),
             state: RefCell::new(execution::InstanceState::prepare(resources).unwrap()),
             compiled,
+            object_resolver: None,
             repetitions,
             parent: Cell::new(None),
             nested: Cell::new(None),
@@ -933,14 +935,15 @@ impl execution::TaskStorageOperation for ChildOperation<'_, '_> {
                     .wire_preparation
                     .set(Some(preparation_usage(budget)));
                 let function = entry(program, "answer");
-                let generated = self.target.compiled.then(|| {
-                    lang_codegen_clif::tasks::CompiledProgram::compile_component(
-                        program,
-                        function,
-                        Default::default(),
-                    )
-                    .unwrap()
-                });
+                let generated = (self.target.compiled && self.target.object_resolver.is_none())
+                    .then(|| {
+                        lang_codegen_clif::tasks::CompiledProgram::compile_component(
+                            program,
+                            function,
+                            Default::default(),
+                        )
+                        .unwrap()
+                    });
                 let mut invoker = BudgetInvoker {
                     original: self.invoker,
                     target: self.target,
@@ -957,21 +960,51 @@ impl execution::TaskStorageOperation for ChildOperation<'_, '_> {
                         )
                         .map_err(|_| 1u32)?;
                         invocation.prepare_output(session).map_err(|_| 1u32)?;
-                        let result = execute_memory_scope(
-                            program,
-                            function,
-                            generated.as_ref(),
-                            &mut view,
-                            CallControl {
-                                tasks: Default::default(),
-                                execution: self.control,
-                                preparation,
-                            },
-                            &[],
-                            &mut invocation,
-                            Some(budget),
-                            Some(current.reborrow().map_err(|_| 4u32)?),
-                        );
+                        let result = if let Some(resolve) = self.target.object_resolver {
+                            let object = lang_codegen_clif::tasks::ObjectArtifact::emit_component(
+                                program,
+                                function,
+                                Default::default(),
+                            )
+                            .unwrap();
+                            // SAFETY: the fixture resolver supplies the exact compared
+                            // object symbols, statically linked until process exit.
+                            let linked = unsafe {
+                                object.bind((), |_, name| resolve(name), Default::default())
+                            }
+                            .unwrap();
+                            linked
+                                .execute_component_in_task(
+                                    &mut view,
+                                    self.control,
+                                    r::Limits {
+                                        tasks: Default::default(),
+                                        preparation,
+                                        ..Default::default()
+                                    },
+                                    &[],
+                                    &mut invocation,
+                                    budget,
+                                    current.reborrow().map_err(|_| 4u32)?,
+                                )
+                                .map_err(Box::new)
+                        } else {
+                            execute_memory_scope(
+                                program,
+                                function,
+                                generated.as_ref(),
+                                &mut view,
+                                CallControl {
+                                    tasks: Default::default(),
+                                    execution: self.control,
+                                    preparation,
+                                },
+                                &[],
+                                &mut invocation,
+                                Some(budget),
+                                Some(current.reborrow().map_err(|_| 4u32)?),
+                            )
+                        };
                         assert_eq!(current.status(), Ok(lang_runtime::task::Status::Running));
                         assert_eq!(Some(current.usage()), self.target.task_usage.get());
                         let outcome = result.map_err(|error| {
@@ -2113,6 +2146,9 @@ impl Harness {
         result
     }
 }
+
+#[path = "support/component_object_mixed.rs"]
+mod component_object_mixed;
 
 #[test]
 fn gateway_identity_matches_actual_callbacks_across_wrapper_moves_without_extending_scopes() {

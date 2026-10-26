@@ -4,11 +4,15 @@
 
 [English](../milestone-3.md) · [Exit gates](../roadmap.md#milestone-3-concurrency-and-embedding)
 
-更新日: **2026-10-26 JST**。開始チェックポイント: `984557d`。M2 とリポジトリレビューは完了済みです。
+更新日: **2026-10-27 JST**。開始チェックポイント: `984557d`。M2 とリポジトリレビューは完了済みです。
 
 **64 done · 1 doing · 8 todo · 25 remaining pt**
 
 **次: M3-I08 → component AOT実行・installed package・厳密なSDK startup。**
+
+I08実リンクcomponent checkpoint（**2026-10-27 00:09 JST検証**、macOS AArch64）: 非公開exact-build ObjectArtifactが検査済みcomponent exportを独立symbol namespaceへ出力し、LinkedProgramが元の借用taskを含む共通component runnerで実行します。別リンクscalar consumerはJIT/VM dispatchを使わず41→42・panic −42・正常再利用→1を実行しました。実resource fixtureは元TaskId 0でAOT→native→VM/JIT/AOT callbackを実行し、allocator/control/preparation権限を保ち、元backingを一度だけ退役し、失効contextを拒否します。同じtaskの取消しが伝播して未公開bufferを回収し、返却failureの最終解放までnative codeを保持します。prototypeはconsumer内で厳密なobject bytes/検査済みmetadataを再構築・比較しており、installed compiler不要startupの証拠ではありません。I08は3 ptのdoingを維持し、installed task/component package・厳密なSDK record・両host startupを残します。下記の入力固定全baselineは成功し、この実行checkpointに続けてscope/見積りを照合します。
+
+I08全検証（**2026-10-27 00:09 JST検証**、command完了2026-10-26 22:12 JST）: **148 suites / 2,294 passed / 0 failed / 1 existing timing ignore**、suite-time合計 **856.99 s**、--no-fail-fast付きtest command時間幅 **1,654.56 s**。workspace/fuzz fmt・warnings-denied workspace Clippy（60.85 s）・rustdoc（17.88 s）・全15 fuzz target check/Clippyが成功し、campaignは実行していません。scoped全47件（46.25 s）はVM/JIT/AOTの成功3 profileと元task取消し3 profileを含み、別リンクscalar object test（3.79 s）も非export拒否・panic・再利用を含めて成功しました。**840入力 / 非Markdown 740入力**の前後hashが一致しました: main `a629ed64365c981fd6f09864cd936f949af06cf63f18c45d8306fd7b292b4f30`、検証 `2b6c546e5ccb8fb2cbff3d65a4a8edd6ad44df24423082d6bb7d6608916e7672`。未変更Windows benchmarkのCRLF/LF差だけを正規化し、検証側の余分な入力はありません。ownerから利用可能なWindows host/runnerはないと確認済み（2026-10-26 JST）で、両host startupは未検証のままです。codeには更新日記載がなく、RFC 0027と本checkpointは2026-10-27 JST更新です。
 
 L02複合live checkpoint `599d7ee`（**2026-10-26 20:08 JST検証**、macOS AArch64）: suspendしたrootと非root workerがguest Bytesを保持し、native callbackから元TaskId 1の再帰guest frameへ入ります。source/再検証済みartifact × VM/JIT × 深さ0/3/16 × callback 1/2回の132 profile（baseline 12・frame/cell/taskの同時厳密値24・frame/cell/live-task/total-task拒否96）を実行しました。親を含めたpeakは4/7/20 frame（深さ3のcell peak 93）で、task admitは2のまま、callback scheduler/taskを増やしません。型付きFrameLimit/CellLimitは元の厳密なlimit/attempted値を保持し、task拒否はnative効果前のroot admit 1件で発生します。拒否callback traceは元のbrand付きtask・入場済みdepth+1 frame・省略0を保持します。provider traceはbaseline prefixのままで、必須cleanupでguest Bytes・native backing・resource・全taskを退役します。失効contextは再利用を拒否し、正常instanceは同じ有限上限で小さいfresh entryを実行します。実C11も現在のregistry test tableへ複合controlを3件追加しました（全49 profile）。frames=2/cells=8/live-tasks=1の同時指定で成功し、frame/cellの両方が低い場合は元のframe拒否を選び、cell拒否も元causeを保持します。source/artifact × VM/JITの新C実行12件（11.65 s）とfocused Rust matrix（6.85 s）が成功しました。scoped全46件も成功しました（42.81 s）。admit済みVM/JIT profileのL02を完了し、追加/再見積り0 ptです。入力固定全検証を下記に記録し、全32操作/query・installed・両hostの受入条件はE01/I08/B01に残します。
 

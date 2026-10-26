@@ -1,0 +1,204 @@
+use super::*;
+use std::{fs, path::PathBuf, process::Command};
+#[path = "rust_artifacts.rs"]
+mod artifacts;
+
+struct Files(PathBuf);
+impl Drop for Files {
+    fn drop(&mut self) {
+        let _ = fs::remove_dir_all(&self.0);
+    }
+}
+
+#[test]
+fn linked_component_resources_call_vm_jit_and_object_children() {
+    let files =
+        Files(std::env::temp_dir().join(format!("lang component mixed-{}", std::process::id())));
+    fs::create_dir(&files.0).unwrap();
+    let h = Harness::new();
+    let (registration, _) = h.registration(false);
+    let mut declarations = String::new();
+    let mut symbols = String::new();
+    let mut objects = Vec::new();
+    prepared(registration, |program, _| {
+        for (object_index, name) in ["create", "consume", "answer"].into_iter().enumerate() {
+            let object = lang_codegen_clif::tasks::ObjectArtifact::emit_component(
+                program,
+                entry(program, name),
+                Default::default(),
+            )
+            .unwrap();
+            let path = files.0.join(format!("{name}.o"));
+            fs::write(&path, object.bytes()).unwrap();
+            objects.push(path);
+            for (index, function) in object.metadata().enumerate() {
+                declarations.push_str(&format!(
+                    "#[link_name={:?}] fn entry_{object_index}_{index}();\n",
+                    function.symbol
+                ));
+                symbols.push_str(&format!(
+                    "{:?} => Some(entry_{object_index}_{index} as *const u8),\n",
+                    function.symbol
+                ));
+            }
+        }
+    });
+    // Reuse the real resource owner and callback probes in a separately linked
+    // executable. Embed fixture bytes, so its build has no relative file lookup.
+    let mut prelude = include_str!("../component_scoped_roots.rs")
+        .split("\n#[path = \"support/component_object_mixed.rs\"]")
+        .next()
+        .unwrap()
+        .to_owned();
+    for (expression, bytes) in [
+        (
+            "include_bytes!(\"fixtures/component_counter.idl.json\")",
+            include_bytes!("../fixtures/component_counter.idl.json").as_slice(),
+        ),
+        (
+            "include_bytes!(\"fixtures/component_scoped_roots.lang\")",
+            include_bytes!("../fixtures/component_scoped_roots.lang").as_slice(),
+        ),
+    ] {
+        prelude = prelude.replace(expression, &format!("&{bytes:?}"));
+    }
+    let source = files.0.join("consumer.rs");
+    fs::write(&source, format!(r#"
+#![allow(dead_code, unused_imports)]
+{prelude}
+unsafe extern "C" {{ {declarations} }}
+fn resolve(symbol: &str) -> Option<*const u8> {{ match symbol {{ {symbols} _ => None }} }}
+fn call_object(h: &mut Harness, provider: native::Provider<'static>, name: &str, input: Option<storage::Claim>) -> Result<r::Outcome<execution::Value>, r::Failure> {{
+    prepared(provider, |program, session| {{
+        let function=entry(program,name);
+        let object=lang_codegen_clif::tasks::ObjectArtifact::emit_component(program,function,Default::default()).unwrap();
+        let index=if name=="create" {{1}} else {{2}};
+        assert_eq!(object.bytes(),std::fs::read(std::env::args_os().nth(index).unwrap()).unwrap());
+        // SAFETY: exact compared objects are statically linked for process life.
+        let linked=unsafe {{object.bind((),|_,symbol|resolve(symbol),Default::default())}}.unwrap();
+        let control=e::Control::with_limits(Default::default());
+        let mut invoker=h.engine.begin(control).unwrap();
+        let mut budget=m::Budget::new(Default::default());
+        h.state.with_program(program,|instance| {{
+            let mut invocation=execution::Invocation::prepare_owned(instance,function,&mut h.values,&mut invoker,&mut budget).unwrap();
+            invocation.prepare_output(session).unwrap();
+            let arguments:Vec<_>=input.into_iter().map(EntryArgument::Resource).collect();
+            linked.execute_component_with_budget(&mut h.allocator,control,Default::default(),&arguments,&mut invocation,&mut budget)
+        }}).unwrap()
+    }})
+}}
+fn main() {{
+    for cancel in [false,true] {{
+    for backend in 0..3 {{
+        let mut h=Harness::new();
+        let mut child=Child::new(&mut h.values,backend==1,1,usize::MAX);
+        if backend==2 {{child.object_resolver=Some(resolve);}}
+        child.cancel_task.set(cancel);
+        let child=Rc::new(child);
+        let (registration,watch)=h.registration_child(false,Some(child.clone()));
+        // Check the child's exact object too before lending the original task.
+        prepared(registration.clone(),|program,_|{{
+            let object=lang_codegen_clif::tasks::ObjectArtifact::emit_component(program,entry(program,"answer"),Default::default()).unwrap();
+            assert_eq!(object.bytes(),std::fs::read(std::env::args_os().nth(3).unwrap()).unwrap());
+        }});
+        let created=call_object(&mut h,registration.clone(),"create",None);
+        if cancel {{
+            let failure=created.err().expect("original callback cancellation");
+            assert!(matches!(failure.reason.primary_cause(),r::Reason::Cancelled));
+            assert_eq!(failure.tasks.admitted,1);assert_eq!(failure.tasks.live,0);
+            assert!(!failure.poisoned && !h.state.poisoned());
+            assert!(child.failure.borrow().as_ref().unwrap().contains("Cancelled"));
+            assert_eq!(child.task.borrow().as_ref().unwrap().index(),0);
+            assert_eq!(child.task_usage.get().unwrap().admitted,1);
+            assert_eq!(child.task_observations.get(),1);
+            {{
+                let frames=child.failure_callers.borrow();
+                let frames=frames.as_ref().expect("cancelled child trace");
+                assert_eq!(frames.frames.len(),1,"cancelled child frame count");
+                assert_eq!(frames.omitted,0);
+                assert!(frames.frames.iter().all(|frame|Some(&frame.task)==child.task.borrow().as_ref()));
+            }}
+            assert_eq!(watch.produced.get(),0);assert_eq!(watch.destroyed.get(),0);
+            assert!(h.values.is_empty());assert_eq!(h.allocator.stats().live_allocations,0);
+            assert_eq!(h.engine.check(&child.parent.get().unwrap()),5);
+            drop(registration);assert_eq!(watch.released.get(),0);
+            drop(failure);assert_eq!(watch.released.get(),1);
+            continue;
+        }}
+        let created=created.unwrap();
+        let execution::Value::Frame(frame)=created.value else{{panic!("resource frame")}};
+        assert_eq!(frame.resources().len(),1);
+        let claim=frame.resources()[0];
+        drop(frame);
+        assert_eq!(child.value.get(),42);
+        assert_eq!(child.task.borrow().as_ref().unwrap().index(),0);
+        assert_eq!(child.task_usage.get().unwrap().admitted,1);
+        let consumed=call_object(&mut h,registration.clone(),"consume",Some(claim)).unwrap();
+        let execution::Value::Frame(frame)=consumed.value else{{panic!("scalar frame")}};
+        assert!(matches!(frame.values().nodes.as_slice(),[wire::Value::I64(42)]));
+        drop(frame);
+        assert_eq!(watch.produced.get(),1);assert_eq!(watch.destroyed.get(),1);
+        assert!(h.values.is_empty());assert_eq!(h.allocator.stats().live_allocations,0);
+        assert!(!h.state.poisoned());
+        assert_eq!(h.engine.check(&child.parent.get().unwrap()),5);
+        assert_eq!(h.engine.check(&child.nested.get().unwrap()),5);
+        drop(registration);assert_eq!(watch.released.get(),1);
+    }}
+    }}
+    println!("AOT resource callback VM/JIT/AOT 42; destroyed once; original task; cancelled");
+}}
+"#)).unwrap();
+    let executable = files.0.join(if cfg!(windows) {
+        "consumer.exe"
+    } else {
+        "consumer"
+    });
+    let dependencies = std::env::current_exe()
+        .unwrap()
+        .parent()
+        .unwrap()
+        .to_path_buf();
+    let mut command = Command::new("rustc");
+    command
+        .current_dir(env!("CARGO_MANIFEST_DIR"))
+        .args(["--edition=2024", "--crate-type=bin"])
+        .arg(&source)
+        .arg("-o")
+        .arg(&executable)
+        .arg("-L")
+        .arg(format!("dependency={}", dependencies.display()));
+    for name in [
+        "lang",
+        "lang_codegen_clif",
+        "lang_diagnostics",
+        "lang_mir",
+        "lang_runtime",
+        "lang_vm",
+        "serde_json",
+    ] {
+        command
+            .arg("--extern")
+            .arg(format!("{name}={}", artifacts::library(name).display()));
+    }
+    for path in &objects {
+        let mut option = std::ffi::OsString::from("link-arg=");
+        option.push(path);
+        command.arg("-C").arg(option);
+    }
+    let compiled = command.output().unwrap();
+    assert!(
+        compiled.status.success(),
+        "{}",
+        String::from_utf8_lossy(&compiled.stderr)
+    );
+    let output = Command::new(executable).args(objects).output().unwrap();
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert_eq!(
+        String::from_utf8(output.stdout).unwrap().trim(),
+        "AOT resource callback VM/JIT/AOT 42; destroyed once; original task; cancelled"
+    );
+}

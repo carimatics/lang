@@ -31,6 +31,27 @@ impl<'p> ObjectArtifact<'p> {
         entry: m::FunctionId,
         limits: m::Limits,
     ) -> Result<Self, Error> {
+        Self::emit_profile(proof, entry, limits, false, None)
+    }
+    /// Emit a trusted exact-build object for a checked component export.
+    #[doc(hidden)]
+    pub fn emit_component(
+        program: &'p lang_runtime::component::program::Program<'p>,
+        entry: m::FunctionId,
+        limits: m::Limits,
+    ) -> Result<Self, Error> {
+        if !program.is_export(entry) {
+            return Err(Error::Entry);
+        }
+        Self::emit_profile(program.proof(), entry, limits, true, Some(program))
+    }
+    fn emit_profile(
+        proof: &'p o::tasks::VerifiedTasks,
+        entry: m::FunctionId,
+        limits: m::Limits,
+        arguments: bool,
+        component: Option<&'p lang_runtime::component::program::Program<'p>>,
+    ) -> Result<Self, Error> {
         let mut flags = settings::builder();
         flags.set("is_pic", "true").map_err(backend)?;
         let isa = cranelift_native::builder()
@@ -41,6 +62,9 @@ impl<'p> ObjectArtifact<'p> {
         // authentication. Binding still requires the exact trusted object.
         let mut hash = Sha256::new();
         hash.update(super::super::sdk::build_id(&super::super::Triple::host()));
+        if component.is_some() {
+            hash.update(b"checked-component-object-r1");
+        }
         hash.update(entry.0.to_le_bytes());
         for source in &proof
             .typed()
@@ -54,17 +78,33 @@ impl<'p> ObjectArtifact<'p> {
             hash.update(source.text.as_bytes());
         }
         let identity: String = hash.finalize().iter().map(|b| format!("{b:02x}")).collect();
-        let prefix = format!("lang_tasks_r1_{identity}");
+        let namespace = if component.is_some() {
+            "lang_component_tasks_r1"
+        } else {
+            "lang_tasks_r1"
+        };
+        let prefix = format!("{namespace}_{identity}");
         let mut module = ObjectModule::new(
             ObjectBuilder::new(isa, "lang-tasks-r1", default_libcall_names()).map_err(backend)?,
         );
-        let (functions, _ids, budget) =
-            prepare_program(proof, entry, limits, &mut module, &prefix, false)?;
+        let (functions, _ids, budget) = if component.is_some() {
+            prepare_program_profile(
+                proof,
+                entry,
+                limits,
+                &mut module,
+                &prefix,
+                arguments,
+                component,
+            )?
+        } else {
+            prepare_program(proof, entry, limits, &mut module, &prefix, arguments)?
+        };
         let bytes = module.finish().emit().map_err(backend)?;
         Ok(Self {
             bytes,
             image: Image {
-                component: None,
+                component,
                 proof,
                 entry,
                 functions,
@@ -115,6 +155,117 @@ impl<'p> ObjectArtifact<'p> {
     }
 }
 impl<I> LinkedProgram<'_, I> {
+    #[doc(hidden)]
+    pub fn execute_component<P: a::Provider>(
+        &self,
+        allocator: &mut a::Allocator<P>,
+        control: e::Control<'_>,
+        limits: r::Limits,
+        arguments: &[r::EntryArgument],
+        host: &mut dyn lang_runtime::component::execution::Host,
+    ) -> Result<r::Outcome<lang_runtime::component::execution::Value>, r::Failure> {
+        let Some(program) = self.image.component else {
+            return Err(r::Failure {
+                reason: r::Reason::Entry,
+                function: Some(self.image.entry),
+                span: None,
+                callers: Some(lang_runtime::component::execution::GuestCallFrames {
+                    frames: Vec::new(),
+                    omitted: 0,
+                }),
+                usage: Default::default(),
+                tasks: Default::default(),
+                events: Vec::new(),
+                report: None,
+                poisoned: false,
+            });
+        };
+        r::execute_component(
+            &mut Adapter(&self.image),
+            program,
+            self.image.entry,
+            allocator,
+            control,
+            limits,
+            arguments,
+            host,
+        )
+    }
+    /// Lend the original cumulative execution-preparation budget.
+    #[doc(hidden)]
+    #[allow(
+        clippy::too_many_arguments,
+        reason = "Keep original preparation authority explicit alongside the existing component operands."
+    )]
+    pub fn execute_component_with_budget<P: a::Provider>(
+        &self,
+        allocator: &mut a::Allocator<P>,
+        control: e::Control<'_>,
+        limits: r::Limits,
+        arguments: &[r::EntryArgument],
+        host: &mut dyn lang_runtime::component::execution::Host,
+        budget: &mut m::Budget,
+    ) -> Result<r::Outcome<lang_runtime::component::execution::Value>, r::Failure> {
+        let Some(program) = self.image.component else {
+            return self.execute_component(allocator, control, limits, arguments, host);
+        };
+        r::execute_component_with_budget(
+            &mut Adapter(&self.image),
+            program,
+            self.image.entry,
+            allocator,
+            control,
+            limits,
+            arguments,
+            host,
+            budget,
+        )
+    }
+    /// Run a synchronous component scope in the original borrowed task.
+    #[doc(hidden)]
+    #[allow(
+        clippy::too_many_arguments,
+        reason = "Original running-task authority accompanies component preparation and control."
+    )]
+    pub fn execute_component_in_task<P: a::Provider>(
+        &self,
+        allocator: &mut a::Allocator<P>,
+        control: e::Control<'_>,
+        limits: r::Limits,
+        arguments: &[r::EntryArgument],
+        host: &mut dyn lang_runtime::component::execution::Host,
+        budget: &mut m::Budget,
+        current: lang_runtime::task::CurrentTask<'_>,
+    ) -> Result<r::Outcome<lang_runtime::component::execution::Value>, r::Failure> {
+        let Some(program) = self.image.component else {
+            return Err(r::Failure {
+                reason: r::Reason::Entry,
+                function: Some(self.image.entry),
+                span: None,
+                callers: Some(lang_runtime::component::execution::GuestCallFrames {
+                    frames: Vec::new(),
+                    omitted: 0,
+                }),
+                usage: Default::default(),
+                tasks: current.usage(),
+                events: Vec::new(),
+                report: None,
+                poisoned: false,
+            });
+        };
+        r::execute_component_in_task(
+            &mut Adapter(&self.image),
+            program,
+            self.image.entry,
+            allocator,
+            control,
+            limits,
+            arguments,
+            host,
+            budget,
+            current,
+        )
+    }
     pub fn usage(&self) -> m::Usage {
         self.image.usage
     }
