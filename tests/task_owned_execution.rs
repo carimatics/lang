@@ -427,10 +427,185 @@ fn cleanup_panics_do_not_retry_or_skip_owners_after_report_truncation() {
         assert_eq!(report.cleanup_failures(), 3);
         assert_eq!(report.truncated(), 2);
         assert_eq!(report.quarantined(), 3);
+        let callers = failure
+            .callers
+            .as_ref()
+            .expect("cleanup retains its actual guest frames");
+        assert!(!callers.frames.is_empty());
+        assert_eq!(callers.omitted, 0);
         assert_eq!(failure.tasks.live, 0);
         assert_eq!(allocator.stats().live_allocations, 0);
         assert!(trace.borrow().active.is_empty());
         assert_eq!(trace.borrow().buffers, [1, 3, 2]);
+    }
+}
+
+#[test]
+fn unclaimed_owned_task_result_cleanup_retains_its_guest_trace() {
+    for depth in [0, 3, 65] {
+        let source = OWNED_CALLS
+            .split("async fn main")
+            .next()
+            .unwrap()
+            .to_owned()
+            + r#"
+async fn worker()->core::Bytes { return bytes(65); }
+async fn scope(depth:i64)->i64 {
+    if 0 < depth { task_scope { let mut pending:core::Task<i64> = spawn scope(depth + (-1)); } return 42; }
+    task_scope { let mut child:core::Task<core::Bytes> = spawn worker(); }
+    return 42;
+}
+async fn main()->i64 { task_scope { let mut pending:core::Task<i64> = spawn scope(DEPTH); } return 42; }
+"#
+            .replace("DEPTH", &depth.to_string())
+            .as_str();
+        let program = prepare(&source);
+        let entry = lang_mir::unit::FunctionId(
+            program
+                .verified()
+                .typed()
+                .places()
+                .declarations()
+                .functions()
+                .iter()
+                .position(|f| f.name == "main")
+                .unwrap() as u32,
+        );
+        let table = prepare(&source)
+            .into_verified()
+            .into_plan()
+            .into_source()
+            .into_activity()
+            .into_moved()
+            .into_typed()
+            .into_table();
+        let bytes = lang_bytecode::tasks::encode(table, Some(entry), Default::default()).unwrap();
+        let stored = lang_bytecode::tasks::decode(&bytes, Default::default()).unwrap();
+        for proof in [program.verified(), stored.proof()] {
+            let native = lang_codegen_clif::tasks::CompiledProgram::compile_function(
+                proof,
+                entry,
+                Default::default(),
+            )
+            .unwrap();
+            for compiled in [false, true] {
+                let run = |work, cleanup_failure| {
+                    let (mut allocator, trace) = tracked(usize::MAX);
+                    trace.borrow_mut().panic_buffers = cleanup_failure;
+                    let control = e::Control::with_limits(Default::default());
+                    let limits = lang_runtime::task::runner::Limits {
+                        preparation: lang_mir::unit::Limits {
+                            work,
+                            ..Default::default()
+                        },
+                        ..Default::default()
+                    };
+                    let result = if compiled {
+                        native.execute(&mut allocator, control, limits)
+                    } else {
+                        lang_vm::unit::tasks::execute_function(
+                            proof,
+                            entry,
+                            &mut allocator,
+                            control,
+                            limits,
+                        )
+                    };
+                    assert_eq!(allocator.stats().live_allocations, 0);
+                    assert!(trace.borrow().active.is_empty());
+                    let buffers = trace.borrow().buffers.clone();
+                    (result, buffers)
+                };
+                let work = if depth == 0 {
+                    // Find the exact existing preparation ceiling. Capturing
+                    // cleanup must not require one further work unit.
+                    let (mut low, mut high) = (0, 1_000_000);
+                    assert!(run(high, false).0.is_ok());
+                    while low < high {
+                        let mid = low + (high - low) / 2;
+                        if run(mid, false).0.is_ok() {
+                            high = mid;
+                        } else {
+                            low = mid + 1;
+                        }
+                    }
+                    let below = run(high - 1, false)
+                        .0
+                        .err()
+                        .expect("one-below preparation refusal");
+                    assert!(
+                        matches!(
+                            below.reason.primary_cause(),
+                            lang_runtime::task::runner::Reason::Layout(lang_runtime::layout::Error::Resource {
+                                error: lang_mir::unit::Error {
+                                    kind: lang_mir::unit::ErrorKind::Limit {
+                                        kind: lang_mir::unit::LimitKind::Work,
+                                        limit: actual,
+                                        requested,
+                                    },
+                                    ..
+                                },
+                                ..
+                            }) if *actual == high - 1 && *requested == high
+                        ),
+                        "{below:?}"
+                    );
+                    let callers = below.callers.as_ref().expect("pre-entry caller trace");
+                    assert_eq!(callers.frames.len(), 3);
+                    let functions = proof.typed().places().declarations().functions();
+                    for (frame, expected) in callers.frames.iter().zip(["main", "scope", "worker"])
+                    {
+                        assert_eq!(functions[frame.function.0 as usize].name, expected);
+                    }
+                    high
+                } else {
+                    usize::MAX
+                };
+                let (result, buffers) = run(work, true);
+                let failure = result.err().expect("unclaimed owner cleanup fails");
+                assert!(
+                    matches!(failure.reason, lang_runtime::task::runner::Reason::Cleanup),
+                    "{failure:?}"
+                );
+                let callers = failure
+                    .callers
+                    .as_ref()
+                    .expect("unclaimed result cleanup retains guest frames");
+                assert_eq!(callers.frames.len(), (depth + 2).min(64));
+                assert_eq!(callers.omitted, (depth + 2).saturating_sub(64) as u64);
+                let functions = proof.typed().places().declarations().functions();
+                for (i, frame) in callers.frames.iter().enumerate() {
+                    assert_eq!(frame.task.index(), i);
+                    let function = &functions[frame.function.0 as usize];
+                    assert_eq!(function.name, if i == 0 { "main" } else { "scope" });
+                    assert_eq!(frame.span.source, function.span.source);
+                    assert!(
+                        function.span.start <= frame.span.start
+                            && frame.span.end <= function.span.end
+                    );
+                    if i < depth + 1 {
+                        assert!(
+                            source[frame.span.start as usize..frame.span.end as usize]
+                                .contains("task_scope"),
+                            "{frame:?}"
+                        );
+                    }
+                    assert!(
+                        !callers.frames[..i]
+                            .iter()
+                            .any(|previous| previous.activation == frame.activation)
+                    );
+                }
+                assert!(failure.poisoned);
+                assert_eq!(
+                    functions[failure.function.unwrap().0 as usize].name,
+                    "worker"
+                );
+                assert_eq!(failure.report.as_ref().unwrap().cleanup_failures(), 1);
+                assert_eq!(failure.tasks.live, 0);
+                assert_eq!(buffers, [65]);
+            }
+        }
     }
 }
 

@@ -1,5 +1,9 @@
 //! Task-local failure evidence and mandatory retirement shared by both backends.
 use super::*;
+enum FrameEntry {
+    Prepared,
+    Entered,
+}
 impl<'p, 'l, 'ty, 'host, 'ctrl, P: a::Provider> Machine<'p, 'l, 'ty, 'host, 'ctrl, P> {
     pub(super) fn record_execution(
         &mut self,
@@ -106,32 +110,52 @@ impl<'p, 'l, 'ty, 'host, 'ctrl, P: a::Provider> Machine<'p, 'l, 'ty, 'host, 'ctr
         }
         Ok(())
     }
-    pub fn cleanup_fault(&mut self, task: usize, function: m::FunctionId, span: m::Span) {
+    pub fn cleanup_fault(
+        &mut self,
+        task: usize,
+        function: m::FunctionId,
+        span: m::Span,
+        detached: Option<&Frame<'_, '_>>,
+    ) {
         if self.faults[task].is_none() {
+            let callers = self.capture_cleanup_callers(task, detached);
             self.faults[task] = Some(Fault {
                 reason: Reason::Cleanup,
                 function,
                 span,
-                callers: None,
+                callers,
             });
         }
     }
     /// Continue independent owners after a callback error. Structural storage
     /// faults remain fatal; the abort path still drains the remaining frames.
-    pub fn release_frame(
+    pub fn release_frame(&mut self, task: usize, frame: Frame<'l, 'ty>) -> Result<bool, Reason> {
+        self.retire_frame(task, frame, FrameEntry::Entered)
+    }
+    pub fn release_prepared_frame(
+        &mut self,
+        task: usize,
+        frame: Frame<'l, 'ty>,
+    ) -> Result<bool, Reason> {
+        self.retire_frame(task, frame, FrameEntry::Prepared)
+    }
+    fn retire_frame(
         &mut self,
         task: usize,
         mut frame: Frame<'l, 'ty>,
+        entry: FrameEntry,
     ) -> Result<bool, Reason> {
         let result = frame.release(self.allocator, &mut self.services);
         self.merge_frame(task, &mut frame)?;
+        if matches!(&result, Err(Reason::Cleanup)) && matches!(entry, FrameEntry::Entered) {
+            self.cleanup_fault(task, frame.function, frame.origin, Some(&frame));
+        }
+        // An unentered call/spawn already has its original refusal. Preserve
+        // the caller's reserved trace storage for that fault's capture.
         self.retired(frame.function, false, frame.component_cells());
         match result {
             Ok(()) => Ok(false),
-            Err(Reason::Cleanup) => {
-                self.cleanup_fault(task, frame.function, frame.origin);
-                Ok(true)
-            }
+            Err(Reason::Cleanup) => Ok(true),
             Err(reason) => Err(reason),
         }
     }
@@ -159,15 +183,15 @@ impl<'p, 'l, 'ty, 'host, 'ctrl, P: a::Provider> Machine<'p, 'l, 'ty, 'host, 'ctr
                 .ok_or(Reason::Invariant)?
                 .copy_from_frame(returned.destination, &mut child, from, self.allocator);
         }
-        let function = child.function;
-        let span = child.origin;
+        if matches!(&cleaned, Err(Reason::Cleanup)) {
+            self.cleanup_fault(task, child.function, child.origin, Some(&child));
+        }
         let failed = self.release_frame(task, child)?;
         let cleanup_failed = cleaned.is_err();
-        if let Err(reason) = cleaned {
-            if !matches!(reason, Reason::Cleanup) {
-                return Err(reason);
-            }
-            self.cleanup_fault(task, function, span);
+        if let Err(reason) = cleaned
+            && !matches!(reason, Reason::Cleanup)
+        {
+            return Err(reason);
         }
         let parent = self.frame_mut(task)?;
         if failed || cleanup_failed {

@@ -8,16 +8,40 @@ impl<P: a::Provider> Machine<'_, '_, '_, '_, '_, P> {
         task: usize,
         span: m::Span,
     ) -> Option<execution::GuestCallFrames> {
-        let activation = self.frame(task).ok()?.activation;
+        self.capture_guest_callers(task, Some(span), None)
+    }
+    pub(super) fn capture_cleanup_callers(
+        &mut self,
+        task: usize,
+        detached: Option<&Frame<'_, '_>>,
+    ) -> Option<execution::GuestCallFrames> {
+        self.capture_guest_callers(task, None, detached)
+    }
+    fn capture_guest_callers(
+        &mut self,
+        task: usize,
+        span: Option<m::Span>,
+        detached: Option<&Frame<'_, '_>>,
+    ) -> Option<execution::GuestCallFrames> {
+        let activation = detached.or_else(|| self.frame(task).ok())?.activation;
         let logical = self.records.get(task)?.id.clone();
-        let (total, ancestors) = caller_count(&self.records, task).ok()?;
+        let (total, ancestors) = caller_count(&self.records, task, detached.is_some()).ok()?;
         if ancestors != self.records[task].trace_depth {
             return None;
         }
         let frames = std::mem::take(&mut self.records[task].callers.frames);
-        let mut callers =
-            write_guest_callers(&self.records, self.proof, task, &logical, total, frames).ok()?;
-        if let Some(leaf) = callers.frames.last_mut()
+        let mut callers = write_guest_callers(
+            &self.records,
+            self.proof,
+            task,
+            &logical,
+            total,
+            frames,
+            detached,
+        )
+        .ok()?;
+        if let Some(span) = span
+            && let Some(leaf) = callers.frames.last_mut()
             && leaf.activation == activation
             && leaf.task == logical
         {
@@ -246,15 +270,19 @@ fn guest_callers(
     logical: &t::TaskId,
     budget: &mut m::Budget,
 ) -> Result<execution::GuestCallFrames, Reason> {
-    let (total, ancestors) = caller_count(records, task)?;
+    let (total, ancestors) = caller_count(records, task, false)?;
     budget.charge(total.saturating_add(ancestors))?;
     let frames = budget.vector(total.min(64))?;
-    write_guest_callers(records, proof, task, logical, total, frames)
+    write_guest_callers(records, proof, task, logical, total, frames, None)
 }
 
-fn caller_count(records: &[Record<'_, '_>], task: usize) -> Result<(usize, usize), Reason> {
+fn caller_count(
+    records: &[Record<'_, '_>],
+    task: usize,
+    detached: bool,
+) -> Result<(usize, usize), Reason> {
     let mut at = task;
-    let mut total = 0usize;
+    let mut total = usize::from(detached);
     let mut ancestors = 0usize;
     loop {
         let record = records.get(at).ok_or(Reason::Invariant)?;
@@ -281,6 +309,7 @@ fn write_guest_callers(
     logical: &t::TaskId,
     total: usize,
     mut frames: Vec<execution::GuestCallFrame>,
+    detached: Option<&Frame<'_, '_>>,
 ) -> Result<execution::GuestCallFrames, Reason> {
     let capacity = total.min(64);
     if capacity == 0 || frames.capacity() < capacity {
@@ -294,7 +323,12 @@ fn write_guest_callers(
         let id = if at == task { logical } else { &record.id };
         // Inner frames beyond this prefix cannot enter the outermost 64,
         // even when this task has ancestors with no remaining live frames.
-        for frame in record.frames.iter().take(capacity).rev() {
+        let retained = record.frames.len().min(capacity);
+        let detached = detached.filter(|_| at == task && retained < capacity);
+        for frame in detached
+            .into_iter()
+            .chain(record.frames[..retained].iter().rev())
+        {
             let span = proof
                 .plan()
                 .functions()

@@ -557,7 +557,7 @@ impl<'p, 'l, 'ty, 'host, 'ctrl, P: a::Provider> Machine<'p, 'l, 'ty, 'host, 'ctr
             result.value.release_storage(self.allocator)?;
             self.live_cells -= 1;
             if failed {
-                self.cleanup_fault(owner, self.records[task].function, result.span);
+                self.cleanup_fault(owner, self.records[task].function, result.span, None);
             }
         }
         Ok(failed)
@@ -778,7 +778,7 @@ impl<'p, 'l, 'ty, 'host, 'ctrl, P: a::Provider> Machine<'p, 'l, 'ty, 'host, 'ctr
             Ok::<_, Reason>(())
         })();
         if let Err(error) = transferred {
-            self.release_frame(task, child)?;
+            self.release_prepared_frame(task, child)?;
             return Err(error);
         }
         child.returned = Some(ReturnTo {
@@ -834,7 +834,7 @@ impl<'p, 'l, 'ty, 'host, 'ctrl, P: a::Provider> Machine<'p, 'l, 'ty, 'host, 'ctr
             Ok::<_, Reason>(())
         })();
         if let Err(error) = transferred {
-            self.release_frame(task, frame)?;
+            self.release_prepared_frame(task, frame)?;
             return Err(error);
         }
         let child = self
@@ -894,11 +894,13 @@ impl<'p, 'l, 'ty, 'host, 'ctrl, P: a::Provider> Machine<'p, 'l, 'ty, 'host, 'ctr
             {
                 let result = frame.result(self.allocator, &mut self.services);
                 self.merge_frame(task, &mut frame)?;
+                if matches!(&result, Err(Reason::Cleanup)) {
+                    self.cleanup_fault(task, frame.function, frame.origin, Some(&frame));
+                }
                 self.retired(frame.function, result.is_ok(), frame.component_cells());
                 match result {
                     Ok(result) => self.records[task].result = Some(result),
                     Err(Reason::Cleanup) => {
-                        self.cleanup_fault(task, frame.function, frame.origin);
                         cleanup_failure = Some(t::FailureId(task as u64));
                     }
                     Err(reason) => return Err(reason),
