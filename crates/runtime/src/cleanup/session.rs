@@ -37,6 +37,11 @@ impl Session {
         self.instance.poisoned |= poisons(failure);
         self.report.execution(failure, span);
     }
+    /// A later structural retirement failure cannot replace the selected cause.
+    pub(crate) fn append_invariant(&mut self, span: Option<Span>) {
+        self.instance.poisoned = true;
+        self.report.append_invariant(span);
+    }
     /// The caller consumes its obligation before entry. Independent retirement
     /// continues after failure, including a full/truncated diagnostic buffer.
     pub fn retire<T, C: Cleaner<T>>(
@@ -82,5 +87,40 @@ impl Session {
             .report
             .quarantined
             .saturating_add(other.report.quarantined);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn late_invariants_preserve_the_primary_and_poison_even_when_truncated() {
+        for limit in [1, 2] {
+            let mut budget = m::Budget::new(Default::default());
+            let mut session =
+                Session::prepare(NonZeroUsize::new(limit).unwrap(), &mut budget).unwrap();
+            session.execution(ExecutionFailure::FuelLimit, None);
+            let storage = session.report().secondary().as_ptr();
+            assert!(!session.is_poisoned());
+            for _ in 0..3 {
+                session.append_invariant(None);
+            }
+            assert_eq!(
+                session.report().primary().unwrap().kind,
+                FailureKind::Execution(ExecutionFailure::FuelLimit)
+            );
+            assert_eq!(session.report().secondary().len(), limit - 1);
+            assert!(
+                session
+                    .report()
+                    .secondary()
+                    .iter()
+                    .all(|r| r.kind == FailureKind::Execution(ExecutionFailure::Invariant))
+            );
+            assert_eq!(session.report().truncated(), 3 - (limit - 1));
+            assert_eq!(session.report().secondary().as_ptr(), storage);
+            assert!(session.is_poisoned());
+        }
     }
 }

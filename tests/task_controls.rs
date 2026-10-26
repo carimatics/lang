@@ -42,6 +42,128 @@ fn execute(
     assert_eq!(allocator.stats().live_allocations, 0);
     result
 }
+#[test]
+#[allow(
+    clippy::result_large_err,
+    reason = "Retain complete failure evidence for differential trace assertions."
+)]
+fn trace_refusal_after_child_retirement_keeps_the_dispatched_task_origin() {
+    for depth in [0usize, 3, 65] {
+        let source = r#"
+async fn worker(depth:i64)->i64 {
+    if 0 < depth { task_scope { let mut pending:core::Task<i64> = spawn worker(depth + (-1)); } }
+    yield; return 42;
+}
+async fn main()->i64 { return core::result_unwrap::<i64,core::TaskError>(await worker(DEPTH)); }
+"#
+        .replace("DEPTH", &depth.to_string());
+        let program = prepare(&source);
+        let functions = program
+            .verified()
+            .typed()
+            .places()
+            .declarations()
+            .functions();
+        let entry = lang_mir::unit::FunctionId(
+            functions.iter().position(|f| f.name == "main").unwrap() as u32,
+        );
+        let worker = lang_mir::unit::FunctionId(
+            functions.iter().position(|f| f.name == "worker").unwrap() as u32,
+        );
+        let table = prepare(&source)
+            .into_verified()
+            .into_plan()
+            .into_source()
+            .into_activity()
+            .into_moved()
+            .into_typed()
+            .into_table();
+        let bytes = lang_bytecode::tasks::encode(table, Some(entry), Default::default()).unwrap();
+        let stored = lang_bytecode::tasks::decode(&bytes, Default::default()).unwrap();
+        for proof in [program.verified(), stored.proof()] {
+            let native = lang_codegen_clif::tasks::CompiledProgram::compile_function(
+                proof,
+                entry,
+                Default::default(),
+            )
+            .unwrap();
+            for compiled in [false, true] {
+                let run = |trace_events| {
+                    let mut allocator = allocator();
+                    let limits = r::Limits {
+                        trace_events,
+                        ..Default::default()
+                    };
+                    let result = if compiled {
+                        native.execute(&mut allocator, Default::default(), limits)
+                    } else {
+                        lang_vm::unit::tasks::execute_function(
+                            proof,
+                            entry,
+                            &mut allocator,
+                            Default::default(),
+                            limits,
+                        )
+                    };
+                    assert_eq!(allocator.stats().live_allocations, 0);
+                    result
+                };
+                let complete = run(4096).unwrap();
+                assert_eq!(complete.value, 42);
+                let limit = complete
+                    .events
+                    .iter()
+                    .position(|event| {
+                        event.task == depth + 1
+                            && event.kind
+                                == r::EventKind::Complete(lang_runtime::task::Outcome::Success)
+                    })
+                    .unwrap();
+                let failure = run(limit).err().expect("child completion trace refusal");
+                assert!(
+                    matches!(failure.reason, r::Reason::TraceLimit),
+                    "{failure:?}"
+                );
+                assert_eq!(failure.function, Some(worker), "{failure:?}");
+                assert_eq!(failure.events.len(), limit);
+                let callers = failure
+                    .callers
+                    .as_ref()
+                    .expect("retired child has an actual snapshot");
+                assert_eq!(callers.frames.len(), (depth + 2).min(64));
+                assert_eq!(callers.omitted, (depth + 2).saturating_sub(64) as u64);
+                let functions = proof.typed().places().declarations().functions();
+                for (i, frame) in callers.frames.iter().enumerate() {
+                    assert_eq!(frame.task.index(), i);
+                    assert_eq!(frame.function, if i == 0 { entry } else { worker });
+                    let span = functions[frame.function.0 as usize].span;
+                    assert_eq!(frame.span.source, span.source);
+                    assert!(span.start <= frame.span.start && frame.span.end <= span.end);
+                    if i == 0 {
+                        assert!(
+                            source[frame.span.start as usize..frame.span.end as usize]
+                                .contains("await")
+                        );
+                    } else if i < depth + 1 {
+                        assert!(
+                            source[frame.span.start as usize..frame.span.end as usize]
+                                .contains("task_scope")
+                        );
+                    }
+                    assert!(
+                        !callers.frames[..i]
+                            .iter()
+                            .any(|prior| prior.activation == frame.activation)
+                    );
+                }
+                assert_eq!(failure.tasks.live, 0);
+                assert_eq!(failure.tasks.admitted, depth + 2);
+                assert!(!failure.poisoned);
+            }
+        }
+    }
+}
+
 fn work_failure(reason: &r::Reason) -> Option<(u64, u64, u64)> {
     match *reason {
         r::Reason::Control(e::Failure::ServiceWorkLimit {

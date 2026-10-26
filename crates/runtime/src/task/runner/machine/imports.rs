@@ -17,12 +17,36 @@ impl<P: a::Provider> Machine<'_, '_, '_, '_, '_, P> {
     ) -> Option<execution::GuestCallFrames> {
         self.capture_guest_callers(task, None, detached)
     }
+    pub(super) fn capture_retirement_boundary(&mut self, task: usize) {
+        if self.faults[task].is_some() || !self.records[task].callers.frames.is_empty() {
+            return;
+        }
+        if let Some(callers) = self.capture_cleanup_callers(task, None) {
+            self.records[task].callers = callers;
+        }
+    }
+    pub(super) fn take_retirement_callers(
+        &mut self,
+        task: usize,
+    ) -> Option<execution::GuestCallFrames> {
+        let record = self.records.get_mut(task)?;
+        if !record.frames.is_empty() || record.callers.frames.is_empty() {
+            return None;
+        }
+        Some(execution::GuestCallFrames {
+            frames: std::mem::take(&mut record.callers.frames),
+            omitted: std::mem::take(&mut record.callers.omitted),
+        })
+    }
     fn capture_guest_callers(
         &mut self,
         task: usize,
         span: Option<m::Span>,
         detached: Option<&Frame<'_, '_>>,
     ) -> Option<execution::GuestCallFrames> {
+        if self.records.get(task)?.callers.frames.capacity() < 64 {
+            return None;
+        }
         let activation = detached.or_else(|| self.frame(task).ok())?.activation;
         let logical = self.records.get(task)?.id.clone();
         let (total, ancestors) = caller_count(&self.records, task, detached.is_some()).ok()?;
@@ -254,9 +278,9 @@ pub(super) fn prepare_failure_callers(
     depth: usize,
     budget: &mut m::Budget,
 ) -> Result<execution::GuestCallFrames, Reason> {
-    // One count and one bounded copy pass per admitted ancestor. This work
-    // and the storage remain available when the fault exhausts the ledger.
-    budget.charge(depth.checked_mul(66).ok_or(Reason::Invariant)?)?;
+    // Reserve a retirement-boundary pass and the first actual fault pass.
+    // Both reuse one vector, even after preparation/control is exhausted.
+    budget.charge(depth.checked_mul(132).ok_or(Reason::Invariant)?)?;
     Ok(execution::GuestCallFrames {
         frames: budget.vector(64)?,
         omitted: 0,

@@ -251,6 +251,7 @@ struct Child {
     reply_before: Cell<Option<m::Usage>>,
     preparation_after: Cell<Option<m::Usage>>,
     failure: RefCell<Option<String>>,
+    failure_callers: RefCell<Option<execution::GuestCallFrames>>,
     control_failure: Cell<Option<ChildControlFailure>>,
     task: RefCell<Option<lang_runtime::task::TaskId>>,
     task_usage: Cell<Option<lang_runtime::task::Usage>>,
@@ -305,6 +306,7 @@ impl Child {
             reply_before: Cell::new(None),
             preparation_after: Cell::new(None),
             failure: RefCell::new(None),
+            failure_callers: RefCell::new(None),
             control_failure: Cell::new(None),
             task: RefCell::new(None),
             task_usage: Cell::new(None),
@@ -967,6 +969,14 @@ impl execution::TaskStorageOperation for ChildOperation<'_, '_> {
                         assert_eq!(current.status(), Ok(lang_runtime::task::Status::Running));
                         assert_eq!(Some(current.usage()), self.target.task_usage.get());
                         let outcome = result.map_err(|error| {
+                            self.target
+                                .failure_callers
+                                .replace(error.callers.as_ref().map(|callers| {
+                                    execution::GuestCallFrames {
+                                        frames: callers.frames.clone(),
+                                        omitted: callers.omitted,
+                                    }
+                                }));
                             self.target.failure.replace(Some(format!("{error:?}")));
                             self.target
                                 .control_failure
@@ -3224,6 +3234,16 @@ fn callback_cancellation_closes_original_non_root_task_and_resumes_parent() {
         );
         assert_eq!(child.task.borrow().as_ref().unwrap().index(), 1);
         assert_eq!(child.task_observations.get(), 1);
+        let observed = child.failure_callers.borrow();
+        let callers = observed
+            .as_ref()
+            .expect("cancelled borrowed root retains its admitted guest frame");
+        assert_eq!(callers.frames.len(), 2);
+        assert_eq!(callers.omitted, 0);
+        for frame in &callers.frames {
+            assert_eq!(&frame.task, child.task.borrow().as_ref().unwrap());
+        }
+        drop(observed);
         assert!(
             child
                 .failure
@@ -4470,6 +4490,102 @@ fn a_fresh_holder_cannot_consume_another_retained_instances_owner() {
         assert_eq!(h.allocator.stats().live_allocations, 0);
     }
 }
+#[test]
+fn final_result_preparation_refusal_keeps_the_retired_guest_trace() {
+    for compiled in [false, true] {
+        let full_work = {
+            let mut h = Harness::new();
+            let trace = Rc::new(Cell::new(None));
+            h.preparation_trace = Some(trace.clone());
+            let (registration, watch) = h.registration(false);
+            let created = h.call(registration, "create", None, compiled).unwrap();
+            let full = trace
+                .get()
+                .expect("original final-result preparation ledger")
+                .work;
+            let execution::Value::Resource(claim) = created.value else {
+                panic!("owner")
+            };
+            h.preparation_trace = None;
+            let (cleanup, _) = h.registration(false);
+            h.call(cleanup, "consume", Some(claim), compiled).unwrap();
+            assert_eq!(watch.destroyed.get(), 1);
+            full
+        };
+        for cleanup_failure in [false, true] {
+            let mut h = Harness::new();
+            let trace = Rc::new(Cell::new(None));
+            h.preparation_trace = Some(trace.clone());
+            h.preparation_limits.work = full_work - 1;
+            let (registration, watch) = h.registration(cleanup_failure);
+            let failure = h
+                .call(registration, "create", None, compiled)
+                .err()
+                .expect("final result preparation refusal");
+            assert!(preparation_refusal(&failure.reason), "{failure:?}");
+            assert!(
+                failure.reason.native_frame().is_none(),
+                "late refusal: {failure:?}"
+            );
+            let callers = failure
+                .callers
+                .as_ref()
+                .expect("retired root keeps its actual guest trace");
+            assert_eq!(callers.frames.len(), 1);
+            assert_eq!(callers.omitted, 0);
+            assert_eq!(Some(callers.frames[0].function), failure.function);
+            assert_eq!(callers.frames[0].task.index(), 0);
+            let span = h.unit.code().declarations().functions()
+                [callers.frames[0].function.0 as usize]
+                .span;
+            assert_eq!(callers.frames[0].span.source, span.source);
+            assert!(
+                span.start <= callers.frames[0].span.start
+                    && callers.frames[0].span.end <= span.end
+            );
+            assert_eq!(failure.poisoned, cleanup_failure);
+            assert_eq!(h.state.poisoned(), cleanup_failure);
+            assert!(trace.get().unwrap().work <= h.preparation_limits.work);
+            let report = failure.report.as_ref().unwrap();
+            assert!(matches!(
+                report.primary().unwrap().kind,
+                lang_runtime::cleanup::FailureKind::Execution(_)
+            ));
+            assert_eq!(report.cleanup_failures(), usize::from(cleanup_failure));
+            assert_eq!(report.secondary().len(), usize::from(cleanup_failure));
+            assert_eq!(watch.produced.get(), 1);
+            assert_eq!(watch.destroyed.get(), 1);
+            assert_eq!(watch.released.get(), usize::from(!cleanup_failure));
+            drop(failure);
+            assert_eq!(watch.released.get(), 1);
+            assert!(h.values.is_empty());
+            assert_eq!(h.allocator.stats().live_allocations, 0);
+            h.preparation_trace = None;
+            h.preparation_limits = Default::default();
+            let (retry, retried) = h.registration(false);
+            if cleanup_failure {
+                prepared(retry, |program, _| {
+                    assert!(matches!(
+                        h.state.with_program(program, |_| panic!("poison entered")),
+                        Err(r::Reason::Instance(execution::InstanceError::Poisoned))
+                    ));
+                });
+                assert_eq!(retried.produced.get(), 0);
+            } else {
+                let result = h.call(retry, "create", None, compiled);
+                let execution::Value::Resource(claim) = result.unwrap().value else {
+                    panic!("fresh owner")
+                };
+                let (cleanup, _) = h.registration(false);
+                h.call(cleanup, "consume", Some(claim), compiled).unwrap();
+                assert_eq!(retried.destroyed.get(), 1);
+            }
+            assert!(h.values.is_empty());
+            assert_eq!(h.allocator.stats().live_allocations, 0);
+        }
+    }
+}
+
 #[test]
 fn borrowed_preparation_entry_keeps_precharges_and_refuses_mismatched_or_exhausted_limits() {
     for compiled in [false, true] {

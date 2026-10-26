@@ -869,6 +869,7 @@ impl<'p, 'l, 'ty, 'host, 'ctrl, P: a::Provider> Machine<'p, 'l, 'ty, 'host, 'ctr
     ) -> Result<(), Reason> {
         let function = self.records[task].function;
         let span = self.proof.typed().places().declarations().functions()[function.0 as usize].span;
+        self.capture_retirement_boundary(task);
         self.event(task, EventKind::Cleanup(outcome), span)?;
         let channel_cleanup_failed = self.cancel_channel_waits(task).is_err();
         if outcome != t::Outcome::Success
@@ -924,18 +925,36 @@ impl<'p, 'l, 'ty, 'host, 'ctrl, P: a::Provider> Machine<'p, 'l, 'ty, 'host, 'ctr
         }
         self.event(task, EventKind::Complete(actual), span)
     }
-    fn abort(&mut self, reason: Reason) -> Result<(), Reason> {
-        let function = self.records[0].function;
-        let span = self.proof.typed().places().declarations().functions()[function.0 as usize].span;
+    fn abort(&mut self, reason: Reason, task: usize) -> Result<(), Reason> {
+        let function = self
+            .frame(task)
+            .map_or(self.records[task].function, |frame| frame.function);
+        let span = self
+            .frame(task)
+            .ok()
+            .and_then(|frame| {
+                self.proof
+                    .plan()
+                    .functions()
+                    .get(frame.function.0 as usize)
+                    .and_then(|function| function.nodes().get(frame.node.0 as usize))
+                    .map(|node| node.span)
+            })
+            .unwrap_or_else(|| {
+                self.proof.typed().places().declarations().functions()[function.0 as usize].span
+            });
         if self.faults[0].is_none() {
-            let callers = self.capture_callers(0, span);
-            self.record_execution(0, &reason, span)?;
+            let callers = self
+                .capture_cleanup_callers(task, None)
+                .or_else(|| self.take_retirement_callers(task));
+            let recorded = self.record_execution(0, &reason, span);
             self.faults[0] = Some(Fault {
                 reason,
                 function,
                 span,
                 callers,
             });
+            recorded?;
         }
         self.trace = false;
         if let Some((task, cleaning)) = self.active.take() {
@@ -1159,11 +1178,13 @@ impl<'p, 'l, 'ty, 'host, 'ctrl, P: a::Provider> Machine<'p, 'l, 'ty, 'host, 'ctr
         mut self,
         backend: &mut B,
     ) -> Result<Outcome<crate::component::execution::Value>, Failure> {
+        let mut failed_task = None;
         let driven = (|| -> Result<(), Reason> {
             while let Some(dispatch) = self.services.scheduler.dispatch()? {
                 match dispatch {
                     t::Dispatch::Resume(task) => {
                         let index = self.services.scheduler.record_index(&task)?;
+                        failed_task = Some(index);
                         self.active = Some((task, false));
                         let frame = self.frame(index)?;
                         let span = self.proof.plan().functions()[frame.function.0 as usize].nodes()
@@ -1178,10 +1199,12 @@ impl<'p, 'l, 'ty, 'host, 'ctrl, P: a::Provider> Machine<'p, 'l, 'ty, 'host, 'ctr
                     }
                     t::Dispatch::Cleanup { task, outcome } => {
                         let index = self.services.scheduler.record_index(&task)?;
+                        failed_task = Some(index);
                         self.active = Some((task, true));
                         self.cleanup(backend, index, outcome)?;
                     }
                 }
+                failed_task = None;
             }
             if !self.services.scheduler.is_finished() {
                 if let Some(channels) = &self.services.channels
@@ -1215,17 +1238,25 @@ impl<'p, 'l, 'ty, 'host, 'ctrl, P: a::Provider> Machine<'p, 'l, 'ty, 'host, 'ctr
         })();
         let failed = driven.is_err();
         if let Err(reason) = driven
-            && let Err(reason) = self.abort(reason)
+            && let Err(reason) = self.abort(reason, failed_task.unwrap_or(0))
         {
             let function = self.records[0].function;
             let span =
                 self.proof.typed().places().declarations().functions()[function.0 as usize].span;
-            self.faults[0] = Some(Fault {
-                reason,
-                function,
-                span,
-                callers: None,
-            });
+            if let Some(session) = self.records[0].session.as_mut() {
+                session.append_invariant(Some(span));
+            }
+            if self.faults[0].is_none() {
+                let callers = self
+                    .capture_cleanup_callers(0, None)
+                    .or_else(|| self.take_retirement_callers(0));
+                self.faults[0] = Some(Fault {
+                    reason,
+                    function,
+                    span,
+                    callers,
+                });
+            }
         }
         self.sync_usage();
         let outcome = self.services.scheduler.status(&self.records[0].id);
@@ -1250,12 +1281,34 @@ impl<'p, 'l, 'ty, 'host, 'ctrl, P: a::Provider> Machine<'p, 'l, 'ty, 'host, 'ctr
                 finished = Err(Reason::Cleanup);
             }
             if let Err(reason) = discarded {
-                let (report, poisoned) = self.failure_report(task).unwrap_or((None, true));
+                let primary = self.failure_task();
+                if let Some(session) = self.records[primary].session.as_mut() {
+                    session.append_invariant(None);
+                }
+                let fault = self.faults.get_mut(primary).and_then(Option::take);
+                let (reason, function, span, callers) = if let Some(fault) = fault {
+                    (
+                        fault.reason,
+                        Some(fault.function),
+                        Some(fault.span),
+                        fault
+                            .callers
+                            .or_else(|| self.take_retirement_callers(primary)),
+                    )
+                } else {
+                    (
+                        reason,
+                        Some(self.records[task].function),
+                        None,
+                        self.take_retirement_callers(task),
+                    )
+                };
+                let (report, poisoned) = self.failure_report(primary).unwrap_or((None, true));
                 return Err(Failure {
                     reason,
-                    function: Some(self.records[task].function),
-                    span: None,
-                    callers: None,
+                    function,
+                    span,
+                    callers,
                     usage: self.usage,
                     tasks: self.services.scheduler.usage(),
                     events: self.events,
@@ -1313,23 +1366,26 @@ impl<'p, 'l, 'ty, 'host, 'ctrl, P: a::Provider> Machine<'p, 'l, 'ty, 'host, 'ctr
                 })
             }
             Err(reason) => {
-                let failure = match self.services.scheduler.status(&self.records[0].id) {
-                    Ok(t::Status::Complete(t::Outcome::Failed(id))) => id.0 as usize,
-                    _ => 0,
-                };
-                let fault = self.faults.get_mut(failure).and_then(Option::take);
+                let failure = self.failure_task();
+                let mut fault = self.faults.get_mut(failure).and_then(Option::take);
                 let (report, poisoned) = self.failure_report(failure).unwrap_or((None, true));
                 // Final result admission precedes retirement of its escrow.
                 // A later destructor failure must not replace that typed cause.
                 let (reason, function, span, callers) =
                     if let Some((function, span)) = final_failure_origin.filter(|_| failure == 0) {
-                        (reason, Some(function), Some(span), None)
+                        let callers = fault
+                            .as_mut()
+                            .and_then(|fault| fault.callers.take())
+                            .or_else(|| self.take_retirement_callers(0));
+                        (reason, Some(function), Some(span), callers)
                     } else if let Some(fault) = fault {
                         (
                             fault.reason,
                             Some(fault.function),
                             Some(fault.span),
-                            fault.callers,
+                            fault
+                                .callers
+                                .or_else(|| self.take_retirement_callers(failure)),
                         )
                     } else {
                         (
@@ -1340,7 +1396,7 @@ impl<'p, 'l, 'ty, 'host, 'ctrl, P: a::Provider> Machine<'p, 'l, 'ty, 'host, 'ctr
                                     [self.records[0].function.0 as usize]
                                     .span,
                             ),
-                            None,
+                            self.take_retirement_callers(failure),
                         )
                     };
                 Err(Failure {

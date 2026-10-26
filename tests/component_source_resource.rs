@@ -2666,6 +2666,10 @@ fn run_source_namespace(
             assert!(destroyed.method_control_checked.get());
         }
         if let Err(failure) = outcome {
+            assert!(
+                failure.callers.is_some(),
+                "source execution keeps checked admission or guest evidence: {failure:?}"
+            );
             if native_flags & !1 != 0 {
                 assert!(matches!(
                     failure.reason,

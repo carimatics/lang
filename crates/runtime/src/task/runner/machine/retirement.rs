@@ -220,6 +220,12 @@ impl<'p, 'l, 'ty, 'host, 'ctrl, P: a::Provider> Machine<'p, 'l, 'ty, 'host, 'ctr
         parent.node = returned.failure;
         Ok(true)
     }
+    pub(super) fn failure_task(&self) -> usize {
+        match self.services.scheduler.status(&self.records[0].id) {
+            Ok(t::Status::Complete(t::Outcome::Failed(id))) => id.0 as usize,
+            _ => 0,
+        }
+    }
     pub(super) fn failure_report(
         &mut self,
         primary: usize,
