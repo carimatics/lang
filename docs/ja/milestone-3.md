@@ -6,13 +6,13 @@
 
 更新日: **2026-10-27 JST**。開始チェックポイント: `984557d`。M2 とリポジトリレビューは完了済みです。
 
-**70 done · 1 doing · 8 todo · 20 remaining pt**
+**71 done · 1 doing · 7 todo · 18 remaining pt**
 
-**次: M3-E15 → task importを許可せず生成Cからroot taskを呼び出す。**
+**次: M3-E16 → 厳密SDK所有native imageをbindingしC gatewayからinstalled AOTを実行する。**
 
 E15全source検証（**2026-10-27 08:04 JST**、macOS AArch64）: **150 suite / 成功2,312 / 失敗0 / 既存timing ignore 1**、suite時間合計**831.84 s**、--no-fail-fast test-command区間**1,784.19 s**です。全7段階が成功し、workspace fmt（1.79 s）、warnings-denied workspace Clippy（70.64 s）、全test、rustdoc（19.42 s）、fuzz fmt（1.98 s）、全**16** fuzz targetのcheck/Clippy（1.45/0.40 s）を含みます。campaignは実行していません。input/scoped component/native owned/native task/native service/native linkは**5/55/77/12/33/6**成功（14.97/45.67/274.04/98.66/49.51/66.78 s）で、既存ignoreはnative ownedです。前後hashは**861入力 / 非Markdown 755入力**で一致し、main `1ee518ddf5d166be4dd4f637223b164831b0e59124939891fce28bf8992ca562`、検証側 `dee634376db8cae6f234f98f0bb335c5407a45def97a91a3e56c153d1e62c78d`です。未変更Windows benchmarkのCRLF/LF差だけを正規化し、余分な検証入力はありません。root task呼出し、metadata不一致、nested task拒否、全fuel prefix、元の所有値cleanup/再利用、準備予算の同時exact/1未満検査が成功しました。C layout、serialized format、通常task importの有効性は変わりません。codeに公開更新日はなく、RFC 0027/architectureは2026-10-27 JST更新です。installed native gatewayと完全な公開query/tableの受入はE16/E01に残します。
 
-E15実行checkpoint（未commit、2026-10-27 07:32 JST検証、macOS AArch64）: 生成Cのsource/artifact × VM/JITで、子taskのspawn/yield/joinとsuspensionを跨ぐ所有Bytesが42を返します。8種類のmetadata不一致はoutputを変更せず拒否し、通常のtask import禁止とcallback内task拒否を維持します。task数1の上限、事前割込み、成功時fuel未満の全prefixで元の型付き原因/数値上限を保持し、cleanup後に再利用でき、allocator inventoryは空です。input suite全5件（14.46 s）とdecode/signature合算準備予算の同時exact・work/storage 1未満unit testが成功しました。最後のcommit済み完了証拠はL04 `d5ee99a`です。残り受入条件は固定入力の全baselineとsource commit/証拠更新で、E15は2 ptのdoingを維持します。
+E15完了 `ae90a88`（2026-10-27 08:04 JST検証、macOS AArch64）: 有効なLCMP3 export要求でroot taskを指定し、完全なkey/member・capability・厳密version・LCSG preimageを累積準備予算で照合します。生成Cのsource/artifact × VM/JITで子taskのspawn/yield/joinとsuspensionを跨ぐ所有Bytesが42を返します。8種類のmetadata不一致でoutputを保ち、通常task importとcallback内taskは拒否します。task数1、事前割込み、全fuel prefixの元の型付き失敗/数値上限、cleanup後再利用、空のallocator inventory、準備の同時exact/work・storage 1未満を確認しました。上記の固定861入力・150 suite/2,312 test・全7検証段階が成功しています。E15の最後の**2 pt**を消化し、追加/再見積り**0 pt**: **20 + 0 − 2 = 18 pt**、**79行 / 71 done / 1 doing / 7 todo**、純追加**+97**、消化**189**、台帳**110 + 97 − 189 = 18**です。**E16（3 pt）だけをdoing**にし、残りは実装前のopaque native image契約の明確化、mode 2と元callback予算の接続、installed Cのowner/control/cleanup証拠、固定入力baselineです。最後の実行checkpointは`ae90a88`、検証時刻08:04 JSTです。E01は完全32/query公開の1 ptを保持します。gateは**3/15・18/96**を維持し、I08/B01は実両host証拠を要求します。Windows環境はなくpushもしません。
 
 E01 scope/見積り監査（2026-10-27 07:24 JST）: 最初のtyped task実験はIDLの`InvalidEffect`で停止しました。task import禁止により既存の単一import選択ではroot taskを指定できません。gatewayのnative image bindingも未実装でmode 2は拒否します。受理済みRFC 0027のtask root要求とC呼出し/拒否/cleanupを**E15（2 pt、唯一doing）**、厳密SDK所有native imageの受入とinstalled gateway実行を**E16（3 pt、todo）**に明示し、後者のopaque metadata契約は実装前に決定します。**E01は3→1 pt（todo）**として両前提後の完全table/query・公開・対応modeのtyped host受入に限定します。純追加**+3 pt**、消化0、**17 + 3 − 0 = 20**、**79行 / 70 done / 1 doing / 8 todo**、純追加**+97**、消化**187**、台帳**110 + 97 − 187 = 20**です。最後の完了した実行checkpointはL04 `d5ee99a`です。今回の失敗実験は実装完了ではありません。gateは**3/15・18/96**を維持し、Windows環境はなくpushもしません。
 
@@ -438,8 +438,8 @@ C04 は `f882074`（2026-10-22 02:05 JST）で完了しました。明示的で�
 | M3-E08 | done | 0 | M3-R03,M3-E07,M3-P01 | G07,G09 | 元table/allocatorでC resource index・typed移動/借用/結果/drop・holder単位のcloseを実行 | `75ca09c` |
 | M3-E09 | done | 0 | M3-E08,M3-E03 | G07,G09 | C callbackの永続keep/takeとprovider closeを元owner/destructor・loan/poison/cleanup規則で実行 | `7ba6a45` |
 | M3-E01 | todo | 1 | M3-I04,M3-P01,M3-I07,M3-E06,M3-E07,M3-E08,M3-E09,M3-E04,M3-L04,M3-I15,M3-E15,M3-E16 | G09 | 全32操作のC entryを公開し、対応installed modeで生成typed host callを実行 | — |
-| M3-E15 | doing | 2 | M3-I04,M3-I07,M3-E04,M3-L04 | G09 | 検査済みtask root export要求をbindingし生成Cのtask呼出し・拒否・cleanupを実行 | — |
-| M3-E16 | todo | 3 | M3-I15,M3-E15,M3-L04 | G09 | 厳密SDK所有native imageをbindingしC gatewayからinstalled AOTを実行 | — |
+| M3-E15 | done | 0 | M3-I04,M3-I07,M3-E04,M3-L04 | G09 | 検査済みtask root export要求をbindingし生成Cのtask呼出し・拒否・cleanupを実行 | `ae90a88` |
+| M3-E16 | doing | 3 | M3-I15,M3-E15,M3-L04 | G09 | 厳密SDK所有native imageをbindingしC gatewayからinstalled AOTを実行 | — |
 | M3-E10 | done | 0 | M3-E08,M3-P02 | G09,G12 | child entry統合前にscoped VM/JIT source呼び出し間で元fuel/host-call/service-workの累積計量を実行 | `879a534` |
 | M3-E11 | done | 0 | M3-E08,M3-E10 | G09,G12 | 元handle・limit・統計・provider副作用を保つscoped allocator viewでVM/JIT sourceを実行 | `93f9b52` |
 | M3-E12 | done | 0 | M3-E07,M3-E10,M3-E11 | G09,G12 | frame pool・arena・inspector・shared heap・retirementの準備失敗時に元課金を保持し、有限予算のVM/JIT child callbackを実行 | `44823d6` |
@@ -538,7 +538,7 @@ T05 を `2f58084` で完了（2026-10-21 JST）: TaskProgram で source claim/lo
 
 T05 roadmap 監査: 最初の source VM fixture が実行できたため、G03/G12/G13 完了判定前に **T06 → T07 → T08** を進めます。`crates/codegen-clif/src/owned.rs` と `src/native.rs` を確認し、既存 native 経路は TaskProgram/async metadata を拒否する一方、検証済み MIR、managed task layout、scope identity、result storage が揃ったことを確認しました。T06 は元の 3 pt の compiled continuation と値/event 一致の成果を維持し、VM/MIR fallback なしに生成 code を実行する必要があります。初期 native fixture で serialized task revision や package/startup 公開を決めたことにはしません。明示 format 判断と native/owned/loan/foreign/共有 control の受入条件を維持し、次の実行 fixture 前に scheduler/IDL 基盤を追加しません。全 15 gate、全 P1 作業、channel、Send/Share、production embedding を M3 に残します。
 
-**110 + 97 − 187 = 20 pt**
+**110 + 97 − 189 = 18 pt**
 
 T06 を `8d6c283` で完了（2026-10-21 JST）: 実装前に RFC 0023 へ native 境界を記録しました。invocation/frame/claim/result 状態と scheduling/storage service を共有し、VM/native に別の resume/cleanup entry を持ちます。Cranelift が演算、分岐、失敗/取消 CFG、検査付き continuation 選択を生成し、実行時 MIR evaluator や VM 依存はありません。source fixture は VM/native ともに 42 を出力します。integration test 12 件で値/event/使用量/割り当て状態、取消、有限 record/enum と field 更新、通常 call、loop scope identity、子/同期 panic 起点、全 fuel/trace prefix、task/frame/cell/preparation 上限、各 provider 拒否を比較します。別途リンクした実行形式では join/aggregate/cancel/panic profile、再生成 object/compiler/SDK byte の一致、全 fuel prefix を検証し、JIT compile/invoke API を呼びません。private 境界 2 テストで callback 前の範囲外 PC 拒否と source 証拠付き callback panic の封じ込めを確認します。受理した storage/task はすべて解放します。全 baseline: **106 suites / 1,712 passed / 0 failed / 1 existing timing ignore**、完了 suite 時間合計 **471.21 s**。fmt、warnings-denied workspace Clippy **6.24 s**、rustdoc **26.34 s**、全 11 fuzz target の compile/lint **3.11 s** が通過しました。fuzz campaign、性能主張、より広い platform/native package 完了ではありません。T06 の 3 pt を消化し、作業追加/再見積りはありません。
 
@@ -586,7 +586,7 @@ A06 roadmap audit: `Machine::spawn`、`Frame::copy_from_frame`、`Frame::result`
 
 | Initial remaining | Net additions/re-estimates | Retired at completion | Remaining |
 | ---: | ---: | ---: | ---: |
-| 110 pt | +97 pt | −187 pt | 20 pt |
+| 110 pt | +97 pt | −189 pt | 18 pt |
 
 ## Exit audit
 
