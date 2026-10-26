@@ -145,6 +145,21 @@ def verify(args):
         }""",
         "c": (sdk / "startup/c-guest.lang").read_text(encoding="utf-8"),
     }
+    if manifest["version"] == 2:
+        texts.update({
+            "task": """async fn worker(value:i64)->i64 {yield;return value;}
+                async fn main()->i64 {task_scope {
+                    let mut child:core::Task<i64> = spawn worker(41);
+                    let mut result:core::Result<i64,core::TaskError> = await child;
+                    return core::result_unwrap::<i64,core::TaskError>(result)+1;
+                }}""",
+            "task-owned": """async fn main()->i64 {
+                let mut bytes:core::Bytes=core::result_unwrap::<core::Bytes,core::AllocError>(core::bytes_new(core::allocator()));
+                let mut pushed:core::Unit=core::result_unwrap::<core::Unit,core::BufferError>(core::bytes_push(bytes,41));
+                yield;
+                return core::result_unwrap::<i64,core::BoundsError>(core::bytes_get(bytes,0))+1;
+            }""",
+        })
     rows = []
     packages = []
     for name, text in texts.items():
@@ -160,7 +175,8 @@ def verify(args):
                         "--object", str(c_object(sdk, package, env))]
         _, link_seconds = run(command, output, env)
         package_manifest = json.loads((package / "package.json").read_text(encoding="utf-8"))
-        rows.append({"profile": name, "compile_seconds": compile_seconds,
+        rows.append({"profile": name, "manifest_version": package_manifest["version"],
+                     "manifest_profile": package_manifest["profile"], "compile_seconds": compile_seconds,
                      "link_seconds": link_seconds, "executable": str(executable),
                      "files": package_manifest["files"]})
         packages.append(package)

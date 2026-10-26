@@ -152,6 +152,128 @@ fn manifest_exact_fields_paths_roles_and_bounds_are_enforced() {
     }
 }
 #[test]
+fn task_manifest_revision_and_sdk_pairing_are_explicit_before_staging() {
+    let dir = Dir::new();
+    let (root, stages) = sdk_fixture(&dir);
+    let package = program(
+        &dir,
+        "tasks",
+        include_str!("../examples/scripts/tasks.lang"),
+    );
+    let bytes = fs::read(package.join("package.json")).unwrap();
+    let original: Value = serde_json::from_slice(&bytes).unwrap();
+    assert_eq!(original["version"], 2);
+    assert_eq!(original["profile"], "task");
+    assert!(original["entry"].is_u64());
+    let mut limits = Limits {
+        program_manifest: bytes.len(),
+        ..Default::default()
+    };
+    assert!(m::parse_program(&bytes, limits).is_ok());
+    limits.program_manifest -= 1;
+    assert!(m::parse_program(&bytes, limits).is_err());
+    for (field, value) in [
+        ("version", json!(1)),
+        ("version", json!(3)),
+        ("profile", json!("copy")),
+        ("profile", json!("component")),
+        ("entry", Value::Null),
+    ] {
+        let mut invalid = original.clone();
+        invalid[field] = value;
+        assert!(
+            m::parse_program(&serde_json::to_vec(&invalid).unwrap(), Limits::default()).is_err()
+        );
+    }
+    {
+        let sdk = SdkSnapshot::open(&root, &stages, Limits::default()).unwrap();
+        let before = count(&stages);
+        let error = ProgramSnapshot::open(&package, &stages, &sdk, Limits::default())
+            .err()
+            .unwrap();
+        assert!(matches!(
+            error.kind,
+            m::ErrorKind::Mismatch {
+                field: "task SDK version",
+                ..
+            }
+        ));
+        assert_eq!(count(&stages), before);
+    }
+    let mut upgraded = sdk_manifest();
+    upgraded["version"] = json!(2);
+    write_manifest(&root, "sdk.json", &upgraded);
+    let sdk = SdkSnapshot::open(&root, &stages, Limits::default()).unwrap();
+    let before = count(&stages);
+    let good = ProgramSnapshot::open(&package, &stages, &sdk, Limits::default()).unwrap();
+    assert_eq!(good.manifest().profile(), m::Profile::Task);
+    drop(good);
+    assert_eq!(count(&stages), before);
+    let mut invalid = original.clone();
+    invalid["entry"] = json!(u32::MAX);
+    write_manifest(&package, "package.json", &invalid);
+    assert!(ProgramSnapshot::open(&package, &stages, &sdk, Limits::default()).is_err());
+    assert_eq!(count(&stages), before);
+    write_manifest(&package, "package.json", &original);
+    let native_path = package.join("program.native");
+    let native = fs::read(&native_path).unwrap();
+    let mut wrong_kind = native.clone();
+    wrong_kind[17] = 1;
+    fs::write(&native_path, &wrong_kind).unwrap();
+    let mut mismatched = original.clone();
+    let file = mismatched["files"]
+        .as_array_mut()
+        .unwrap()
+        .iter_mut()
+        .find(|file| file["role"] == "native_record")
+        .unwrap();
+    file["sha256"] = json!(sdk::digest(&wrong_kind));
+    write_manifest(&package, "package.json", &mismatched);
+    let error = ProgramSnapshot::open(&package, &stages, &sdk, Limits::default())
+        .err()
+        .unwrap();
+    assert!(matches!(
+        error.kind,
+        m::ErrorKind::Invalid {
+            field: "task record kind"
+        }
+    ));
+    assert_eq!(count(&stages), before);
+    fs::write(&native_path, native).unwrap();
+    write_manifest(&package, "package.json", &original);
+    let legacy = program(&dir, "legacy-copy", "fn main()->i64{return 42;}");
+    let legacy = ProgramSnapshot::open(&legacy, &stages, &sdk, Limits::default()).unwrap();
+    assert_eq!(legacy.manifest().version(), 1);
+    assert_eq!(legacy.manifest().profile(), m::Profile::Copy);
+}
+
+#[test]
+fn task_cross_target_request_refuses_before_package_publication() {
+    let dir = Dir::new();
+    let source = dir.0.join("task-cross.lang");
+    fs::write(&source, include_bytes!("../examples/scripts/tasks.lang")).unwrap();
+    let output = dir.0.join("must-not-publish");
+    let other = if cfg!(windows) {
+        "aarch64-apple-darwin"
+    } else {
+        "x86_64-pc-windows-msvc"
+    };
+    let rejected = Command::new(env!("CARGO_BIN_EXE_lang"))
+        .current_dir(&dir.0)
+        .arg("native")
+        .arg("--target")
+        .arg(other)
+        .arg("--output")
+        .arg(&output)
+        .arg(source)
+        .output()
+        .unwrap();
+    assert_eq!(rejected.status.code(), Some(1));
+    assert!(String::from_utf8_lossy(&rejected.stderr).contains("TaskTarget"));
+    assert!(!output.exists());
+}
+
+#[test]
 fn sdk_streamed_snapshot_is_independent_and_identity_refuses_before_staging() {
     let dir = Dir::new();
     let (root, stages) = sdk_fixture(&dir);

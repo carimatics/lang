@@ -88,7 +88,7 @@ fn task_layout_is_explicit_and_cleanup_keeps_only_typed_return_storage() {
 }
 
 #[test]
-fn task_artifacts_load_while_native_packages_still_refuse_before_effects() {
+fn task_artifacts_and_native_packages_admit_supported_tasks_only() {
     let source = "extern fn host(value:i64)->i64; async fn main()->i64{yield;return host(42);}";
     let proof = prepare(source);
     let mut allocator = allocator();
@@ -143,15 +143,15 @@ fn task_artifacts_load_while_native_packages_still_refuse_before_effects() {
             target_env = "msvc"
         )
     )) {
-        assert!(matches!(
+        assert!(
             lang::native::compile(
                 program,
                 &analysis.sources,
                 Default::default(),
                 lang_codegen_clif::Triple::host()
-            ),
-            Err(lang::native::Error::UnsupportedTaskProfile { .. })
-        ));
+            )
+            .is_ok()
+        );
     }
 }
 

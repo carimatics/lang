@@ -381,7 +381,7 @@ pub fn assemble(
         let digest: String = hash.finalize().iter().map(|b| format!("{b:02x}")).collect();
         files.push(json!({"role":asset.role,"path":destination,"bytes":size,"sha256":digest}));
     }
-    let bytes = serde_json::to_vec_pretty(&json!({"format":"lang-native-sdk","version":1,"build_id":sdk::build_id(&target),"target":target.to_string(),"rustc":{"release":sdk::RUSTC_RELEASE,"commit":sdk::RUSTC_COMMIT},"build_profile":sdk::BUILD_PROFILE,"feature_policy":sdk::FEATURE_POLICY,"files":files})).map_err(|error| Error::Json { line: 0, error })?;
+    let bytes = serde_json::to_vec_pretty(&json!({"format":"lang-native-sdk","version":2,"build_id":sdk::build_id(&target),"target":target.to_string(),"rustc":{"release":sdk::RUSTC_RELEASE,"commit":sdk::RUSTC_COMMIT},"build_profile":sdk::BUILD_PROFILE,"feature_policy":sdk::FEATURE_POLICY,"files":files})).map_err(|error| Error::Json { line: 0, error })?;
     bound(
         "SDK total bytes",
         total

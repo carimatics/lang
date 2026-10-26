@@ -111,6 +111,7 @@ Typed import grant checkpoint（2026-10-23 JST）: `cargo test --test component_
 - [RFC 0028: Task と component MIR の直列化（implemented）](docs/ja/rfcs/0028-task-component-artifacts.md)
 - [RFC 0029: Component adapter work と invocation 計量（implemented）](docs/ja/rfcs/0029-component-adapter-work.md)
 - [RFC 0030: Native task/component record（implemented）](docs/ja/rfcs/0030-native-task-component-records.md)
+- [RFC 0031: Installed native task package（accepted）](docs/ja/rfcs/0031-installed-native-task-packages.md)
 - [コントリビューションガイド](CONTRIBUTING.ja.md)
 
 ## 開発
@@ -142,13 +143,15 @@ cargo doc --workspace --no-deps
 
 `cargo run -- native --output PROGRAM SOURCE`は元object、portable意味論／native record、検証済plan、`bindings.rs`と必要な`main.rs`／`program.h`を公開します。通常Copy／owned startupは引数なしi64 entryを使い、C libraryは明示hostを要します。[Producer test](tests/native_compiler.rs)を参照してください。
 
+Task package checkpoint（2026-10-27 JST）: `lang native`がprogram manifest version 2/task・schema-5意味論・元LANGNAT-2 Task objectを選びます。SDK assemblyはmanifest version 2を出力し、task packageはこれを必要とします。旧version-1 copy/owned/C profileは維持します。初期task出力はhost targetだけで、component packageと実両host task startupはI08に残ります。最初のmacOSコピー済みSDK executableはCargoがPATHになくても42を返し、全検証は[実装Todo](docs/ja/milestone-3.md)で追跡します。
+
 ### Native package検証API
 
 `lang::native`は所有snapshot内で上限付きmanifest、path、hash、target／build／toolchain対応、意味論／native recordを検証します。Toolの使用中はsnapshotを不変に保ちます。Hashは完全性／対応の検査で、native入力は信頼対象です。[Package test](tests/native_packages.rs)を参照してください。
 
 ### Scoped native SDK runtime API
 
-Unsafeな`lang_codegen_clif::sdk::runtime::{execute_copy, execute_owned, with_c}`は元linked imageをbindし、起動時にsource compiler・JIT・guest interpreterを使いません。Ownedはallocator・Instance・control・失敗情報を保持し、Copyは同期・非計量でcontrolを拒否します。C context・callback・依存物は元bindingの生存期間内に保ちます。[Runtime](crates/codegen-clif/src/sdk/runtime.rs)と[RFC 0020](docs/ja/rfcs/0020-native-sdk-and-startup.md)を参照してください。
+Unsafeな`lang_codegen_clif::sdk::runtime::{execute_copy, execute_owned, execute_tasks, with_c}`は元linked imageをbindし、起動時にsource compiler・JIT・guest interpreterを使いません。Ownedはallocator/Instance/control/failureを保持し、task startupはcallerのallocator/Control/runner上限と元task cleanup/failureを保持します。Copyは同期/非計量でcontrol設定を拒否します。C context/callback/dependencyは元binding寿命に収めます。[runtime](crates/codegen-clif/src/sdk/runtime.rs)・[RFC 0020](docs/ja/rfcs/0020-native-sdk-and-startup.md)・[RFC 0031](docs/ja/rfcs/0031-installed-native-task-packages.md)を参照してください。
 
 ### Native SDK assembly
 

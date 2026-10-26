@@ -1,4 +1,4 @@
-//! RFC 0020 whole-source native package production. This module never executes
+//! RFC 0020/0031 whole-source native package production. This module never executes
 //! guest code, grants imports or treats native hashes as authentication.
 pub mod link;
 pub mod manifest;
@@ -25,6 +25,13 @@ pub enum Error {
     CopyCodegen(clif::program::Error),
     OwnedCodec(lang_bytecode::ownership::CodecError),
     OwnedCodegen(n::Error),
+    TaskArtifact(crate::artifact::CompileError),
+    TaskCodec(lang_bytecode::ownership::CodecError),
+    TaskCodegen(clif::tasks::Error),
+    TaskTarget {
+        requested: clif::Triple,
+        host: clif::Triple,
+    },
     CMetadata(abi::Error),
     CCodegen(n::CObjectError),
     Record(clif::native_record::Error),
@@ -187,9 +194,31 @@ pub fn compile(
     let mut header = None;
     let (semantic, record, profile, entry) = match program {
         Program::Tasks(p) => {
-            return Err(Error::UnsupportedTaskProfile {
-                span: p.feature_span(),
-            });
+            let host = clif::Triple::host();
+            if target != host {
+                return Err(Error::TaskTarget {
+                    requested: target,
+                    host,
+                });
+            }
+            let semantic =
+                crate::artifact::compile(Program::Tasks(p), sources, limits, Default::default())
+                    .map_err(Error::TaskArtifact)?;
+            let canonical = lang_bytecode::tasks::decode(&semantic, Default::default())
+                .map_err(Error::TaskCodec)?;
+            let entry = canonical.entry();
+            let object = clif::tasks::ObjectArtifact::emit_function(
+                canonical.proof(),
+                entry.ok_or(Error::TaskCodegen(clif::tasks::Error::Entry))?,
+                Default::default(),
+            )
+            .map_err(Error::TaskCodegen)?;
+            symbols.extend(object.metadata().map(|function| function.symbol.clone()));
+            let record = object
+                .into_recorded(Default::default())
+                .map_err(Error::TaskCodegen)?
+                .into_record();
+            (semantic, record, "task", entry)
         }
         Program::Copy(p) => {
             let code = frontend::compile_script(&p, sources, limits).map_err(Error::Entry)?;
@@ -355,7 +384,8 @@ pub fn compile(
         )?;
     }
     let files: Vec<_> = package.files.iter().map(|f| serde_json::json!({"role":f.role,"path":f.path,"bytes":f.bytes.len(),"sha256":sdk::digest(&f.bytes)})).collect();
-    let manifest = serde_json::to_vec_pretty(&serde_json::json!({"format":"lang-native-program","version":1,"build_id":build,"target":target.to_string(),"profile":profile,"entry":entry.map(|i|i.0),"files":files})).map_err(Error::Manifest)?;
+    let version = if profile == "task" { 2 } else { 1 };
+    let manifest = serde_json::to_vec_pretty(&serde_json::json!({"format":"lang-native-program","version":version,"build_id":build,"target":target.to_string(),"profile":profile,"entry":entry.map(|i|i.0),"files":files})).map_err(Error::Manifest)?;
     package.push("manifest", "package.json", manifest, 64 * 1024)?;
     Ok(package)
 }
@@ -419,7 +449,12 @@ fn bindings_source(
     Ok(out.text)
 }
 fn main_source(profile: &str) -> String {
-    let execute = if profile == "owned" {
+    let execute = if profile == "task" {
+        r#"
+let mut allocator=lang_runtime::allocation::Allocator::new(lang_runtime::allocation::System,Default::default()).map_err(|e|e.to_string())?;
+let value=unsafe{lang_codegen_clif::sdk::runtime::execute_tasks(input,&(),bindings::resolve,&mut allocator,lang_runtime::execution::Control::with_limits(Default::default()),Default::default(),Default::default())}.map_err(|e|e.to_string())?.value;
+"#
+    } else if profile == "owned" {
         r#"
 let mut allocator=lang_runtime::allocation::Allocator::new(lang_runtime::allocation::System,Default::default()).map_err(|e|e.to_string())?;
 let mut instance=lang_runtime::cleanup::Instance::default();

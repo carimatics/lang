@@ -281,6 +281,13 @@ impl ProgramSnapshot {
                 manifest.build_id().to_string(),
             ));
         }
+        if manifest.profile() == Profile::Task && sdk.manifest.version() != 2 {
+            return Err(mismatch(
+                "task SDK version",
+                "2",
+                sdk.manifest.version().to_string(),
+            ));
+        }
         let snapshot = Snapshot::new(parent)?;
         snapshot.copy(&source, manifest.files())?;
         snapshot.write("package.json", &bytes)?;
@@ -364,6 +371,21 @@ fn validate(
         record
             .prepare_copy(p.verified(), &[], Default::default())
             .map_err(|e| error("program.native", ErrorKind::CopyPlan(e)))?;
+    } else if manifest.profile() == Profile::Task {
+        let Kind::Task(recorded_entry) = record.kind() else {
+            return Err(invalid("task record kind"));
+        };
+        let p = lang_bytecode::tasks::decode(semantic, Default::default())
+            .map_err(|e| error("program.lbc", ErrorKind::TaskCodec(Box::new(e))))?;
+        if p.entry().map(|entry| entry.0) != manifest.entry()
+            || Some(recorded_entry.0) != manifest.entry()
+        {
+            return Err(invalid("task entry"));
+        }
+        lang_codegen_clif::tasks::RecordedObject::from_record(record)
+            .map_err(|e| error("program.native", ErrorKind::Record(e)))?
+            .prepare(p.proof(), Default::default())
+            .map_err(|e| error("program.native", ErrorKind::TaskPlan(Box::new(e))))?;
     } else {
         let p = lang_bytecode::ownership::decode(semantic, Default::default())
             .map_err(|e| error("program.lbc", ErrorKind::OwnedCodec(e)))?;

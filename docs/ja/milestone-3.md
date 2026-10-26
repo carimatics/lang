@@ -6,11 +6,15 @@
 
 更新日: **2026-10-27 JST**。開始チェックポイント: `984557d`。M2 とリポジトリレビューは完了済みです。
 
-**66 done · 1 doing · 8 todo · 24 remaining pt**
+**66 done · 1 doing · 9 todo · 24 remaining pt**
 
-**次: M3-I08 → installed task/component package・厳密なSDK startup。**
+**次: M3-I14 → installed task packageと厳密なSDK version 2起動。**
 
-I08選択scope（2026-10-27 JST）: 現compilerはnative package公開でProgram::Tasksを拒否し、program/SDK manifestはcopy/owned/C profileの厳密なversion 1、SDK runtimeはexecute_copy/execute_owned/with_cだけです。RFC 0030のrecord revisionはそれらの契約を改訂しません。まずpackage/SDK受入条件を明示決定し、次に厳密なコピー済みSDKを使うinstalled task fixtureをemit/linkして、consumer startupでCargo/repository/sourceへアクセスしないことを確認します。その後、明示component host binding/resource/callbackと両host startup証拠を揃えます。これらの残条件を監査し、I08だけを2 ptのdoingにし、新scope/見積り変更は加えません。最終実行/全checkpointは`8ba2c43`（**2026-10-27 01:59 JST検証**）です。利用可能なWindows host/runnerはなく、その不足証拠とpushしない方針を維持します。
+I14実行checkpoint（**2026-10-27 03:41 JST検証**、macOS AArch64）: [RFC 0031](rfcs/0031-installed-native-task-packages.md)でprogram version 2/taskとSDK version 2を受理し、旧version-1 copy/owned/C profileを維持します。compilerはcanonical schema-5意味論と元LANGNAT-2 Task objectを出力し、scoped SDK facadeは元allocator/Control/task上限と型付きfailureを保ちます。package/SDK versionの組合せ・entry/kind/target/file検査はtoolより先で、taskの別host target要求も公開前に拒否します。focused package/saved-SDK/task **11/2/12件**（1.46/4.19/0.08 s）が成功し、元live/total-task上限でadmit 2・fuel/preparation拒否・不正entry/work時のresolver 0回・正常再利用を確認しました。実copied-SDK link test（61.70 s）はcopy/owned/C/task/owned-taskを実行し、元source/package/SDK pathの消失後もtask 42・owned-task 71を返しました。拡張installation probeもCargoがPATHにない・Cargo状態が空・全リンク入力pathを削除した状態で5 profile成功ですが、isolated=falseです。guest前codec/plan診断だけをBox化してwarnings-denied workspace Clippyも成功し、実行failureは元の値を保ちます。下記の入力固定全baselineは成功しました。I14完了までに残る受入条件はcleanなcommit済みproducerの隔離/provenance検査です。全検証は本source checkpointで`8ba2c43`を更新し、I14は1 ptのdoing、純追加/再見積りなしです。installed component packageと実両host task/component startupはI08へ残します。
+
+I14全source検証（**2026-10-27 03:41 JST検証**、macOS AArch64）: **149 suites / 2,300 passed / 0 failed / 1 existing timing ignore**、suite-time合計 **815.73 s**、--no-fail-fast付きtest command時間幅 **1,692.03 s**。workspace/fuzz fmt・warnings-denied workspace Clippy（0.92 s、最終preflightも成功）・rustdoc（15.85 s）・全 **16** fuzz target check/Clippy（1.60/0.41 s）が成功し、campaignは実行していません。package/link/SDK/saved-runtime/task suiteは **11/6/5/2/12件**（1.46/60.67/16.12/4.64/0.12 s）成功です。**847入力 / 非Markdown 743入力**の前後hashが一致しました: main `c3f4f462d434d74c7489b2294a52e4761d8f149f8c0e7e670a86ca0224d39f66`、検証 `d45a331288c6348c213ff954c342ed6fb5cf80392e31490c3a836851af742e3e`。未変更Windows benchmarkのCRLF/LF差だけを正規化し、検証側の余分な入力はありません。preflightでmetadata Error sizeを検出し、guest前task codec/planエラーだけのBox化で既存のerror-size契約を保ち、task失敗後の割当てを追加していません。runtimeは元の構造化failureを保持します。commit済みproducerの隔離検査までI14はdoing、component/両host受入はI08/Bへ残します。codeには公開更新日記載がなく、RFC 0031/architectureは2026-10-27 JST更新です。
+
+I08見積り分解（2026-10-27 JST、installed task受入前）: 最終2 ptを観測可能な **I14 installed task package/SDK（1 pt、doing）** と **I08 installed component package・両host task/component startup（1 pt、todo）**へ分けます。I14の追加1 ptとI08の再見積り−1 ptで純 **0 pt**、消化なし、**76 rows / 66 done / 1 doing / 9 todo / 24 remaining pt**です。台帳 **110 + 91 − 177 = 24**、gate **3/15・18/96**を維持します。component package/SDK受理には実装前の後続決定が必要で、RFC 0031のtask限定revisionでI08完了条件を読み替えません。利用可能なWindows host/runnerはなく、pushもしません。
 
 I13実行checkpoint `8ba2c43`（**2026-10-27 01:59 JST検証**、macOS AArch64）: implementedの[RFC 0030](rfcs/0030-native-task-component-records.md)がrevision-1 bytesを保つ独立LANGNAT revision 2を定義します。切り離したrecordはproducer IRを保持しません。emitter/node準備を独立復元と共有し、記録済みcodeのbindingでISA検索・object出力・JITを使いません。別consumerが厳密なschema-5 task/component bytesと元リンクobjectをloadし、taskは42（admit 3 / live 0）、owned bufferは71、componentは42・panic −42・正常再利用を実行します。保存resource callbackは元TaskId/allocator/control/preparationでAOT→native→VM/JIT/AOTを実行し、backingの一度だけの退役・取消し・native destructor失敗/poisonを保ちます。failureの最終解放までnative ownerを保持し、guest/resource inventoryは全退役します。profile/entry/target/function集合/symbol/span/digest不一致とwork/storage/elementsの厳密値/1不足をbinding前に拒否し、旧全scopeと両target記述のframing互換性を維持します。framing 6件、focused scalar/scoped/saved **1/48/2件**（4.63/41.64/4.03 s）が成功しました。有界native record fuzz targetを追加しました（全16 target、campaign未実行）。下記の入力固定全baselineは成功しました。I13の限定した実装は完了し、完了直前見積りは2 pt、追加/再見積りなしです。installed SDK/両host startupはI08に残し、証拠/statusの照合を下記に記録します。
 
@@ -419,9 +423,10 @@ C04 は `f882074`（2026-10-22 02:05 JST）で完了しました。明示的で�
 | M3-L02 | done | 0 | M3-T08,M3-E03 | G12 | guest/host を跨ぐ再帰/frame/live-task 合算上限を適用 | `599d7ee` |
 | M3-L03 | todo | 3 | M3-E04,M3-T08,M3-I12 | G13 | VM/JIT/AOT と callback 境界で interruption を一貫して観測 | — |
 | M3-L04 | todo | 3 | M3-L01,M3-L02,M3-L03,M3-P02 | G11,G12,G13 | 敵対的な資源枯渇でも必須 cleanup を完了 | — |
-| M3-I08 | doing | 2 | M3-I07,M3-E04,M3-P02,M3-I13 | G08,G09,G14 | Emit/bind installed native task/component packages with exact SDK records and both-host startup evidence | — |
+| M3-I08 | todo | 1 | M3-I07,M3-E04,M3-P02,M3-I13,M3-I14 | G08,G09,G14 | Emit/bind installed component packages with exact SDK records and both-host task/component startup evidence | — |
 | M3-I12 | done | 0 | M3-I07,M3-E04,M3-P02 | G08,G09 | Emit/bind checked component objects and execute scalar/resource VM/JIT/AOT callbacks with original task authority | `47093ef` |
 | M3-I13 | done | 0 | M3-I07,M3-I12 | G08,G09,G14 | Persist/revalidate native task/component records and bind exact linked code without code generation | `8ba2c43` |
+| M3-I14 | doing | 1 | M3-I13,M3-T08 | G09,G14 | Publish/link installed task packages with exact SDK v2 and original control/cleanup | — |
 | M3-B01 | todo | 3 | M3-L04,M3-A04,M3-I08,M3-E01 | G14 | 両 tier-1 host で所有権/失敗/capability/資源適合試験に合格 | — |
 | M3-B02 | todo | 3 | M3-B01 | G14 | C embedding API と生成 binding を移行試験付きで安定化 | — |
 | M3-X01 | todo | 2 | M3-B02 | G15 | 権限を明示する trusted-native/verified-script の実行可能例を提供 | — |

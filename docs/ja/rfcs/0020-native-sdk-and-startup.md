@@ -7,12 +7,14 @@
 - Status: implemented
 - Authors: Codex, under the owner's experimental delegation
 - Created: 2026-10-20
-- Last updated: 2026-10-20
+- Last updated: 2026-10-27
 - Tracking issue: M2-P08, M2-P09, M2-P11, M2-P10, M2-P07, M2-P12, M2-P02
 - Supersedes: none; extends RFCs 0008/0011/0015/0017/0018/0019
 - Superseded by: none
 
 ## 現在の実装状態
+
+Task follow-up（2026-10-27 JST）: [RFC 0031](0031-installed-native-task-packages.md)はprogram version 2/taskとSDK version 2を別途受理します。本RFCのversion-1契約/証拠は維持し、task installed startup・component package・両host task/component実行はM3のI14/I08/B受入条件で追跡します。version 1へtaskを暗黙追加しません。
 
 2026-10-20 JSTに[M2 capabilityと検証根拠](../milestone-2-capabilities.md)と照合済みです。本RFCの範囲はimplementedであり、stabilizedではありません。以下の当初計画、decision時点の記述、日付付きcheckpointはrollout履歴として読みます。そこで別作業としていたnative／SDK／platformの現在状態は上記ガイドを参照してください。今回発見したRFC 0012の論理debugger検証不足は同ガイドの訂正で解消し、本RFCの非目標や規範的要求は変更しません。
 

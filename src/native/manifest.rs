@@ -93,6 +93,8 @@ pub enum ErrorKind {
     Capacity,
     CopyCodec(lang_bytecode::unit::CodecError),
     OwnedCodec(lang_bytecode::ownership::CodecError),
+    TaskCodec(Box<lang_bytecode::ownership::CodecError>),
+    TaskPlan(Box<lang_codegen_clif::tasks::Error>),
     Record(lang_codegen_clif::native_record::Error),
     CopyPlan(lang_codegen_clif::program::BindError),
     OwnedPlan(lang_codegen_clif::owned::RecordedError),
@@ -251,6 +253,7 @@ pub enum Profile {
     Copy,
     Owned,
     C,
+    Task,
 }
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Ord, PartialOrd)]
 #[serde(rename_all = "snake_case")]
@@ -367,6 +370,9 @@ struct RawProgram {
 #[derive(Debug)]
 pub struct Program(RawProgram);
 impl Program {
+    pub fn version(&self) -> u32 {
+        self.0.version
+    }
     pub fn target(&self) -> Target {
         self.0.target
     }
@@ -407,6 +413,9 @@ struct RawSdk {
 #[derive(Debug)]
 pub struct Sdk(RawSdk);
 impl Sdk {
+    pub fn version(&self) -> u32 {
+        self.0.version
+    }
     pub fn target(&self) -> Target {
         self.0.target
     }
@@ -524,8 +533,11 @@ fn common(
 }
 pub fn parse_program(bytes: &[u8], limits: Limits) -> Result<Program, Error> {
     let p: RawProgram = parse(bytes, limits.program_manifest, limits.depth)?;
-    if p.format.0 != "lang-native-program" || p.version != 1 {
+    if p.format.0 != "lang-native-program" || !matches!(p.version, 1 | 2) {
         return Err(invalid("program format/version"));
+    }
+    if (p.version == 2) != (p.profile == Profile::Task) {
+        return Err(invalid("program version/profile"));
     }
     let roles = common(&p.files.0, false, p.target, limits, bytes.len())?;
     let required = [
@@ -549,7 +561,7 @@ pub fn parse_program(bytes: &[u8], limits: Limits) -> Result<Program, Error> {
 }
 pub fn parse_sdk(bytes: &[u8], limits: Limits) -> Result<Sdk, Error> {
     let s: RawSdk = parse(bytes, limits.sdk_manifest, limits.depth)?;
-    if s.format.0 != "lang-native-sdk" || s.version != 1 {
+    if s.format.0 != "lang-native-sdk" || !matches!(s.version, 1 | 2) {
         return Err(invalid("SDK format/version"));
     }
     if !matches!(s.build_profile.0.as_str(), "debug" | "release") {

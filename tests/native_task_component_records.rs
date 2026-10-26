@@ -315,6 +315,35 @@ fn main(){{
     let outcome=linked.execute(&mut allocator,e::Control::with_limits(Default::default()),Default::default()).unwrap();
     assert_eq!(outcome.value,expected);if index==0{{assert_eq!(outcome.tasks.admitted,3);}}assert_eq!(outcome.tasks.live,0);
     assert_eq!(allocator.stats().live_allocations,0);
+    let args:Vec<_>=std::env::args_os().skip(1).collect();
+    let native=std::fs::read(&args[index*3+1]).unwrap();
+    let target=lang_codegen_clif::Triple::host().to_string();
+    let build=lang_codegen_clif::sdk::build_id(&lang_codegen_clif::Triple::host());
+    let input=lang_codegen_clif::sdk::runtime::Input{{target:&target,build_id:&build,semantic:&semantic,native:&native}};
+    let mut sdk_allocator=a::Allocator::new(a::System,Default::default()).unwrap();
+    // SAFETY: the exact compared original objects are linked for process life.
+    let failure=unsafe{{lang_codegen_clif::sdk::runtime::execute_tasks(input,&(),|_,name|resolve(name).and_then(|p|std::ptr::NonNull::new(p.cast_mut().cast())),&mut sdk_allocator,e::Control::with_limits(e::Limits{{fuel:Some(0),..Default::default()}}),Default::default(),Default::default())}}.err().unwrap();
+    assert!(matches!(failure.kind,lang_codegen_clif::sdk::runtime::ErrorKind::TaskRun(ref failure) if matches!(failure.reason,r::Reason::Control(_)) && failure.tasks.live==0 && !failure.poisoned));
+    assert_eq!(sdk_allocator.stats().live_allocations,0);
+    if index==0{{
+        for (tasks,expected_error) in [(lang_runtime::task::Limits{{live_tasks:2,total_tasks:3}},lang_runtime::task::Error::LiveTaskLimit{{limit:2}}),(lang_runtime::task::Limits{{live_tasks:3,total_tasks:2}},lang_runtime::task::Error::TotalTaskLimit{{limit:2}})]{{
+            // SAFETY: same statically linked exact image and original allocator.
+            let failure=unsafe{{lang_codegen_clif::sdk::runtime::execute_tasks(input,&(),|_,name|resolve(name).and_then(|p|std::ptr::NonNull::new(p.cast_mut().cast())),&mut sdk_allocator,e::Control::with_limits(Default::default()),r::Limits{{tasks,..Default::default()}},Default::default())}}.err().unwrap();
+            assert!(matches!(failure.kind,lang_codegen_clif::sdk::runtime::ErrorKind::TaskRun(ref failure) if matches!(failure.reason.primary_cause(),r::Reason::Schedule(error) if *error==expected_error) && failure.tasks.admitted==2 && failure.tasks.live==0 && !failure.poisoned));
+            assert_eq!(sdk_allocator.stats().live_allocations,0);
+        }}
+    }}
+    let calls=std::cell::Cell::new(0);
+    // SAFETY: malformed metadata/configuration must refuse before this resolver.
+    let refused=unsafe{{lang_codegen_clif::sdk::runtime::execute_tasks(input,&(),|_,_|{{calls.set(calls.get()+1);None}},&mut sdk_allocator,e::Control::with_limits(Default::default()),Default::default(),lang_codegen_clif::sdk::runtime::Limits{{plans:lang_mir::unit::Limits{{work:0,..Default::default()}},..Default::default()}})}}.err().unwrap();
+    assert!(matches!(refused.kind,lang_codegen_clif::sdk::runtime::ErrorKind::TaskPlan(_)));assert_eq!(calls.get(),0);
+    let mut bad=native.clone();bad[18..22].copy_from_slice(&u32::MAX.to_le_bytes());
+    // SAFETY: invalid entry must refuse before any code resolution/effects.
+    let refused=unsafe{{lang_codegen_clif::sdk::runtime::execute_tasks(lang_codegen_clif::sdk::runtime::Input{{native:&bad,..input}},&(),|_,_|{{calls.set(calls.get()+1);None}},&mut sdk_allocator,e::Control::with_limits(Default::default()),Default::default(),Default::default())}}.err().unwrap();
+    assert!(matches!(refused.kind,lang_codegen_clif::sdk::runtime::ErrorKind::Entry));assert_eq!(calls.get(),0);
+    // SAFETY: a fresh scoped call reuses the same caller allocator after refusal.
+    let outcome=unsafe{{lang_codegen_clif::sdk::runtime::execute_tasks(input,&(),|_,name|resolve(name).and_then(|p|std::ptr::NonNull::new(p.cast_mut().cast())),&mut sdk_allocator,e::Control::with_limits(Default::default()),Default::default(),Default::default())}}.unwrap();
+    assert_eq!(outcome.value,expected);assert_eq!(outcome.tasks.live,0);assert_eq!(sdk_allocator.stats().live_allocations,0);
     }}
     let (semantic,record)=load(1);
     fixture::with_artifact(&semantic,move|program,session,entry|{{

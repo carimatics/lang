@@ -1,4 +1,4 @@
-//! Scoped RFC 0020 consumption of original native code and bounded records.
+//! Scoped RFC 0020/0031 consumption of original native code and bounded records.
 //! No source analysis, backend emission, executable allocation or interpretation.
 #![allow(
     clippy::result_large_err,
@@ -34,6 +34,7 @@ impl fmt::Debug for Input<'_> {
 pub struct Limits {
     pub copy: lang_bytecode::unit::CodecLimits,
     pub owned: lang_bytecode::ownership::CodecLimits,
+    pub tasks: lang_bytecode::tasks::CodecLimits,
     pub record: native_record::Limits,
     pub plans: m::Limits,
     pub cells: usize,
@@ -43,6 +44,7 @@ impl Default for Limits {
         Self {
             copy: Default::default(),
             owned: Default::default(),
+            tasks: Default::default(),
             record: Default::default(),
             plans: Default::default(),
             cells: 4096,
@@ -66,6 +68,10 @@ pub enum ErrorKind {
     UnsupportedCopyControls,
     CopyCodec(lang_bytecode::unit::CodecError),
     OwnedCodec(lang_bytecode::ownership::CodecError),
+    TaskCodec(lang_bytecode::ownership::CodecError),
+    TaskPlan(crate::tasks::Error),
+    TaskBinding(crate::tasks::Error),
+    TaskRun(lang_runtime::task::runner::Failure),
     Record(native_record::Error),
     CopyBinding(program::BindError),
     CopyInvoke(program::InvokeError),
@@ -228,6 +234,46 @@ pub unsafe fn execute_owned<'a, Image, P: a::Provider>(
         .map_err(|e| input.error(ErrorKind::OwnedBinding(e)))?;
     owned::runtime::execute_entry(&code, entry, instance, allocator, config)
         .map_err(|e| input.error(ErrorKind::OwnedEntry(e)))
+}
+
+/// Execute an original task entry with the caller's allocator and controls.
+/// # Safety
+/// Image/resolver must retain the exact original task object and its matching
+/// compiler/SDK ABI for this host through the complete call and cleanup.
+pub unsafe fn execute_tasks<'a, Image, P: a::Provider>(
+    input: Input<'a>,
+    image: &Image,
+    mut resolve: impl FnMut(&Image, &str) -> Option<NonNull<c_void>>,
+    allocator: &mut a::Allocator<P>,
+    control: e::Control<'_>,
+    execution: lang_runtime::task::runner::Limits,
+    limits: Limits,
+) -> Result<lang_runtime::task::runner::Outcome, Failure<'a>> {
+    let target = input.check()?;
+    let record = input.record(&target, limits)?;
+    let Kind::Task(recorded_entry) = record.kind() else {
+        return Err(input.error(ErrorKind::Profile));
+    };
+    let program = lang_bytecode::tasks::decode(input.semantic, limits.tasks)
+        .map_err(|e| input.error(ErrorKind::TaskCodec(e)))?;
+    if program.entry() != Some(recorded_entry) {
+        return Err(input.error(ErrorKind::Entry));
+    }
+    let object = crate::tasks::RecordedObject::from_record(record)
+        .map_err(|e| input.error(ErrorKind::Record(e)))?
+        .prepare(program.proof(), limits.plans)
+        .map_err(|e| input.error(ErrorKind::TaskPlan(e)))?;
+    // SAFETY: the caller supplies this exact original statically linked image.
+    let code = unsafe {
+        object.bind(
+            image,
+            |owner, name| resolve(*owner, name).map(|p| p.as_ptr().cast_const().cast()),
+            limits.plans,
+        )
+    }
+    .map_err(|e| input.error(ErrorKind::TaskBinding(e)))?;
+    code.execute(allocator, control, execution)
+        .map_err(|e| input.error(ErrorKind::TaskRun(e)))
 }
 
 /// Bind original C exports only while the explicit host closure runs.

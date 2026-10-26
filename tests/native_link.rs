@@ -474,15 +474,51 @@ fn public_link_native_runs_all_profiles_without_source_or_installed_sdk_at_start
     );
     let c = fs::read_to_string(sdk_root.join("startup/c-guest.lang")).unwrap();
     let mut executables = Vec::new();
-    for (name, text) in [
+    for (name, text, expected) in [
         (
             "copy",
             "fn first()->i64{return 7;} fn main()->i64{return 42;}",
+            "42",
         ),
-        ("owned", include_str!("../docs/experiments/sdk-owned.lang")),
-        ("c", c.as_str()),
+        (
+            "owned",
+            include_str!("../docs/experiments/sdk-owned.lang"),
+            "42",
+        ),
+        ("c", c.as_str(), ""),
+        ("task", include_str!("../examples/scripts/tasks.lang"), "42"),
+        (
+            "task-owned",
+            include_str!("fixtures/task_owned_buffers.lang"),
+            "71",
+        ),
     ] {
         let package = program(&compiler, &dir, name, text);
+        if name == "task" {
+            let manifest_path = sdk_root.join("sdk.json");
+            let original = fs::read(&manifest_path).unwrap();
+            let mut legacy: serde_json::Value = serde_json::from_slice(&original).unwrap();
+            assert_eq!(legacy["version"], 2);
+            legacy["version"] = serde_json::json!(1);
+            fs::write(&manifest_path, serde_json::to_vec(&legacy).unwrap()).unwrap();
+            let denied_output = dir.0.join("task-with-legacy-sdk");
+            let denied = Command::new(&compiler)
+                .current_dir(&dir.0)
+                .arg("link-native")
+                .arg("--sdk")
+                .arg(&sdk_root)
+                .arg("--package")
+                .arg(&package)
+                .arg("--output")
+                .arg(&denied_output)
+                .env("RUSTC", dir.0.join("must-not-start"))
+                .output()
+                .unwrap();
+            assert_eq!(denied.status.code(), Some(1));
+            assert!(String::from_utf8_lossy(&denied.stderr).contains("task SDK version"));
+            assert!(!denied_output.exists());
+            fs::write(&manifest_path, original).unwrap();
+        }
         let executable = dir.0.join(format!(
             "{name}-application{}",
             std::env::consts::EXE_SUFFIX
@@ -523,15 +559,12 @@ fn public_link_native_runs_all_profiles_without_source_or_installed_sdk_at_start
         }
         ok(link.output().unwrap());
         fs::rename(&package, dir.0.join(format!("{name}-package-away"))).unwrap();
-        executables.push((name, executable));
+        executables.push((name, expected, executable));
     }
     fs::rename(&sdk_root, dir.0.join("sdk-away")).unwrap();
-    for (name, path) in executables {
+    for (_name, expected, path) in executables {
         let output = ok(Command::new(path).current_dir(&dir.0).output().unwrap());
-        assert_eq!(
-            String::from_utf8_lossy(&output.stdout).trim(),
-            if name == "c" { "" } else { "42" }
-        );
+        assert_eq!(String::from_utf8_lossy(&output.stdout).trim(), expected);
     }
     no_stages(&dir);
 }

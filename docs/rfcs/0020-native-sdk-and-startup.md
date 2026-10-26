@@ -7,12 +7,14 @@
 - Status: implemented
 - Authors: Codex, under the owner's experimental delegation
 - Created: 2026-10-20
-- Last updated: 2026-10-20
+- Last updated: 2026-10-27
 - Tracking issue: M2-P08, M2-P09, M2-P11, M2-P10, M2-P07, M2-P12, M2-P02
 - Supersedes: none; extends RFCs 0008/0011/0015/0017/0018/0019
 - Superseded by: none
 
 ## Current implementation status
+
+Task follow-up (2026-10-27 JST): [RFC 0031](0031-installed-native-task-packages.md) separately accepts program version 2/task and SDK version 2. This RFC's version-1 contracts/evidence remain intact; task installed startup, component packages and both-host task/component execution are tracked by M3-I14/I08/B acceptance. Do not silently add tasks to version 1.
 
 Reconciled on 2026-10-20 JST against [M2 capabilities and evidence](../milestone-2-capabilities.md). This RFC's scope is implemented, not stabilized. Read the original plan, decision-time statements and dated checkpoints below as rollout history. The guide records current native/SDK/platform work that those checkpoints treated as separate deliveries. Its review correction explicitly resolves the discovered RFC 0012 logical-debugger evidence gap; this reconciliation changes no normative requirement or non-goal of this RFC.
 

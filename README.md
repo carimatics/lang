@@ -111,6 +111,7 @@ The rationale and unresolved tradeoffs are documented in [the architecture basel
 - [RFC 0028: Serialized task and component MIR (implemented)](docs/rfcs/0028-task-component-artifacts.md)
 - [RFC 0029: Component adapter work and invocation metering (implemented)](docs/rfcs/0029-component-adapter-work.md)
 - [RFC 0030: Native task and component records (implemented)](docs/rfcs/0030-native-task-component-records.md)
+- [RFC 0031: Installed native task packages (accepted)](docs/rfcs/0031-installed-native-task-packages.md)
 - [Contribution guide](CONTRIBUTING.md)
 
 ## Development
@@ -142,13 +143,15 @@ cargo doc --workspace --no-deps
 
 `cargo run -- native --output PROGRAM SOURCE` publishes the original object, portable semantic/native records, checked plans, `bindings.rs` and applicable `main.rs`/`program.h`. Ordinary Copy/owned startup uses a zero-argument i64 entry; C libraries need an explicit host. See [producer tests](tests/native_compiler.rs).
 
+Task package checkpoint (2026-10-27 JST): `lang native` selects program manifest version 2/task, schema-5 semantics and the original LANGNAT-2 Task object. SDK assembly emits manifest version 2; task packages require it. Legacy version-1 copy/owned/C profiles remain supported. Initial task production is host-target only; component packages and actual both-host task startup remain I08 acceptance. The first copied-SDK macOS task executable prints 42 without Cargo on PATH; full validation is tracked on the [delivery board](docs/milestone-3.md).
+
 ### Native package verification API
 
 `lang::native` verifies bounded manifests, paths, hashes, target/build/toolchain pairing and semantic/native records in owned snapshots. Keep snapshots unchanged while tools consume them. Hashes check integrity/pairing; native inputs remain trusted. See [package tests](tests/native_packages.rs).
 
 ### Scoped native SDK runtime API
 
-Unsafe `lang_codegen_clif::sdk::runtime::{execute_copy, execute_owned, with_c}` binds the original linked image with no source compiler, JIT or guest interpreter at startup. Owned retains the allocator, Instance, controls and failures; Copy is synchronous/unmetered and refuses controls. C contexts/callbacks/dependencies stay within the original binding lifetime. See [runtime](crates/codegen-clif/src/sdk/runtime.rs) and [RFC 0020](docs/rfcs/0020-native-sdk-and-startup.md).
+Unsafe `lang_codegen_clif::sdk::runtime::{execute_copy, execute_owned, execute_tasks, with_c}` binds the original linked image with no source compiler, JIT or guest interpreter at startup. Owned retains the allocator, Instance, controls and failures; task startup retains the caller's allocator/Control/runner limits and original task cleanup/failures. Copy is synchronous/unmetered and refuses controls. C contexts/callbacks/dependencies stay within the original binding lifetime. See [runtime](crates/codegen-clif/src/sdk/runtime.rs), [RFC 0020](docs/rfcs/0020-native-sdk-and-startup.md) and [RFC 0031](docs/rfcs/0031-installed-native-task-packages.md).
 
 ### Native SDK assembly
 
