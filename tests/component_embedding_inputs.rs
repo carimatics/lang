@@ -575,6 +575,39 @@ fn native_c_host_loads_snapshots_and_repeats_generated_typed_calls_on_vm_and_jit
         Default::default(),
     )
     .unwrap();
+    let fail_document = idl::check(m::SourceId(1), &native_idl, Default::default()).unwrap();
+    let fail_guest = g::guest(&fail_document, Default::default()).unwrap();
+    let native_fail_source = format!(
+        "{}\n{} {{let mut value: i64 = {}(41); if p0 < 0 {{return trace_panic(p0, true, true);}} if p0 < 42 {{return trace_fail(value, true, true);}} return value;}}\nfn trace_fail(value: i64, again: bool, next: bool) -> i64 {{if again {{return trace_fail(value, next, false);}} return trace_fail(value, true, true);}}\nfn trace_panic(value: i64, again: bool, next: bool) -> i64 {{if again {{return trace_panic(value, next, false);}} return core::panic::<i64>(value);}}",
+        fail_guest.declarations,
+        fail_guest.exports[0].declaration,
+        fail_guest.bindings.imports[0].source,
+    );
+    let fail_analysis = f::analyze(f::Request {
+        sources: SourceMap::new(),
+        display: Path::new("component-guest-failure.lang"),
+        bytes: native_fail_source.as_bytes(),
+        root: None,
+        compile: Default::default(),
+        document: fail_document,
+        bindings: fail_guest.bindings,
+        limits: Default::default(),
+    });
+    assert!(
+        fail_analysis.diagnostics.is_empty(),
+        "{:?}",
+        fail_analysis.diagnostics
+    );
+    let native_fail_artifact = lang::artifact::component::encode(
+        fail_analysis.result.unwrap(),
+        m::Source {
+            path: "component-idl.json".into(),
+            text: std::str::from_utf8(&native_idl).unwrap().into(),
+        },
+        None,
+        Default::default(),
+    )
+    .unwrap();
     host_json["imports"] = script_json["imports"].clone();
     let grant_json = serde_json::to_vec(&host_json).unwrap();
     let grant = wire::Contract::new(
@@ -903,6 +936,8 @@ fn native_c_host_loads_snapshots_and_repeats_generated_typed_calls_on_vm_and_jit
         + &array("native_stack_artifact", &native_stack_artifact)
         + &array("native_long_source", native_long_source.as_bytes())
         + &array("native_long_artifact", &native_long_artifact)
+        + &array("native_fail_source", native_fail_source.as_bytes())
+        + &array("native_fail_artifact", &native_fail_artifact)
         + &array("native_grant", &native_grant)
         + &array("resource_host_contract", &resource_host_contract)
         + &array("resource_method_signature", &resource_method_signature)
@@ -1287,11 +1322,13 @@ uint32_t fixture(void) {{
     let driver = files.0.join("driver.rs");
     let registry_provider_digest: [u8; 32] =
         <sha2::Sha256 as sha2::Digest>::digest(&native_contract).into();
-    let registry_stack_digests: [[u8; 32]; 4] = [
+    let registry_stack_digests: [[u8; 32]; 6] = [
         <sha2::Sha256 as sha2::Digest>::digest(native_stack_source.as_bytes()).into(),
         <sha2::Sha256 as sha2::Digest>::digest(&native_stack_artifact).into(),
         <sha2::Sha256 as sha2::Digest>::digest(native_long_source.as_bytes()).into(),
         <sha2::Sha256 as sha2::Digest>::digest(&native_long_artifact).into(),
+        <sha2::Sha256 as sha2::Digest>::digest(native_fail_source.as_bytes()).into(),
+        <sha2::Sha256 as sha2::Digest>::digest(&native_fail_artifact).into(),
     ];
     let resource_provider_digest: [u8; 32] =
         <sha2::Sha256 as sha2::Digest>::digest(&resource_host_contract).into();
@@ -1301,8 +1338,8 @@ uint32_t fixture(void) {{
     ];
     let driver_source = include_str!("support/component_input_host.rs")
         .replace(
-            "const REGISTRY_STACK_DIGESTS: [[u8; 32]; 4] = [[0; 32]; 4];",
-            &format!("const REGISTRY_STACK_DIGESTS: [[u8; 32]; 4] = {registry_stack_digests:?};"),
+            "const REGISTRY_STACK_DIGESTS: [[u8; 32]; 6] = [[0; 32]; 6];",
+            &format!("const REGISTRY_STACK_DIGESTS: [[u8; 32]; 6] = {registry_stack_digests:?};"),
         )
         .replace(
             "const REGISTRY_PROVIDER_DIGEST: [u8; 32] = [0; 32];",

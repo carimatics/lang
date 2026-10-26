@@ -10,7 +10,7 @@ use lang_runtime::{
 use std::{ffi::c_void, ptr};
 const RESOURCE_PROVIDER_DIGEST: [u8; 32] = [0; 32];
 const REGISTRY_PROVIDER_DIGEST: [u8; 32] = [0; 32];
-const REGISTRY_STACK_DIGESTS: [[u8; 32]; 4] = [[0; 32]; 4];
+const REGISTRY_STACK_DIGESTS: [[u8; 32]; 6] = [[0; 32]; 6];
 const RESOURCE_RUN_MEMBER: u32 = 0;
 thread_local! { static CALLBACK_SNAPSHOT_WORK: std::cell::Cell<u64> = const { std::cell::Cell::new(0) }; }
 #[unsafe(no_mangle)]
@@ -541,6 +541,37 @@ unsafe extern "C" fn probe_report(bytes: ffi::Bytes, mode: u32, case: u32) -> u3
         }
         assert!(report.frames.is_empty());
         assert_eq!(report.omitted, 0);
+        return 0;
+    }
+    if (60..=64).contains(&case) {
+        assert!(!report.poisoned && report.suppressed.is_empty());
+        assert_eq!(report.primary.phase,wire::Phase::Call);
+        if case==63 {
+            assert_eq!(report.primary.category,wire::Category::Panic);
+            assert!(report.primary.limit.is_none());
+        } else {
+            assert_eq!(report.primary.category,wire::Category::Limit);
+            assert_eq!(report.primary.limit,Some(wire::LimitDetail {
+            kind:wire::ReportLimitKind::Frames,
+            limit:if case==62 {72}else{4},attempted:if case==62 {73}else{5},
+            }));
+        }
+        let origin=report.primary.origin.as_ref().unwrap();
+        assert_eq!(origin.mode,if mode==1 {wire::Mode::Jit}else{wire::Mode::Vm});
+        assert!(REGISTRY_STACK_DIGESTS.contains(&origin.digest));
+        assert_eq!(origin.member, if case==63 {2}else{1});
+        assert_eq!(report.frames.len(), if case==60||case==63 {4} else if case==61 {2} else if case==64 {0} else {64});
+        assert_eq!(report.omitted, if case==60||case==63 {0} else if case==61 {2} else if case==64 {4} else {8});
+        for (i,frame) in report.frames.iter().enumerate() {
+            assert_eq!((frame.mode,frame.digest),(origin.mode,origin.digest));
+            assert_eq!(frame.member,if i==0 {0}else{origin.member});
+            assert!(frame.span.is_some());
+        }
+        if case==60||case==63 {
+            assert_eq!(report.frames[1],report.frames[2]);
+            assert_eq!(&report.frames[3],origin);
+        }
+        assert_eq!(report.usage.host_calls,1);
         return 0;
     }
     if matches!(case, 57 | 58 | 59) {

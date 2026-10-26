@@ -545,10 +545,19 @@ fn project_failure(
             if failure.context_frame().is_some_and(|original| original.same_activation(native_frame))
     );
     let mut frames = Vec::new();
+    let caller_trace = native_frame
+        .filter(|native| !native.callers().is_empty())
+        .map(|native| (native.callers(), native.omitted_callers()))
+        .or_else(|| {
+            failure
+                .callers
+                .as_ref()
+                .map(|callers| (callers.frames.as_slice(), callers.omitted))
+        });
     let mut omitted_frames = if repeated {
         0
     } else {
-        native_frame.map_or(0, execution::NativeCallFrame::omitted_callers)
+        caller_trace.map_or(0, |(_, omitted)| omitted)
     };
     if !repeated {
         let mut push = |frame: wire::Frame| {
@@ -558,8 +567,8 @@ fn project_failure(
                 omitted_frames = omitted_frames.saturating_add(1);
             }
         };
-        if let Some(native) = native_frame.filter(|native| !native.callers().is_empty()) {
-            for caller in native.callers() {
+        if let Some((callers, _)) = caller_trace {
+            for caller in callers {
                 push(wire::Frame {
                     member: caller.function.0,
                     span: Some(caller.span),
@@ -1834,6 +1843,7 @@ pub unsafe extern "C" fn call(
                                 .functions()[binding.entry.0 as usize]
                                 .signature_span,
                         ),
+                        callers: None,
                         usage: e::Usage {
                             service_work,
                             ..Default::default()

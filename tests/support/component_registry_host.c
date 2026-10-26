@@ -34,6 +34,11 @@ static uint32_t registry_report_case(uint32_t profile) {
     if(profile==27)return 57;
     if(profile==28)return 58;
     if(profile==29)return 59;
+    if(profile==30)return 60;
+    if(profile==31)return 61;
+    if(profile==32)return 62;
+    if(profile==33)return 63;
+    if(profile==34)return 64;
     return 11u+((profile-10u)&1u);
 }
 static uint32_t registry_poisoned_profile(uint32_t profile) {
@@ -97,7 +102,7 @@ static uint32_t registry_invoke(void *user,const lang_component_v1_context *cont
             owner->retained=child.result;return 1;
         }
         if(owner->profile==4)return probe_native_failure_report(context,output,0);
-        if(owner->profile==14)goto encode_result;
+        if(owner->profile==14||(owner->profile>=30&&owner->profile<=34))goto encode_result;
         if(owner->profile==15)return probe_native_failure_report(context,output,3);
         if(owner->profile==16){if(owner->calls==1)return probe_native_failure_report(context,output,2);goto encode_result;}
         if(owner->profile==9) {
@@ -229,8 +234,8 @@ static void registry_profile(const lang_component_v1_api *api,const lang_compone
     uint8_t *metadata=registry_copy(native_contract,sizeof(native_contract));
     uint8_t *key=registry_copy(native_key,sizeof(native_key));
     uint8_t *grant_copy=registry_copy(native_grant,sizeof(native_grant));
-    const uint8_t *selected_program=profile==29?(format?native_long_artifact:native_long_source):profile>=27?(format?native_stack_artifact:native_stack_source):(format?native_artifact:native_source);
-    size_t selected_length=profile==29?(format?sizeof(native_long_artifact):sizeof(native_long_source)):profile>=27?(format?sizeof(native_stack_artifact):sizeof(native_stack_source)):(format?sizeof(native_artifact):sizeof(native_source));
+    const uint8_t *selected_program=profile>=30?(format?native_fail_artifact:native_fail_source):profile==29?(format?native_long_artifact:native_long_source):profile>=27?(format?native_stack_artifact:native_stack_source):(format?native_artifact:native_source);
+    size_t selected_length=profile>=30?(format?sizeof(native_fail_artifact):sizeof(native_fail_source)):profile==29?(format?sizeof(native_long_artifact):sizeof(native_long_source)):profile>=27?(format?sizeof(native_stack_artifact):sizeof(native_stack_source)):(format?sizeof(native_artifact):sizeof(native_source));
     uint8_t *program=registry_copy(selected_program,selected_length);
     uint8_t *idl_copy=format?NULL:registry_copy(native_idl,sizeof(native_idl));
     lang_component_v1_bytes program_bytes={program,selected_length};
@@ -241,6 +246,10 @@ static void registry_profile(const lang_component_v1_api *api,const lang_compone
     if(profile==27)config.ceiling.trace_frames=8;
     if(profile==28)config.ceiling.trace_frames=3;
     if(profile==29){config.ceiling.trace_frames=64;config.ceiling.frames=128;config.ceiling.live_allocations=4096;config.ceiling.heap_bytes=4194304;}
+    if(profile==30)config.ceiling.frames=4;
+    if(profile==31){config.ceiling.frames=4;config.ceiling.trace_frames=2;}
+    if(profile==32){config.ceiling.frames=72;config.ceiling.trace_frames=64;config.ceiling.live_allocations=4096;config.ceiling.heap_bytes=4194304;}
+    if(profile==34){config.ceiling.frames=4;config.ceiling.trace_frames=0;}
     if(profile>=10&&profile<14) {
         if((profile&1u)==0)config.ceiling.frames=1;
         else config.ceiling.live_cells=5;
@@ -332,6 +341,8 @@ static void registry_profile(const lang_component_v1_api *api,const lang_compone
         @ROOT_ARGUMENTS@ arguments={0};@ROOT_RESULT@ result=0;
         lc_value_writer writer={0};lc_value_reader reader={0};lang_component_v1_bytes bytes;
         uint8_t scratch[1024];arguments.p0=41;
+        if(profile>=30&&i==1)arguments.p0=42;
+        if(profile==33&&i==0)arguments.p0=-7;
         {lang_component_v1_limits limits=config.ceiling;
          if(profile==14&&i==0)limits.host_calls=0;
          assert(api->control_create(engine,&limits,&control,&error)==0);}
@@ -413,5 +424,5 @@ static void registry_profile(const lang_component_v1_api *api,const lang_compone
     assert(api->engine_destroy(engine,&error)==0);
 }
 static void registry_case(const lang_component_v1_api *api,const lang_component_v1_config *config,uint32_t format) {
-    uint32_t profile;for(profile=0;profile<30;++profile)registry_profile(api,config,format,profile);
+    uint32_t profile;for(profile=0;profile<35;++profile)registry_profile(api,config,format,profile);
 }

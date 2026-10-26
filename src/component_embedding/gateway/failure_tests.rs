@@ -719,6 +719,7 @@ fn composite(panic: bool, capacity: usize) -> r::Failure {
         },
         function: Some(m::FunctionId(7)),
         span: Some(span),
+        callers: None,
         usage: e::Usage {
             fuel: 37,
             service_work: 9,

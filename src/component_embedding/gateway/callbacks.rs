@@ -118,6 +118,7 @@ impl execution::CallbackOperation for Call<'_, '_> {
             let failure = Rc::new(r::Failure {
                 function: first.function,
                 span: first.span,
+                callers: None,
                 usage,
                 tasks,
                 events: vec![],
@@ -172,6 +173,7 @@ impl execution::CallbackOperation for Call<'_, '_> {
                 reason: r::Reason::Native(execution::NativeFailure::Latched(latched)),
                 function: None,
                 span: None,
+                callers: None,
                 usage,
                 tasks,
                 events: vec![],
@@ -203,6 +205,7 @@ impl execution::CallbackOperation for Call<'_, '_> {
                     target.module.unit().code().declarations().functions()[self.entry.0 as usize]
                         .signature_span,
                 ),
+                callers: None,
                 usage,
                 tasks,
                 events: vec![],

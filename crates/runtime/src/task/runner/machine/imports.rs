@@ -3,6 +3,28 @@ use super::*;
 use crate::component::execution::{self, ReadRoot};
 
 impl<P: a::Provider> Machine<'_, '_, '_, '_, '_, P> {
+    pub(super) fn capture_callers(
+        &mut self,
+        task: usize,
+        span: m::Span,
+    ) -> Option<execution::GuestCallFrames> {
+        let activation = self.frame(task).ok()?.activation;
+        let logical = self.records.get(task)?.id.clone();
+        let (total, ancestors) = caller_count(&self.records, task).ok()?;
+        if ancestors != self.records[task].trace_depth {
+            return None;
+        }
+        let frames = std::mem::take(&mut self.records[task].callers.frames);
+        let mut callers =
+            write_guest_callers(&self.records, self.proof, task, &logical, total, frames).ok()?;
+        if let Some(leaf) = callers.frames.last_mut()
+            && leaf.activation == activation
+            && leaf.task == logical
+        {
+            leaf.span = span;
+        }
+        Some(callers)
+    }
     pub fn import_native(
         &mut self,
         task: usize,
@@ -204,6 +226,19 @@ impl<P: a::Provider> Machine<'_, '_, '_, '_, '_, P> {
     }
 }
 
+pub(super) fn prepare_failure_callers(
+    depth: usize,
+    budget: &mut m::Budget,
+) -> Result<execution::GuestCallFrames, Reason> {
+    // One count and one bounded copy pass per admitted ancestor. This work
+    // and the storage remain available when the fault exhausts the ledger.
+    budget.charge(depth.checked_mul(66).ok_or(Reason::Invariant)?)?;
+    Ok(execution::GuestCallFrames {
+        frames: budget.vector(64)?,
+        omitted: 0,
+    })
+}
+
 fn guest_callers(
     records: &[Record<'_, '_>],
     proof: &o::tasks::VerifiedTasks,
@@ -211,6 +246,13 @@ fn guest_callers(
     logical: &t::TaskId,
     budget: &mut m::Budget,
 ) -> Result<execution::GuestCallFrames, Reason> {
+    let (total, ancestors) = caller_count(records, task)?;
+    budget.charge(total.saturating_add(ancestors))?;
+    let frames = budget.vector(total.min(64))?;
+    write_guest_callers(records, proof, task, logical, total, frames)
+}
+
+fn caller_count(records: &[Record<'_, '_>], task: usize) -> Result<(usize, usize), Reason> {
     let mut at = task;
     let mut total = 0usize;
     let mut ancestors = 0usize;
@@ -229,15 +271,30 @@ fn guest_callers(
     if total == 0 {
         return Err(Reason::Invariant);
     }
-    budget.charge(total.saturating_add(ancestors))?;
+    Ok((total, ancestors))
+}
+
+fn write_guest_callers(
+    records: &[Record<'_, '_>],
+    proof: &o::tasks::VerifiedTasks,
+    task: usize,
+    logical: &t::TaskId,
+    total: usize,
+    mut frames: Vec<execution::GuestCallFrame>,
+) -> Result<execution::GuestCallFrames, Reason> {
     let capacity = total.min(64);
-    let mut frames = budget.vector(capacity)?;
+    if capacity == 0 || frames.capacity() < capacity {
+        return Err(Reason::Invariant);
+    }
+    frames.clear();
     let mut cursor = 0usize;
-    at = task;
+    let mut at = task;
     loop {
         let record = &records[at];
         let id = if at == task { logical } else { &record.id };
-        for frame in record.frames.iter().rev() {
+        // Inner frames beyond this prefix cannot enter the outermost 64,
+        // even when this task has ancestors with no remaining live frames.
+        for frame in record.frames.iter().take(capacity).rev() {
             let span = proof
                 .plan()
                 .functions()

@@ -10,6 +10,8 @@ pub struct Record<'l, 'ty> {
     pub parent: Option<usize>,
     pub scope: u64,
     pub frames: Vec<Frame<'l, 'ty>>,
+    pub callers: crate::component::execution::GuestCallFrames,
+    pub trace_depth: usize,
     pub result: Option<frame::RetainedResult<'l, 'ty>>,
     pub next_result: Option<usize>,
     pub session: Option<c::Session>,
@@ -18,6 +20,7 @@ pub struct Fault {
     pub reason: Reason,
     pub function: m::FunctionId,
     pub span: m::Span,
+    pub callers: Option<crate::component::execution::GuestCallFrames>,
 }
 pub struct Machine<'p, 'l, 'ty, 'host, 'ctrl, P: a::Provider> {
     pub proof: &'ty o::tasks::VerifiedTasks,
@@ -184,6 +187,7 @@ impl<'p, 'l, 'ty, 'host, 'ctrl, P: a::Provider> Machine<'p, 'l, 'ty, 'host, 'ctr
         faults.resize_with(storage_tasks, || None);
         let events = budget.vector(limits.trace_events)?;
         let mut frames = budget.vector(1)?;
+        let callers = imports::prepare_failure_callers(1, budget)?;
         let failure_records =
             std::num::NonZeroUsize::new(limits.cleanup_failure_records).ok_or(Reason::Invariant)?;
         let completed = budget.vector(storage_tasks)?;
@@ -323,6 +327,8 @@ impl<'p, 'l, 'ty, 'host, 'ctrl, P: a::Provider> Machine<'p, 'l, 'ty, 'host, 'ctr
             parent: None,
             scope: 0,
             frames,
+            callers,
+            trace_depth: 1,
             result: None,
             next_result: None,
             session: Some(session),
@@ -432,6 +438,7 @@ impl<'p, 'l, 'ty, 'host, 'ctrl, P: a::Provider> Machine<'p, 'l, 'ty, 'host, 'ctr
             return Ok(index);
         }
         let function = self.frame(task)?.function;
+        let callers = self.capture_callers(task, span);
         if !matches!(reason.primary_cause(), Reason::Cancelled) {
             self.record_execution(task, &reason, span)?;
         }
@@ -439,6 +446,7 @@ impl<'p, 'l, 'ty, 'host, 'ctrl, P: a::Provider> Machine<'p, 'l, 'ty, 'host, 'ctr
             reason,
             function,
             span,
+            callers,
         });
         self.frame_mut(task)?.fault = Some(task);
         Ok(task)
@@ -793,6 +801,11 @@ impl<'p, 'l, 'ty, 'host, 'ctrl, P: a::Provider> Machine<'p, 'l, 'ty, 'host, 'ctr
             .scheduler
             .check_spawn(&self.records[task].id)?;
         let mut frames = self.budget.vector(1)?;
+        let trace_depth = self.records[task]
+            .trace_depth
+            .checked_add(1)
+            .ok_or(Reason::Invariant)?;
+        let callers = imports::prepare_failure_callers(trace_depth, self.budget)?;
         let session = c::Session::prepare(self.failure_records, self.budget)?;
         let scope = self
             .frame(task)?
@@ -836,6 +849,8 @@ impl<'p, 'l, 'ty, 'host, 'ctrl, P: a::Provider> Machine<'p, 'l, 'ty, 'host, 'ctr
             parent: Some(task),
             scope: scope.serial,
             frames,
+            callers,
+            trace_depth,
             result: None,
             next_result: None,
             session: Some(session),
@@ -911,11 +926,13 @@ impl<'p, 'l, 'ty, 'host, 'ctrl, P: a::Provider> Machine<'p, 'l, 'ty, 'host, 'ctr
         let function = self.records[0].function;
         let span = self.proof.typed().places().declarations().functions()[function.0 as usize].span;
         if self.faults[0].is_none() {
+            let callers = self.capture_callers(0, span);
             self.record_execution(0, &reason, span)?;
             self.faults[0] = Some(Fault {
                 reason,
                 function,
                 span,
+                callers,
             });
         }
         self.trace = false;
@@ -1180,11 +1197,13 @@ impl<'p, 'l, 'ty, 'host, 'ctrl, P: a::Provider> Machine<'p, 'l, 'ty, 'host, 'ctr
                         .origin()
                         .unwrap_or(self.frame(task)?.origin);
                     let reason = Reason::ChannelDeadlock(deadlock.clone());
+                    let callers = self.capture_callers(task, span);
                     self.record_execution(0, &reason, span)?;
                     self.faults[0] = Some(Fault {
                         reason,
                         function,
                         span,
+                        callers,
                     });
                     return Err(Reason::ChannelDeadlock(deadlock));
                 }
@@ -1203,6 +1222,7 @@ impl<'p, 'l, 'ty, 'host, 'ctrl, P: a::Provider> Machine<'p, 'l, 'ty, 'host, 'ctr
                 reason,
                 function,
                 span,
+                callers: None,
             });
         }
         self.sync_usage();
@@ -1233,6 +1253,7 @@ impl<'p, 'l, 'ty, 'host, 'ctrl, P: a::Provider> Machine<'p, 'l, 'ty, 'host, 'ctr
                     reason,
                     function: Some(self.records[task].function),
                     span: None,
+                    callers: None,
                     usage: self.usage,
                     tasks: self.services.scheduler.usage(),
                     events: self.events,
@@ -1298,11 +1319,16 @@ impl<'p, 'l, 'ty, 'host, 'ctrl, P: a::Provider> Machine<'p, 'l, 'ty, 'host, 'ctr
                 let (report, poisoned) = self.failure_report(failure).unwrap_or((None, true));
                 // Final result admission precedes retirement of its escrow.
                 // A later destructor failure must not replace that typed cause.
-                let (reason, function, span) =
+                let (reason, function, span, callers) =
                     if let Some((function, span)) = final_failure_origin.filter(|_| failure == 0) {
-                        (reason, Some(function), Some(span))
+                        (reason, Some(function), Some(span), None)
                     } else if let Some(fault) = fault {
-                        (fault.reason, Some(fault.function), Some(fault.span))
+                        (
+                            fault.reason,
+                            Some(fault.function),
+                            Some(fault.span),
+                            fault.callers,
+                        )
                     } else {
                         (
                             reason,
@@ -1312,12 +1338,14 @@ impl<'p, 'l, 'ty, 'host, 'ctrl, P: a::Provider> Machine<'p, 'l, 'ty, 'host, 'ctr
                                     [self.records[0].function.0 as usize]
                                     .span,
                             ),
+                            None,
                         )
                     };
                 Err(Failure {
                     reason,
                     function,
                     span,
+                    callers,
                     usage: self.usage,
                     tasks: self.services.scheduler.usage(),
                     events: self.events,

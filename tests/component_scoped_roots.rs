@@ -647,6 +647,7 @@ fn remember_child_reason(
         reason,
         function: Some(function),
         span: Some(span),
+        callers: None,
         usage: accounting.snapshot(),
         tasks: current.usage(),
         events: vec![],
@@ -1001,6 +1002,7 @@ impl execution::TaskStorageOperation for ChildOperation<'_, '_> {
                 reason,
                 function: None,
                 span: None,
+                callers: None,
                 usage: accounting.snapshot(),
                 tasks: current.usage(),
                 events: vec![],
@@ -3248,6 +3250,100 @@ fn callback_cancellation_closes_original_non_root_task_and_resumes_parent() {
         assert_eq!(watch.released.get(), 1);
         assert!(h.values.is_empty());
         assert_eq!(h.allocator.stats().live_allocations, 0);
+    }
+}
+
+#[test]
+fn guest_faults_keep_original_task_callers_after_preparation_work_exhaustion() {
+    let source = include_str!("fixtures/component_scoped_roots_task.lang").replace(
+        "    return 41;\n}",
+        "    return trace_fault(41, true, true);\n}",
+    ) + "\nfn trace_fault(value: i64, again: bool, next: bool) -> i64 {if again {return trace_fault(value, next, false);} return trace_fault(value, true, true);}";
+    for compiled in [false, true] {
+        let mut full_work = None;
+        for exhausted in [false, true] {
+            let mut h = Harness::new();
+            h.unit = stored_unit_with_task(source.as_bytes(), true);
+            h.task_limits = lang_runtime::task::Limits {
+                live_tasks: 2,
+                total_tasks: 2,
+            };
+            let trace = Rc::new(Cell::new(None));
+            h.preparation_trace = Some(trace.clone());
+            if exhausted {
+                h.preparation_limits.work = full_work.unwrap() - 1;
+            }
+            let (registration, watch) = h.registration(false);
+            let Err(failure) = h.call_control(
+                registration,
+                "start",
+                None,
+                compiled,
+                e::Control::with_limits(e::Limits {
+                    frames: Some(6),
+                    ..e::Limits::unbounded()
+                }),
+            ) else {
+                panic!("recursive guest fault succeeded");
+            };
+            assert!(!failure.poisoned && !h.state.poisoned(), "{failure:?}");
+            if exhausted {
+                assert!(preparation_refusal(&failure.reason), "{failure:?}");
+                assert!(trace.get().unwrap().work <= h.preparation_limits.work);
+            } else {
+                assert_eq!(
+                    control_failure(&failure.reason),
+                    Some(ChildControlFailure::Frames)
+                );
+                full_work = Some(trace.get().unwrap().work);
+            }
+            let callers = failure
+                .callers
+                .as_ref()
+                .expect("actual pre-unwind task chain");
+            assert_eq!(callers.omitted, 0);
+            if !exhausted {
+                assert_eq!(callers.frames.len(), 6);
+            }
+            assert!(callers.frames.len() >= 3);
+            assert_eq!(callers.frames[0].task.index(), 0);
+            assert!(
+                callers.frames[1..]
+                    .iter()
+                    .all(|frame| frame.task.index() == 1)
+            );
+            let leaf = callers.frames.last().unwrap();
+            assert_eq!(Some(leaf.function), failure.function);
+            assert_eq!(Some(leaf.span), failure.span);
+            let root_span = callers.frames[0].span;
+            assert!(source[root_span.start as usize..root_span.end as usize].contains("await"));
+            for (i, frame) in callers.frames.iter().enumerate() {
+                assert!(
+                    !callers.frames[..i]
+                        .iter()
+                        .any(|previous| previous.activation == frame.activation)
+                );
+            }
+            assert_eq!(
+                failure.tasks,
+                lang_runtime::task::Usage {
+                    admitted: 2,
+                    live: 0,
+                    peak_live: 2
+                }
+            );
+            assert_eq!(failure.usage.host_calls, 1);
+            assert_eq!(
+                (
+                    watch.produced.get(),
+                    watch.destroyed.get(),
+                    watch.released.get()
+                ),
+                (1, 1, 1)
+            );
+            assert!(h.values.is_empty());
+            assert_eq!(h.allocator.stats().live_allocations, 0);
+        }
     }
 }
 

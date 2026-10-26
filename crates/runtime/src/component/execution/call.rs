@@ -1004,6 +1004,7 @@ impl<'r, 'm, 'b, 'scope, 'code> CallContext<'r, 'm, 'b, 'scope, 'code> {
                     reason,
                     function: self.function,
                     span: self.span,
+                    callers: None,
                     usage: accounting.snapshot(),
                     tasks: self
                         .task

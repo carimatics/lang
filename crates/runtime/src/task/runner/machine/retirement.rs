@@ -112,6 +112,7 @@ impl<'p, 'l, 'ty, 'host, 'ctrl, P: a::Provider> Machine<'p, 'l, 'ty, 'host, 'ctr
                 reason: Reason::Cleanup,
                 function,
                 span,
+                callers: None,
             });
         }
     }
