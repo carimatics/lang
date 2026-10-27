@@ -6,11 +6,11 @@
 
 更新日: **2026-10-27 JST**。開始チェックポイント: `984557d`。M2 とリポジトリレビューは完了済みです。
 
-**75 done · 1 doing · 3 todo · 9 remaining pt**
+**76 done · 1 doing · 2 todo · 8 remaining pt**
 
-**次: M3-I08 → 厳密sourceのWindows CIと両host SDK Actions実行を準備する。**
+**次: M3-B01 → Windowsのmanual link探索pathを修正し両host適合を完了する。**
 
-I08 Actions checkpoint（**2026-10-27 14:02 JST検証**）: GitHub Actionsは有効で、`Windows x86-64 CI`と`Native SDK isolated installation`はactiveです。後者にはmacOS AArch64とWindows x86-64のproducer/checkoutなしconsumer jobがあります。[2026-10-26のSDK run](https://github.com/carimatics/lang/actions/runs/40283338939)は両hostで成功し、[Windows baseline](https://github.com/carimatics/lang/actions/runs/40283339015)はUCRT `assert`の短絡解析による生成C testの出力view未初期化警告で失敗しました。その旧revisionは`040c051`で、最新実装は未pushです。local修正はtest viewの初期化だけで、production動作とassert条件は維持します。手元にWindowsがないと進めないとした以前の判断を訂正します。厳密な最新sourceのstartup証拠に向けI08だけを**1 pt**のdoingにし、追加/再見積り/消化**0 pt**、残り**9 pt**です。`codex/m3-conformance-20261027` branchを準備し、リモートpush承認後に既存Windows/SDK workflowをdispatchします。workflow fileの変更は不要です。旧run成功でI08/B01を完了にせず、B02/Z02の依存を維持します。新しい実Actions結果、source SHA、installed task/component/gateway reportが引き続き必要です。
+I08を`8f41f44`で完了（**2026-10-27 14:43 JST検証**）: [Actions run 40456240378](https://github.com/carimatics/lang/actions/runs/40456240378)のproducerとcheckoutなしconsumerがmacOS AArch64・Windows x86-64の両方で成功しました。保持した[macOS report](../evidence/2026-10-27-m3-sdk-macos-8f41f44.json)と[Windows report](../evidence/2026-10-27-m3-sdk-windows-8f41f44.json)で、copy/owned/C/task/owned-task/component/component-gatewayの7 profile、実際の42/panic/再利用/fuel、一度だけのowner退役と最終在庫ゼロ、repository path 12件の不在・Cargoなし・空Cargo home・link入力除去をそれぞれ確認しました。SDK build IDはmacOS `da0d5af4177cbe6d46a037f9f213b5f0d850239975064edf6c9d549574bc0531`、Windows `0b2b06d1b7c89f88cbc3a6549977dfb917caf5a31872c92940a4a40a9950affc`です。**完了: 1 delivery / 1 pt消化、追加/再見積り: 0 pt**。照合は**9 + 0 − 1 = 8 pt**、**79行 / 76 done / 1 doing / 2 todo**、台帳**110 + 99 − 201 = 8**です。B01だけを3 ptのdoingにします。[Windows CI 40456200897](https://github.com/carimatics/lang/actions/runs/40456200897)はC view初期化後の段階へ進みましたが、manual rustcに`windows.0.52.0.lib`のCargo native探索pathを渡さずlinkで失敗しました。共通test harnessのpath伝播を修正後、実際のWindows全適合を必須とし、installed startup成功だけでB01は完了にしません。runtime/ABI/SDKの動作とB02/Z02依存は維持し、pushとCIに応じた修正は承認済みです。
 
 I08 Actions準備検証（**2026-10-27 14:20 JST検証**、macOS AArch64）: 旧Windows失敗に対応する生成C host testはlocalで成功しました（**1件、15.82秒**）。**879入力 / 非Markdown 771入力**を固定した全baselineは**153 suite / 2,319 test成功 / 失敗0 / 既存ignore 1**、suite時間合計**863.40秒**、test段階**974.95秒**です。全7段階が成功しました: fmt **1.93秒**、Clippy **2.15秒**、test **974.95秒**、rustdoc **16.20秒**、fuzz fmt **2.04秒**、全16 target check **0.22秒**、fuzz Clippy **0.22秒**。campaignは未実施です。前後hashは一致しました: main `278b7748e1c6f6d1b497f927c697c22d1aeabf7934a7b966ef9f4fe7aac28d96`、検証 `8642c0d9922717ae3b303c7934e467548bf5492393dbfc3950c6e0fb64113f8d`。差は未変更の過去Windows reportのCRLFだけで、正規化後の差/追加入力はゼロです。production compiler/runtime、ABI、SDKは未変更です。新Actions runの準備証拠であり、Windows実行成功やI08完了には数えません。
 
@@ -475,12 +475,12 @@ C04 は `f882074`（2026-10-22 02:05 JST）で完了しました。明示的で�
 | M3-L02 | done | 0 | M3-T08,M3-E03 | G12 | guest/host を跨ぐ再帰/frame/live-task 合算上限を適用 | `599d7ee` |
 | M3-L03 | done | 0 | M3-E04,M3-T08,M3-I12 | G13 | VM/JIT/AOT と callback 境界で interruption を一貫して観測 | `c7daed1` |
 | M3-L04 | done | 0 | M3-L01,M3-L02,M3-L03,M3-P02 | G11,G12,G13 | 敵対的な資源枯渇でも必須 cleanup を完了 | `d5ee99a` |
-| M3-I08 | doing | 1 | M3-I07,M3-E04,M3-P02,M3-I13,M3-I14,M3-I15 | G08,G09,G14 | 両hostでinstalled task/component startupを実検証する | — |
+| M3-I08 | done | 0 | M3-I07,M3-E04,M3-P02,M3-I13,M3-I14,M3-I15 | G08,G09,G14 | 両hostでinstalled task/component startupを実検証する | `8f41f44` |
 | M3-I12 | done | 0 | M3-I07,M3-E04,M3-P02 | G08,G09 | Emit/bind checked component objects and execute scalar/resource VM/JIT/AOT callbacks with original task authority | `47093ef` |
 | M3-I13 | done | 0 | M3-I07,M3-I12 | G08,G09,G14 | Persist/revalidate native task/component records and bind exact linked code without code generation | `8ba2c43` |
 | M3-I14 | done | 0 | M3-I13,M3-T08 | G09,G14 | Publish/link installed task packages with exact SDK v2 and original control/cleanup | `042fc38` |
 | M3-I15 | done | 0 | M3-I13,M3-I14,M3-P02 | G08,G09,G14 | 明示binding/grantと元callback/cleanupを保つinstalled component packageを公開・リンクする | `8b89aae` |
-| M3-B01 | todo | 3 | M3-L04,M3-A04,M3-I08,M3-E01 | G14 | 両 tier-1 host で所有権/失敗/capability/資源適合試験に合格 | — |
+| M3-B01 | doing | 3 | M3-L04,M3-A04,M3-I08,M3-E01 | G14 | 両 tier-1 host で所有権/失敗/capability/資源適合試験に合格 | — |
 | M3-B02 | todo | 3 | M3-B01 | G14 | C embedding API と生成 binding を移行試験付きで安定化 | — |
 | M3-X01 | done | 0 | M3-E01 | G15 | 権限を明示する trusted-native/verified-script の実行可能例を提供 | `8a3ae2e` |
 | M3-Z01 | done | 0 | M3-E01,M3-L04 | G03,G04,G05 | spawn/join/channel/取消/メモリ費用を記録し M2 workload の証拠を維持 | `c9ffd19` |
@@ -560,7 +560,7 @@ T05 を `2f58084` で完了（2026-10-21 JST）: TaskProgram で source claim/lo
 
 T05 roadmap 監査: 最初の source VM fixture が実行できたため、G03/G12/G13 完了判定前に **T06 → T07 → T08** を進めます。`crates/codegen-clif/src/owned.rs` と `src/native.rs` を確認し、既存 native 経路は TaskProgram/async metadata を拒否する一方、検証済み MIR、managed task layout、scope identity、result storage が揃ったことを確認しました。T06 は元の 3 pt の compiled continuation と値/event 一致の成果を維持し、VM/MIR fallback なしに生成 code を実行する必要があります。初期 native fixture で serialized task revision や package/startup 公開を決めたことにはしません。明示 format 判断と native/owned/loan/foreign/共有 control の受入条件を維持し、次の実行 fixture 前に scheduler/IDL 基盤を追加しません。全 15 gate、全 P1 作業、channel、Send/Share、production embedding を M3 に残します。
 
-**110 + 99 − 200 = 9 pt**
+**110 + 99 − 201 = 8 pt**
 
 T06 を `8d6c283` で完了（2026-10-21 JST）: 実装前に RFC 0023 へ native 境界を記録しました。invocation/frame/claim/result 状態と scheduling/storage service を共有し、VM/native に別の resume/cleanup entry を持ちます。Cranelift が演算、分岐、失敗/取消 CFG、検査付き continuation 選択を生成し、実行時 MIR evaluator や VM 依存はありません。source fixture は VM/native ともに 42 を出力します。integration test 12 件で値/event/使用量/割り当て状態、取消、有限 record/enum と field 更新、通常 call、loop scope identity、子/同期 panic 起点、全 fuel/trace prefix、task/frame/cell/preparation 上限、各 provider 拒否を比較します。別途リンクした実行形式では join/aggregate/cancel/panic profile、再生成 object/compiler/SDK byte の一致、全 fuel prefix を検証し、JIT compile/invoke API を呼びません。private 境界 2 テストで callback 前の範囲外 PC 拒否と source 証拠付き callback panic の封じ込めを確認します。受理した storage/task はすべて解放します。全 baseline: **106 suites / 1,712 passed / 0 failed / 1 existing timing ignore**、完了 suite 時間合計 **471.21 s**。fmt、warnings-denied workspace Clippy **6.24 s**、rustdoc **26.34 s**、全 11 fuzz target の compile/lint **3.11 s** が通過しました。fuzz campaign、性能主張、より広い platform/native package 完了ではありません。T06 の 3 pt を消化し、作業追加/再見積りはありません。
 
@@ -608,7 +608,7 @@ A06 roadmap audit: `Machine::spawn`、`Frame::copy_from_frame`、`Frame::result`
 
 | Initial remaining | Net additions/re-estimates | Retired at completion | Remaining |
 | ---: | ---: | ---: | ---: |
-| 110 pt | +99 pt | −200 pt | 9 pt |
+| 110 pt | +99 pt | −201 pt | 8 pt |
 
 ## Exit audit
 

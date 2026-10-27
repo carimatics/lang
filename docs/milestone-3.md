@@ -6,11 +6,11 @@
 
 Updated: **2026-10-27 JST**. Entry checkpoint: `984557d`; M2 and the repository review are complete.
 
-**75 done · 1 doing · 3 todo · 9 remaining pt**
+**76 done · 1 doing · 2 todo · 8 remaining pt**
 
-**Next: M3-I08 → prepare exact-source Windows CI and both-host SDK Actions execution.**
+**Next: M3-B01 → repair Windows manual-link search paths and complete both-host conformance.**
 
-I08 Actions checkpoint (verified **2026-10-27 14:02 JST**): GitHub Actions is enabled and both `Windows x86-64 CI` and `Native SDK isolated installation` are active; the latter uses macOS AArch64 and Windows x86-64 producer/no-checkout-consumer jobs. The [2026-10-26 SDK run](https://github.com/carimatics/lang/actions/runs/40283338939) passed both hosts, while the [Windows baseline](https://github.com/carimatics/lang/actions/runs/40283339015) failed at a generated C test's uninitialized output view under UCRT `assert` short-circuit analysis. That old revision is `040c051`; the current implementation has not been pushed. The local fix initializes that test view without changing production behavior or weakening assertions. This corrects the earlier assumption that absence of a local Windows host precluded progress. I08 alone is doing at **1 pt** for exact-current-source startup evidence; add/re-estimate/retire **0 pt**, remaining **9 pt**. Prepare branch `codex/m3-conformance-20261027` and dispatch the existing Windows/SDK workflows after remote-push authorization. Existing workflow files require no change. Passing old runs does not complete I08/B01, and B02/Z02 retain their dependencies. Actual new Actions results, source SHA and installed task/component/gateway reports remain required.
+I08 completion `8f41f44` (verified **2026-10-27 14:43 JST**): [Actions run 40456240378](https://github.com/carimatics/lang/actions/runs/40456240378) passes both producer and no-checkout-consumer jobs on macOS AArch64 and Windows x86-64. Retained [macOS report](evidence/2026-10-27-m3-sdk-macos-8f41f44.json) and [Windows report](evidence/2026-10-27-m3-sdk-windows-8f41f44.json) each prove all seven copy/owned/C/task/owned-task/component/component-gateway profiles, actual 42/panic/reuse/fuel behavior, once-only owner retirement and zero final inventory, with 12 absent repository paths, Cargo unavailable, empty Cargo home and linked inputs removed. SDK build IDs are `da0d5af4177cbe6d46a037f9f213b5f0d850239975064edf6c9d549574bc0531` (macOS) and `0b2b06d1b7c89f88cbc3a6549977dfb917caf5a31872c92940a4a40a9950affc` (Windows). **Completed: 1 delivery / 1 retired pt; added/re-estimated: 0 pt.** Reconcile **9 + 0 − 1 = 8 pt**, **79 rows / 76 done / 1 doing / 2 todo**, ledger **110 + 99 − 201 = 8**. B01 alone becomes doing at 3 pt: [Windows CI 40456200897](https://github.com/carimatics/lang/actions/runs/40456200897) gets past the initialized C view but fails manual-rustc linking because Cargo's native search path for `windows.0.52.0.lib` is omitted. Repair this shared test-harness path propagation, then require full actual Windows conformance; a green installed-startup run does not complete B01. Existing runtime/ABI/SDK behavior and B02/Z02 dependencies remain unchanged; push and CI-driven fixes are authorized.
 
 I08 Actions-preparation validation (verified **2026-10-27 14:20 JST**, macOS AArch64): the previously failing generated C host test passes locally (**1 test, 15.82 s**). With **879 inputs / 771 non-Markdown inputs** fixed, the full baseline passes **153 suites / 2,319 tests / 0 failures / 1 existing ignore**; suite-time sum **863.40 s**, test stage **974.95 s**. All seven stages pass: fmt **1.93 s**, Clippy **2.15 s**, tests **974.95 s**, rustdoc **16.20 s**, fuzz fmt **2.04 s**, all 16-target check **0.22 s**, fuzz Clippy **0.22 s**; no campaign. Before/after hashes match: main `278b7748e1c6f6d1b497f927c697c22d1aeabf7934a7b966ef9f4fe7aac28d96`, validation `8642c0d9922717ae3b303c7934e467548bf5492393dbfc3950c6e0fb64113f8d`; only unchanged historical Windows-report CRLF differs, normalized differences/extras zero. Production compiler/runtime, ABI and SDK are unchanged. This prepares the new Actions run; it does not prove Windows execution or retire I08.
 
@@ -475,12 +475,12 @@ Estimates describe remaining work, not elapsed time. Each row is an observable 1
 | M3-L02 | done | 0 | M3-T08,M3-E03 | G12 | Enforce combined recursion/frame/live-task limits across guest/host calls | `599d7ee` |
 | M3-L03 | done | 0 | M3-E04,M3-T08,M3-I12 | G13 | Observe interruption consistently in VM/JIT/AOT and callback boundaries | `c7daed1` |
 | M3-L04 | done | 0 | M3-L01,M3-L02,M3-L03,M3-P02 | G11,G12,G13 | Exercise adversarial resource exhaustion without losing mandatory cleanup | `d5ee99a` |
-| M3-I08 | doing | 1 | M3-I07,M3-E04,M3-P02,M3-I13,M3-I14,M3-I15 | G08,G09,G14 | Verify actual installed task/component startup on both tier-1 hosts | — |
+| M3-I08 | done | 0 | M3-I07,M3-E04,M3-P02,M3-I13,M3-I14,M3-I15 | G08,G09,G14 | Verify actual installed task/component startup on both tier-1 hosts | `8f41f44` |
 | M3-I12 | done | 0 | M3-I07,M3-E04,M3-P02 | G08,G09 | Emit/bind checked component objects and execute scalar/resource VM/JIT/AOT callbacks with original task authority | `47093ef` |
 | M3-I13 | done | 0 | M3-I07,M3-I12 | G08,G09,G14 | Persist/revalidate native task/component records and bind exact linked code without code generation | `8ba2c43` |
 | M3-I14 | done | 0 | M3-I13,M3-T08 | G09,G14 | Publish/link installed task packages with exact SDK v2 and original control/cleanup | `042fc38` |
 | M3-I15 | done | 0 | M3-I13,M3-I14,M3-P02 | G08,G09,G14 | Publish/link installed component packages with explicit bindings/grants and original callbacks/cleanup | `8b89aae` |
-| M3-B01 | todo | 3 | M3-L04,M3-A04,M3-I08,M3-E01 | G14 | Pass ownership/failure/capability/resource conformance on both tier-1 hosts | — |
+| M3-B01 | doing | 3 | M3-L04,M3-A04,M3-I08,M3-E01 | G14 | Pass ownership/failure/capability/resource conformance on both tier-1 hosts | — |
 | M3-B02 | todo | 3 | M3-B01 | G14 | Stabilize the documented C embedding API and generated bindings with migration tests | — |
 | M3-X01 | done | 0 | M3-E01 | G15 | Ship runnable trusted-native and verified-script examples with explicit authority | `8a3ae2e` |
 | M3-Z01 | done | 0 | M3-E01,M3-L04 | G03,G04,G05 | Record spawn/join/channel/cancellation/memory costs and preserve M2 workload evidence | `c9ffd19` |
@@ -560,7 +560,7 @@ T05 completed at `2f58084` (2026-10-21 JST): connected source claim/loan evidenc
 
 T05 roadmap audit: the first source VM fixture is now executable, so proceed **T06 → T07 → T08** before treating G03/G12/G13 as complete. Inspected `crates/codegen-clif/src/owned.rs` and `src/native.rs`: current native paths still refuse TaskProgram/async metadata, while verified MIR, managed task layouts, scope identities and result storage are now available. T06 retains its original 3-point compiled-continuation/value-event parity outcome; it must execute generated code without a VM/MIR fallback. An initial native fixture does not select a serialized task revision or complete package/startup publication. Preserve explicit format decisions and all native/owned/loan/foreign/shared-control acceptance; add no scheduler/IDL scaffolding before the next execution fixture. All 15 gates, all P1 work, channels, Send/Share and production embedding remain in M3.
 
-**110 + 99 − 200 = 9 pt**
+**110 + 99 − 201 = 8 pt**
 
 T06 completed at `8d6c283` (2026-10-21 JST): recorded the native boundary in RFC 0023 before implementation. Shared invocation/frame/claim/result state and scheduling/storage services retain separate VM/native resume/cleanup entries; Cranelift emits computation, branches, failure/cancellation CFGs and checked continuation selection, with no runtime MIR evaluator or VM dependency. The source fixture prints 42 through VM and native code. Twelve integration tests cover matching values/events/usage/allocation state, cancellation, finite records/enums and field updates, ordinary calls, loop scope identities, child/synchronous panic origins, every fuel/trace prefix, task/frame/cell/preparation bounds and each provider refusal. The separately linked executable covers join/aggregate/cancel/panic profiles, exact re-emitted object/compiler/SDK bytes and every fuel prefix; it calls no JIT compile/invoke API. Two private-boundary tests prove out-of-range PC refusal before callbacks and contained callback panic with source evidence. All admitted storage/tasks drain. Full baseline: **106 suites / 1,712 passed / 0 failed / 1 existing timing ignore**; summed completed-suite time **471.21 s**. fmt passes, warnings-denied workspace Clippy **6.24 s**, rustdoc **26.34 s**, all 11 fuzz-target compile/lint **3.11 s**. This is no fuzz campaign, performance claim or broader platform/native-package completion. Retire T06's 3 pt; add/re-estimate no work.
 
@@ -608,7 +608,7 @@ A06 roadmap audit: inspected `Machine::spawn`, `Frame::copy_from_frame`, `Frame:
 
 | Initial remaining | Net additions/re-estimates | Retired at completion | Remaining |
 | ---: | ---: | ---: | ---: |
-| 110 pt | +99 pt | −200 pt | 9 pt |
+| 110 pt | +99 pt | −201 pt | 8 pt |
 
 ## Exit audit
 

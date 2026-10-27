@@ -1481,6 +1481,7 @@ uint32_t fixture(void) {{
     std::fs::write(&driver, driver_source).unwrap();
     let dependency = artifacts::library("lang_runtime");
     let mut rustc = Command::new("rustc");
+    artifacts::native_search_paths(&mut rustc);
     rustc
         .arg("--edition=2024")
         .arg(&driver)

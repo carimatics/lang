@@ -265,6 +265,7 @@ fn build_extra_with_debug(package: &Path, name: &str, extra: &[&str], debug: boo
         .unwrap()
         .to_owned();
     let mut c = Command::new("rustc");
+    artifacts::native_search_paths(&mut c);
     if debug {
         c.args(["-Cdebuginfo=2", "-Csplit-debuginfo=packed"]);
     }

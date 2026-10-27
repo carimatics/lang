@@ -1,0 +1,324 @@
+{
+  "revision": "8f41f4421609aabb9bdd6509677963d8c1d882e6",
+  "origin": {
+    "build_id": "da0d5af4177cbe6d46a037f9f213b5f0d850239975064edf6c9d549574bc0531",
+    "producer_root": "/Users/runner/work/lang/lang",
+    "revision": "8f41f4421609aabb9bdd6509677963d8c1d882e6",
+    "target": "aarch64-apple-darwin"
+  },
+  "target": "aarch64-apple-darwin",
+  "build_id": "da0d5af4177cbe6d46a037f9f213b5f0d850239975064edf6c9d549574bc0531",
+  "rustc": "rustc 1.99.0 (b940084d7 2026-09-28)\nbinary: rustc\ncommit-hash: b940084d7eb6a299eb4bfeb8e34901bc051e7ac4\ncommit-date: 2026-09-28\nhost: aarch64-apple-darwin\nrelease: 1.99.0\nLLVM version: 23.1.1\n",
+  "isolated": true,
+  "absent_repository_inputs": [
+    "/Users/runner/work/lang/lang/.git",
+    "/Users/runner/work/lang/lang/Cargo.toml",
+    "/Users/runner/work/lang/lang/Cargo.lock",
+    "/Users/runner/work/lang/lang/src",
+    "/Users/runner/work/lang/lang/crates",
+    "/Users/runner/work/lang/lang/target",
+    "/Users/runner/work/lang/lang/.git",
+    "/Users/runner/work/lang/lang/Cargo.toml",
+    "/Users/runner/work/lang/lang/Cargo.lock",
+    "/Users/runner/work/lang/lang/src",
+    "/Users/runner/work/lang/lang/crates",
+    "/Users/runner/work/lang/lang/target"
+  ],
+  "cargo_on_path": false,
+  "cargo_home_empty": true,
+  "linked_input_paths_removed": true,
+  "results": [
+    {
+      "profile": "copy",
+      "manifest_version": 1,
+      "manifest_profile": "copy",
+      "compile_seconds": 0.039,
+      "link_seconds": 4.97,
+      "executable": "/Users/runner/work/_temp/sdk-install-result/copy",
+      "files": [
+        {
+          "bytes": 344,
+          "path": "program.lbc",
+          "role": "semantic",
+          "sha256": "81ab09034ac07b34c04d8bc99cb1822b2ebec886753920e553b44f83d8222e55"
+        },
+        {
+          "bytes": 1614,
+          "path": "program.native",
+          "role": "native_record",
+          "sha256": "568dd09f330b308fe1a1d6d2d6555cbc97de3836244239e004e6754df8e9295e"
+        },
+        {
+          "bytes": 1328,
+          "path": "program.o",
+          "role": "object",
+          "sha256": "f776b9cddd8d088ae46d5682185f24601ebef7e0fe1b2ceb0433d32cf7dc5502"
+        },
+        {
+          "bytes": 690,
+          "path": "bindings.rs",
+          "role": "bindings",
+          "sha256": "d3cdf705f5ba62638b4465783eca3fbc28ff8f47b8754c59dbb8d3ace91833fa"
+        },
+        {
+          "bytes": 760,
+          "path": "main.rs",
+          "role": "main",
+          "sha256": "1ba68f0e9bf5a8b61529166d56b1cef3668ee8c816fc92f132f8eee3b9b6b6db"
+        }
+      ],
+      "stdout": "42",
+      "startup_seconds": 0.012,
+      "success": true
+    },
+    {
+      "profile": "owned",
+      "manifest_version": 1,
+      "manifest_profile": "owned",
+      "compile_seconds": 0.046,
+      "link_seconds": 1.162,
+      "executable": "/Users/runner/work/_temp/sdk-install-result/owned",
+      "files": [
+        {
+          "bytes": 2044,
+          "path": "program.lbc",
+          "role": "semantic",
+          "sha256": "4b4785e05927a022d7e32c5b7cb1756fcbd803a37017a5953775b609bbb59c53"
+        },
+        {
+          "bytes": 4602,
+          "path": "program.native",
+          "role": "native_record",
+          "sha256": "c8c7c3790e6fda3ab730fe54a9f21bfbfea644fae7a5e72c580f5885ae0af472"
+        },
+        {
+          "bytes": 3200,
+          "path": "program.o",
+          "role": "object",
+          "sha256": "f62c7aef08bfb6b8827eaabd5e6cd1800051d796bf9252e970870e1490e7b4a4"
+        },
+        {
+          "bytes": 588,
+          "path": "bindings.rs",
+          "role": "bindings",
+          "sha256": "abd8c909cec1ebb1c9b63dc276e484ebbceb00dfb2cb9123a3577ab3eee37078"
+        },
+        {
+          "bytes": 1216,
+          "path": "main.rs",
+          "role": "main",
+          "sha256": "10b0916e6c5c3d60d42e367034aec21c8c60c8b5a0ba43c17765b770de3167ce"
+        }
+      ],
+      "stdout": "42",
+      "startup_seconds": 0.023,
+      "success": true
+    },
+    {
+      "profile": "c",
+      "manifest_version": 1,
+      "manifest_profile": "c",
+      "compile_seconds": 0.034,
+      "link_seconds": 0.961,
+      "executable": "/Users/runner/work/_temp/sdk-install-result/c",
+      "files": [
+        {
+          "bytes": 2117,
+          "path": "program.lbc",
+          "role": "semantic",
+          "sha256": "1b101ac00beddb164053fb742cfb67f2f8b6afe039a12aee8f807eaa9586069c"
+        },
+        {
+          "bytes": 6052,
+          "path": "program.native",
+          "role": "native_record",
+          "sha256": "abf83b9458a4a03044b9f13676787c46897fe27abd72e767f87d9415d61d5a43"
+        },
+        {
+          "bytes": 4552,
+          "path": "program.o",
+          "role": "object",
+          "sha256": "f916ca00713346d48f2b40506f801aaac419f46395adfea70ae23c47b7f000e3"
+        },
+        {
+          "bytes": 1976,
+          "path": "bindings.rs",
+          "role": "bindings",
+          "sha256": "67869f65da6e0fa95bd9d5a9a460f707d617a842c6554af91a26128f1d667edc"
+        },
+        {
+          "bytes": 5351,
+          "path": "program.h",
+          "role": "c_header",
+          "sha256": "22b1c0f16f0fdaeadff853225d1c7bbb25720dd4e76c8a5c8c7a1b1d9855d708"
+        }
+      ],
+      "stdout": "",
+      "startup_seconds": 0.006,
+      "success": true
+    },
+    {
+      "profile": "task",
+      "manifest_version": 2,
+      "manifest_profile": "task",
+      "compile_seconds": 0.04,
+      "link_seconds": 0.962,
+      "executable": "/Users/runner/work/_temp/sdk-install-result/task",
+      "files": [
+        {
+          "bytes": 1822,
+          "path": "program.lbc",
+          "role": "semantic",
+          "sha256": "881acb7eb50f5e3983fd82670adf1e7f4c2ffbccb0705211603c596b30529600"
+        },
+        {
+          "bytes": 7292,
+          "path": "program.native",
+          "role": "native_record",
+          "sha256": "f66e4fe2ae197d4422d825d8daf1f596a354623b1e25e4fec74248713e59cdbd"
+        },
+        {
+          "bytes": 4464,
+          "path": "program.o",
+          "role": "object",
+          "sha256": "f47a7ead6f7a4ace860af0d795d85cc94c4edfd8248ff347637c09a91a442a19"
+        },
+        {
+          "bytes": 966,
+          "path": "bindings.rs",
+          "role": "bindings",
+          "sha256": "c9b7cdf08581cb8a9f485bf00217bb998221e5da116e8c4fd571942f9b8c44ad"
+        },
+        {
+          "bytes": 988,
+          "path": "main.rs",
+          "role": "main",
+          "sha256": "8b9bb92f5fc89d226e2d2b2a7b268c76e239937b406b612f46f43c80065d4ca6"
+        }
+      ],
+      "stdout": "42",
+      "startup_seconds": 0.009,
+      "success": true
+    },
+    {
+      "profile": "task-owned",
+      "manifest_version": 2,
+      "manifest_profile": "task",
+      "compile_seconds": 0.065,
+      "link_seconds": 0.963,
+      "executable": "/Users/runner/work/_temp/sdk-install-result/task-owned",
+      "files": [
+        {
+          "bytes": 2174,
+          "path": "program.lbc",
+          "role": "semantic",
+          "sha256": "3b4e9e99bafd2833280a07260c808333403337ddd5fa98035bddd5ee186c9e68"
+        },
+        {
+          "bytes": 6507,
+          "path": "program.native",
+          "role": "native_record",
+          "sha256": "abab49b360f44e240082e118069a09949f89c591f388e65fe14f5dac56b211c0"
+        },
+        {
+          "bytes": 3976,
+          "path": "program.o",
+          "role": "object",
+          "sha256": "78578d0cd4997837a11d70d8f9ebc8cfafd2e23dc86e655ac9d91201ee10800d"
+        },
+        {
+          "bytes": 718,
+          "path": "bindings.rs",
+          "role": "bindings",
+          "sha256": "03201d63fa1209ad1ff79bdaeb7a9e6e078223fb8d92c77022f0a5ec6fd457c1"
+        },
+        {
+          "bytes": 988,
+          "path": "main.rs",
+          "role": "main",
+          "sha256": "8b9bb92f5fc89d226e2d2b2a7b268c76e239937b406b612f46f43c80065d4ca6"
+        }
+      ],
+      "stdout": "42",
+      "startup_seconds": 0.009,
+      "success": true
+    },
+    {
+      "profile": "component",
+      "manifest_version": 3,
+      "manifest_profile": "component",
+      "compile_seconds": 0.038,
+      "producer_compile_seconds": 0.5,
+      "link_seconds": 1.217,
+      "executable": "/Users/runner/work/_temp/sdk-install-result/component",
+      "files": [
+        {
+          "bytes": 1590,
+          "path": "program.lbc",
+          "role": "semantic",
+          "sha256": "1777f5ba805cb834aa66c2da7f158ed6c25318639cf5a505fa1dba6b0771b659"
+        },
+        {
+          "bytes": 4245,
+          "path": "program.native",
+          "role": "native_record",
+          "sha256": "ebfefe79e349dc7e239cdc149563271e039d167981d77b0631e7a38d557906f4"
+        },
+        {
+          "bytes": 2664,
+          "path": "program.o",
+          "role": "object",
+          "sha256": "641ed858731d84fabb62754d9c409476debcd30030c5ac8661e0c4493cbb6900"
+        },
+        {
+          "bytes": 738,
+          "path": "bindings.rs",
+          "role": "bindings",
+          "sha256": "3b0fa581899f5bfe20b2afc4c163109d73e48457862a7a9ebc476efb1bc24dc6"
+        }
+      ],
+      "stdout": "component 42/panic -42/reuse 1/fuel refusal; zero inventory",
+      "startup_seconds": 0.009,
+      "success": true
+    },
+    {
+      "profile": "component-gateway",
+      "manifest_version": 3,
+      "manifest_profile": "component",
+      "compile_seconds": 0.038,
+      "producer_compile_seconds": 0.5,
+      "client_compile_seconds": 0.061,
+      "link_seconds": 0.692,
+      "executable": "/Users/runner/work/_temp/sdk-install-result/component-gateway",
+      "files": [
+        {
+          "bytes": 1590,
+          "path": "program.lbc",
+          "role": "semantic",
+          "sha256": "1777f5ba805cb834aa66c2da7f158ed6c25318639cf5a505fa1dba6b0771b659"
+        },
+        {
+          "bytes": 4245,
+          "path": "program.native",
+          "role": "native_record",
+          "sha256": "ebfefe79e349dc7e239cdc149563271e039d167981d77b0631e7a38d557906f4"
+        },
+        {
+          "bytes": 2664,
+          "path": "program.o",
+          "role": "object",
+          "sha256": "641ed858731d84fabb62754d9c409476debcd30030c5ac8661e0c4493cbb6900"
+        },
+        {
+          "bytes": 738,
+          "path": "bindings.rs",
+          "role": "bindings",
+          "sha256": "3b0fa581899f5bfe20b2afc4c163109d73e48457862a7a9ebc476efb1bc24dc6"
+        }
+      ],
+      "stdout": "component C gateway 42/panic/reuse/fuel; owners retired; zero inventory",
+      "startup_seconds": 0.006,
+      "success": true
+    }
+  ]
+}

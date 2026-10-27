@@ -1,0 +1,324 @@
+{
+  "revision": "8f41f4421609aabb9bdd6509677963d8c1d882e6",
+  "origin": {
+    "build_id": "0b2b06d1b7c89f88cbc3a6549977dfb917caf5a31872c92940a4a40a9950affc",
+    "producer_root": "D:\\a\\lang\\lang",
+    "revision": "8f41f4421609aabb9bdd6509677963d8c1d882e6",
+    "target": "x86_64-pc-windows-msvc"
+  },
+  "target": "x86_64-pc-windows-msvc",
+  "build_id": "0b2b06d1b7c89f88cbc3a6549977dfb917caf5a31872c92940a4a40a9950affc",
+  "rustc": "rustc 1.99.0 (b940084d7 2026-09-28)\nbinary: rustc\ncommit-hash: b940084d7eb6a299eb4bfeb8e34901bc051e7ac4\ncommit-date: 2026-09-28\nhost: x86_64-pc-windows-msvc\nrelease: 1.99.0\nLLVM version: 23.1.1\n",
+  "isolated": true,
+  "absent_repository_inputs": [
+    "D:\\a\\lang\\lang\\.git",
+    "D:\\a\\lang\\lang\\Cargo.toml",
+    "D:\\a\\lang\\lang\\Cargo.lock",
+    "D:\\a\\lang\\lang\\src",
+    "D:\\a\\lang\\lang\\crates",
+    "D:\\a\\lang\\lang\\target",
+    "D:\\a\\lang\\lang\\.git",
+    "D:\\a\\lang\\lang\\Cargo.toml",
+    "D:\\a\\lang\\lang\\Cargo.lock",
+    "D:\\a\\lang\\lang\\src",
+    "D:\\a\\lang\\lang\\crates",
+    "D:\\a\\lang\\lang\\target"
+  ],
+  "cargo_on_path": false,
+  "cargo_home_empty": true,
+  "linked_input_paths_removed": true,
+  "results": [
+    {
+      "profile": "copy",
+      "manifest_version": 1,
+      "manifest_profile": "copy",
+      "compile_seconds": 0.023,
+      "link_seconds": 2.452,
+      "executable": "D:\\a\\_temp\\sdk-install-result\\copy.exe",
+      "files": [
+        {
+          "bytes": 344,
+          "path": "program.lbc",
+          "role": "semantic",
+          "sha256": "81ab09034ac07b34c04d8bc99cb1822b2ebec886753920e553b44f83d8222e55"
+        },
+        {
+          "bytes": 1456,
+          "path": "program.native",
+          "role": "native_record",
+          "sha256": "a91233ba1941a49595c62980f74ccb1aa6636db63a76c2950e4e2631e38e9f69"
+        },
+        {
+          "bytes": 1170,
+          "path": "program.obj",
+          "role": "object",
+          "sha256": "dfe1ee7823fbbc70d22e7a1042417e0dcd7752cca2b68a4db65d6a3dd11f1a7d"
+        },
+        {
+          "bytes": 692,
+          "path": "bindings.rs",
+          "role": "bindings",
+          "sha256": "4533502d1e2f90bacc65ddbd4e999cc54af5a12648a49194070e60fb5c130d58"
+        },
+        {
+          "bytes": 760,
+          "path": "main.rs",
+          "role": "main",
+          "sha256": "1ba68f0e9bf5a8b61529166d56b1cef3668ee8c816fc92f132f8eee3b9b6b6db"
+        }
+      ],
+      "stdout": "42",
+      "startup_seconds": 0.011,
+      "success": true
+    },
+    {
+      "profile": "owned",
+      "manifest_version": 1,
+      "manifest_profile": "owned",
+      "compile_seconds": 0.022,
+      "link_seconds": 1.751,
+      "executable": "D:\\a\\_temp\\sdk-install-result\\owned.exe",
+      "files": [
+        {
+          "bytes": 2048,
+          "path": "program.lbc",
+          "role": "semantic",
+          "sha256": "bf03c1d8be86d2d5342752ecd5bd2571c8a21f0053294b41a3ae251491f1c222"
+        },
+        {
+          "bytes": 5113,
+          "path": "program.native",
+          "role": "native_record",
+          "sha256": "fec5a96392ceb6b3c0882c3b777d8554528e98d8098667d47e9fa8950c7d2e24"
+        },
+        {
+          "bytes": 3711,
+          "path": "program.obj",
+          "role": "object",
+          "sha256": "71bc413fd0abb33809f1c60f79fc0d34a7f74cd558e18b25f09a9ee4b50fa4ee"
+        },
+        {
+          "bytes": 590,
+          "path": "bindings.rs",
+          "role": "bindings",
+          "sha256": "b6c5ad0f7babdd9e0eb91379d107eb4bb553c09780562169179043cffc0f338c"
+        },
+        {
+          "bytes": 1216,
+          "path": "main.rs",
+          "role": "main",
+          "sha256": "10b0916e6c5c3d60d42e367034aec21c8c60c8b5a0ba43c17765b770de3167ce"
+        }
+      ],
+      "stdout": "42",
+      "startup_seconds": 0.016,
+      "success": true
+    },
+    {
+      "profile": "c",
+      "manifest_version": 1,
+      "manifest_profile": "c",
+      "compile_seconds": 0.016,
+      "link_seconds": 1.707,
+      "executable": "D:\\a\\_temp\\sdk-install-result\\c.exe",
+      "files": [
+        {
+          "bytes": 2122,
+          "path": "program.lbc",
+          "role": "semantic",
+          "sha256": "96a1d2ad66d8668c5c0921e2a29465d005749052b8bbeebcf3903a200d51175f"
+        },
+        {
+          "bytes": 6794,
+          "path": "program.native",
+          "role": "native_record",
+          "sha256": "34db9ea6bae9cbb4164081ec635495f3f33a8822c053b7b5f1e2d12f44e683a7"
+        },
+        {
+          "bytes": 5294,
+          "path": "program.obj",
+          "role": "object",
+          "sha256": "e1f30cd27e5a6b55d3dde8a945e02fd9ca038bc7ea397b7105f21e0c6a1b530e"
+        },
+        {
+          "bytes": 1978,
+          "path": "bindings.rs",
+          "role": "bindings",
+          "sha256": "82ff09b404d3193378a35cbcebb3b95c5124883e0db25e4c37bf9e0603859fda"
+        },
+        {
+          "bytes": 5368,
+          "path": "program.h",
+          "role": "c_header",
+          "sha256": "ef395fa631f107630731db73ade4902d019cdc88a567244470e26ee4b158c411"
+        }
+      ],
+      "stdout": "",
+      "startup_seconds": 0.013,
+      "success": true
+    },
+    {
+      "profile": "task",
+      "manifest_version": 2,
+      "manifest_profile": "task",
+      "compile_seconds": 0.016,
+      "link_seconds": 1.852,
+      "executable": "D:\\a\\_temp\\sdk-install-result\\task.exe",
+      "files": [
+        {
+          "bytes": 1827,
+          "path": "program.lbc",
+          "role": "semantic",
+          "sha256": "763e667a49e01387a2ba5e2c9fc76f25acc6e7e448e437b6eaa9c6fe79de3321"
+        },
+        {
+          "bytes": 7891,
+          "path": "program.native",
+          "role": "native_record",
+          "sha256": "604bd6ab2fd47dbf861b90a9e59ba7ba6bd5a5c2e486f66afb3adf59701dc6e8"
+        },
+        {
+          "bytes": 5063,
+          "path": "program.obj",
+          "role": "object",
+          "sha256": "2e1167297dfe76c907a0c6085989f0cc86065f2fc7e7fab6e3f7af89240a6b5e"
+        },
+        {
+          "bytes": 968,
+          "path": "bindings.rs",
+          "role": "bindings",
+          "sha256": "bcf7a91980490a4236749bc720ef6c4e74417a8b611f9e1a97edbbbd15402afd"
+        },
+        {
+          "bytes": 988,
+          "path": "main.rs",
+          "role": "main",
+          "sha256": "8b9bb92f5fc89d226e2d2b2a7b268c76e239937b406b612f46f43c80065d4ca6"
+        }
+      ],
+      "stdout": "42",
+      "startup_seconds": 0.015,
+      "success": true
+    },
+    {
+      "profile": "task-owned",
+      "manifest_version": 2,
+      "manifest_profile": "task",
+      "compile_seconds": 0.016,
+      "link_seconds": 1.82,
+      "executable": "D:\\a\\_temp\\sdk-install-result\\task-owned.exe",
+      "files": [
+        {
+          "bytes": 2179,
+          "path": "program.lbc",
+          "role": "semantic",
+          "sha256": "17f3ac5b18229c2c68efefa48aa3b6fdaf8a79c2149490e846992ed231e729b1"
+        },
+        {
+          "bytes": 7057,
+          "path": "program.native",
+          "role": "native_record",
+          "sha256": "f4e0c78d4f633a90ed02dd4b6685b1f8207cdcd6c47c90377508a5bba1159c86"
+        },
+        {
+          "bytes": 4526,
+          "path": "program.obj",
+          "role": "object",
+          "sha256": "484ad3995ab1e5c1c24d774f514e4ed4f61900e5a00dfba1406019b43073342a"
+        },
+        {
+          "bytes": 720,
+          "path": "bindings.rs",
+          "role": "bindings",
+          "sha256": "4fb78c8bdd50b3b1aad60e24122f01d15162f4f5780a3a485dddabcdb2c656f5"
+        },
+        {
+          "bytes": 988,
+          "path": "main.rs",
+          "role": "main",
+          "sha256": "8b9bb92f5fc89d226e2d2b2a7b268c76e239937b406b612f46f43c80065d4ca6"
+        }
+      ],
+      "stdout": "42",
+      "startup_seconds": 0.016,
+      "success": true
+    },
+    {
+      "profile": "component",
+      "manifest_version": 3,
+      "manifest_profile": "component",
+      "compile_seconds": 0.021,
+      "producer_compile_seconds": 0.654,
+      "link_seconds": 2.427,
+      "executable": "D:\\a\\_temp\\sdk-install-result\\component.exe",
+      "files": [
+        {
+          "bytes": 1590,
+          "path": "program.lbc",
+          "role": "semantic",
+          "sha256": "1777f5ba805cb834aa66c2da7f158ed6c25318639cf5a505fa1dba6b0771b659"
+        },
+        {
+          "bytes": 4507,
+          "path": "program.native",
+          "role": "native_record",
+          "sha256": "f93830a7bc92509f0e2a89dce915bc5c6e8b402064a54a39d4fe5e0b59ab91b6"
+        },
+        {
+          "bytes": 2926,
+          "path": "program.obj",
+          "role": "object",
+          "sha256": "e7c04d40fe2a1c591b021b05e9543d0789d56de22d14c080d8b863f6ea59eba3"
+        },
+        {
+          "bytes": 740,
+          "path": "bindings.rs",
+          "role": "bindings",
+          "sha256": "3e082c796253cd6c8845897bb9d0dcf79107568bd76a3adbe924c7de3b8771e2"
+        }
+      ],
+      "stdout": "component 42/panic -42/reuse 1/fuel refusal; zero inventory",
+      "startup_seconds": 0.017,
+      "success": true
+    },
+    {
+      "profile": "component-gateway",
+      "manifest_version": 3,
+      "manifest_profile": "component",
+      "compile_seconds": 0.021,
+      "producer_compile_seconds": 0.654,
+      "client_compile_seconds": 0.089,
+      "link_seconds": 1.201,
+      "executable": "D:\\a\\_temp\\sdk-install-result\\component-gateway.exe",
+      "files": [
+        {
+          "bytes": 1590,
+          "path": "program.lbc",
+          "role": "semantic",
+          "sha256": "1777f5ba805cb834aa66c2da7f158ed6c25318639cf5a505fa1dba6b0771b659"
+        },
+        {
+          "bytes": 4507,
+          "path": "program.native",
+          "role": "native_record",
+          "sha256": "f93830a7bc92509f0e2a89dce915bc5c6e8b402064a54a39d4fe5e0b59ab91b6"
+        },
+        {
+          "bytes": 2926,
+          "path": "program.obj",
+          "role": "object",
+          "sha256": "e7c04d40fe2a1c591b021b05e9543d0789d56de22d14c080d8b863f6ea59eba3"
+        },
+        {
+          "bytes": 740,
+          "path": "bindings.rs",
+          "role": "bindings",
+          "sha256": "3e082c796253cd6c8845897bb9d0dcf79107568bd76a3adbe924c7de3b8771e2"
+        }
+      ],
+      "stdout": "component C gateway 42/panic/reuse/fuel; owners retired; zero inventory",
+      "startup_seconds": 0.014,
+      "success": true
+    }
+  ]
+}

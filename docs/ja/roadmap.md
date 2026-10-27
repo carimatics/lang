@@ -12,9 +12,9 @@
 
 M2は完了済みです。18/18ゲート、過去のゲート重み113/113です。[完了ボード](milestone-2.md)に成果と見積もり収支、[機能ガイド](milestone-2-capabilities.md)に実際のsource/VM/native/C/SDK/debugの根拠と制約を記録しています。この件数はM2のもので、将来の全作業ではありません。
 
-**M3 は進行中です。** [実装Todo](milestone-3.md)は **75 done · 1 doing · 3 todo · 9 remaining pt**です。厳密sourceのGitHub Actions検証準備に向けI08だけを1 ptのdoingにします。2026-10-27 14:02 JSTの監査でWindows CIと両host SDK producer/checkoutなしconsumer workflowがactiveであることを確認し、手元のWindowsは不要です。直近Windows runは生成C testのresult view未初期化警告で失敗し、local初期化修正は全baselineで検証済みです。最新sourceは未pushで、branchのpush承認待ちです。Z01は`c9ffd19`で完了し、workload/境界ごと21 release sampleと未変更M2 parity証拠があります。79行、台帳 **110 + 99 − 200 = 9**、gate **3/15・18/96**です。I08/B01の実両host実行、B02安定性、最終Z02を維持します。
+**M3 は進行中です。** [実装Todo](milestone-3.md)は **76 done · 1 doing · 2 todo · 8 remaining pt**です。I08は`8f41f44`で完了し、両host SDK Actions run 40456240378のcheckoutなし・Cargoなしconsumerで7 profileの実行と元owner/割当退役に成功しました。永続reportに厳密source/build IDを保持します。B01だけを3 ptのdoingにし、Windows CI 40456200897のformat/Clippy/build成功後に判明したmanual rustc C host fixtureのCargo native探索path欠落を共通test helperで修正し、Windows全適合を再検証します。I08の1 ptを消化、追加/再見積り0、79行、台帳 **110 + 99 − 201 = 8**、gateは完全な出口監査まで**3/15・18/96**です。B02安定化と最終Z02の依存を維持し、pushとCIに応じた修正/再実行は承認済みです。
 
-resource所有権/loan・永続provider・元accounting/control・callback・installed native Image・完全な公開C API・明示権限plugin例・有限cost観測には実行証拠があります。`codex/m3-conformance-20261027`で既存Windows CIと両host SDK workflowを実行できるよう準備し、厳密source SHA・log・installed task/component/gateway reportを保持します。旧`040c051`のSDK成功runは最新sourceの証拠にはしません。I08 → B01 → B02の順を保ち、Z02はB02とX01/Z01後の最終監査/guideとします。scopeと見積りは追加しません。
+resource所有権/loan・永続provider・元accounting/control・callback・installed native Image・完全な公開C API・明示権限plugin例・有限cost観測・実両hostのinstalled startupには実行証拠があります。B01はWindows/macOSの全ownership/failure/capability/resource適合成功を必要とし、installed startup成功だけでは満たしません。今回の修正はtest linkだけでruntime/ABI/SDK動作を維持します。B01 → B02の順を保ち、Z02はB02とX01/Z01後の最終監査/guideとします。scopeと見積りは追加しません。
 
 ## 進行中 milestone の実行
 

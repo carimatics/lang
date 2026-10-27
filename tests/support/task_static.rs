@@ -191,6 +191,7 @@ fn main(){{
         .unwrap()
         .to_path_buf();
     let mut rustc = Command::new("rustc");
+    artifacts::native_search_paths(&mut rustc);
     rustc
         .current_dir(env!("CARGO_MANIFEST_DIR"))
         .args(["--edition=2024", "--crate-type=bin"])
