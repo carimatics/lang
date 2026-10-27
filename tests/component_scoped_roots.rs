@@ -405,7 +405,22 @@ impl Child {
                 };
                 // SAFETY: owner callback waits for this thread, retaining exact
                 // context engine bytes; refusal precedes active borrow restoration.
-                unsafe { lang_codegen_clif::component::with_child(&copied, |_, _, _| Ok(())) }
+                unsafe {
+                    use lang_codegen_clif::component as bridge;
+                    assert_eq!(bridge::context_check(&copied), 2);
+                    assert_eq!(bridge::context_allocator_identity(&copied), 0);
+                    assert_eq!(
+                        bridge::with_resource_context(&copied, |_| {
+                            panic!("foreign thread must not borrow native capabilities")
+                        }),
+                        Err::<(), _>(2)
+                    );
+                    let mut buffer = ptr::null_mut();
+                    assert_eq!(bridge::context_buffer_create(&copied, 1, 1, &mut buffer), 2);
+                    assert!(buffer.is_null(), "refusal preserves output");
+                    assert_eq!(bridge::context_buffer_drop(&copied, buffer), 2);
+                    bridge::with_child(&copied, |_, _, _| Ok(()))
+                }
             })
             .join()
             .unwrap(),

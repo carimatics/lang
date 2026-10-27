@@ -21,7 +21,7 @@ jobs:
   macos-aarch64:
     name: macOS 15 / AArch64
     runs-on: macos-15
-    timeout-minutes: 30
+    timeout-minutes: 120
     steps:
       - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -49,4 +49,6 @@ jobs:
         run: cargo clippy --locked --manifest-path fuzz/Cargo.toml --bins -- -D warnings
 
       - name: Validate benchmark evidence checks
-        run: python3 -m unittest discover -s tools/m2-bench -p 'test_*.py'
+        run: |
+          python3 -m unittest discover -s tools/m2-bench -p 'test_*.py'
+          python3 -m unittest discover -s tools/m3-bench -p 'test_*.py'

@@ -4,13 +4,19 @@
 
 [日本語版](../ja/rfcs/0002-prototype-control-flow.md)
 
-- Status: accepted
+- Status: implemented
 - Authors: Project contributors
 - Created: 2026-10-16
-- Last updated: 2026-10-17
+- Last updated: 2026-10-27
 - Tracking issue:
 - Supersedes:
 - Superseded by:
+
+## Current scope
+
+**Verified 2026-10-27 JST.** The scalar source subset is implemented together with RFC 0006's completed lexical contract. Source parsing, checking, formatting, VM execution and native compilation are covered by `tests/source_conformance.rs`, `tests/source_vm.rs`, `tests/formatter.rs`, `tests/native_program.rs` and the M2/M3 full baselines. The optional extensions below remain outside this subset; implementation does not stabilize source syntax.
+
+The [M3 exit audit](../milestone-3-capabilities.md) and [current review](../review-2026-10-27.md) provide current evidence. Implementation source has no embedded publication/update date. Dated checkpoints and original acceptance decisions are retained as historical records.
 
 ## Summary
 

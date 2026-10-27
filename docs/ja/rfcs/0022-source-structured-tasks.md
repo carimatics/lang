@@ -4,13 +4,17 @@
 
 [English](../../rfcs/0022-source-structured-tasks.md)
 
-- Status: accepted
+- Status: implemented
 - Authors: Project contributors
 - Created: 2026-10-21
-- Last updated: 2026-10-21
+- Last updated: 2026-10-27
 - Tracking issue: M3-T03, M3-T09, M3-T10, M3-T04–T08
 - Supersedes:
 - Superseded by:
+
+## Implementation status
+
+**2026-10-27 JST: implemented（実験的profile）**。sourceのeffect、scope付きclaim、suspension loan、所有async引数/結果、取消、VM/native/別リンク実行を実装済みです。 根拠は `tests/task_execution.rs`, `task_loan_execution.rs`, `task_owned_transfer.rs`, `native_task_execution.rs` と、実行source `9e78f2d` の[両host適合・移行記録](../../evidence/2026-10-27-m3-migration-9e78f2d.json)、[15 gate監査](../milestone-3-capabilities.md#全exit監査)です。保存形式とinstalled packageは後続RFC 0028・0030–0032で完成しています。日付付きcheckpointの「未完」「未検証」はその時点の履歴であり、現在の残作業ではありません。公開component C v1だけがRFC 0033でstabilizedです。このRFCのsource/private ABIを安定化する変更ではありません。
 
 ## Summary
 
@@ -165,7 +169,8 @@ lossless CST span/回復/優先順位、comment/冪等 format、予約識別子/
 
 ## Open questions
 
-厳密な source 契約の blocking question はありません。未検証の仮定: local-only handle が初回 source slice に十分、保持 result escrow の費用が共有上限内で許容、より広い native profile とその費用。T06 は finite Copy/Task local で MIR 解釈を使わず managed-frame driver を再利用できることを示しました。一般 Task 引数/container/高度 future は別判断です。正確な serialized revision と production embedding は明示前提であり、暗黙に採択された形式ではありません。
+現在の実装範囲にblockingな未解決事項はありません。両hostでの実行適合、保存形式、installed起動とM3の費用観測は上記完了記録にあります。費用観測は限定的なmacOS VM/JIT測定であり、全targetの性能やOS thread安全性は保証しません。より広いsource型・非同期foreign callback・並列OS thread・追加targetは別の設計と検証を要します。以下の受理判断は当時の記録として保持します。
+
 
 判断: **RFC 0001 の実験段階の委任で accepted、2026-10-21 JST**。明示 effect/scoped claim/型付き子取消は RFC 0005/0008/0021 を維持します。実装/安定化は上記の証拠を要します。
 

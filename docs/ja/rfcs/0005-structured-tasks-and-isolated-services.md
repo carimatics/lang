@@ -7,10 +7,16 @@
 - Status: accepted
 - Authors: Project contributors
 - Created: 2026-10-16
-- Last updated: 2026-10-22
+- Last updated: 2026-10-27
 - Tracking issue:
 - Supersedes:
 - Superseded by:
+
+## 現在の範囲
+
+**2026-10-27 JST確認。** このRFCは受理済み並行性方針です。現在のsource/driver、scope付きclaim、Send/Share、有界mailbox/backpressure、分離service profileはRFC 0021–0026で実装し、M3機能guideに両host適合を記録しています。以前未決だった初期API/backpressureはそれらのRFCで解決済みです。detached task、supervision/restart、並列OS thread実行、select/deadlineのsurface拡張、pin付きsuspension loanは将来の判断です。
+
+[M3完了監査](../milestone-3-capabilities.md)と[今回のレビュー](../review-2026-10-27.md)が現在の証跡です。実装sourceに公開更新日は埋め込まれていません。日付付きcheckpointと元の受理判断は当時の記録として保持します。
 
 ## 概要
 

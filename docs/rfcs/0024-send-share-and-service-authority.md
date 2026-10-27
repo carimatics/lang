@@ -4,13 +4,17 @@
 
 [日本語版](../ja/rfcs/0024-send-share-and-service-authority.md)
 
-- Status: accepted
+- Status: implemented
 - Authors: project contributors
 - Created: 2026-10-21
-- Last updated: 2026-10-22
+- Last updated: 2026-10-27
 - Tracking issue: M3-A01, M3-A02, M3-A05, M3-A06
 - Supersedes: none
 - Superseded by: none
+
+## Implementation status
+
+**2026-10-27 JST: implemented at the experimental profile.** Independent recursive Send/Share derivation, owning task transfer and concrete channel/service authority are implemented. Evidence: `tests/task_send_capabilities.rs`, `task_owned_transfer.rs`, `channel_type_capabilities.rs`, `service_type_capabilities.rs`, the [both-host conformance/migration record](../evidence/2026-10-27-m3-migration-9e78f2d.json) at executable source `9e78f2d`, and the [15-gate audit](../milestone-3-capabilities.md#complete-exit-audit). Follow-up RFCs 0028 and 0030–0032 complete serialization and installed packages. “Remaining” or “unverified” in dated checkpoints describes that checkpoint, not current work. Only the public component C v1 boundary is stabilized by RFC 0033; this update does not stabilize this RFC's source/private ABI.
 
 ## Summary
 
@@ -126,7 +130,7 @@ Compile-pass recursive records/variants/Vec/Map/Text/Bytes/shared/weak and Copy 
 
 ## Open questions
 
-A05 verifies owned async publication through existing managed transfer/escrow machinery without a new owner registry. A06 checks bounded derivation at exact/one-below proof limits. Remaining unverified assumptions: representative derivation/transfer costs are acceptable, future channel handles carry only interface authority, and both-host behavior conforms. The implementation audit must expose any missing observable prerequisite and preserve all M3 acceptance conditions. No cross-thread or foreign-handle safety is inferred.
+No blocking question remains for the implemented profile. Both-host execution conformance, persisted formats, installed startup and M3 cost observations are recorded above. Costs are limited macOS VM/JIT observations, not a performance or OS-thread-safety guarantee for every target. Broader source types, asynchronous foreign callbacks, parallel OS threads and additional targets require separate decisions and validation. The acceptance decision below is retained as a historical record.
 
 Decision: **accepted under RFC 0001 experimental delegation, 2026-10-21 JST**. Recursive verified type facts, ordinary moves/loans and the existing checked shared-publication/serialized-invocation boundary define owned task transfer without introducing borrowed transfers or assuming thread safety. Keeping state projections out of service handles preserves producer/owner separation. The assumptions above remain unverified until implementation and both-host validation; acceptance establishes neither implementation, stabilization nor gate completion.
 

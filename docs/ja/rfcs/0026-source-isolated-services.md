@@ -4,13 +4,17 @@
 
 [English](../../rfcs/0026-source-isolated-services.md)
 
-- Status: accepted
+- Status: implemented
 - Authors: Project contributors
 - Created: 2026-10-22
-- Last updated: 2026-10-22
+- Last updated: 2026-10-27
 - Tracking issue: M3-A02, M3-A07, M3-A08, M3-C07, M3-A03, M3-A04
 - Supersedes: なし。RFC 0005/0024 が要求する具体 service catalog を補完
 - Superseded by: なし
+
+## Implementation status
+
+**2026-10-27 JST: implemented（実験的profile）**。所有Send state/message、分離したhandler権限、置換前の検査、queueからstateの順での退役、VM/native/別リンク実行を実装済みです。 根拠は `tests/source_services.rs`, `native_service_execution.rs`, `service_type_capabilities.rs` と、実行source `9e78f2d` の[両host適合・移行記録](../../evidence/2026-10-27-m3-migration-9e78f2d.json)、[15 gate監査](../milestone-3-capabilities.md#全exit監査)です。保存形式とinstalled packageは後続RFC 0028・0030–0032で完成しています。日付付きcheckpointの「未完」「未検証」はその時点の履歴であり、現在の残作業ではありません。公開component C v1だけがRFC 0033でstabilizedです。このRFCのsource/private ABIを安定化する変更ではありません。
 
 ## Summary
 
@@ -182,7 +186,8 @@ Copy/owned/nested/recursive state/message、helper read、owner への合法 mov
 
 ## Open questions
 
-この private VM profile の意味論を妨げる未決事項はありません。managed loan generation の保持・backing 内の state Reservation 1個・Hub wake/unlink・closed identity の寿命・prospective non-Share state 検査・queue-before-state mixed retirement を、owner registry の追加や退役ごとの allocation なしで検証します。service native/別リンク parity、代表的 cost、両 host、将来の persisted/foreign 表現は未検証で、受理から推測しません。
+現在の実装範囲にblockingな未解決事項はありません。両hostでの実行適合、保存形式、installed起動とM3の費用観測は上記完了記録にあります。費用観測は限定的なmacOS VM/JIT測定であり、全targetの性能やOS thread安全性は保証しません。より広いsource型・非同期foreign callback・並列OS thread・追加targetは別の設計と検証を要します。以下の受理判断は当時の記録として保持します。
+
 
 決定: **RFC 0001 の実験段階委任により accepted、2026-10-22 JST**。明示 role、通常 loan/move、state 全体 publication、観測可能な handler 境界により、新 source 言語・無制限 mutable projection・interpreter fallback なしで RFC 0005 の isolation/取消を保ちます。composition 実験は ownership 境界が必要な理由を示します。上記仮説は実装証拠として扱わず記録します。
 

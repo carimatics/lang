@@ -46,12 +46,15 @@ The rationale and unresolved tradeoffs are documented in [the architecture basel
 - [Implementation roadmap](docs/roadmap.md)
 - [Milestone 1 capability guide](docs/milestone-1.md)
 - [Milestone 2 capability guide and complete exit audit](docs/milestone-2-capabilities.md)
-- [Milestone 3 active delivery board](docs/milestone-3.md)
+- [Milestone 3 completed delivery board](docs/milestone-3.md)
 - [Whole-repository review, 2026-10-17](docs/review-2026-10-17.md)
 - [Whole-repository review, 2026-10-20](docs/review-2026-10-20.md)
+- [Whole-repository review, 2026-10-27](docs/review-2026-10-27.md)
+- [M3 architecture history](docs/architecture-m3-history.md)
+- [M3 implementation and estimate history](docs/milestone-3-history.md)
 - [RFC process and template](docs/rfcs/0000-template.md)
 - [RFC 0001: Project charter and compatibility policy (accepted)](docs/rfcs/0001-project-charter.md)
-- [RFC 0002: Prototype integer and structured control-flow semantics (accepted)](docs/rfcs/0002-prototype-control-flow.md)
+- [RFC 0002: Prototype integer and structured control-flow semantics (implemented)](docs/rfcs/0002-prototype-control-flow.md)
 - [RFC 0003: Versioned component contracts and capability imports (accepted)](docs/rfcs/0003-versioned-component-contracts.md)
 - [RFC 0004: Owned values, explicit sharing, and cyclic graph storage (accepted)](docs/rfcs/0004-owned-values-and-cyclic-graphs.md)
 - [RFC 0005: Structured tasks, cancellation, and isolated services (accepted)](docs/rfcs/0005-structured-tasks-and-isolated-services.md)
@@ -71,12 +74,12 @@ The rationale and unresolved tradeoffs are documented in [the architecture basel
 - [RFC 0019: Ordinary owned native entry runtime (implemented)](docs/rfcs/0019-owned-native-entry-runtime.md)
 - [RFC 0020: Experimental native SDK and scoped startup (implemented)](docs/rfcs/0020-native-sdk-and-startup.md)
 - [RFC 0021: Bounded structured task driver (implemented)](docs/rfcs/0021-bounded-structured-task-driver.md)
-- [RFC 0022: Source structured tasks (accepted)](docs/rfcs/0022-source-structured-tasks.md)
-- [RFC 0023: Task MIR boundaries (accepted)](docs/rfcs/0023-task-mir-boundaries.md)
-- [RFC 0024: Recursive Send/Share and service authority (accepted)](docs/rfcs/0024-send-share-and-service-authority.md)
-- [RFC 0025: Bounded channels and backpressure (accepted)](docs/rfcs/0025-bounded-channels-and-backpressure.md)
+- [RFC 0022: Source structured tasks (implemented)](docs/rfcs/0022-source-structured-tasks.md)
+- [RFC 0023: Task MIR boundaries (implemented)](docs/rfcs/0023-task-mir-boundaries.md)
+- [RFC 0024: Recursive Send/Share and service authority (implemented)](docs/rfcs/0024-send-share-and-service-authority.md)
+- [RFC 0025: Bounded channels and backpressure (implemented)](docs/rfcs/0025-bounded-channels-and-backpressure.md)
 
-- [RFC 0026: Source isolated services (accepted)](docs/rfcs/0026-source-isolated-services.md)
+- [RFC 0026: Source isolated services (implemented)](docs/rfcs/0026-source-isolated-services.md)
 - [RFC 0027: Production component IDL, wire and embedding profile (implemented)](docs/rfcs/0027-production-component-interface.md)
 - [RFC 0028: Serialized task and component MIR (implemented)](docs/rfcs/0028-task-component-artifacts.md)
 - [RFC 0029: Component adapter work and invocation metering (implemented)](docs/rfcs/0029-component-adapter-work.md)
@@ -88,7 +91,7 @@ The rationale and unresolved tradeoffs are documented in [the architecture basel
 
 ## Development
 
-Use Rust **1.99.0** with rustfmt and Clippy, pinned by `rust-toolchain.toml`. The [M2 capability guide](docs/milestone-2-capabilities.md) records implemented behavior, all 18 exit gates and limits; the [M3 delivery board](docs/milestone-3.md) records current work and estimate changes. `cargo run --example structured-tasks` exercises the first explicit host task driver; source async remains in progress.
+Use Rust **1.99.0** with rustfmt and Clippy, pinned by `rust-toolchain.toml`. The [M2](docs/milestone-2-capabilities.md) and [M3 capability guides](docs/milestone-3-capabilities.md) record implemented behavior, exit gates and limits. `cargo run -- run examples/scripts/tasks.lang` exercises implemented source async and returns 42. The [M3 board](docs/milestone-3.md) is the completed record of all 79 deliveries.
 
 ```bash
 cargo run -- check examples/conformance/owned_pipeline.lang
@@ -115,7 +118,7 @@ cargo doc --workspace --no-deps
 
 `cargo run -- native --output PROGRAM SOURCE` publishes the original object, portable semantic/native records, checked plans, `bindings.rs` and applicable `main.rs`/`program.h`. Ordinary Copy/owned startup uses a zero-argument i64 entry; C libraries need an explicit host. See [producer tests](tests/native_compiler.rs).
 
-Task package checkpoint (2026-10-27 JST): `lang native` selects program manifest version 2/task, schema-5 semantics and the original LANGNAT-2 Task object. SDK assembly emits manifest version 2; task packages require it. Legacy version-1 copy/owned/C profiles remain supported. Initial task production is host-target only; component packages and actual both-host task startup remain I08 acceptance. The first copied-SDK macOS task executable prints 42 without Cargo on PATH; full validation is tracked on the [delivery board](docs/milestone-3.md).
+Task packages use program manifest version 2, schema-5 semantics and LANGNAT-2 objects. Component packages use program version 3 with explicit host bindings; current SDK manifest version 3 admits them. Legacy copy/owned/C/task profiles retain their admission rules. Actual seven-profile isolated startup on both hosts is recorded in the [M3 guide](docs/milestone-3-capabilities.md) and [RFCs 0031](docs/rfcs/0031-installed-native-task-packages.md)/[0032](docs/rfcs/0032-installed-component-packages.md), verified 2026-10-27 JST.
 
 ### Native package verification API
 

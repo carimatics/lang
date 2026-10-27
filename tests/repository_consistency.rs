@@ -362,6 +362,33 @@ fn rfc_status_and_dates_match_their_translations() {
                 entry.path().display()
             );
         }
+        // Translation may change prose/headings, but not silently drop a
+        // normative section, source list or fenced example.
+        fn structure(document: &str) -> Vec<String> {
+            let mut result = Vec::new();
+            let mut fenced = false;
+            for line in document.lines() {
+                if let Some(language) = line.strip_prefix("```") {
+                    if !fenced {
+                        result.push(format!("code:{}", language.trim()));
+                    }
+                    fenced = !fenced;
+                } else if !fenced {
+                    let level = line.bytes().take_while(|byte| *byte == b'#').count();
+                    if (1..=6).contains(&level) && line.as_bytes().get(level) == Some(&b' ') {
+                        result.push(format!("heading:{level}"));
+                    }
+                }
+            }
+            assert!(!fenced, "closed fenced example");
+            result
+        }
+        assert_eq!(
+            structure(&english),
+            structure(&japanese),
+            "{} section hierarchy and example languages",
+            entry.path().display()
+        );
         assert!(matches!(
             metadata(&english, "- Status"),
             "proposed" | "accepted" | "implemented" | "stabilized" | "withdrawn" | "superseded"

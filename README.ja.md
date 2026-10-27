@@ -46,12 +46,15 @@ source構文・native language ABI・private SDK/package formatは実験段階�
 - [実装ロードマップ](docs/ja/roadmap.md)
 - [Milestone 1機能ガイド](docs/ja/milestone-1.md)
 - [Milestone 2 capability guide・全出口監査](docs/ja/milestone-2-capabilities.md)
-- [Milestone 3 進行中の実装 Todo](docs/ja/milestone-3.md)
+- [Milestone 3 完了した実装記録](docs/ja/milestone-3.md)
 - [全ファイルreview、2026-10-17](docs/ja/review-2026-10-17.md)
 - [リポジトリ全体レビュー、2026-10-20](docs/ja/review-2026-10-20.md)
+- [リポジトリ全体レビュー、2026-10-27](docs/ja/review-2026-10-27.md)
+- [M3アーキテクチャ履歴](docs/ja/architecture-m3-history.md)
+- [M3実装・見積り履歴](docs/ja/milestone-3-history.md)
 - [RFCプロセスとテンプレート](docs/ja/rfcs/0000-template.md)
 - [RFC 0001：プロジェクト憲章と互換性ポリシー（accepted）](docs/ja/rfcs/0001-project-charter.md)
-- [RFC 0002：Prototype integer／structured control-flow semantics（accepted）](docs/ja/rfcs/0002-prototype-control-flow.md)
+- [RFC 0002：Prototype integer／structured control-flow semantics（implemented）](docs/ja/rfcs/0002-prototype-control-flow.md)
 - [RFC 0003：Version付きcomponent contractとcapability import（accepted）](docs/ja/rfcs/0003-versioned-component-contracts.md)
 - [RFC 0004: Owned value、明示的共有、cyclic graph storage（accepted）](docs/ja/rfcs/0004-owned-values-and-cyclic-graphs.md)
 - [RFC 0005：Structured task、cancellation、isolated service（accepted）](docs/ja/rfcs/0005-structured-tasks-and-isolated-services.md)
@@ -71,12 +74,12 @@ source構文・native language ABI・private SDK/package formatは実験段階�
 - [RFC 0019: 通常owned native entry runtime（implemented）](docs/ja/rfcs/0019-owned-native-entry-runtime.md)
 - [RFC 0020: 実験段階のnative SDKとscope付き起動（implemented）](docs/ja/rfcs/0020-native-sdk-and-startup.md)
 - [RFC 0021: 上限付き構造化タスクドライバー（implemented）](docs/ja/rfcs/0021-bounded-structured-task-driver.md)
-- [RFC 0022: Source の構造化タスク（accepted）](docs/ja/rfcs/0022-source-structured-tasks.md)
-- [RFC 0023: Task MIR の境界（accepted）](docs/ja/rfcs/0023-task-mir-boundaries.md)
-- [RFC 0024: 再帰 Send/Share と service 権限（accepted）](docs/ja/rfcs/0024-send-share-and-service-authority.md)
-- [RFC 0025: 有限 channel と backpressure（accepted）](docs/ja/rfcs/0025-bounded-channels-and-backpressure.md)
+- [RFC 0022: Source の構造化タスク（implemented）](docs/ja/rfcs/0022-source-structured-tasks.md)
+- [RFC 0023: Task MIR の境界（implemented）](docs/ja/rfcs/0023-task-mir-boundaries.md)
+- [RFC 0024: 再帰 Send/Share と service 権限（implemented）](docs/ja/rfcs/0024-send-share-and-service-authority.md)
+- [RFC 0025: 有限 channel と backpressure（implemented）](docs/ja/rfcs/0025-bounded-channels-and-backpressure.md)
 
-- [RFC 0026: Source isolated service（accepted）](docs/ja/rfcs/0026-source-isolated-services.md)
+- [RFC 0026: Source isolated service（implemented）](docs/ja/rfcs/0026-source-isolated-services.md)
 - [RFC 0027: Production component IDL・wire・embedding profile（implemented）](docs/ja/rfcs/0027-production-component-interface.md)
 - [RFC 0028: Task と component MIR の直列化（implemented）](docs/ja/rfcs/0028-task-component-artifacts.md)
 - [RFC 0029: Component adapter work と invocation 計量（implemented）](docs/ja/rfcs/0029-component-adapter-work.md)
@@ -88,7 +91,7 @@ source構文・native language ABI・private SDK/package formatは実験段階�
 
 ## 開発
 
-`rust-toolchain.toml` で固定した Rust **1.99.0** と rustfmt/Clippy を使います。[M2 capability guide](docs/ja/milestone-2-capabilities.md)に実装動作・18 完了条件・制約、[M3 実装 Todo](docs/ja/milestone-3.md)に現在の作業と見積り変更を記録します。`cargo run --example structured-tasks` で最初の明示的 host task driver を実行できます。source async は実装中です。
+`rust-toolchain.toml`で固定したRust **1.99.0**とrustfmt/Clippyを使います。[M2機能guide](docs/ja/milestone-2-capabilities.md)と[M3機能guide](docs/ja/milestone-3-capabilities.md)に実装動作・完了条件・制約を記録しています。`cargo run -- run examples/scripts/tasks.lang`で実装済みsource asyncを実行し、42を返します。[M3 board](docs/ja/milestone-3.md)は完了した79 deliveryの記録です。
 
 ```bash
 cargo run -- check examples/conformance/owned_pipeline.lang
@@ -115,7 +118,7 @@ cargo doc --workspace --no-deps
 
 `cargo run -- native --output PROGRAM SOURCE`は元object、portable意味論／native record、検証済plan、`bindings.rs`と必要な`main.rs`／`program.h`を公開します。通常Copy／owned startupは引数なしi64 entryを使い、C libraryは明示hostを要します。[Producer test](tests/native_compiler.rs)を参照してください。
 
-Task package checkpoint（2026-10-27 JST）: `lang native`がprogram manifest version 2/task・schema-5意味論・元LANGNAT-2 Task objectを選びます。SDK assemblyはmanifest version 2を出力し、task packageはこれを必要とします。旧version-1 copy/owned/C profileは維持します。初期task出力はhost targetだけで、component packageと実両host task startupはI08に残ります。最初のmacOSコピー済みSDK executableはCargoがPATHになくても42を返し、全検証は[実装Todo](docs/ja/milestone-3.md)で追跡します。
+Task packageはprogram manifest version 2、schema-5意味論とLANGNAT-2 objectを使います。component packageはprogram version 3と明示host bindingを使い、現SDK manifest version 3が対応します。旧copy/owned/C/task profileの受理規則も維持します。実両hostの7 profile隔離起動は[M3完了guide](docs/ja/milestone-3-capabilities.md)と[RFC 0031](docs/ja/rfcs/0031-installed-native-task-packages.md)・[0032](docs/ja/rfcs/0032-installed-component-packages.md)に記録しています（2026-10-27 JST確認）。
 
 ### Native package検証API
 

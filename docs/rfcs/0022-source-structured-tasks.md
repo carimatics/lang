@@ -4,13 +4,17 @@
 
 [日本語版](../ja/rfcs/0022-source-structured-tasks.md)
 
-- Status: accepted
+- Status: implemented
 - Authors: Project contributors
 - Created: 2026-10-21
-- Last updated: 2026-10-21
+- Last updated: 2026-10-27
 - Tracking issue: M3-T03, M3-T09, M3-T10, M3-T04–T08
 - Supersedes:
 - Superseded by:
+
+## Implementation status
+
+**2026-10-27 JST: implemented at the experimental profile.** Structured source effects, scoped claims, suspension loans, owning async arguments/results, cancellation and VM/native/linked execution are implemented. Evidence: `tests/task_execution.rs`, `task_loan_execution.rs`, `task_owned_transfer.rs`, `native_task_execution.rs`, the [both-host conformance/migration record](../evidence/2026-10-27-m3-migration-9e78f2d.json) at executable source `9e78f2d`, and the [15-gate audit](../milestone-3-capabilities.md#complete-exit-audit). Follow-up RFCs 0028 and 0030–0032 complete serialization and installed packages. “Remaining” or “unverified” in dated checkpoints describes that checkpoint, not current work. Only the public component C v1 boundary is stabilized by RFC 0033; this update does not stabilize this RFC's source/private ABI.
 
 ## Summary
 
@@ -165,7 +169,7 @@ Lossless CST spans/recovery and exact precedence; comments and idempotent format
 
 ## Open questions
 
-No blocking question for this strict source contract. Unverified assumptions: local-only scoped handles suffice for the first source slice; retained result escrow costs are acceptable under shared limits; broader native profiles and their costs remain unverified. T06 demonstrates managed-frame driver reuse without MIR interpretation for finite Copy/Task locals. General Task parameters/containers and richer futures need separate decisions. Exact serialized revisions and production embedding remain explicit prerequisites, not implicitly accepted formats.
+No blocking question remains for the implemented profile. Both-host execution conformance, persisted formats, installed startup and M3 cost observations are recorded above. Costs are limited macOS VM/JIT observations, not a performance or OS-thread-safety guarantee for every target. Broader source types, asynchronous foreign callbacks, parallel OS threads and additional targets require separate decisions and validation. The acceptance decision below is retained as a historical record.
 
 Decision: **accepted under RFC 0001 experimental delegation, 2026-10-21 JST**. The explicit effects, scoped claims and typed child cancellation preserve RFCs 0005/0008/0021. Implementation/stabilization require the evidence above.
 

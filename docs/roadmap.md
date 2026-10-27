@@ -226,6 +226,8 @@ Exit: a native host can load a user script, expose a typed API, call the script,
 
 **Progress: 0 / 63 pt (0.0%).**
 
+Entry dependency audit (2026-10-27 JST): M4 is not activated. Build on the existing CLI, formatter, LSP and native SDK; first decompose the manifest/diagnostic contract and one reproducible package execution fixture. The installer distributes toolchain binaries before M5's registry, so its accepted design must establish trust roots, signed release-metadata verification and atomic update/failure recovery before downloading/installing. M5's signing work covers registry package publication/provenance. This clarifies existing gate dependencies/scope without changing gate weights. Re-estimate observable deliveries from the bottom up on activation; 63 pt is not a remaining-effort forecast.
+
 - [ ] **P0 — Accept versioned package/workspace manifests, target conditions, lockfile compatibility, and the machine-readable CLI diagnostic contract.** — 5 pt
 - [ ] **P0 — Implement deterministic dependency resolution, lockfiles, checksums, and offline mode.** — 8 pt
 - [ ] **P0 — Extend the existing `lang run` frontend into package-aware build/run/test orchestration with the accepted structured diagnostic output.** — 5 pt

@@ -16,7 +16,11 @@ unsafe fn with_call<T>(
     if context.engine.is_null() {
         return Err(2);
     }
-    let state = unsafe { &mut *context.engine.cast::<State>() };
+    // SAFETY: caller retains the original engine. Check immutable identity
+    // before borrowing mutable state, even for an operation that will refuse.
+    let pointer = unsafe { owner_pointer(context.engine) }.map_err(|_| 2u32)?;
+    // SAFETY: only the verified owner thread can restore this unique borrow.
+    let state = unsafe { &mut *pointer };
     let status = check(state, context);
     if status != 0 {
         return Err(status);

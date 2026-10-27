@@ -4,13 +4,17 @@
 
 [日本語版](../ja/rfcs/0025-bounded-channels-and-backpressure.md)
 
-- Status: accepted
+- Status: implemented
 - Authors: project contributors
 - Created: 2026-10-21
-- Last updated: 2026-10-22
+- Last updated: 2026-10-27
 - Tracking issue: M3-C01, M3-C02, M3-C03, M3-C04, M3-C05, M3-C06, M3-C07, M3-A02
 - Supersedes: none
 - Superseded by: none
+
+## Implementation status
+
+**2026-10-27 JST: implemented at the experimental profile.** Bounded channel custody, FIFO backpressure, contextual publication, cancellation and VM/native/linked execution are implemented. Evidence: `tests/source_channels.rs`, `native_channel_execution.rs`, `task_artifacts.rs`, the [both-host conformance/migration record](../evidence/2026-10-27-m3-migration-9e78f2d.json) at executable source `9e78f2d`, and the [15-gate audit](../milestone-3-capabilities.md#complete-exit-audit). Follow-up RFCs 0028 and 0030–0032 complete serialization and installed packages. “Remaining” or “unverified” in dated checkpoints describes that checkpoint, not current work. Only the public component C v1 boundary is stabilized by RFC 0033; this update does not stabilize this RFC's source/private ABI.
 
 ## Summary
 
@@ -209,7 +213,7 @@ Source compile-pass/fail tests must prove endpoint capabilities, explicit clone,
 
 ## Open questions
 
-The C03 catalog was recorded before implementation. VM fixtures now verify contextual endpoint/shared publication, allocation-free wake/cancel transitions, existing whole-value spelling and iterative mixed retirement without another value-owner registry. C04 now exercises native/linked-object parity; representative costs and both-host equivalence remain unverified. Accepted catalog changes require a bilingual revision before implementation; the RFC remains accepted until its complete implementation/stabilization conditions hold.
+No blocking question remains for the implemented profile. Both-host execution conformance, persisted formats, installed startup and M3 cost observations are recorded above. Costs are limited macOS VM/JIT observations, not a performance or OS-thread-safety guarantee for every target. Broader source types, asynchronous foreign callbacks, parallel OS threads and additional targets require separate decisions and validation. The acceptance decision below is retained as a historical record.
 
 Decision: **accepted under RFC 0001 experimental delegation, 2026-10-21 JST**. Bounded MPSC, unique receive authority, explicit Send/Share, custody of uncommitted payloads, atomic publication, FIFO admission and existing cleanup preserve strict ownership/loan rules. A capacity-one trace experiment exposes A,C,B overtaking under naive wake and preserves A,B,C with head reservation. Five traces also check B cancellation after wake, C sender cancellation after commit, seal/abort and one owner/return/retirement per payload. This is a protocol experiment, not production channel execution evidence. Those assumptions and the catalog were unverified at acceptance; the dated checkpoints above record later implementation evidence.
 

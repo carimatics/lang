@@ -7,10 +7,16 @@
 - Status：accepted
 - Authors：Project contributors
 - Created：2026-10-16
-- Last updated：2026-10-22
+- Last updated: 2026-10-27
 - Tracking issue：
 - Supersedes：
 - Superseded by：
+
+## 現在の範囲
+
+**2026-10-27 JST確認。** このRFCは受理済みcomponent方針です。production IDL、rich value、typed grant、registry/code owner保持、failure方針はRFC 0027で実装し、RFC 0033は公開C v1境界だけを安定化します。以前のschema-2実験は互換性の履歴証拠であり、productionのschema選択ではありません。production LCMPはschema 3です。WIT相互運用、package-managerのrange構文、将来の権限委譲は別の後続作業です。
+
+[M3完了監査](../milestone-3-capabilities.md)と[今回のレビュー](../review-2026-10-27.md)が現在の証跡です。実装sourceに公開更新日は埋め込まれていません。日付付きcheckpointと元の受理判断は当時の記録として保持します。
 
 ## 概要
 

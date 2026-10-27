@@ -17,17 +17,20 @@ These instructions apply to the entire repository.
   - `docs/research.md` and `docs/ja/research.md`
   - `docs/architecture.md` and `docs/ja/architecture.md`
   - `docs/architecture-history.md` and `docs/ja/architecture-history.md`
+  - `docs/architecture-m3-history.md` and `docs/ja/architecture-m3-history.md`
   - `docs/roadmap.md` and `docs/ja/roadmap.md`
   - `docs/roadmap-history.md` and `docs/ja/roadmap-history.md`
   - `docs/benchmarks.md` and `docs/ja/benchmarks.md`
   - `docs/milestone-1.md` and `docs/ja/milestone-1.md`
   - `docs/milestone-2.md` and `docs/ja/milestone-2.md`
   - `docs/milestone-3.md` and `docs/ja/milestone-3.md`
+  - `docs/milestone-3-history.md` and `docs/ja/milestone-3-history.md`
   - `docs/milestone-2-capabilities.md` and `docs/ja/milestone-2-capabilities.md`
   - `docs/milestone-3-capabilities.md` and `docs/ja/milestone-3-capabilities.md`
   - `docs/native-sdk.md` and `docs/ja/native-sdk.md`
   - `docs/review-2026-10-17.md` and `docs/ja/review-2026-10-17.md`
   - `docs/review-2026-10-20.md` and `docs/ja/review-2026-10-20.md`
+  - `docs/review-2026-10-27.md` and `docs/ja/review-2026-10-27.md`
   - `docs/rfcs/0000-template.md` and `docs/ja/rfcs/0000-template.md`
   - Every numbered RFC in `docs/rfcs/` and its same-named mirror in `docs/ja/rfcs/`
   - `.agents/skills/language-design-rfc/SKILL.md` and `docs/ja/codex/language-design-rfc.md`

@@ -116,6 +116,15 @@ impl Engine {
 /// bridge and the gateway's separately retained owner must remain live for
 /// any caller access. No borrowed program/native-call pointer is returned.
 pub unsafe fn gateway_owner(engine: *mut native::Engine) -> Result<NonNull<c_void>, u32> {
+    // SAFETY: the caller retains the exact live engine allocation.
+    let pointer = unsafe { owner_pointer(engine) }?;
+    // SAFETY: only the owner thread forms a State view after identity checks.
+    let state = unsafe { &*pointer };
+    state.gateway.ok_or(2)
+}
+/// Check immutable identity fields before forming a reference to mutable state.
+/// The caller retains the original live engine allocation throughout the access.
+unsafe fn owner_pointer(engine: *mut native::Engine) -> Result<*mut State, u32> {
     if engine.is_null() {
         return Err(2);
     }
@@ -128,9 +137,7 @@ pub unsafe fn gateway_owner(engine: *mut native::Engine) -> Result<NonNull<c_voi
     if unsafe { ptr::addr_of!((*pointer).thread).read() } != thread::current().id() {
         return Err(4);
     }
-    // SAFETY: only the owner thread forms a State view after identity checks.
-    let state = unsafe { &*pointer };
-    state.gateway.ok_or(2)
+    Ok(pointer)
 }
 fn check(state: &State, context: &native::Context) -> u32 {
     if state.magic != MAGIC
@@ -167,8 +174,14 @@ pub unsafe extern "C" fn context_check(context: *const native::Context) -> u32 {
     if context.engine.is_null() {
         return 5;
     }
-    // SAFETY: engine provenance/liveness is the trusted native caller contract.
-    let state = unsafe { &*context.engine.cast::<State>() };
+    // SAFETY: caller retains the live engine; foreign threads may inspect only
+    // immutable identity fields, never borrow the owner's mutable State.
+    let pointer = match unsafe { owner_pointer(context.engine) } {
+        Ok(pointer) => pointer,
+        Err(_) => return 2,
+    };
+    // SAFETY: owner identity was checked before forming this state reference.
+    let state = unsafe { &*pointer };
     let status = check(state, context);
     if status != 0 {
         return status;
@@ -205,7 +218,13 @@ pub unsafe extern "C" fn context_allocator_identity(context: *const native::Cont
     if context.engine.is_null() {
         return 0;
     }
-    let state = unsafe { &*context.engine.cast::<State>() };
+    // SAFETY: the live engine is retained, and only immutable identity fields
+    // may be read until the owner thread has been verified.
+    let Ok(pointer) = (unsafe { owner_pointer(context.engine) }) else {
+        return 0;
+    };
+    // SAFETY: the caller is the verified owner thread.
+    let state = unsafe { &*pointer };
     if check(state, context) != 0 {
         return 0;
     }
@@ -530,15 +549,10 @@ unsafe fn child_scope<T>(
     if context.engine.is_null() {
         return Err(5);
     }
-    let pointer = context.engine.cast::<State>();
-    // SAFETY: only immutable identity fields are read on a foreign thread;
-    // no State or active-capability reference is formed until owner validation.
-    if unsafe { ptr::addr_of!((*pointer).magic).read() } != MAGIC {
-        return Err(2);
-    }
-    if unsafe { ptr::addr_of!((*pointer).thread).read() } != thread::current().id() {
-        return Err(4);
-    }
+    // SAFETY: caller retains the live engine; reject foreign threads before
+    // forming any State or active-capability reference.
+    let pointer = unsafe { owner_pointer(context.engine) }?;
+    // SAFETY: only the verified owner thread can borrow mutable state.
     let state = unsafe { &mut *pointer };
     let status = check(state, context);
     if status != 0 {

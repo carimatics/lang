@@ -4,13 +4,17 @@
 
 [English](../../rfcs/0025-bounded-channels-and-backpressure.md)
 
-- Status: accepted
+- Status: implemented
 - Authors: project contributors
 - Created: 2026-10-21
-- Last updated: 2026-10-22
+- Last updated: 2026-10-27
 - Tracking issue: M3-C01, M3-C02, M3-C03, M3-C04, M3-C05, M3-C06, M3-C07, M3-A02
 - Supersedes: none
 - Superseded by: none
+
+## Implementation status
+
+**2026-10-27 JST: implemented（実験的profile）**。有界channelの所有管理、FIFO backpressure、context付きpublication、取消、VM/native/別リンク実行を実装済みです。 根拠は `tests/source_channels.rs`, `native_channel_execution.rs`, `task_artifacts.rs` と、実行source `9e78f2d` の[両host適合・移行記録](../../evidence/2026-10-27-m3-migration-9e78f2d.json)、[15 gate監査](../milestone-3-capabilities.md#全exit監査)です。保存形式とinstalled packageは後続RFC 0028・0030–0032で完成しています。日付付きcheckpointの「未完」「未検証」はその時点の履歴であり、現在の残作業ではありません。公開component C v1だけがRFC 0033でstabilizedです。このRFCのsource/private ABIを安定化する変更ではありません。
 
 ## Summary
 
@@ -209,7 +213,8 @@ source compile-pass/fail で endpoint capability、明示 clone、unique receive
 
 ## Open questions
 
-C03 catalog は実装前に記録しました。VM fixture で context 付き endpoint/shared publication、allocation-free な wake/取消、既存 whole-value spelling、value-owner の別 registry を使わない iterative mixed retirement を検証しました。C04 で native/linked-object parity を検証し、代表的費用と両 host 等価性は未検証です。catalog 変更は実装前の英日改訂を要し、全実装/安定条件を満たすまでは RFC を accepted に維持します。
+現在の実装範囲にblockingな未解決事項はありません。両hostでの実行適合、保存形式、installed起動とM3の費用観測は上記完了記録にあります。費用観測は限定的なmacOS VM/JIT測定であり、全targetの性能やOS thread安全性は保証しません。より広いsource型・非同期foreign callback・並列OS thread・追加targetは別の設計と検証を要します。以下の受理判断は当時の記録として保持します。
+
 
 判断: **RFC 0001 の実験委任で accepted、2026-10-21 JST**。有限 MPSC、唯一の receive 権限、明示 Send/Share、非commit payload の custody、原子的な公開、FIFO admission と既存 cleanup を組み合わせて厳密な所有/loan 規則を維持します。capacity-one の trace 実験では、単純 wake で A,C,B と追越しが起き、先頭予約で A,B,C を維持しました。wake 後の B 取消、commit 後の C sender 取消、seal/abort の5 trace も各 payload の owner と一度限りの返却/退役を検証しました。これは protocol 実験であり production channel の実行証拠ではありません。受理時点ではこれらの仮定と catalog は未検証/未実装であり、後の実装証拠は上記の日付付き checkpoint に分けて記録します。
 

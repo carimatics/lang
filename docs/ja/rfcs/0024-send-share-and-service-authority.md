@@ -4,13 +4,17 @@
 
 [English](../../rfcs/0024-send-share-and-service-authority.md)
 
-- Status: accepted
+- Status: implemented
 - Authors: project contributors
 - Created: 2026-10-21
-- Last updated: 2026-10-22
+- Last updated: 2026-10-27
 - Tracking issue: M3-A01, M3-A02, M3-A05, M3-A06
 - Supersedes: none
 - Superseded by: none
+
+## Implementation status
+
+**2026-10-27 JST: implemented（実験的profile）**。独立した再帰Send/Share導出、所有task転送、具体的なchannel/service権限を実装済みです。 根拠は `tests/task_send_capabilities.rs`, `task_owned_transfer.rs`, `channel_type_capabilities.rs`, `service_type_capabilities.rs` と、実行source `9e78f2d` の[両host適合・移行記録](../../evidence/2026-10-27-m3-migration-9e78f2d.json)、[15 gate監査](../milestone-3-capabilities.md#全exit監査)です。保存形式とinstalled packageは後続RFC 0028・0030–0032で完成しています。日付付きcheckpointの「未完」「未検証」はその時点の履歴であり、現在の残作業ではありません。公開component C v1だけがRFC 0033でstabilizedです。このRFCのsource/private ABIを安定化する変更ではありません。
 
 ## Summary
 
@@ -126,7 +130,7 @@ Copy-only transfer の維持は単純ですが owned message を満たせませ�
 
 ## Open questions
 
-A05 は既存 managed transfer/escrow で新 owner registry なしに owned async publication を実行することを検証し、A06 は proof 上限境界/1 未満で導出の有限性を確認しました。未検証の仮定は代表的な導出/転送費用の許容性、将来 channel handle の interface 権限のみの保持、両 host の動作適合です。実装 audit は不足する観測可能な前提を明示し、全 M3 受入条件を保つ必要があります。thread 間や foreign handle の安全性は推論しません。
+現在の実装範囲にblockingな未解決事項はありません。両hostでの実行適合、保存形式、installed起動とM3の費用観測は上記完了記録にあります。費用観測は限定的なmacOS VM/JIT測定であり、全targetの性能やOS thread安全性は保証しません。より広いsource型・非同期foreign callback・並列OS thread・追加targetは別の設計と検証を要します。以下の受理判断は当時の記録として保持します。
 
 Decision: **accepted under RFC 0001 experimental delegation, 2026-10-21 JST**。検証済み型の再帰的性質、通常 move/loan、既存 checked shared publication と直列 invocation 境界を組み合わせれば、追加の借用や thread 安全性を仮定せず owned task transfer を定義できます。service handle に state projection を与えず、既存 producer/owner 分離を維持します。上記の仮定は実装と両 host の検証まで未検証で、受理だけでは実装・安定化・gate 完了を意味しません。
 

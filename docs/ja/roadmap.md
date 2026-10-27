@@ -226,6 +226,8 @@ Exit：Native hostがuser scriptをloadし、typed APIを公開し、scriptをca
 
 **進捗：0 / 63 pt（0.0%）。**
 
+開始時の依存監査（2026-10-27 JST）: M4は未開始です。既存のCLI・formatter・LSP・native SDKを基盤とし、最初にmanifest/diagnostic契約と1つの再現可能なpackage実行fixtureへ分解します。installerはM5のregistryを待たずにtoolchain binaryを配布するため、信頼起点・署名付きrelease metadataの検証・失敗時のatomic更新/回復を自身の受理済み設計に含めてからdownload/installします。M5の署名作業はregistry packageの公開/provenanceを対象にします。既存exit gateの依存と範囲を明確化するもので、gate weightは不変です。開始時にはbottom-upのdelivery見積りを行い、63 ptを残工数として使いません。
+
 - [ ] **P0 — Version付きpackage／workspace manifest、target condition、lockfile互換性、machine-readable CLI diagnostic契約を受理する。** — 5 pt
 - [ ] **P0 — Deterministic dependency resolution、lockfile、checksum、offline modeを実装する。** — 8 pt
 - [ ] **P0 — 既存の`lang run` frontendをpackage対応build／run／test orchestrationへ拡張し、受理済みstructured diagnostic出力を提供する。** — 5 pt

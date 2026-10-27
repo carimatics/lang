@@ -4,13 +4,17 @@
 
 [日本語版](../ja/rfcs/0026-source-isolated-services.md)
 
-- Status: accepted
+- Status: implemented
 - Authors: Project contributors
 - Created: 2026-10-22
-- Last updated: 2026-10-22
+- Last updated: 2026-10-27
 - Tracking issue: M3-A02, M3-A07, M3-A08, M3-C07, M3-A03, M3-A04
 - Supersedes: none; completes the concrete service catalog required by RFCs 0005/0024
 - Superseded by: none
+
+## Implementation status
+
+**2026-10-27 JST: implemented at the experimental profile.** Owned Send state/messages, isolated handler authority, prospective replacement, queue-before-state retirement and VM/native/linked execution are implemented. Evidence: `tests/source_services.rs`, `native_service_execution.rs`, `service_type_capabilities.rs`, the [both-host conformance/migration record](../evidence/2026-10-27-m3-migration-9e78f2d.json) at executable source `9e78f2d`, and the [15-gate audit](../milestone-3-capabilities.md#complete-exit-audit). Follow-up RFCs 0028 and 0030–0032 complete serialization and installed packages. “Remaining” or “unverified” in dated checkpoints describes that checkpoint, not current work. Only the public component C v1 boundary is stabilized by RFC 0033; this update does not stabilize this RFC's source/private ABI.
 
 ## Summary
 
@@ -182,7 +186,7 @@ Execute 20+22=42, full/empty FIFO/backpressure, pending send recovery, cancel id
 
 ## Open questions
 
-No blocking semantic question remains for this private VM profile. Managed loan-generation retention, one backing state Reservation, Hub wake/unlink, closed-identity lifetime, prospective non-Share state inspection and queue-before-state mixed retirement are exercised without a second owner registry or per-retirement allocation. Service native/linked parity, representative cost, both-host behavior and later persisted/foreign representation remain unverified; do not infer them from acceptance.
+No blocking question remains for the implemented profile. Both-host execution conformance, persisted formats, installed startup and M3 cost observations are recorded above. Costs are limited macOS VM/JIT observations, not a performance or OS-thread-safety guarantee for every target. Broader source types, asynchronous foreign callbacks, parallel OS threads and additional targets require separate decisions and validation. The acceptance decision below is retained as a historical record.
 
 Decision: **accepted under RFC 0001 experimental delegation, 2026-10-22 JST**. Explicit roles, ordinary loans/moves, whole-state publication and an observable handler boundary preserve RFC 0005 isolation/cancellation without a new source language, unrestricted mutable projection or interpreter fallback. The composition experiment demonstrates why the ownership boundary is required. Assumptions above are recorded rather than treated as implementation evidence.
 

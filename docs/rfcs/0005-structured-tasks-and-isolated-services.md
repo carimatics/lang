@@ -7,10 +7,16 @@
 - Status: accepted
 - Authors: Project contributors
 - Created: 2026-10-16
-- Last updated: 2026-10-22
+- Last updated: 2026-10-27
 - Tracking issue:
 - Supersedes:
 - Superseded by:
+
+## Current scope
+
+**Verified 2026-10-27 JST.** This remains the accepted concurrency policy. RFCs 0021–0026 implement the current source/driver, scoped claims, Send/Share, bounded mailbox/backpressure and isolated-service profile, with both-host conformance in the M3 capability guide. The previously open initial API/backpressure choices are resolved by those RFCs. Detached tasks, supervision/restart, parallel OS-thread execution, select/deadline surface extensions and pinned suspension loans remain future decisions.
+
+The [M3 exit audit](../milestone-3-capabilities.md) and [current review](../review-2026-10-27.md) provide current evidence. Implementation source has no embedded publication/update date. Dated checkpoints and original acceptance decisions are retained as historical records.
 
 ## Summary
 

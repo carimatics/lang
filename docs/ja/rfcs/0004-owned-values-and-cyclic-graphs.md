@@ -7,10 +7,16 @@
 - Status: accepted
 - Authors: Project contributors
 - Created: 2026-10-16
-- Last updated: 2026-10-17
+- Last updated: 2026-10-27
 - Tracking issue:
 - Supersedes:
 - Superseded by:
+
+## 現在の範囲
+
+**2026-10-27 JST確認。** このRFCは受理済み所有権方針です。具体的なsource constructor/core APIとallocator契約はRFC 0007–0009で実装し、M2機能guideに記録しています。logical-task Send/Shareは別途RFC 0024で実装し、すべてのmanaged/host型のOS-thread Send/Syncは保証しません。将来のparallel executorの順序、静的acyclicity注釈、traced heapは別の設計作業です。
+
+[M3完了監査](../milestone-3-capabilities.md)と[今回のレビュー](../review-2026-10-27.md)が現在の証跡です。実装sourceに公開更新日は埋め込まれていません。日付付きcheckpointと元の受理判断は当時の記録として保持します。
 
 ## 概要
 

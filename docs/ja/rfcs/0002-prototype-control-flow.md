@@ -4,13 +4,19 @@
 
 [English](../../../docs/rfcs/0002-prototype-control-flow.md)
 
-- Status：accepted
+- Status: implemented
 - Authors：Project contributors
 - Created：2026-10-16
-- Last updated：2026-10-17
+- Last updated: 2026-10-27
 - Tracking issue：
 - Supersedes：
 - Superseded by：
+
+## 現在の範囲
+
+**2026-10-27 JST確認。** scalar source subsetはRFC 0006の完成済みlexical契約とともに実装済みです。sourceのparse/check/format、VM実行、native compileは`tests/source_conformance.rs`、`tests/source_vm.rs`、`tests/formatter.rs`、`tests/native_program.rs`とM2/M3全baselineで検証します。下記optional拡張はこのsubset外であり、実装完了はsource構文の安定化を意味しません。
+
+[M3完了監査](../milestone-3-capabilities.md)と[今回のレビュー](../review-2026-10-27.md)が現在の証跡です。実装sourceに公開更新日は埋め込まれていません。日付付きcheckpointと元の受理判断は当時の記録として保持します。
 
 ## 概要
 

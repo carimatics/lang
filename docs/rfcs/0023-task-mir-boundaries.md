@@ -4,13 +4,17 @@
 
 [日本語版](../ja/rfcs/0023-task-mir-boundaries.md)
 
-- Status: accepted
+- Status: implemented
 - Authors: Project contributors
 - Created: 2026-10-21
-- Last updated: 2026-10-22
+- Last updated: 2026-10-27
 - Tracking issue: M3-T11, M3-T04–T08
 - Supersedes:
 - Superseded by:
+
+## Implementation status
+
+**2026-10-27 JST: implemented at the experimental profile.** Independent task type/effect/ownership/loan proof, continuation lowering, ordered cleanup and shared controls are implemented. Evidence: `tests/task_mir_boundary.rs`, `task_controls.rs`, `task_retirement.rs`, `native_task_execution.rs`, the [both-host conformance/migration record](../evidence/2026-10-27-m3-migration-9e78f2d.json) at executable source `9e78f2d`, and the [15-gate audit](../milestone-3-capabilities.md#complete-exit-audit). Follow-up RFCs 0028 and 0030–0032 complete serialization and installed packages. “Remaining” or “unverified” in dated checkpoints describes that checkpoint, not current work. Only the public component C v1 boundary is stabilized by RFC 0033; this update does not stabilize this RFC's source/private ABI.
 
 ## Summary
 
@@ -146,7 +150,7 @@ Hand-built valid/invalid type and declaration graphs, canonicalization/property 
 
 ## Open questions
 
-No blocking question for the in-memory T04 proof. The instruction/continuation, cleanup-plan, owned-task transfer and shared-control contracts above execute on VM/generated native continuations. Channel, foreign/embedding, both-host conformance and serialized task revisions retain their separate M3 deliveries. A serialized revision must be accepted before publication. Hypothesis: extending existing ownership MIR reduces semantic duplication; no compile-time or runtime performance improvement is claimed.
+No blocking question remains for the implemented profile. Both-host execution conformance, persisted formats, installed startup and M3 cost observations are recorded above. Costs are limited macOS VM/JIT observations, not a performance or OS-thread-safety guarantee for every target. Broader source types, asynchronous foreign callbacks, parallel OS threads and additional targets require separate decisions and validation. The acceptance decision below is retained as a historical record.
 
 Decision: **accepted under RFC 0001 experimental delegation, 2026-10-21 JST**. The staged refusal preserves existing semantics and creates no execution authority. This is a necessary representation prerequisite, not a new milestone gate or a reduction of T04–T08.
 

@@ -4,13 +4,17 @@
 
 [English](../../rfcs/0023-task-mir-boundaries.md)
 
-- Status: accepted
+- Status: implemented
 - Authors: Project contributors
 - Created: 2026-10-21
-- Last updated: 2026-10-22
+- Last updated: 2026-10-27
 - Tracking issue: M3-T11, M3-T04–T08
 - Supersedes:
 - Superseded by:
+
+## Implementation status
+
+**2026-10-27 JST: implemented（実験的profile）**。独立したtask type/effect/ownership/loan証明、continuation lowering、順序付きcleanup、共有controlを実装済みです。 根拠は `tests/task_mir_boundary.rs`, `task_controls.rs`, `task_retirement.rs`, `native_task_execution.rs` と、実行source `9e78f2d` の[両host適合・移行記録](../../evidence/2026-10-27-m3-migration-9e78f2d.json)、[15 gate監査](../milestone-3-capabilities.md#全exit監査)です。保存形式とinstalled packageは後続RFC 0028・0030–0032で完成しています。日付付きcheckpointの「未完」「未検証」はその時点の履歴であり、現在の残作業ではありません。公開component C v1だけがRFC 0033でstabilizedです。このRFCのsource/private ABIを安定化する変更ではありません。
 
 ## Summary
 
@@ -146,7 +150,8 @@ raw MIR の ID/span/cycle/storage/signature/上限を HIR と独立して検証�
 
 ## Open questions
 
-in-memory T04 証明に blocking question はありません。上記の命令/continuation、cleanup plan、owned task transfer、共有 control の契約は VM/生成 native continuation で実行します。channel、foreign/embedding、両 host conformance、serialized task revision は別の M3 delivery に残ります。serialized revision は公開前に採択が必要です。既存 ownership MIR の拡張が semantics 重複を減らすという仮説であり、compile/runtime 性能向上は主張しません。
+現在の実装範囲にblockingな未解決事項はありません。両hostでの実行適合、保存形式、installed起動とM3の費用観測は上記完了記録にあります。費用観測は限定的なmacOS VM/JIT測定であり、全targetの性能やOS thread安全性は保証しません。より広いsource型・非同期foreign callback・並列OS thread・追加targetは別の設計と検証を要します。以下の受理判断は当時の記録として保持します。
+
 
 判断: **RFC 0001 実験段階の委任で accepted、2026-10-21 JST**。段階的な拒否で既存 semantics を維持し、実行権限を作りません。必要な表現の前提であり、新 milestone gate や T04–T08 の縮小ではありません。
 

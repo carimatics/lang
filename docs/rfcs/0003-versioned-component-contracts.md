@@ -7,10 +7,16 @@
 - Status: accepted
 - Authors: Project contributors
 - Created: 2026-10-16
-- Last updated: 2026-10-22
+- Last updated: 2026-10-27
 - Tracking issue:
 - Supersedes:
 - Superseded by:
+
+## Current scope
+
+**Verified 2026-10-27 JST.** This remains the accepted component policy. RFC 0027 implements the selected production IDL, rich values, typed grants, registry/code-owner retention and failure policy; RFC 0033 stabilizes only the public C v1 boundary. The earlier schema-2 experiments remain historical compatibility evidence, not the production schema selection. Production LCMP is schema 3. WIT interoperability, package-manager range spelling and future authority delegation remain separate follow-ups.
+
+The [M3 exit audit](../milestone-3-capabilities.md) and [current review](../review-2026-10-27.md) provide current evidence. Implementation source has no embedded publication/update date. Dated checkpoints and original acceptance decisions are retained as historical records.
 
 ## Summary
 
