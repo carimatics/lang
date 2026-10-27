@@ -6,6 +6,34 @@
 
 これらのmeasurementはpre-alpha prototypeの設計証拠です。言語のperformance guarantee、release target、最終backend選定ではありません。
 
+## Milestone 3 concurrencyとcomponent entryのcost
+
+手順更新・local検証日: **2026-10-27 JST**。[M3 runner](../../tools/m3-bench/run.py)はcleanなcommit済みtreeから固定toolchainのrelease exampleをbuildし、privateな`lang-m3-benchmark` version 1のJSON reportを新規作成します。既存のM2 sourceと過去reportは変更しません。
+
+```bash
+python3 tools/m3-bench/run.py --output /tmp/m3-costs.json --samples 21
+```
+
+未使用のoutput fileを指定します。runnerはdirty source、既存output、1〜1,001範囲外のsample数、誤った結果、論理counter不一致、不完全な退役を拒否します。厳密なrevision、source/fixture hash、rustc identity、host、build/run command、生のsampleを時系列で保存します。backendごとに計時外のwarmupを3回行い、min、上側median、nearest-rank p95、maxを記録します。性能の合否閾値は設けません。
+
+| Workload | 観測する動作 | 期待値 |
+| --- | --- | --- |
+| `single-task` | async entry 1件 | 42 |
+| `spawn-join` | worker 2件のspawn、yield、join | 42 |
+| `owned-channel` | capacity 1の所有Bytes producer/consumer | 42 |
+| `mixed-cancellation` | 混在所有値のqueueとblocked sendの取消 | 42 |
+| `owned-buffers` | 所有Bytes/textのclone、sum、退役 | 71 |
+| `service-state` | actor messageと入れ子の所有stateの置換 | 42 |
+| component境界 | 公開C API → 検証済みscript → 実native increment → canonical result | 42 |
+
+task計測は各sample組で先に実行するbackendを交互にします。frontend解析とJIT compile 1回はworkloadごとに別々に観測します。entryの計時には実VM/JIT APIの**呼出ごとの準備・実行・必須cleanup**を含め、allocator作成、frontend/JIT compile、検証、JSON整形は含めません。固定入力と有限の既定execution/allocator/runner上限を使い、service workを1,000,000に制限し、traceを無効にします。各entryで期待値、VM/JITのfuel/service/task/frame/cell/allocation counter一致、live taskゼロと管理byte/割当ゼロを検査します。
+
+component計測は明示grantのplugin例をVM/JIT別processで再利用します。sourceからartifactへの変換とengine/module/provider/instance/binding admissionを別々に観測した後、`Api.call`だけを計時します。この区間には呼出ごとの準備、canonical adapter、script/native callback実行、必須cleanup、保持result作成を含みます。**現component JITは各call内でcompileします**。task例のcompile済みentry再利用とは区間が異なります。control作成、入力encode、result検査、result/control dropはcall計時外です。全反復で42と安定したcounterを確認し、result/control drop後にallocatorが元の在庫へ戻ることを検査します。従来のgrant拒否/panic/reuse/fuel検証も実行し、最後のnative owner解放は一度だけ、管理割当はゼロです。componentはVM、JITの順で別processを実行し、process間を交互にはしません。
+
+記録したhostでwarm cacheを使う有限workload entryの観測です。純粋なguest命令、scheduler primitive、個別channel操作のcostは分離せず、throughput、OS thread並列性、AOT、Windowsの性能は示しません。管理heap counterにはcompiler metadata、native codec scratch、その他の非計量host割当を含まず、process RSSではありません。1回の準備観測から分布は推定しません。test suiteのwall timeはbenchmark sampleに使いません。M2 source/Rust/C parityも既存のrelease SDK harnessで再実行する必要があり、これはM3との速度比較とは別の証拠です。
+
+出典: [task計測例](../../examples/m3-costs.rs)、[component例](../../examples/component-plugin-host.rs)、[runner](../../tools/m3-bench/run.py)、[RFC 0027](rfcs/0027-production-component-interface.md)。codeに公開更新日の記載はなく、**2026-10-27 JST調査・実行**です。RFC 0027は**2026-10-27 JST更新**です。
+
 ## Milestone 2 source/Rust/C harness
 
 更新・検証日: **2026-10-20 JST**。[`tools/m2-bench`](../../tools/m2-bench/)は実際のsource compiler、元のC-export object、installed release SDKのproduction runtimeを使用します。後述の過去のschema20 prototypeとは独立しています。private result formatは`lang-m2-benchmark` version 1です。

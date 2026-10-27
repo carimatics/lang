@@ -6,6 +6,34 @@
 
 These measurements are design evidence for the pre-alpha prototypes. They are not language performance guarantees, release targets, or a final backend selection.
 
+## Milestone 3 concurrency and component entry costs
+
+Protocol updated and locally checked: **2026-10-27 JST**. [M3 runner](../tools/m3-bench/run.py) builds the pinned toolchain's release examples from a clean committed tree and writes a new private `lang-m3-benchmark` version-1 JSON report. Existing M2 sources and historical reports remain unchanged.
+
+```bash
+python3 tools/m3-bench/run.py --output /tmp/m3-costs.json --samples 21
+```
+
+Use a fresh output file. The runner refuses dirty sources, an existing output, samples outside 1–1,001, incorrect results, inconsistent logical counters or incomplete retirement. It records the exact revision, source/fixture hashes, rustc identity, host, build/run commands and raw chronological samples. Each backend has three untimed warmups; summaries use min, upper median, nearest-rank p95 and max. There is no performance acceptance threshold.
+
+| Workload | Observable behavior | Expected result |
+| --- | --- | --- |
+| `single-task` | One async entry | 42 |
+| `spawn-join` | Two spawned workers, yield and joins | 42 |
+| `owned-channel` | Capacity-one owned Bytes producer/consumer | 42 |
+| `mixed-cancellation` | Queued mixed ownership and blocked-send cancellation | 42 |
+| `owned-buffers` | Owned Bytes/text cloning, sums and retirement | 71 |
+| `service-state` | Actor messages and nested owned-state replacement | 42 |
+| component boundary | Public C API → verified script → actual native increment → canonical result | 42 |
+
+The task measurements alternate which backend runs first in each paired sample. Frontend analysis and one JIT compilation are observed separately, once per workload. The entry timer includes the actual VM/JIT API's **per-call preparation, execution and mandatory cleanup**; allocator creation, frontend/JIT compilation, validation and JSON formatting are outside it. The workload inputs are fixed, with finite default execution/allocator/runner bounds, service work capped at 1,000,000 and tracing disabled. Each entry checks its result, matching VM/JIT fuel/service/task/frame/cell/allocation counters, zero live tasks and zero managed bytes/allocations.
+
+The component measurements reuse the explicit-grant plugin example in separate VM and JIT processes. They separately observe source-to-artifact and engine/module/provider/instance/binding admission, then time only `Api.call`. That interval includes per-call preparation, canonical adapters, script/native callback execution, mandatory cleanup and retained-result creation. **The current component JIT compiles inside each call**; it is not the task example's reused compiled entry. Control creation, input encoding, result inspection and result/control drop are outside the call timer. Every iteration returns 42 with stable counters and returns the allocator to its previous inventory after dropping results/controls. The original denial/panic/reuse/fuel checks still run; final native-owner release is exactly once and managed allocations are zero. Component VM runs before JIT; these processes are not interleaved.
+
+These are finite workload entry observations on the recorded host, with warm caches. They do not isolate pure guest instructions, scheduler primitives or channel operations, and do not establish throughput, OS-thread parallelism, AOT or Windows performance. Managed heap counters exclude compiler metadata, native codec scratch and other unmetered host allocations; they are not process RSS. Single preparation observations do not estimate a distribution. Test-suite wall times are never benchmark samples. M2 source/Rust/C parity must also be replayed with its existing release-SDK harness; it is separate evidence, not an M3 speed comparison.
+
+Sources: [task measurement example](../examples/m3-costs.rs), [component example](../examples/component-plugin-host.rs), [runner](../tools/m3-bench/run.py), and [RFC 0027](rfcs/0027-production-component-interface.md). Code has no published update date; inspected/executed **2026-10-27 JST**. RFC 0027 was updated **2026-10-27 JST**.
+
 ## Milestone 2 source/Rust/C harness
 
 Updated and verified: **2026-10-20 JST**. [`tools/m2-bench`](../tools/m2-bench/) uses the actual source compiler, original C-export object and installed release SDK production runtime. It is independent of the historical schema20 prototype below. Its private result format is `lang-m2-benchmark`, version 1.

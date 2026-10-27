@@ -21,6 +21,8 @@ hostはtrusted native math pluginをリンクし、公開component-v1 APIから�
 - native callは正確に2件です。保持した失敗resultがinstance/provider close後も実native ownerを保持し、最後のresult解放でownerを一度だけ解放します。
 - runtime管理の割当ては0件へ退役します。
 
+同じ公開API/native callback経路の有限release計測は[M3 benchmark手順](../../docs/ja/benchmarks.md#milestone-3-concurrencyとcomponent-entryのcost)を参照してください。任意の`--measure 21`引数で、この例の正しさ/寿命検査を維持したままJSONを出力します。
+
 最後の出力は`VM:`または`JIT:`に続いて次の内容になります。
 
 ```text

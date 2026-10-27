@@ -16,6 +16,7 @@ use std::{
     ptr,
     rc::Rc,
     sync::atomic::{AtomicUsize, Ordering},
+    time::Instant,
 };
 
 const SCRIPT_IDL: &[u8] = include_bytes!("plugins/verified.idl.json");
@@ -214,14 +215,106 @@ unsafe extern "C" fn release(user: *mut c_void) {
     let plugin = unsafe { Box::from_raw(user.cast::<NativePlugin>()) };
     plugin.released.set(plugin.released.get() + 1);
 }
+// SAFETY: main retains these original handles/descriptors for this entire call.
+unsafe fn measure(
+    api: &ffi::Api,
+    engine: *mut ffi::Engine,
+    binding: *mut ffi::Binding,
+    limits: &ffi::Limits,
+    consumer: &wire::Contract,
+    samples: usize,
+) -> serde_json::Value {
+    let mut session = wire::Session::new(Default::default());
+    let signature =
+        wire::Signature::new(consumer, &interface("plugin"), "answer", &mut session).unwrap();
+    let arguments = wire::encode_values(
+        &signature,
+        wire::FrameKind::Parameters,
+        &wire::Values {
+            roots: vec![wire::ValueId(0)],
+            nodes: vec![wire::Value::I64(41)],
+        },
+        &mut session,
+    )
+    .unwrap();
+    let baseline = LIVE.load(Ordering::Relaxed);
+    let mut times = Vec::new();
+    let mut counters = None;
+    // SAFETY: all handles are live; views are inspected before result retirement.
+    unsafe {
+        for sample in 0..samples + 3 {
+            let mut error: ffi::Error = std::mem::zeroed();
+            error.header = header::<ffi::Error>();
+            let mut control = ptr::null_mut();
+            let mut result = ptr::null_mut();
+            assert_eq!(
+                (api.control_create)(engine, limits, &mut control, &mut error),
+                0
+            );
+            let started = Instant::now();
+            let status = (api.call)(binding, control, bytes(&arguments), &mut result, &mut error);
+            let ns = u64::try_from(started.elapsed().as_nanos()).unwrap();
+            assert_eq!(status, 0);
+            let mut usage: ffi::Usage = std::mem::zeroed();
+            usage.header = header::<ffi::Usage>();
+            assert_eq!((api.result_usage)(result, &mut usage, &mut error), 0);
+            let values = serde_json::json!({"fuel":usage.fuel,"service_work":usage.service_work,"host_calls":usage.host_calls,
+                "peak_managed_bytes":usage.peak_heap_bytes,"peak_managed_allocations":usage.peak_live_allocations,
+                "peak_frames":usage.peak_frames,"peak_cells":usage.peak_live_cells,"peak_tasks":usage.peak_live_tasks,"canonical_indices":usage.canonical_indices});
+            if let Some(previous) = &counters {
+                assert_eq!(previous, &values);
+            } else {
+                counters = Some(values);
+            }
+            let mut view = ffi::Bytes {
+                data: ptr::null(),
+                length: 0,
+            };
+            assert_eq!((api.result_bytes)(result, &mut view, &mut error), 0);
+            let values = wire::decode_values(
+                &signature,
+                wire::FrameKind::Result,
+                std::slice::from_raw_parts(view.data, view.length as usize),
+                &mut wire::Session::new(Default::default()),
+            )
+            .unwrap();
+            assert_eq!(values.nodes[values.roots[0].0], wire::Value::I64(42));
+            assert_eq!((api.result_drop)(result, &mut error), 0);
+            assert_eq!((api.control_drop)(control, &mut error), 0);
+            assert_eq!(LIVE.load(Ordering::Relaxed), baseline);
+            if sample >= 3 {
+                times.push(ns);
+            }
+        }
+    }
+    let mut sorted = times.clone();
+    sorted.sort_unstable();
+    serde_json::json!({"samples_ns":times,"min_ns":sorted[0],"median_ns":sorted[sorted.len()/2],
+        "p95_ns":sorted[(95*sorted.len()).div_ceil(100)-1],"max_ns":sorted[sorted.len()-1],"counters":counters,
+        "warmups":3,"live_allocations_after_each_call":baseline})
+}
 fn main() {
-    let mode = match std::env::args().nth(1).as_deref() {
+    let mut args = std::env::args().skip(1);
+    let mode = match args.next().as_deref() {
         None | Some("vm") => 0,
         Some("jit") => 1,
-        _ => panic!("usage: component-plugin-host [vm|jit]"),
+        _ => panic!("usage: component-plugin-host [vm|jit] [--measure samples:1..1001]"),
     };
+    let samples = args.next().map(|flag| {
+        assert_eq!(flag, "--measure");
+        let n: usize = args
+            .next()
+            .expect("sample count")
+            .parse()
+            .expect("integer sample count");
+        assert!((1..=1001).contains(&n));
+        n
+    });
+    assert!(args.next().is_none());
     let api = api();
+    let started = Instant::now();
     let code = artifact();
+    let source_artifact_ns = u64::try_from(started.elapsed().as_nanos()).unwrap();
     let requested = projection("example:plugin/api", "answer");
     let grant = projection("example:math/api", "increment");
     let calls = Rc::new(Cell::new(0));
@@ -274,6 +367,8 @@ fn main() {
     let mut provider = ptr::null_mut();
     let mut instance = ptr::null_mut();
     let mut binding = ptr::null_mut();
+    let started = Instant::now();
+    let mut measurement = None;
     // SAFETY: each descriptor/view is retained through admission; successful
     // registrations transfer user ownership once, and handles close in order.
     unsafe {
@@ -334,7 +429,18 @@ fn main() {
             0
         );
         assert_eq!((api.module_drop)(module, &mut error), 0);
+        let admission_ns = u64::try_from(started.elapsed().as_nanos()).unwrap();
         let consumer = contract(SCRIPT_IDL);
+        if let Some(samples) = samples {
+            measurement = Some(
+                serde_json::json!({"format":"lang-m3-boundary-costs","version":1,
+                "backend":if mode==0 {"vm"} else {"jit"},"profile":if cfg!(debug_assertions){"dev"}else{"release"},
+                "source_artifact_ns":source_artifact_ns,"admission_ns":admission_ns,"samples":samples,
+                "entry_includes":"public API call: per-call preparation, canonical adapters, script, native callback, mandatory cleanup and retained result creation",
+                "entry_excludes":"source artifact compilation, engine/module/provider/instance/binding admission, control creation, result inspection and result/control drop",
+                "entry":measure(api, engine, binding, &config.ceiling, &consumer, samples)}),
+            );
+        }
         let mut retained = ptr::null_mut();
         for (value, fuel, expected) in [(41, 10000, 0), (-1, 10000, 1), (0, 10000, 0), (41, 0, 1)] {
             let mut session = wire::Session::new(Default::default());
@@ -393,7 +499,7 @@ fn main() {
             }
             assert_eq!((api.control_drop)(control, &mut error), 0);
         }
-        assert_eq!(calls.get(), 2);
+        assert_eq!(calls.get(), 2 + samples.map_or(0, |n| n + 3));
         let mut failure = ptr::null_mut();
         assert_eq!((api.instance_close)(instance, &mut failure, &mut error), 0);
         assert!(failure.is_null());
@@ -406,6 +512,13 @@ fn main() {
         assert_eq!((api.engine_destroy)(engine, &mut error), 0);
     }
     assert_eq!(LIVE.load(Ordering::Relaxed), 0);
+    if let Some(mut measurement) = measurement {
+        measurement["final_live_allocations"] = serde_json::json!(0);
+        measurement["owner_releases"] = serde_json::json!(released.get());
+        measurement["native_calls"] = serde_json::json!(calls.get());
+        println!("{}", serde_json::to_string_pretty(&measurement).unwrap());
+        return;
+    }
     println!(
         "{}: script=42; native calls=2; grant denied; panic; reuse=1; fuel refused; owner released; live allocations=0",
         if mode == 0 { "VM" } else { "JIT" }

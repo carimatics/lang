@@ -21,6 +21,8 @@ Both commands check these observable results:
 - Exactly two native calls occur. A retained failure keeps the actual native owner alive after instance/provider close; final result release releases it once.
 - Runtime-managed allocations drain to zero.
 
+For bounded release measurements of this same public API/native callback path, see the [M3 benchmark protocol](../../docs/benchmarks.md#milestone-3-concurrency-and-component-entry-costs). The optional `--measure 21` argument emits JSON while retaining the example's correctness/lifetime checks.
+
 Expected final output starts with `VM:` or `JIT:` followed by:
 
 ```text
