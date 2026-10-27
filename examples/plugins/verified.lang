@@ -1,0 +1,8 @@
+extern "component" fn increment(value: i64) -> i64;
+
+pub fn answer(value: i64) -> i64 {
+    if value < 0 {
+        return core::panic::<i64>(77);
+    }
+    return increment(value);
+}

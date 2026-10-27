@@ -1,0 +1,10 @@
+{
+  "idl": 1,
+  "package": "example:math",
+  "version": "1.0.0",
+  "interfaces": [{"key":"example:math/api","resources":[],"types":[],"functions":[
+    {"name":"increment","effect":"sync","params":[{"name":"value","type":"i64"}],"result":"i64","capability":"example.math.increment"}
+  ]}],
+  "imports": [],
+  "exports": ["example:math/api"]
+}
