@@ -1185,7 +1185,7 @@ static void bound_case(const lang_component_v1_api *api,const lang_component_v1_
     memset(p,0,(size_t)program.length);free(p);if(c){{memset(c,0,(size_t)contract.length);free(c);}}
     assert(api->engine_destroy(engine,&error)==4);
     for(repeat=0;repeat<2;++repeat){{
-        lang_component_v1_control *control=NULL;lang_component_v1_bytes bytes;
+        lang_component_v1_control *control=NULL;lang_component_v1_bytes bytes={{0}};
         lang_component_v1_usage usage={{0}};lang_component_v1_result *untouched=(lang_component_v1_result *)(uintptr_t)42;
         uint8_t scratch[1024];{arguments_type} args={{0}};{result_type} result=0;
         lc_value_writer w={{0}};lc_value_reader r={{0}};lc_value_outcome out;
