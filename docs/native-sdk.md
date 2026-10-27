@@ -47,6 +47,12 @@ Default trusted-host bounds are 8 MiB Rust source, 64 objects at 64 MiB each, 25
 
 The version-1/2 file table records complete hashes and bounded sizes, plus exact target/build/rustc/profile/feature policy. Assembly streams each component and atomically publishes a fresh directory; failures clean only owned staging files. The compiler retains executable permissions. Validate SDKs with the production `SdkSnapshot` API before tools use their components. Native code, libraries, generated Rust/C hosts and build output are trusted inputs; hashes detect pairing/integrity errors, not native-code authenticity. Unsupported/mismatched artifacts require rebuilding with the matching SDK. No Rust ABI stability across builds or performance/size improvement is promised.
 
+## Investigating SDK integrity failures
+
+`component SHA-256` means that the bytes read for a declared SDK/program file do not match its manifest. Linking stops before invoking rustc. The diagnostic's path, expected hash and actual hash identify the failed check; they do not by themselves identify whether the file changed, a read was inconsistent, or hashing was faulty. Preserve the failing run and compare the same revision before assigning a cause.
+
+The `native_link` integration test reports the active startup profile and independently re-reads SDK files after a failed link, listing any remaining digest mismatches. An empty list means that the subsequent reads matched the assembly manifest; it does not erase the original failure or prove that the runner was at fault. No automatic retry or manifest rewriting is performed. Implementation references: `tests/native_link.rs`, `src/native/manifest/snapshot.rs` and `src/native/link.rs`, verified 2026-10-28 JST.
+
 ## Public component-v1 API
 
 Component C v1 is stable under [stabilized RFC 0033](rfcs/0033-component-v1-compatibility.md), verified 2026-10-27 JST. The public 32-entry exact-size/version surface, statuses and ownership/failure contracts are frozen; previous headers/generated clients pass actual macOS/Windows execution at `9e78f2d`. The [migration record](evidence/2026-10-27-m3-migration-9e78f2d.json) retains provenance and full validation. Both-host isolated seven-profile SDK startup also passes. An incompatible C extension needs a new version/namespace; private Rust/SDK ABI requires an exact build and rebuilding. Unsupported stored formats require re-encoding/recompilation from source with matching tools.

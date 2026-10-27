@@ -590,7 +590,25 @@ fn public_link_native_runs_all_profiles_without_source_or_installed_sdk_at_start
                 .arg("--object")
                 .arg(object);
         }
-        ok(link.output().unwrap());
+        let output = link.output().unwrap();
+        if !output.status.success() {
+            let mismatches: Vec<_> = manifest
+                .files()
+                .iter()
+                .filter_map(|file| {
+                    let actual =
+                        fs::read(sdk_root.join(file.path())).map(|bytes| sdk::digest(&bytes));
+                    let expected = file.hash().to_string();
+                    (!actual.as_ref().is_ok_and(|digest| digest == &expected))
+                        .then(|| (file.path(), expected, actual))
+                })
+                .collect();
+            panic!(
+                "link profile {name}: {}\n{}\nSDK digest mismatches on re-read: {mismatches:?}",
+                String::from_utf8_lossy(&output.stdout),
+                String::from_utf8_lossy(&output.stderr),
+            );
+        }
         fs::rename(&package, dir.0.join(format!("{name}-package-away"))).unwrap();
         executables.push((name, expected, executable));
     }
