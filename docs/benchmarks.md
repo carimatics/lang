@@ -34,6 +34,37 @@ These are finite workload entry observations on the recorded host, with warm cac
 
 Sources: [task measurement example](../examples/m3-costs.rs), [component example](../examples/component-plugin-host.rs), [runner](../tools/m3-bench/run.py), and [RFC 0027](rfcs/0027-production-component-interface.md). Code has no published update date; inspected/executed **2026-10-27 JST**. RFC 0027 was updated **2026-10-27 JST**.
 
+### 2026-10-27 macOS observation
+
+Raw [M3 report](../benchmarks/results/2026-10-27-m3-macos-c9ffd19.json), verified **2026-10-27 13:39 JST**, clean source `c9ffd19`, Rust **1.99.0** (`b940084d7`), macOS **27.0.1**, arm64, 10 logical CPUs. Each row has **21 samples after 3 warmups**.
+
+| Workload | VM median µs | JIT median µs | Peak managed bytes | Peak live tasks |
+| --- | ---: | ---: | ---: | ---: |
+| `spawn-join` | 50.250 | 50.250 | 192 | 3 |
+| `owned-channel` | 173.792 | 172.250 | 6,354 | 3 |
+| `mixed-cancellation` | 230.334 | 226.667 | 484,384 | 3 |
+| `owned-buffers` | 57.750 | 56.625 | 6,764 | 2 |
+| `service-state` | 210.917 | 208.500 | 24,322 | 2 |
+| `single-task` | 8.416 | 8.292 | 16 | 1 |
+
+All six workloads have identical logical counters in VM/JIT and retire to zero live tasks, allocations and bytes on every entry. The mixed-cancellation fixture has the largest requested managed peak here (484,384 bytes); that includes its admitted mixed-owned queue/retirement state. It is not a universal cancellation footprint. Frontend observations range **64–2,280 µs** and one-time task JIT compilation **529–13,758 µs**; these are single observations, not latency distributions.
+
+| Public component call | Median µs | p95 µs | Peak managed bytes |
+| --- | ---: | ---: | ---: |
+| VM | 94.292 | 108.250 | 118 |
+| JIT, including compilation inside each call | 1,267.583 | 1,730.458 | 118 |
+
+Both component modes report **8 fuel / 60 service work / 1 host call / 19 peak managed allocations** per measured call. Each process performs 24 warmup/measured native calls plus the two original successful demo calls; all **26** calls complete, the owner releases once and final managed allocations are zero. The current per-call JIT preparation explains why these component entry measurements cover substantially more work than the reused task JIT entry. The close task medians do not establish backend instruction parity: both timers include common runtime preparation and retirement. Fixed small workloads, process order, cache state and lack of independent process repetitions limit generalization.
+
+The [M2 parity replay](../benchmarks/results/2026-10-27-m2-parity-macos-c9ffd19.json), verified **2026-10-27 13:40 JST**, uses the same clean source and release SDK `da0d5af4177cbe6d46a037f9f213b5f0d850239975064edf6c9d549574bc0531`. All **21 source/Rust/C/oracle cases** and the unwind-retirement/fresh-context probe pass. It contains **no new M2 timing samples**; historical M2 results and workload/harness sources remain byte-for-byte unchanged.
+
+```bash
+python3 tools/build-native-sdk.py --release --output /tmp/m3-sdk
+python3 tools/m2-bench/run.py --sdk /tmp/m3-sdk --output /tmp/m3-m2-parity --parity-only
+```
+
+These macOS observations complete Z01's bounded workload-cost record, not I08/B01's both-host execution, B02's C stabilization or Z02's final audit/guide. Sources and update-date limits are listed in the protocol above; the two raw reports contain exact verification timestamps.
+
 ## Milestone 2 source/Rust/C harness
 
 Updated and verified: **2026-10-20 JST**. [`tools/m2-bench`](../tools/m2-bench/) uses the actual source compiler, original C-export object and installed release SDK production runtime. It is independent of the historical schema20 prototype below. Its private result format is `lang-m2-benchmark`, version 1.

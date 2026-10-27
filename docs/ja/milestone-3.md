@@ -6,11 +6,11 @@
 
 更新日: **2026-10-27 JST**。開始チェックポイント: `984557d`。M2 とリポジトリレビューは完了済みです。
 
-**74 done · 1 doing · 4 todo · 12 remaining pt**
+**75 done · 0 doing · 4 todo · 9 remaining pt**
 
-**次: M3-Z01 → 受理済みの並行実行/境界workloadを実測しM2証拠を保持する。**
+**次: M3-I08 → 実両hostのinstalled startup証拠。Windows host/runnerは利用不可。**
 
-Z01未完checkpoint: 最後のcommit済み実行sourceは**`8a3ae2e`**で、計測toolの作業treeは下記の固定source baselineに**2026-10-27 13:38 JST成功**しました。残る受入条件は、検証済みtoolのcommit、その厳密なclean revisionからのrelease実測、未変更のM2 source/Rust/C parityのrelease SDK再実行、生の結果/解釈の日英文書化です。残作業を監査して追加0・3 ptを維持します。entry計時には呼出ごとの準備/実行/必須cleanupを含み、Windowsと未計測backendは観測範囲外です。
+Z01を`c9ffd19`で完了（**2026-10-27 13:40 JST検証**、macOS AArch64）: cleanなcommit済みrelease runnerで実VM/JIT task 6 workloadと公開C API/script/native callback境界を、各3 warmup・21計測sample、source/compiler/host来歴、生の分布、有限control、安定した論理counter付きで記録しました。各task entryの最終live task/管理割当/byteはゼロで、両component modeも元ownerを一度だけ解放し最終管理割当ゼロです。[日英benchmark report](benchmarks.md#milestone-3-concurrencyとcomponent-entryのcost)で計測区間とcomponent JITの各call内compileを明示し、Windows/AOT/process RSS/throughputは主張しません。厳密sourceから新規作成したrelease SDKで未変更M2 harnessの21組のsource/Rust/C/oracle一致とunwind退役/再利用probeが成功しました。再実行はparityのみで、過去M2 source/結果はbyte単位で未変更です。固定入力の全検証は下記に記録します。**完了: 1 delivery / 3 pt消化、追加/再見積り: 0 pt**。照合は**12 + 0 − 3 = 9 pt**、**79行 / 75 done / 0 doing / 4 todo**、台帳**110 + 99 − 200 = 9**です。残るI08（1 pt）は実両hostのinstalled task/component startup、B01（3 pt）は実両host適合、B02（3 pt）はB01待ち、Z02（2 pt）はX01/Z01/B02後の全gate最終監査/guideを維持します。roadmapは適切で、macOS/cross-compileをWindowsの代用にせず、依存する安定化や最終capability guideを先行させません。gateは最終監査まで**3/15・18/96**を維持します。Windows host/runnerは利用できずpushもしません。doingの実装行はありません。
 
 Z01計測tool検証（**2026-10-27 13:38 JST検証**、macOS AArch64）: taskの6 workloadで3 warmup・7組のdev sampleに成功し、VM/JIT counter一致、最終task/管理割当/byteゼロを確認しました。公開API/native callbackのVM/JIT計測も7 sample、counter一致、従来例のgrant拒否/panic/reuse/fuel検証、実native ownerの一度だけの解放、最終管理割当ゼロに成功しました。通常例、sample範囲外拒否、Python AST/dirty source拒否、既存M2 harness 7 testも成功です。固定**877入力 / 非Markdown 769件**のbaselineは**153 suite / 2,319 test成功 / 失敗0 / 既存ignore 1**で、suite時間合計**873.09秒**、test段階**889.70秒**です。全7段階に成功しました: fmt **1.80秒**、Clippy **1.06秒**、test **889.70秒**、rustdoc **14.40秒**、fuzz fmt **2.03秒**、16 target check **0.21秒**、fuzz Clippy **0.23秒**。fuzz campaignは実施していません。image/scoped/owned/task/SDK suiteは**5/55/77/12/5**件、**23.42/45.37/276.71/99.63/16.78秒**で成功です。前後の入力hashは一致しました: main `abcb0d7eee3ee73ad65b696d4cb62c31b38ef0cc24ef3324f4829ab6683c5438`、検証tree `2127f367c5747e5ebe683307e0d38bf215c23a703398b7679b1a08f06980af85`。差は未変更の過去Windows reportのCRLFだけで、正規化後の差・追加入力は0です。test時間は検証証拠でありbenchmark sampleではありません。production runtime/compiler、ABI/format、SDK、過去のM2証拠は未変更です。
 
@@ -479,7 +479,7 @@ C04 は `f882074`（2026-10-22 02:05 JST）で完了しました。明示的で�
 | M3-B01 | todo | 3 | M3-L04,M3-A04,M3-I08,M3-E01 | G14 | 両 tier-1 host で所有権/失敗/capability/資源適合試験に合格 | — |
 | M3-B02 | todo | 3 | M3-B01 | G14 | C embedding API と生成 binding を移行試験付きで安定化 | — |
 | M3-X01 | done | 0 | M3-E01 | G15 | 権限を明示する trusted-native/verified-script の実行可能例を提供 | `8a3ae2e` |
-| M3-Z01 | doing | 3 | M3-E01,M3-L04 | G03,G04,G05 | spawn/join/channel/取消/メモリ費用を記録し M2 workload の証拠を維持 | — |
+| M3-Z01 | done | 0 | M3-E01,M3-L04 | G03,G04,G05 | spawn/join/channel/取消/メモリ費用を記録し M2 workload の証拠を維持 | `c9ffd19` |
 | M3-Z02 | todo | 2 | M3-X01,M3-Z01,M3-B02 | G01,G02,G03,G04,G05,G06,G07,G08,G09,G10,G11,G12,G13,G14,G15 | 全ゲートを監査し command、証拠、制限を含む日英 capability guide を公開 | — |
 
 A05 completed at `ea822bd`（2026-10-21 JST）: 既存 managed move を使って Send async signature を実行し、結果に owner span を保持します。成功 await は payload を一度だけ move して Result と owner を登録し、未回収結果は公開順の逆順で既存 mixed cleanup drain により退役します。取消、未公開 return、nested generation、expired weak、nested owned Result、cleanup panic/truncation と primary failure の優先を差分 15 テストで検証しました。全 fuel/work/provider/interruption prefix、保持 cell の次 frame admission、frame/cell/task/heap 上限境界と 1 未満で全 allocation を退役しました。既存 task 10 suite / 95 test と CLI の 42/数値付き拒否、13 linked-object profile が成功しました。production 入力を固定した全 baseline は **116 suites / 1,801 passed / 0 failed / 1 existing timing ignore**、suite-time 合計 **563.41s**。fmt、Clippy（**15.64s**）、rustdoc（**31.71s**）、11 fuzz target compile/lint（**1.40s**）も成功し、fuzz campaign は主張しません。最後の見積 **3 pt** を退役し、新追加/再見積りはありません。
@@ -556,7 +556,7 @@ T05 を `2f58084` で完了（2026-10-21 JST）: TaskProgram で source claim/lo
 
 T05 roadmap 監査: 最初の source VM fixture が実行できたため、G03/G12/G13 完了判定前に **T06 → T07 → T08** を進めます。`crates/codegen-clif/src/owned.rs` と `src/native.rs` を確認し、既存 native 経路は TaskProgram/async metadata を拒否する一方、検証済み MIR、managed task layout、scope identity、result storage が揃ったことを確認しました。T06 は元の 3 pt の compiled continuation と値/event 一致の成果を維持し、VM/MIR fallback なしに生成 code を実行する必要があります。初期 native fixture で serialized task revision や package/startup 公開を決めたことにはしません。明示 format 判断と native/owned/loan/foreign/共有 control の受入条件を維持し、次の実行 fixture 前に scheduler/IDL 基盤を追加しません。全 15 gate、全 P1 作業、channel、Send/Share、production embedding を M3 に残します。
 
-**110 + 99 − 197 = 12 pt**
+**110 + 99 − 200 = 9 pt**
 
 T06 を `8d6c283` で完了（2026-10-21 JST）: 実装前に RFC 0023 へ native 境界を記録しました。invocation/frame/claim/result 状態と scheduling/storage service を共有し、VM/native に別の resume/cleanup entry を持ちます。Cranelift が演算、分岐、失敗/取消 CFG、検査付き continuation 選択を生成し、実行時 MIR evaluator や VM 依存はありません。source fixture は VM/native ともに 42 を出力します。integration test 12 件で値/event/使用量/割り当て状態、取消、有限 record/enum と field 更新、通常 call、loop scope identity、子/同期 panic 起点、全 fuel/trace prefix、task/frame/cell/preparation 上限、各 provider 拒否を比較します。別途リンクした実行形式では join/aggregate/cancel/panic profile、再生成 object/compiler/SDK byte の一致、全 fuel prefix を検証し、JIT compile/invoke API を呼びません。private 境界 2 テストで callback 前の範囲外 PC 拒否と source 証拠付き callback panic の封じ込めを確認します。受理した storage/task はすべて解放します。全 baseline: **106 suites / 1,712 passed / 0 failed / 1 existing timing ignore**、完了 suite 時間合計 **471.21 s**。fmt、warnings-denied workspace Clippy **6.24 s**、rustdoc **26.34 s**、全 11 fuzz target の compile/lint **3.11 s** が通過しました。fuzz campaign、性能主張、より広い platform/native package 完了ではありません。T06 の 3 pt を消化し、作業追加/再見積りはありません。
 
@@ -604,7 +604,7 @@ A06 roadmap audit: `Machine::spawn`、`Frame::copy_from_frame`、`Frame::result`
 
 | Initial remaining | Net additions/re-estimates | Retired at completion | Remaining |
 | ---: | ---: | ---: | ---: |
-| 110 pt | +99 pt | −197 pt | 12 pt |
+| 110 pt | +99 pt | −200 pt | 9 pt |
 
 ## Exit audit
 

@@ -34,6 +34,37 @@ component計測は明示grantのplugin例をVM/JIT別processで再利用しま�
 
 出典: [task計測例](../../examples/m3-costs.rs)、[component例](../../examples/component-plugin-host.rs)、[runner](../../tools/m3-bench/run.py)、[RFC 0027](rfcs/0027-production-component-interface.md)。codeに公開更新日の記載はなく、**2026-10-27 JST調査・実行**です。RFC 0027は**2026-10-27 JST更新**です。
 
+### 2026-10-27 macOSでの観測
+
+[M3生report](../../benchmarks/results/2026-10-27-m3-macos-c9ffd19.json)は**2026-10-27 13:39 JST検証**、clean source `c9ffd19`、Rust **1.99.0**（`b940084d7`）、macOS **27.0.1**、arm64、論理CPU 10です。各行は**3 warmup後の21 sample**です。
+
+| Workload | VM median µs | JIT median µs | Peak managed bytes | Peak live tasks |
+| --- | ---: | ---: | ---: | ---: |
+| `spawn-join` | 50.250 | 50.250 | 192 | 3 |
+| `owned-channel` | 173.792 | 172.250 | 6,354 | 3 |
+| `mixed-cancellation` | 230.334 | 226.667 | 484,384 | 3 |
+| `owned-buffers` | 57.750 | 56.625 | 6,764 | 2 |
+| `service-state` | 210.917 | 208.500 | 24,322 | 2 |
+| `single-task` | 8.416 | 8.292 | 16 | 1 |
+
+6 workloadすべてでVM/JITの論理counterが一致し、毎entry終了時にlive task・管理割当・byteがゼロへ退役します。今回の最大要求管理peakは混在取消fixtureの484,384 byteで、受理した混在所有queue/退役stateを含みます。取消一般に必要なmemory量ではありません。frontendは**64〜2,280 µs**、taskの一度だけのJIT compileは**529〜13,758 µs**でした。いずれも単一観測でlatency分布ではありません。
+
+| 公開component call | Median µs | p95 µs | Peak managed bytes |
+| --- | ---: | ---: | ---: |
+| VM | 94.292 | 108.250 | 118 |
+| JIT、各call内のcompileを含む | 1,267.583 | 1,730.458 | 118 |
+
+両component modeで計測callごとのcounterは**fuel 8 / service work 60 / host call 1 / peak管理割当19**です。各processでwarmup/計測のnative call 24件と、従来demoの成功call 2件を実行し、**26件**すべて成功、owner解放1回、最終管理割当ゼロです。現JITの呼出ごとの準備により、component entryは再利用するtask JIT entryより多くの処理を含みます。taskのmedianが近いことはbackend命令の性能同等性を示しません。どちらの計時も共通runtimeの準備と退役を含みます。固定された小workload、process実行順、cache状態、独立process反復を行っていないことにより、一般化には限界があります。
+
+[M2 parity再実行](../../benchmarks/results/2026-10-27-m2-parity-macos-c9ffd19.json)は**2026-10-27 13:40 JST検証**で、同じclean sourceとrelease SDK `da0d5af4177cbe6d46a037f9f213b5f0d850239975064edf6c9d549574bc0531`を使用しました。**21組のsource/Rust/C/oracle一致**とunwind退役/次context再利用のprobeが成功しました。**新たなM2時間sampleは含みません**。過去M2結果とworkload/harness sourceはbyte単位で未変更です。
+
+```bash
+python3 tools/build-native-sdk.py --release --output /tmp/m3-sdk
+python3 tools/m2-bench/run.py --sdk /tmp/m3-sdk --output /tmp/m3-m2-parity --parity-only
+```
+
+このmacOS観測でZ01の有限workload cost記録を満たします。I08/B01の実両host実行、B02のC安定化、Z02の最終監査/guideは未完です。出典と更新日の制限は上の手順に記載し、2つの生reportに厳密な検証時刻を保存しています。
+
 ## Milestone 2 source/Rust/C harness
 
 更新・検証日: **2026-10-20 JST**。[`tools/m2-bench`](../../tools/m2-bench/)は実際のsource compiler、元のC-export object、installed release SDKのproduction runtimeを使用します。後述の過去のschema20 prototypeとは独立しています。private result formatは`lang-m2-benchmark` version 1です。

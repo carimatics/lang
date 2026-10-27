@@ -1,0 +1,352 @@
+{
+  "format": "lang-m2-benchmark",
+  "version": 1,
+  "verified_at_utc": "2026-10-27T04:40:14Z",
+  "revision": "c9ffd193d74f567044953012f5f9f1a910ebbaa3",
+  "dirty": false,
+  "target": "aarch64-apple-darwin",
+  "sdk_build_id": "da0d5af4177cbe6d46a037f9f213b5f0d850239975064edf6c9d549574bc0531",
+  "sdk_profile": "release",
+  "rustc": "rustc 1.99.0 (b940084d7 2026-09-28)\nbinary: rustc\ncommit-hash: b940084d7eb6a299eb4bfeb8e34901bc051e7ac4\ncommit-date: 2026-09-28\nhost: aarch64-apple-darwin\nrelease: 1.99.0\nLLVM version: 23.1.1\n",
+  "c_compiler": "Apple clang version 21.0.0 (clang-2100.3.34.2)\nTarget: arm64-apple-darwin27.0.0\nThread model: posix\nInstalledDir: /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin\n",
+  "host": {
+    "platform": "macOS-27.0.1-arm64-arm-64bit-Mach-O",
+    "processor": "arm",
+    "cpu_count": 10,
+    "python": "3.15.1"
+  },
+  "inputs": {
+    "n": 1000,
+    "repeats": 10,
+    "samples": 7,
+    "warmups": 3
+  },
+  "harness_sha256": {
+    ".gitignore": "32dae3052f331ee34d628ef535709b301259a45df7c7522c4d35dcf49873f00b",
+    "client.c.in": "7f9dc64c2f1d95199dcc86d4462c7cdf78f7220391585aacd42ec9e02746f841",
+    "host.rs": "e552275308e1d2057d8951ab5bba9a27b63ca169c2b759a1a1312fe059598f2b",
+    "reference.rs": "6d5529b83c1061d77323ced51fcf67abcdb70d334afb884d9e95e58c087b0d55",
+    "run.py": "f3f3666ff35fc2d02870d1a940f970b167e4eda26f6778b9a7176337a36326a4",
+    "test_harness.py": "ac333b87763b84a64e393477b656416835e5e8616e0a59c1361acb938ffda25d",
+    "workloads.lang": "68cd16c966b0a89a7e392b6050f42229f8ac659321a793283964e500e0a563ed"
+  },
+  "compile_command": [
+    "/private/tmp/lang-z01-c9ffd19-release-sdk/bin/lang",
+    "native",
+    "--output",
+    "/private/tmp/lang-z01-c9ffd19-m2-parity/package",
+    "/Users/carimatics/ghq/github.com/carimatics/lang/tools/m2-bench/workloads.lang"
+  ],
+  "compile_ns": 403229208,
+  "builds": {
+    "parity": {
+      "executable": "/private/tmp/lang-z01-c9ffd19-m2-parity/parity",
+      "executable_bytes": 2452872,
+      "c_command": [
+        "cc",
+        "-std=c11",
+        "-O3",
+        "-Wall",
+        "-Wextra",
+        "-Werror",
+        "-c",
+        "-DPARITY",
+        "client.c",
+        "-o",
+        "/private/tmp/lang-z01-c9ffd19-m2-parity/package/parity.o"
+      ],
+      "c_compile_ns": 94156542,
+      "rust_command": [
+        "/Users/carimatics/.rustup/toolchains/1.99.0-aarch64-apple-darwin/bin/rustc",
+        "--edition=2024",
+        "--crate-name=m2_bench",
+        "-Dwarnings",
+        "-Copt-level=3",
+        "-Cpanic=unwind",
+        "--cfg",
+        "parity",
+        "--check-cfg",
+        "cfg(source)",
+        "--check-cfg",
+        "cfg(parity)",
+        "--check-cfg",
+        "cfg(rust)",
+        "--check-cfg",
+        "cfg(c)",
+        "host.rs",
+        "-C",
+        "link-arg=/private/tmp/lang-z01-c9ffd19-m2-parity/package/parity.o",
+        "-o",
+        "/private/tmp/lang-z01-c9ffd19-m2-parity/parity",
+        "-L",
+        "dependency=/private/tmp/lang-z01-c9ffd19-release-sdk/lib",
+        "-L",
+        "native=/private/tmp/lang-z01-c9ffd19-release-sdk/lib",
+        "--extern",
+        "lang_codegen_clif=/private/tmp/lang-z01-c9ffd19-release-sdk/lib/liblang_codegen_clif-d1a50ea423427533.rlib",
+        "--extern",
+        "lang_runtime=/private/tmp/lang-z01-c9ffd19-release-sdk/lib/liblang_runtime-dca24f508c45babd.rlib",
+        "--extern",
+        "lang_mir=/private/tmp/lang-z01-c9ffd19-release-sdk/lib/liblang_mir-0c8592149234eec0.rlib",
+        "--extern",
+        "lang_bytecode=/private/tmp/lang-z01-c9ffd19-release-sdk/lib/liblang_bytecode-e06b364c5c4c57ef.rlib",
+        "-C",
+        "link-arg=/private/tmp/lang-z01-c9ffd19-m2-parity/package/program.o"
+      ],
+      "link_ns": 1153076000
+    },
+    "source": {
+      "executable": "/private/tmp/lang-z01-c9ffd19-m2-parity/source",
+      "executable_bytes": 2491192,
+      "c_command": [
+        "cc",
+        "-std=c11",
+        "-O3",
+        "-Wall",
+        "-Wextra",
+        "-Werror",
+        "-c",
+        "-DSOURCE",
+        "client.c",
+        "-o",
+        "/private/tmp/lang-z01-c9ffd19-m2-parity/package/source.o"
+      ],
+      "c_compile_ns": 39869417,
+      "rust_command": [
+        "/Users/carimatics/.rustup/toolchains/1.99.0-aarch64-apple-darwin/bin/rustc",
+        "--edition=2024",
+        "--crate-name=m2_bench",
+        "-Dwarnings",
+        "-Copt-level=3",
+        "-Cpanic=unwind",
+        "--cfg",
+        "source",
+        "--check-cfg",
+        "cfg(source)",
+        "--check-cfg",
+        "cfg(parity)",
+        "--check-cfg",
+        "cfg(rust)",
+        "--check-cfg",
+        "cfg(c)",
+        "host.rs",
+        "-C",
+        "link-arg=/private/tmp/lang-z01-c9ffd19-m2-parity/package/source.o",
+        "-o",
+        "/private/tmp/lang-z01-c9ffd19-m2-parity/source",
+        "-L",
+        "dependency=/private/tmp/lang-z01-c9ffd19-release-sdk/lib",
+        "-L",
+        "native=/private/tmp/lang-z01-c9ffd19-release-sdk/lib",
+        "--extern",
+        "lang_codegen_clif=/private/tmp/lang-z01-c9ffd19-release-sdk/lib/liblang_codegen_clif-d1a50ea423427533.rlib",
+        "--extern",
+        "lang_runtime=/private/tmp/lang-z01-c9ffd19-release-sdk/lib/liblang_runtime-dca24f508c45babd.rlib",
+        "--extern",
+        "lang_mir=/private/tmp/lang-z01-c9ffd19-release-sdk/lib/liblang_mir-0c8592149234eec0.rlib",
+        "--extern",
+        "lang_bytecode=/private/tmp/lang-z01-c9ffd19-release-sdk/lib/liblang_bytecode-e06b364c5c4c57ef.rlib",
+        "-C",
+        "link-arg=/private/tmp/lang-z01-c9ffd19-m2-parity/package/program.o"
+      ],
+      "link_ns": 1108576125
+    },
+    "rust": {
+      "executable": "/private/tmp/lang-z01-c9ffd19-m2-parity/rust",
+      "executable_bytes": 493992,
+      "c_command": [
+        "cc",
+        "-std=c11",
+        "-O3",
+        "-Wall",
+        "-Wextra",
+        "-Werror",
+        "-c",
+        "-DRUST",
+        "client.c",
+        "-o",
+        "/private/tmp/lang-z01-c9ffd19-m2-parity/package/rust.o"
+      ],
+      "c_compile_ns": 37622333,
+      "rust_command": [
+        "/Users/carimatics/.rustup/toolchains/1.99.0-aarch64-apple-darwin/bin/rustc",
+        "--edition=2024",
+        "--crate-name=m2_bench",
+        "-Dwarnings",
+        "-Copt-level=3",
+        "-Cpanic=unwind",
+        "--cfg",
+        "rust",
+        "--check-cfg",
+        "cfg(source)",
+        "--check-cfg",
+        "cfg(parity)",
+        "--check-cfg",
+        "cfg(rust)",
+        "--check-cfg",
+        "cfg(c)",
+        "host.rs",
+        "-C",
+        "link-arg=/private/tmp/lang-z01-c9ffd19-m2-parity/package/rust.o",
+        "-o",
+        "/private/tmp/lang-z01-c9ffd19-m2-parity/rust"
+      ],
+      "link_ns": 210577250
+    },
+    "c": {
+      "executable": "/private/tmp/lang-z01-c9ffd19-m2-parity/c",
+      "executable_bytes": 493184,
+      "c_command": [
+        "cc",
+        "-std=c11",
+        "-O3",
+        "-Wall",
+        "-Wextra",
+        "-Werror",
+        "-c",
+        "-DCREF",
+        "client.c",
+        "-o",
+        "/private/tmp/lang-z01-c9ffd19-m2-parity/package/c.o"
+      ],
+      "c_compile_ns": 49855167,
+      "rust_command": [
+        "/Users/carimatics/.rustup/toolchains/1.99.0-aarch64-apple-darwin/bin/rustc",
+        "--edition=2024",
+        "--crate-name=m2_bench",
+        "-Dwarnings",
+        "-Copt-level=3",
+        "-Cpanic=unwind",
+        "--cfg",
+        "c",
+        "--check-cfg",
+        "cfg(source)",
+        "--check-cfg",
+        "cfg(parity)",
+        "--check-cfg",
+        "cfg(rust)",
+        "--check-cfg",
+        "cfg(c)",
+        "host.rs",
+        "-C",
+        "link-arg=/private/tmp/lang-z01-c9ffd19-m2-parity/package/c.o",
+        "-o",
+        "/private/tmp/lang-z01-c9ffd19-m2-parity/c"
+      ],
+      "link_ns": 180327292
+    }
+  },
+  "source_object_bytes": 31480,
+  "parity": [
+    {
+      "workload": "scalar",
+      "input": 0,
+      "result": 17
+    },
+    {
+      "workload": "scalar",
+      "input": 1,
+      "result": 34
+    },
+    {
+      "workload": "scalar",
+      "input": 7,
+      "result": 2296
+    },
+    {
+      "workload": "scalar",
+      "input": 64,
+      "result": 555055
+    },
+    {
+      "workload": "scalar",
+      "input": 250,
+      "result": 298524
+    },
+    {
+      "workload": "scalar",
+      "input": 251,
+      "result": 597298
+    },
+    {
+      "workload": "scalar",
+      "input": 1000,
+      "result": 69943
+    },
+    {
+      "workload": "buffers",
+      "input": 0,
+      "result": 0
+    },
+    {
+      "workload": "buffers",
+      "input": 1,
+      "result": 0
+    },
+    {
+      "workload": "buffers",
+      "input": 7,
+      "result": 63
+    },
+    {
+      "workload": "buffers",
+      "input": 64,
+      "result": 6048
+    },
+    {
+      "workload": "buffers",
+      "input": 250,
+      "result": 93375
+    },
+    {
+      "workload": "buffers",
+      "input": 251,
+      "result": 93625
+    },
+    {
+      "workload": "buffers",
+      "input": 1000,
+      "result": 748500
+    },
+    {
+      "workload": "regions",
+      "input": 0,
+      "result": 0
+    },
+    {
+      "workload": "regions",
+      "input": 1,
+      "result": 2
+    },
+    {
+      "workload": "regions",
+      "input": 7,
+      "result": 56
+    },
+    {
+      "workload": "regions",
+      "input": 64,
+      "result": 4160
+    },
+    {
+      "workload": "regions",
+      "input": 250,
+      "result": 62750
+    },
+    {
+      "workload": "regions",
+      "input": 251,
+      "result": 63252
+    },
+    {
+      "workload": "regions",
+      "input": 1000,
+      "result": 1001000
+    }
+  ],
+  "unwind_retirement": "unwind retirement ok",
+  "observations": [],
+  "aggregates": [],
+  "startup_observations": [],
+  "startup_aggregates": []
+}

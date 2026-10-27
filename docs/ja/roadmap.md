@@ -12,13 +12,13 @@
 
 M2は完了済みです。18/18ゲート、過去のゲート重み113/113です。[完了ボード](milestone-2.md)に成果と見積もり収支、[機能ガイド](milestone-2-capabilities.md)に実際のsource/VM/native/C/SDK/debugの根拠と制約を記録しています。この件数はM2のもので、将来の全作業ではありません。
 
-**M3 は進行中です。** [実装Todo](milestone-3.md)は **74 done · 1 doing · 4 todo · 12 remaining pt**です。X01は`8a3ae2e`で完了しました（2026-10-27 12:53 JST検証）。実owning trusted-nativeと独立検証script pluginが公開API経由のVM/JITで実行し、明示grant・権限不足拒否・panic/再利用/fuel失敗・最終owner退役・管理割当て0を検証します。例と日英のcommand/trust文書を提供しました。875入力固定の152 suite・2,319 testと全7段階が成功しました。2 ptを消化、追加/再見積り0とし、M2証拠を保持する実workload計測のZ01（3 pt）だけをdoingにします。79行、台帳 **110 + 99 − 197 = 12**、gateは完全な出口監査まで**3/15・18/96**です。実両hostのI08/B01・B02安定性・最終Z02は未完です。Windows環境はなくpushもしません。
+**M3 は進行中です。** [実装Todo](milestone-3.md)は **75 done · 0 doing · 4 todo · 9 remaining pt**です。Z01は`c9ffd19`で完了しました（2026-10-27 13:40 JST検証）。有限VM/JIT task 6 workloadと公開C API/script/native callback経路について、clean sourceのrelease実測、3 warmup/21 sample、source/compiler/host来歴、論理counter一致、最終管理在庫ゼロを記録しました。未変更M2 harnessも同sourceのrelease SDKで21組のsource/Rust/C/oracle一致とunwind退役/再利用に成功し、過去M2証拠は保持しています。877入力固定の153 suite・2,319 testと全7段階が成功しました。3 pt消化・追加/再見積り0、79行、台帳 **110 + 99 − 200 = 9**、gateは完全な出口監査まで**3/15・18/96**です。実両hostのI08/B01・B02安定性・最終Z02は未完です。Windows環境はなくpushもせず、doingの実装行はありません。
 
-resource所有権/loan・永続provider・元accounting/control・callback・installed native Image・完全な公開C APIと明示権限付きplugin実行例には実行証拠があります。Z01で有限spawn/join/channel/取消/memoryと境界を実測し、準備/実行phaseと管理memory counterを区別します。host限定観測はWindows証拠やAPI安定性を意味しません。I08は実両hostのinstalled startup、B01はI08/E01、最終Z02はB02を要求します。既存engine/controlを再利用し、test時間をbenchmarkにしません。
+resource所有権/loan・永続provider・元accounting/control・callback・installed native Image・完全な公開C APIと明示権限付きplugin実行例には実行証拠があります。[Z01の観測](benchmarks.md#milestone-3-concurrencyとcomponent-entryのcost)では実entry区間と準備を分け、component JITの各call内compileを明示し、memory主張を管理counterに限定します。次のI08は実両hostのinstalled startup、B01はI08/E01、B02はB01、最終Z02はB02とX01/Z01を要求します。この依存により最終capability guide前のWindows実行と安定化を維持します。現時点で次に実装可能なlocal deliveryはありません。
 
 ## 進行中 milestone の実行
 
-M3の受理済みsource/task/channel/service契約は対応VM/native profileで実行します。boardはIDL/codec・binding/grant・schema-5 artifact・resource移動/loan/cleanup・callback・複合上限・installed task/component/native-image packageを記録します。E15がtyped C root task、E16が厳密SDK AOT Image、E01が完全な公開API/callback退役、X01がnative/script plugin実行例を提供します。Z01で対応workloadの費用を実測しM2証拠を保持します。I08/B01/B02に実両host適合/安定性を残し、Z02はB02とX01/Z01を待って最終監査/guideを作成します。各gateの完全条件を保ち、残見積りと96点のexit-gate重みを区別します。
+M3の受理済みsource/task/channel/service契約は対応VM/native profileで実行します。boardはIDL/codec・binding/grant・schema-5 artifact・resource移動/loan/cleanup・callback・複合上限・installed task/component/native-image packageを記録します。E15がtyped C root task、E16が厳密SDK AOT Image、E01が完全な公開API/callback退役、X01がnative/script plugin実行例、Z01が有限workload費用とM2証拠の維持を提供します。I08/B01/B02に実両host適合/安定性を残し、Z02はB02とX01/Z01を待って最終監査/guideを作成します。各gateの完全条件を保ち、残見積りと96点のexit-gate重みを区別します。
 
 保守やレビューのために完了済みM2ボードを拡大しません。修正はscopeを限定したchecklistに記録し、code、文書、検証を同じ変更にまとめます。新たな言語／ABI／形式の選択には引き続き明示的RFC判断が必要ですが、実験段階の委任により個別owner承認待ちは不要です。
 
