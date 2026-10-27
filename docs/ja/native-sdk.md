@@ -4,7 +4,7 @@
 
 [English](../native-sdk.md)
 
-更新日：2026-10-27 JST。RFC 0020のversion-1 SDK（copy/owned/C）はimplementedで、両host隔離installの証拠は2026-10-20 JSTの[M2 capability guideと出口監査](https://github.com/carimatics/lang/blob/e12c120/docs/ja/milestone-2-capabilities.md)に記録済みです。以下のversion-2 task拡張は実験段階で、実Windows task/component起動はまだ未検証です。
+更新日：2026-10-27 JST。SDK version 3のcopy/owned/C/task/owned-task/component/component-gateway全7 profileが、実macOS AArch64とWindows x86-64のcheckout/Cargoなしconsumerで起動しました。[M3機能ガイド](milestone-3-capabilities.md)と[移行/全検証記録](../evidence/2026-10-27-m3-migration-9e78f2d.json)に現証拠をまとめます。公開C v1はRFC 0033に従い安定化し、private SDK ABIは実験段階で厳密build一致を必要とします。以下の段階別producer checkpointは当時の履歴であり、現在の両host受入を置き換えません。
 
 Task拡張（[RFC 0031](rfcs/0031-installed-native-task-packages.md)、2026-10-27 JST）: この拡張でSDK manifest version 2を導入しました。`lang native`はtask sourceをprogram version 2/task・LANGBC schema 5・元LANGNAT-2 Task objectへ出力し、生成mainが`execute_tasks`でcaller allocator/Control/runner上限を保ちます。task packageはSDK version >=2を必要とし、SDK v1ではtool前に拒否します。旧version-1 copy/owned/C packageは対応buildのSDK v2でも動作します。初期task出力はhost targetに限り、component packageには後続受入決定が必要です。`042fc38`のclean producerからSDKを作り、producer退避後のcheckoutなし・Cargoなしconsumerで5 profileの隔離検証に成功しました（2026-10-27 03:49 JST、macOS AArch64）。起動前にsource/package/private SDKリンク入力を除去し、task/owned-taskとも42を返しました。全baselineは149 suite・2,300 test成功です。component/両host受入条件はM3進捗表で追跡し、M2の旧profileの両host証拠とは区別します。
 
@@ -53,7 +53,7 @@ Component C v1は[stabilized RFC 0033](rfcs/0033-component-v1-compatibility.md)�
 
 `lang_component_v1_get_api(1, sizeof(lang_component_v1_api), &api, &error)`は、全32 entryが非nullの単一の不変tableを公開します。先に厳密なerror headerを初期化します。未知のAPI versionは3、table size不一致・null output/error pointer・初期化済みerror header不正は2です。拒否時はtable outputを変更しません。返されたtableはprocess存続中利用できますが、engine・resource・grant・実行権限は付与しません。各要求の厳密size/version headerとreserved 0、生きたhandleのowner thread/lifetime規則は引き続き必要です。
 
-modeはVM 0・JIT 1・厳密SDK AOT 2です。VM/JITの`module_load`は明示source+IDLまたは再検証artifactを受理し、AOTは`module_bind_native`と下記Image factoryを必要とします。`context_resource_drop`は現在のowning receiptと元holder/tableを検査し、borrowed・stale・移動済み・使用中claimを拒否して元cleanup Sessionで退役します。割込み後もguest再入許可なしで後始末を完了できます。destructor失敗は保持可能な不変reportを返し、元の実行をpoisonします。result解放とowner退役は別です。公開queryのC試験はVM/JIT/AOTを検証していますが、安定化と実両host適合はB02/B01に残ります。これは実験段階のRFC 0027 surfaceであり、安定性保証の完了を意味しません。
+modeはVM 0・JIT 1・厳密SDK AOT 2です。VM/JITの`module_load`は明示source+IDLまたは再検証artifactを受理し、AOTは`module_bind_native`と下記Image factoryを必要とします。`context_resource_drop`は現在のowning receiptと元holder/tableを検査し、borrowed・stale・移動済み・使用中claimを拒否して元cleanup Sessionで退役します。割込み後もguest再入許可なしで後始末を完了できます。destructor失敗は保持可能な不変reportを返し、元の実行をpoisonします。result解放とowner退役は別です。公開queryのC試験はVM/JIT/AOTを検証し、B01の実両host適合とB02の旧client移行が成功しました。公開C v1はRFC 0033の範囲で安定化し、private SDK/imageの厳密build境界は維持します。
 
 ## SDK-owned component Image
 

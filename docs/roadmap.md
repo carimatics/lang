@@ -6,19 +6,19 @@
 
 The roadmap is ordered by risk reduction. Milestones are exit criteria, not calendar commitments.
 
-## Current work and completed M2
+## Completed M2 and M3
 
 **133 verified deliveries · 0 in progress · 0 remaining tasks (provisional 0 pt).**
 
 M2 is complete: 18/18 gates, 113/113 historical gate weight. The [completed board](milestone-2.md) records its deliveries and estimate reconciliation; the [capability guide](milestone-2-capabilities.md) records actual source/VM/native/C/SDK/debug evidence and limits. These counts describe M2, not all future work.
 
-**M3 is active:** the [delivery board](milestone-3.md) tracks **78 done · 1 doing · 0 todo · 2 remaining pt**. After B01's both-host conformance, B02 previous C clients pass macOS (153 suites / 2,321 passed) and [full Windows CI](https://github.com/carimatics/lang/actions/runs/40471721760) (153 suites / 2,306 passed) at `9e78f2d`, with zero failures. RFC 0033 stabilizes public C v1/generated clients, preserving the private SDK exact-build boundary. Retire B02's 3 pt with no additions/re-estimates: **110 + 99 − 207 = 2**. Z02 alone is doing for the final 15-gate audit and bilingual guide. Gates remain **3/15, 18/96** until that audit.
+**M3 is complete:** the [completed board](milestone-3.md) records **79 done · 0 doing · 0 todo · 0 remaining pt**, **15/15 gates and 96/96 gate weight**. The [capability guide and complete exit audit](milestone-3-capabilities.md) provide runnable commands, both-host evidence and limits. Source `9e78f2d` passes the macOS seven-stage baseline (153 suites / 2,321 passed) and [full Windows CI](https://github.com/carimatics/lang/actions/runs/40471721760) (153 suites / 2,306 passed), with zero failures and successful old C clients on both. Seven-profile isolated SDK startup, X01 plugins and Z01 cost/M2 parity evidence are retained. Retire Z02's final 2 pt with no additions/re-estimates: **110 + 99 − 209 = 0**. No P0/P1 work was deferred.
 
-Resource ownership/loans, persistent providers, original accounting/controls, callbacks, installed native images, the complete public C API, explicit-authority plugin examples, finite cost observations and actual both-host installed startup have executable evidence. B01 requires successful full Windows and macOS ownership/failure/capability/resource conformance; installed-startup success alone is insufficient. The current repair concerns test linking only, preserving runtime/ABI/SDK behavior. B01 precedes B02; Z02 retains B02 plus X01/Z01 before the final audit/guide. No scope or estimate is added.
+Public C v1 and existing generated clients follow stabilized RFC 0033. Source/native language ABI and private SDK/serialized-format compatibility remain experimental and independently versioned. M2's completed record and historical benchmarks are unchanged; M3 costs are separate finite observations at their recorded source.
 
-## Active milestone execution
+## Work after M3
 
-M3’s accepted source/task/channel/service contracts execute in the admitted VM/native profile. The board records IDL/codecs, bindings/grants, schema-5 artifacts, resource transfers/loans/cleanup, callbacks, combined limits and installed task/component/native-image packages. E15 supplies typed C root tasks, E16 exact SDK AOT images, E01 the complete public API/callback retirement, X01 runnable native/script plugins, and Z01 finite workload costs with preserved M2 evidence. I08/B01/B02 retain actual both-host conformance/stability, and Z02 waits for B02 plus X01/Z01 before the final audit/guide. Preserve every complete gate and distinguish remaining estimates from the 96-point exit-gate weights.
+M3 implementation, both-host conformance, C stabilization and the final guide are complete. M4 and later gates remain future work and have not been activated. Break the next milestone into observable 1–3-point deliveries and use its board when starting it; preserve M3's completed history and final estimate reconciliation.
 
 Do not expand the completed M2 board for maintenance or reviews. Record fixes in their scoped checklist, and keep code, documentation and validation in the same change. New language/ABI/format choices still require an explicit RFC decision; experimental delegation avoids a separate owner-approval wait.
 
@@ -30,19 +30,19 @@ Tasks are listed in dependency-aware priority order within each milestone. A mil
 
 The milestone checklists below retain relative exit-gate weights: `1` is very small, `2` small, `3` medium, `5` large, and `8` very large. Their weighted completion is `completed weights / total weights × 100`, rounded to one decimal place. These coarse weights do not predict elapsed time or remaining implementation effort. Long-horizon estimates require a bottom-up review when their milestone becomes current or scope/evidence changes. For each active milestone, a separate delivery board records independently verifiable 1–3-point remaining tasks and explicit scope/estimate changes.
 
-Snapshot of exit-gate weights verified 2026-10-24 JST. Acceptance weights are separate from remaining-effort estimates; use the active M3 delivery board above for current bottom-up remaining work. The completed M2 record remains unchanged.
+Snapshot of exit-gate weights verified 2026-10-27 JST. Acceptance weights are separate from remaining-effort estimates; use the completed M3 delivery board above for the final effort reconciliation. The completed M2 record remains unchanged.
 
 | Milestone | Completed gate weight | Total gate weight | Gate completion |
 | --- | ---: | ---: | ---: |
 | 0 — design baseline | 209 pt | 209 pt | **100.0%** |
 | 1 — frontend and bytecode vertical slice (complete) | 89 pt | 89 pt | **100.0%** |
 | 2 — ownership and native AOT | 113 pt | 113 pt | 100.0% |
-| 3 — concurrency and embedding | 18 pt | 96 pt | 18.8% |
+| 3 — concurrency and embedding (complete) | 96 pt | 96 pt | 100.0% |
 | 4 — developer toolchain | 0 pt | 63 pt | 0.0% |
 | 5 — ecosystem and compatibility | 0 pt | 65 pt | 0.0% |
 | 6 — self-hosting | 0 pt | 74 pt | 0.0% |
 | 7 — additional frontends | 0 pt | 55 pt | 0.0% |
-| **Overall** | **429 pt** | **764 pt** | **56.2%** |
+| **Overall** | **507 pt** | **764 pt** | **66.4%** |
 
 ## Milestone 0: design baseline
 
@@ -200,25 +200,25 @@ Exit: representative command-line programs match VM semantics and performance is
 
 ## Milestone 3: concurrency and embedding
 
-**Progress: 18 / 96 pt (18.8%).**
+**Progress: 96 / 96 pt (100.0%).**
 
-Entry satisfied: Milestone 2 supplies ownership and cleanup semantics on both execution paths, and the repository review is complete. RFCs 0003 and 0005 remain the accepted semantic baseline; their prototypes do not complete production IDL, scheduler, or sandbox work. [The active delivery board](milestone-3.md) records implementation scope and estimates. The source VM already bounds frames and live cells; this milestone extends accounting across tasks, native code, and host callbacks.
+Entry satisfied: Milestone 2 supplies ownership and cleanup semantics on both execution paths, and the repository review is complete. RFCs 0003 and 0005 remain the accepted semantic baseline; their prototypes do not complete production IDL, scheduler, or sandbox work. [The completed delivery board](milestone-3.md) records implementation scope and estimates. The source VM already bounds frames and live cells; this milestone extends accounting across tasks, native code, and host callbacks.
 
 - [x] **P0 — Accept remaining scheduler/channel/backpressure/error contracts, send/share derivation, and source async syntax without relaxing RFC 0005.** — 5 pt
 - [x] **P0 — Accept the production component IDL/wire profile and embedding ABI, including compatibility, typed failures, callback reentrancy, and cancellation mapping to RFC 0003.** — 5 pt
-- [ ] **P0 — Implement structured task lifetimes and deterministic cancellation cleanup.** — 8 pt
-- [ ] **P0 — Implement channels with bounded backpressure and cancellation behavior.** — 5 pt
-- [ ] **P0 — Enforce actor isolation and accepted data-race capability rules.** — 8 pt
+- [x] **P0 — Implement structured task lifetimes and deterministic cancellation cleanup.** — 8 pt
+- [x] **P0 — Implement channels with bounded backpressure and cancellation behavior.** — 5 pt
+- [x] **P0 — Enforce actor isolation and accepted data-race capability rules.** — 8 pt
 - [x] **P0 — Implement the versioned component IDL and bounded serialization.** — 8 pt
-- [ ] **P0 — Implement canonical owned/borrowed resource adapters.** — 8 pt
-- [ ] **P0 — Enforce capability-gated component imports.** — 5 pt
-- [ ] **P0 — Support mixed native/VM calls and callbacks with typed errors.** — 8 pt
-- [ ] **P0 — Preserve stack traces and cancellation across native/VM boundaries.** — 5 pt
-- [ ] **P0 — Enforce heap/allocation limits, including host-callback accounting.** — 5 pt
-- [ ] **P0 — Enforce recursion-depth and live-task limits.** — 5 pt
-- [ ] **P0 — Enforce cooperative interruption across VM, JIT, AOT, and callback boundaries.** — 8 pt
-- [ ] **P0 — Stabilize the C embedding API and generated bindings after cross-mode ownership, failure, capability, and resource-limit conformance passes on both tier-1 platforms.** — 8 pt
-- [ ] **P1 — Ship trusted-native and verified-script plugin examples.** — 5 pt
+- [x] **P0 — Implement canonical owned/borrowed resource adapters.** — 8 pt
+- [x] **P0 — Enforce capability-gated component imports.** — 5 pt
+- [x] **P0 — Support mixed native/VM calls and callbacks with typed errors.** — 8 pt
+- [x] **P0 — Preserve stack traces and cancellation across native/VM boundaries.** — 5 pt
+- [x] **P0 — Enforce heap/allocation limits, including host-callback accounting.** — 5 pt
+- [x] **P0 — Enforce recursion-depth and live-task limits.** — 5 pt
+- [x] **P0 — Enforce cooperative interruption across VM, JIT, AOT, and callback boundaries.** — 8 pt
+- [x] **P0 — Stabilize the C embedding API and generated bindings after cross-mode ownership, failure, capability, and resource-limit conformance passes on both tier-1 platforms.** — 8 pt
+- [x] **P1 — Ship trusted-native and verified-script plugin examples.** — 5 pt
 
 Exit: a native host can load a user script, expose a typed API, call the script, receive callbacks, and enforce capabilities without IPC.
 

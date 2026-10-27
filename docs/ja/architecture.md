@@ -4,7 +4,7 @@
 
 [English](../architecture.md)
 
-現在の実装を`e60e3d9`に対してレビュー、2026-10-20 JST。Milestone 0–2は記録されたscopeで完了しています。構文、native ABI、bytecode、SDK形式は実験段階です。意味論は受理済みRFCが定め、この文書は契約と実装の対応および将来の作業を示します。コマンドとM2の18ゲート監査は[機能ガイド](milestone-2-capabilities.md)、日付付きの開発checkpointは[architecture履歴](architecture-history.md)にあります。
+現在の実装を`9e78f2d`で2026-10-27 JSTに検証しました。Milestone 0–3のexit gateは完了しています。公開component C v1と旧生成clientはRFC 0033に従い安定化し、source構文・native Rust ABI・bytecode/SDKの独立formatは実験段階です。[M3機能ガイドと15 gate監査](milestone-3-capabilities.md)にcommand・両host証拠・制約をまとめます。M2の[機能ガイド](milestone-2-capabilities.md)と[過去のarchitecture checkpoint](architecture-history.md)も保持しています。
 
 ## 目標
 
@@ -85,7 +85,7 @@ Hash/build identityは不一致を検出しますが、悪意あるSDKやnative 
 
 Component C v1は[stabilized RFC 0033](rfcs/0033-component-v1-compatibility.md)に従い安定化しました（2026-10-27 JST）。公開32 entry・厳密size/version・status・所有権/失敗契約を固定し、旧header/生成clientは`9e78f2d`の実macOS/Windowsで成功しました。[移行記録](../evidence/2026-10-27-m3-migration-9e78f2d.json)が来歴と全検証を保持します。両host isolated SDK 7 profileも成功済みです。非互換C拡張には別version/namespaceを必要とし、private Rust/SDK ABIは厳密build一致と再buildを要求します。対応しない保存formatは元sourceと一致toolで再encode/compileします。
 
-実験段階のcomponent-v1 query `lang_component_v1_get_api`は、厳密size/version検査済みで全32 entryが非nullの単一の不変tableを公開します。VM/JITのsource/artifact呼出しと厳密SDK AOT Imageは、実grantと保持ownerを伴ってこの公開surfaceを使います。callback資源退役は元の生きたholder/table/owning receiptを検査し、result/report snapshotを元preparation Budgetで事前計上し、元の事前確保済みcleanup Sessionを使います。制限されたretirement loanはparent bridge状態を保存・復元し、guest再入なしで割込み後の後始末を許可します。borrowed・移動済み・stale・使用中claimは副作用前に拒否し、異なる実装のownerもopaqueなまま元destructorで退役します。receipt退役で再試行を防ぎ、失敗後もbacking解放を続け、Sessionのpoisonでnativeの成功result公開を防ぎます。生成C prototypeはVM/JIT/AOTでこれらを実行し、boardはE01の全検証/installed query受入、B01の実両host適合、B02の安定化を追跡します。C/保存layoutは変更しません（RFC 0027、2026-10-27 JST更新）。
+安定したcomponent-v1 query `lang_component_v1_get_api`は、厳密size/version検査済みで全32 entryが非nullの単一の不変tableを公開します。VM/JITのsource/artifact呼出しと厳密SDK AOT Imageは、実grantと保持ownerを伴ってこの公開surfaceを使います。callback資源退役は元の生きたholder/table/owning receiptを検査し、result/report snapshotを元preparation Budgetで事前計上し、元の事前確保済みcleanup Sessionを使います。制限されたretirement loanはparent bridge状態を保存・復元し、guest再入なしで割込み後の後始末を許可します。borrowed・移動済み・stale・使用中claimは副作用前に拒否し、異なる実装のownerもopaqueなまま元destructorで退役します。receipt退役で再試行を防ぎ、失敗後もbacking解放を続け、Sessionのpoisonでnativeの成功result公開を防ぎます。生成CはVM/JIT/AOTでこれらを実行します。E01の完全query、I08の両host隔離起動、B01の全適合、B02の旧client移行は完了し、RFC 0033の公開C v1契約を安定化しました。C/保存layoutは変更しません（RFC 0027、2026-10-27 JST更新）。
 
 SDK所有component ImageをC gatewayのtrusted AOT mode 2へ接続します（RFC 0027、2026-10-27 JST更新）。既存program-v3/component manifestの有界検査と厳密host/SDK一致を確認してからprivate Imageを参照します。明示unsafe Rust factoryが完全なsemantic/native/bindings snapshotと実code resolver/ownerを保持します。実行時のsemantic対応には同じ不変Unitを使いますが、実instance identity・grant/provider・resource loan・元のcontrol/task/allocator/準備は別々の必須検査です。recordの選択exportだけを実行し、VM/JITへfallbackしません。台帳を共有するdecode・native node/layout/frame再構築・symbol接続は準備失敗prefixを保持します。result bodyとinstance stateの退役後にexecutable ownerを解放します。生成Cのscalar/task/reentry/resource fixtureは合算上限・poison・最終owner解放を検証し、完全query/tableと実両host受入はE01/I08/B01の別成果に残します。native format/C layoutとSDK version 3は不変です。SDK startup/probeに明示生成C gateway consumerを含め、現在の証拠と残る検証は実装表へ記録します。codeに公開更新日はありません。
 

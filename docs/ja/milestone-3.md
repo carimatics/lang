@@ -6,9 +6,11 @@
 
 更新日: **2026-10-27 JST**。開始チェックポイント: `984557d`。M2 とリポジトリレビューは完了済みです。
 
-**78 done · 1 doing · 0 todo · 2 remaining pt**
+**79 done · 0 doing · 0 todo · 0 remaining pt**
 
-**次: M3-Z02 → 全exit gate監査と日英capability guide公開。**
+**次: none — M3の全deliveryと全exit gateが完了し、次milestoneは未開始です。**
+
+Z02完了（2026-10-27 JST、実行source `9e78f2d`）: 全15 gateの規範契約と実装/検証を個別監査し、[日英機能guide](milestone-3-capabilities.md)に実行command・所有権/失敗/authority・公開C v1互換性・SDK version境界・cost証拠・制約をまとめました。CLI task/channel/service/owned移動、保存artifact、native channel、VM/JIT pluginと有限work拒否を実行確認しました。両host全適合と旧client移行、SDK隔離起動、未変更M2証拠を保持しています。**完了: 1 delivery / 2 pt消化、追加/再見積り: 0 pt**。照合は**2 + 0 − 2 = 0 pt**、**79行 / 79 done / 0 doing / 0 todo**、最終台帳**110 + 99 − 209 = 0**です。全P0/P1を完了し先送りはなく、M4以降は未開始です。下記checkpointは開発履歴であり、この完了記録が置き換えます。
 
 B02を`9e78f2d`で完了（**2026-10-27 18:03 JST検証**）: 旧reference/生成C clientが現公開APIを実際の両tier-1 hostで実行しました。固定入力macOS全7段階は**153 suite / 2,321成功 / 失敗0 / 既存ignore 1**、[Windows run 40471721760](https://github.com/carimatics/lang/actions/runs/40471721760)は全段階と**153 suite / 2,306成功 / 失敗0 / 既存ignore 1**で成功しました。両logで旧client 2ケースの個別成功を確認しています。[移行記録](../evidence/2026-10-27-m3-migration-9e78f2d.json)にhash・時間・fixture来歴・未変更SDK証拠を保持しました。RFC 0033はstabilizedとし、公開C v1/旧生成clientの契約を保持します。private SDK linkは厳密build一致を必要とします。**完了: 1 delivery / 3 pt消化、追加/再見積り: 0 pt**。照合は**5 + 0 − 3 = 2 pt**、**79行 / 78 done / 1 doing / 0 todo**、台帳**110 + 99 − 207 = 2**です。全15 gate監査と日英guideのZ02だけを2 ptのdoingとし、新しい実装依存はありません。最終監査までgateは**3/15・18/96**です。
 
@@ -490,7 +492,7 @@ C04 は `f882074`（2026-10-22 02:05 JST）で完了しました。明示的で�
 | M3-B02 | done | 0 | M3-B01 | G14 | C embedding API と生成 binding を移行試験付きで安定化 | 9e78f2d |
 | M3-X01 | done | 0 | M3-E01 | G15 | 権限を明示する trusted-native/verified-script の実行可能例を提供 | `8a3ae2e` |
 | M3-Z01 | done | 0 | M3-E01,M3-L04 | G03,G04,G05 | spawn/join/channel/取消/メモリ費用を記録し M2 workload の証拠を維持 | `c9ffd19` |
-| M3-Z02 | doing | 2 | M3-X01,M3-Z01,M3-B02 | G01,G02,G03,G04,G05,G06,G07,G08,G09,G10,G11,G12,G13,G14,G15 | 全ゲートを監査し command、証拠、制限を含む日英 capability guide を公開 | — |
+| M3-Z02 | done | 0 | M3-X01,M3-Z01,M3-B02 | G01,G02,G03,G04,G05,G06,G07,G08,G09,G10,G11,G12,G13,G14,G15 | 全ゲートを監査し command、証拠、制限を含む日英 capability guide を公開 | 9e78f2d |
 
 A05 completed at `ea822bd`（2026-10-21 JST）: 既存 managed move を使って Send async signature を実行し、結果に owner span を保持します。成功 await は payload を一度だけ move して Result と owner を登録し、未回収結果は公開順の逆順で既存 mixed cleanup drain により退役します。取消、未公開 return、nested generation、expired weak、nested owned Result、cleanup panic/truncation と primary failure の優先を差分 15 テストで検証しました。全 fuel/work/provider/interruption prefix、保持 cell の次 frame admission、frame/cell/task/heap 上限境界と 1 未満で全 allocation を退役しました。既存 task 10 suite / 95 test と CLI の 42/数値付き拒否、13 linked-object profile が成功しました。production 入力を固定した全 baseline は **116 suites / 1,801 passed / 0 failed / 1 existing timing ignore**、suite-time 合計 **563.41s**。fmt、Clippy（**15.64s**）、rustdoc（**31.71s**）、11 fuzz target compile/lint（**1.40s**）も成功し、fuzz campaign は主張しません。最後の見積 **3 pt** を退役し、新追加/再見積りはありません。
 
@@ -566,7 +568,7 @@ T05 を `2f58084` で完了（2026-10-21 JST）: TaskProgram で source claim/lo
 
 T05 roadmap 監査: 最初の source VM fixture が実行できたため、G03/G12/G13 完了判定前に **T06 → T07 → T08** を進めます。`crates/codegen-clif/src/owned.rs` と `src/native.rs` を確認し、既存 native 経路は TaskProgram/async metadata を拒否する一方、検証済み MIR、managed task layout、scope identity、result storage が揃ったことを確認しました。T06 は元の 3 pt の compiled continuation と値/event 一致の成果を維持し、VM/MIR fallback なしに生成 code を実行する必要があります。初期 native fixture で serialized task revision や package/startup 公開を決めたことにはしません。明示 format 判断と native/owned/loan/foreign/共有 control の受入条件を維持し、次の実行 fixture 前に scheduler/IDL 基盤を追加しません。全 15 gate、全 P1 作業、channel、Send/Share、production embedding を M3 に残します。
 
-**110 + 99 − 207 = 2 pt**
+**110 + 99 − 209 = 0 pt**
 
 T06 を `8d6c283` で完了（2026-10-21 JST）: 実装前に RFC 0023 へ native 境界を記録しました。invocation/frame/claim/result 状態と scheduling/storage service を共有し、VM/native に別の resume/cleanup entry を持ちます。Cranelift が演算、分岐、失敗/取消 CFG、検査付き continuation 選択を生成し、実行時 MIR evaluator や VM 依存はありません。source fixture は VM/native ともに 42 を出力します。integration test 12 件で値/event/使用量/割り当て状態、取消、有限 record/enum と field 更新、通常 call、loop scope identity、子/同期 panic 起点、全 fuel/trace prefix、task/frame/cell/preparation 上限、各 provider 拒否を比較します。別途リンクした実行形式では join/aggregate/cancel/panic profile、再生成 object/compiler/SDK byte の一致、全 fuel prefix を検証し、JIT compile/invoke API を呼びません。private 境界 2 テストで callback 前の範囲外 PC 拒否と source 証拠付き callback panic の封じ込めを確認します。受理した storage/task はすべて解放します。全 baseline: **106 suites / 1,712 passed / 0 failed / 1 existing timing ignore**、完了 suite 時間合計 **471.21 s**。fmt、warnings-denied workspace Clippy **6.24 s**、rustdoc **26.34 s**、全 11 fuzz target の compile/lint **3.11 s** が通過しました。fuzz campaign、性能主張、より広い platform/native package 完了ではありません。T06 の 3 pt を消化し、作業追加/再見積りはありません。
 
@@ -614,11 +616,11 @@ A06 roadmap audit: `Machine::spawn`、`Frame::copy_from_frame`、`Frame::result`
 
 | Initial remaining | Net additions/re-estimates | Retired at completion | Remaining |
 | ---: | ---: | ---: | ---: |
-| 110 pt | +99 pt | −207 pt | 2 pt |
+| 110 pt | +99 pt | −209 pt | 0 pt |
 
 ## Exit audit
 
-**3/15 gates complete; 18/96 gate weight.** G01 の受理条件は accepted/implemented の RFC 0021–0026、すなわち厳密 source async/suspension・task scheduling・Send/Share・有界 channel/backpressure/error・service isolation/cancellation で立証します。G02 の受理条件は `1f477fa` の受理済み RFC 0027 と規範 versioned wire/C surface が、互換性・typed failure・再入・cancellation 対応を含めて満たします。G01/G02 は受理 gate です。G06 の実装条件は、I02/I03/I04/I05/I06 の versioned IDL・canonical codec・生成/交渉/独立 binding proof と、I10/I11/I07 の保存 task/component profile により満たします。`a0501f4`（2026-10-24 10:00 JST）で全宣言、未使用 graph、origin、既存/独立 vector、累積 byte/work/storage/depth 上限を検証し、IDL/有界 serialization を実装済みと監査しました。G03–G05 と G07–G15 は実装・合算 control・両 host runtime/conformance・安定化・example の条件を維持し、header cross-compile で G14 を満たしません。P1 は M3 外へ移しません。
+**15/15 gate完了、96/96 gate weight。** `9e78f2d`の実装と両host検証、I08の両host isolated SDK 7 profile、stabilized RFC 0033の旧C client移行、X01のnative/script plugin、Z01の有限cost/M2 parityを照合しました。[全15行の監査表と利用guide](milestone-3-capabilities.md#全exit監査)と[機械記録](../evidence/2026-10-27-m3-exit-9e78f2d.json)に各条件と具体的suiteを対応付けます。G01/G02は受理契約、G03–G13は実source/VM/JIT/AOTと原scopeの所有権・失敗・capability・resource/複合control、G14は両host全適合後のC互換性、G15は実行例で完了しました。header cross-compileだけでの代用やP0/P1の先送りはありません。public C v1の安定性はprivate SDK/native language ABIへ拡張しません。
 
 ## Sources
 

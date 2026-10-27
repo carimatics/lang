@@ -6,19 +6,19 @@
 
 このロードマップはrisk reductionの順に並んでいます。Milestoneはcalendar commitmentではなくexit criteriaです。
 
-## 現在の作業と完了済みM2
+## 完了済みM2とM3
 
 **検証済み133件 · 進行中0件 · 残り0件（暫定0 pt）。**
 
 M2は完了済みです。18/18ゲート、過去のゲート重み113/113です。[完了ボード](milestone-2.md)に成果と見積もり収支、[機能ガイド](milestone-2-capabilities.md)に実際のsource/VM/native/C/SDK/debugの根拠と制約を記録しています。この件数はM2のもので、将来の全作業ではありません。
 
-**M3は進行中です:** [delivery board](milestone-3.md)は**78 done · 1 doing · 0 todo · 2 remaining pt**です。B01の両host全適合に続き、B02の旧C client移行が`9e78f2d`のmacOS（153 suite / 2,321成功）と[Windows全CI](https://github.com/carimatics/lang/actions/runs/40471721760)（153 suite / 2,306成功）、失敗0で成功しました。RFC 0033の公開C v1/生成clientをstabilizedとし、private SDK厳密build境界を維持します。B02の3 ptを消化し追加/再見積り0、台帳は**110 + 99 − 207 = 2**です。Z02だけをdoingとし、全15 gateの最終監査と日英guideを仕上げます。gateは監査まで**3/15・18/96**です。
+**M3は完了しました:** [完了board](milestone-3.md)は**79 done · 0 doing · 0 todo · 0 remaining pt**、**15/15 gate・96/96 gate weight**です。[機能ガイドと全出口監査](milestone-3-capabilities.md)に実行command・両host証拠・制約をまとめました。`9e78f2d`のmacOS全7段階（153 suite / 2,321成功）と[Windows全CI](https://github.com/carimatics/lang/actions/runs/40471721760)（153 suite / 2,306成功）が失敗0で成功し、旧C client移行も両方で成功しました。SDK隔離起動7 profile、X01 plugin、Z01 cost/M2 parity証拠を保持します。最終Z02の2 ptを消化し追加/再見積り0、台帳は**110 + 99 − 209 = 0**です。P0/P1の先送りはありません。
 
-resource所有権/loan・永続provider・元accounting/control・callback・installed native Image・完全な公開C API・明示権限plugin例・有限cost観測・実両hostのinstalled startupには実行証拠があります。B01はWindows/macOSの全ownership/failure/capability/resource適合成功を必要とし、installed startup成功だけでは満たしません。今回の修正はtest linkだけでruntime/ABI/SDK動作を維持します。B01 → B02の順を保ち、Z02はB02とX01/Z01後の最終監査/guideとします。scopeと見積りは追加しません。
+公開C v1と既存生成clientはstabilized RFC 0033に従います。source/native language ABIとprivate SDK/保存formatの独立互換境界は実験段階です。M2の完了記録・過去のbenchmarkは未変更で、M3の計測は別sourceの有限観測として記録しています。
 
-## 進行中 milestone の実行
+## M3完了後の作業
 
-M3の受理済みsource/task/channel/service契約は対応VM/native profileで実行します。boardはIDL/codec・binding/grant・schema-5 artifact・resource移動/loan/cleanup・callback・複合上限・installed task/component/native-image packageを記録します。E15がtyped C root task、E16が厳密SDK AOT Image、E01が完全な公開API/callback退役、X01がnative/script plugin実行例、Z01が有限workload費用とM2証拠の維持を提供します。I08/B01/B02に実両host適合/安定性を残し、Z02はB02とX01/Z01を待って最終監査/guideを作成します。各gateの完全条件を保ち、残見積りと96点のexit-gate重みを区別します。
+M3の実装・両host適合・C安定化・最終guideは完了しました。M4以降のgateは将来workであり、まだactiveにしていません。次のmilestoneを開始する際に残作業を1–3 ptの観測可能なdeliveryへ分解し、そのboardで管理します。完了済みM3の履歴と最終見積り収支は再openしません。
 
 保守やレビューのために完了済みM2ボードを拡大しません。修正はscopeを限定したchecklistに記録し、code、文書、検証を同じ変更にまとめます。新たな言語／ABI／形式の選択には引き続き明示的RFC判断が必要ですが、実験段階の委任により個別owner承認待ちは不要です。
 
@@ -30,19 +30,19 @@ M3の受理済みsource/task/channel/service契約は対応VM/native profileで�
 
 以下のmilestone checklistは相対的な受入条件の重みを保持します。`1`はごく小、`2`は小、`3`は中、`5`は大、`8`は非常に大です。重み付きの達成率は `完了した重み / 全重み × 100` を小数第1位へ丸めます。この粗い重みは経過時間や実装残作業を予測しません。Milestoneがcurrentになったとき、またはscope／evidenceが変わったときに、長期見積もりを積み上げで見直します。進行中milestoneごとに別の実装Todoを使い、独立検証可能な残り1〜3 ptのtaskと、明示的なscope／見積もり変更を記録します。
 
-2026-10-24（JST）に確認した exit-gate weight の snapshot です。受入条件の重みと残作業見積りは別であり、現在の積み上げ残数は上記の M3 実装 Todo を参照してください。M2 の完了記録は維持します。
+2026-10-27（JST）に確認した exit-gate weight の snapshot です。受入条件の重みと残作業見積りは別であり、最終収支は上記の完了済み M3 実装 Todo を参照してください。M2 の完了記録は維持します。
 
 | Milestone | 完了条件の重み | 条件の総重み | 条件達成率 |
 | --- | ---: | ---: | ---: |
 | 0 — design baseline | 209 pt | 209 pt | **100.0%** |
 | 1 — frontendとbytecodeのvertical slice（完了） | 89 pt | 89 pt | **100.0%** |
 | 2 — ownershipとnative AOT | 113 pt | 113 pt | 100.0% |
-| 3 — concurrencyとembedding | 18 pt | 96 pt | 18.8% |
+| 3 — concurrencyとembedding（完了） | 96 pt | 96 pt | 100.0% |
 | 4 — developer toolchain | 0 pt | 63 pt | 0.0% |
 | 5 — ecosystemとcompatibility | 0 pt | 65 pt | 0.0% |
 | 6 — セルフホスティング | 0 pt | 74 pt | 0.0% |
 | 7 — 追加frontend | 0 pt | 55 pt | 0.0% |
-| **全体** | **429 pt** | **764 pt** | **56.2%** |
+| **全体** | **507 pt** | **764 pt** | **66.4%** |
 
 ## Milestone 0：設計baseline
 
@@ -200,25 +200,25 @@ Exit：代表的なcommand-line programがVM semanticsと一致し、同等のRu
 
 ## Milestone 3：concurrencyとembedding
 
-**進捗：18 / 96 pt（18.8%）。**
+**進捗: 96 / 96 pt（100.0%）。**
 
-開始条件は充足済みです。Milestone 2 は両実行経路の所有権/cleanup semantics を提供し、リポジトリレビューも完了しました。RFC 0003/0005 を受理済み意味論の基準とし、prototype で production IDL/scheduler/sandbox を完了扱いにしません。[進行中の実装 Todo](milestone-3.md)で範囲と見積りを追跡します。source VM の既存 frame/live-cell 上限を task、native code、host callback 全体へ拡張します。
+開始条件は充足済みです。Milestone 2 は両実行経路の所有権/cleanup semantics を提供し、リポジトリレビューも完了しました。RFC 0003/0005 を受理済み意味論の基準とし、prototype で production IDL/scheduler/sandbox を完了扱いにしません。[完了した実装 Todo](milestone-3.md)で範囲と見積りを追跡します。source VM の既存 frame/live-cell 上限を task、native code、host callback 全体へ拡張します。
 
 - [x] **P0 — RFC 0005を緩和せず、残るscheduler／channel／backpressure／error contract、send／share導出、source async構文を受理する。** — 5 pt
 - [x] **P0 — Production component IDL／wire profileとembedding ABIを受理し、compatibility、typed failure、callback reentrancy、RFC 0003へのcancellation対応を決める。** — 5 pt
-- [ ] **P0 — Structured task lifetimeとdeterministic cancellation cleanupを実装する。** — 8 pt
-- [ ] **P0 — Bounded backpressure／cancellation behavior付きchannelを実装する。** — 5 pt
-- [ ] **P0 — Actor isolationとaccept済みdata-race capability ruleを強制する。** — 8 pt
+- [x] **P0 — Structured task lifetimeとdeterministic cancellation cleanupを実装する。** — 8 pt
+- [x] **P0 — Bounded backpressure／cancellation behavior付きchannelを実装する。** — 5 pt
+- [x] **P0 — Actor isolationとaccept済みdata-race capability ruleを強制する。** — 8 pt
 - [x] **P0 — Version付きcomponent IDLとbounded serializationを実装する。** — 8 pt
-- [ ] **P0 — Canonical owned／borrowed resource adapterを実装する。** — 8 pt
-- [ ] **P0 — Capability-gated component importを強制する。** — 5 pt
-- [ ] **P0 — Typed error付きmixed native／VM call／callbackをsupportする。** — 8 pt
-- [ ] **P0 — Native／VM boundaryを越えてstack trace／cancellationを保持する。** — 5 pt
-- [ ] **P0 — Host-callback accountingを含むheap／allocation limitを強制する。** — 5 pt
-- [ ] **P0 — Recursion-depth／live-task limitを強制する。** — 5 pt
-- [ ] **P0 — VM、JIT、AOT、callback boundary全体でcooperative interruptionを強制する。** — 8 pt
-- [ ] **P0 — 両tier-1 platformでcross-modeのownership／failure／capability／resource-limit conformanceを確認後、C embedding APIとgenerated bindingをstable化する。** — 8 pt
-- [ ] **P1 — Trusted-native／verified-script plugin exampleを提供する。** — 5 pt
+- [x] **P0 — Canonical owned／borrowed resource adapterを実装する。** — 8 pt
+- [x] **P0 — Capability-gated component importを強制する。** — 5 pt
+- [x] **P0 — Typed error付きmixed native／VM call／callbackをsupportする。** — 8 pt
+- [x] **P0 — Native／VM boundaryを越えてstack trace／cancellationを保持する。** — 5 pt
+- [x] **P0 — Host-callback accountingを含むheap／allocation limitを強制する。** — 5 pt
+- [x] **P0 — Recursion-depth／live-task limitを強制する。** — 5 pt
+- [x] **P0 — VM、JIT、AOT、callback boundary全体でcooperative interruptionを強制する。** — 8 pt
+- [x] **P0 — 両tier-1 platformでcross-modeのownership／failure／capability／resource-limit conformanceを確認後、C embedding APIとgenerated bindingをstable化する。** — 8 pt
+- [x] **P1 — Trusted-native／verified-script plugin exampleを提供する。** — 5 pt
 
 Exit：Native hostがuser scriptをloadし、typed APIを公開し、scriptをcallし、callbackを受け取り、IPCなしでcapabilityを強制できる。
 

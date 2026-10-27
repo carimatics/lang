@@ -1,0 +1,144 @@
+{
+  "schema": 1,
+  "source": "9e78f2dca4f358f3c197bc9330b079a4c376ad53",
+  "verified_at": "2026-10-27T09:05:21Z",
+  "milestone": 3,
+  "gates_complete": 15,
+  "gate_weight_complete": 96,
+  "gate_weight_total": 96,
+  "unfinished_p0": 0,
+  "unfinished_p1": 0,
+  "deferred_or_reestimated_work": 0,
+  "gates": [
+    {
+      "id": "G01",
+      "weight": 5,
+      "status": "complete",
+      "outcome": "Accepted scheduler, Send/Share, channel/service, source async decisions",
+      "evidence": "RFCs 0021–0026"
+    },
+    {
+      "id": "G02",
+      "weight": 5,
+      "status": "complete",
+      "outcome": "Accepted production IDL/wire/C boundary, failure, reentry/cancellation",
+      "evidence": "RFC 0027"
+    },
+    {
+      "id": "G03",
+      "weight": 8,
+      "status": "complete",
+      "outcome": "Structured source tasks, owning args/results, scope joins and deterministic cancellation cleanup",
+      "evidence": "task_owned_integration,task_owned_transfer,native_task_execution,native_task_component_records"
+    },
+    {
+      "id": "G04",
+      "weight": 5,
+      "status": "complete",
+      "outcome": "Bounded channels, FIFO wakeup/backpressure, ownership and cancellation",
+      "evidence": "source_channels,native_channel_execution,channel_type_capabilities"
+    },
+    {
+      "id": "G05",
+      "weight": 8,
+      "status": "complete",
+      "outcome": "Isolated service owners, capability checks, FIFO state/message cleanup",
+      "evidence": "source_services,native_service_execution,service_type_capabilities"
+    },
+    {
+      "id": "G06",
+      "weight": 8,
+      "status": "complete",
+      "outcome": "Versioned bounded IDL, canonical wire/value codecs, independent checked stored task/component artifacts",
+      "evidence": "component_idl,component_wire,component_generation,component_bindings,task_artifacts,component_artifacts"
+    },
+    {
+      "id": "G07",
+      "weight": 8,
+      "status": "complete",
+      "outcome": "Owned/borrowed contextual resource adapters, generations, transfer preflight and poison",
+      "evidence": "component_source_resource,component_resource_execution,component_scoped_roots"
+    },
+    {
+      "id": "G08",
+      "weight": 5,
+      "status": "complete",
+      "outcome": "Explicit typed grants, missing/malformed refusal before inventory/effects",
+      "evidence": "component_grants,component_selection,component_native_registration"
+    },
+    {
+      "id": "G09",
+      "weight": 8,
+      "status": "complete",
+      "outcome": "Actual mixed VM/JIT/AOT typed calls and callbacks, retained native code/owners",
+      "evidence": "component_embedding_inputs,component_scoped_roots,component_native_image,native_task_component_records; isolated SDK7 profiles"
+    },
+    {
+      "id": "G10",
+      "weight": 5,
+      "status": "complete",
+      "outcome": "Original logical source/native stacks, task/caller spans, cancellation and cleanup",
+      "evidence": "component_scoped_roots,component_embedding_inputs; LF/CRLF regression"
+    },
+    {
+      "id": "G11",
+      "weight": 5,
+      "status": "complete",
+      "outcome": "Original allocator and cumulative callback heap/allocation limits",
+      "evidence": "component_foreign_allocator,component_scoped_roots,component_native_image"
+    },
+    {
+      "id": "G12",
+      "weight": 5,
+      "status": "complete",
+      "outcome": "Combined depth/frame/cell/task/fuel/work admission before effects",
+      "evidence": "task_controls,native_task_execution,component_scoped_roots"
+    },
+    {
+      "id": "G13",
+      "weight": 8,
+      "status": "complete",
+      "outcome": "Cooperative interruption across all admitted modes, callbacks and mandatory cleanup",
+      "evidence": "native_channel_execution,native_service_execution,component_native_image,native_task_component_records"
+    },
+    {
+      "id": "G14",
+      "weight": 8,
+      "status": "complete",
+      "outcome": "Stable public C v1 and previous generated-client migration after both-host conformance",
+      "evidence": "RFC 0033 stabilized; previous C clients at 9e78f2d; Windows40471721760 and macOS all7"
+    },
+    {
+      "id": "G15",
+      "weight": 5,
+      "status": "complete",
+      "outcome": "Runnable trusted-native and verified-script plugin, typed grants without IPC",
+      "evidence": "examples/component-plugin-host.rs; examples/plugins; source8a3ae2e"
+    }
+  ],
+  "conformance": "2026-10-27-m3-migration-9e78f2d.json",
+  "installed_sdk": [
+    "2026-10-27-m3-sdk-macos-8f41f44.json",
+    "2026-10-27-m3-sdk-windows-8f41f44.json"
+  ],
+  "costs": "../../benchmarks/results/2026-10-27-m3-macos-c9ffd19.json",
+  "m2_parity": "../../benchmarks/results/2026-10-27-m2-parity-macos-c9ffd19.json",
+  "guide_command_smoke": {
+    "source": "9e78f2dca4f358f3c197bc9330b079a4c376ad53",
+    "verified": "2026-10-27 17:17 JST",
+    "cases": {
+      "tasks": 42,
+      "owned_buffers": 71,
+      "channels": 42,
+      "service_state": 42,
+      "owned_transfer": 42,
+      "service_work_zero": "exit1 ServiceWorkLimit limit0 used0 requested1; original span",
+      "plugin_vm": "42; grant denied; panic/reuse1; fuel refusal; owner released; live allocations0",
+      "plugin_jit": "42; grant denied; panic/reuse1; fuel refusal; owner released; live allocations0",
+      "stored_task": 42,
+      "native_channel": 42
+    },
+    "native_example_verified": "2026-10-27 17:46 JST"
+  },
+  "scope": "Admitted VM/JIT/exact-SDK AOT profiles on macOS AArch64 and Windows x86-64; stable public C v1, experimental source/private Rust/SDK formats. No new production inputs since isolated SDK source; historical M2 benchmark sources/results unchanged."
+}
