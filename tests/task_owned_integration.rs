@@ -726,10 +726,10 @@ fn early_return_source() -> String {
 
 #[test]
 fn failed_child_discards_an_escrowed_return_before_parent_owner_cleanup_failures() {
-    let source = early_return_source().replace(
-        "    cancel_check;\n    return 0;\n}",
-        "    cancel_check;\n    return core::panic::<i64>(91);\n}",
-    );
+    let source = early_return_source();
+    let needle = "    return 0;";
+    assert_eq!(source.matches(needle).count(), 1, "unique tail return");
+    let source = source.replace(needle, "    return core::panic::<i64>(91);");
     assert!(source.contains("core::panic::<i64>(91)"));
     let program = prepare(&source);
     let native =
