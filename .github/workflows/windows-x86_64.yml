@@ -7,6 +7,7 @@ on:
     branches:
       - main
       - 'codex/m2-*'
+      - 'codex/ci-*'
 
 permissions:
   contents: read
@@ -20,9 +21,13 @@ env:
 
 jobs:
   windows-msvc:
-    name: Windows Server 2025 / x86-64 MSVC
+    name: Windows Server 2025 / x86-64 MSVC / ${{ matrix.shard }}
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [core, native, owned]
     runs-on: windows-2025
-    timeout-minutes: 60
+    timeout-minutes: 40
 
     steps:
       - name: Check out repository
@@ -36,6 +41,11 @@ jobs:
       - name: Select the pinned Rust toolchain
         run: rustup show active-toolchain
 
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        with:
+          key: windows-2025-${{ matrix.shard }}
+
       - name: Inspect native debug tools
         run: |
           & "$env:ProgramFiles\LLVM\bin\llvm-pdbutil.exe" --version
@@ -48,37 +58,52 @@ jobs:
           }
 
       - name: Check formatting
+        if: matrix.shard == 'core'
         run: |
           cargo fmt --all --check
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           cargo fmt --manifest-path fuzz/Cargo.toml --check
 
-      - name: Check native C boundaries and linker failures
-        run: |
-          cargo test --locked --test c_abi --all-features
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          cargo test --locked --lib --all-features linker::tests
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          cargo test --locked --test linker_failures --all-features
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-
       - name: Lint
+        if: matrix.shard == 'core'
         run: cargo clippy --locked --workspace --all-targets --all-features -- -D warnings
 
-      - name: Build test executables
-        run: cargo test --locked --workspace --all-targets --all-features --no-run
-
       - name: Run tests
-        run: cargo test --locked --workspace --all-targets --all-features
+        run: python tools/ci/run_tests.py ${{ matrix.shard }}
 
       - name: Build documentation
+        if: matrix.shard == 'core'
         run: cargo doc --locked --workspace --no-deps
 
       - name: Validate benchmark evidence checks
+        if: matrix.shard == 'core'
         run: |
+          python -m unittest discover -s tools/ci -p 'test_*.py'
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           python -m unittest discover -s tools/m2-bench -p 'test_*.py'
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           python -m unittest discover -s tools/m3-bench -p 'test_*.py'
+
+  benchmark:
+    name: Windows Server 2025 / prototype benchmark
+    runs-on: windows-2025
+    timeout-minutes: 20
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Configure the x86-64 MSVC environment
+        uses: ilammy/msvc-dev-cmd@0b201ec74fa43914dc39ae48a89fd1d8cb592756 # v1
+        with:
+          arch: x64
+
+      - name: Select the pinned Rust toolchain
+        run: rustup show active-toolchain
+
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        with:
+          key: windows-2025-benchmark
 
       - name: Record the schema 20 prototype benchmark
         shell: pwsh
