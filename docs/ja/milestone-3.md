@@ -8,9 +8,9 @@
 
 **76 done · 1 doing · 2 todo · 8 remaining pt**
 
-**次: M3-B01 → Windowsのmanual link探索pathを修正し両host適合を完了する。**
+**次: M3-B01 → Windows stress hostを検証し両host適合を完了する。**
 
-現在のB01実行checkpoint **`1bf6e4f`**はlocal C host重点test（**15.58秒**）、全target Clippy（**12.16秒**）、consistency **5/5**に成功しました。[Windows run 40459416815](https://github.com/carimatics/lang/actions/runs/40459416815)はengine lifecycle・有界call・decoder拒否を通過しregistry/callback stressへ進んだ後、単独hostの明示2 MiB stackでoverflowしました。次の実験ではmanual MSVC test hostを有限の**8 MiB**に予約しregistry profile/allocation診断を追加します。成功しているmacOS単独hostのsoft stack上限実測は**8,176 KiB**です。test host設定の変更であり、guest上限/assert条件とproduction runtime/ABI/SDK動作は維持します。このCI向け修正の準備中も、変更しない検証treeで1bf6e4fのlocal全baselineを継続します。実Windows全適合と新source検証は未完で、B01は追加/再見積り/消化0、3 ptを維持します。
+現在のB01 checkpoint **`25a915a`**、[Windows run 40460754561](https://github.com/carimatics/lang/actions/runs/40460754561)で、8 MiB単独stress hostによる生成native C host test全体が成功し、registry/callback/resource/task caseを通過しました。次の`generated_typed_counter_c_codecs_and_call_commit_states_run_natively`はCRT text modeのstdoutがhex frame転送へCRLFを挿入するため失敗し、canonical frame byte自体は一致しています。次のfixture限定修正ではWindows stdoutをbinary modeにし、既存の厳密byte文字列assertを維持します。production generator/runtime/ABI/SDK・guest controlは未変更です。mainでWindows限定fixture修正を準備する間も、変更しない25a915a検証snapshotでlocal全baselineを継続します。Windows全適合と最終sourceのlocal検証は未完で、B01は追加/再見積り/消化0、3 ptです。
 
 B01未完checkpoint: 最後のcommit済み実行source **`d63013d`**は**2026-10-27 15:06 JST**に固定入力local全7段階baselineに成功しました（**153 suite / 2,319成功 / 失敗0 / 既存ignore 1**、suite合計**865.63秒**、test段階**1,025.64秒**）。fmt/Clippy/test/doc/fuzz fmt/check/Clippyは**1.81/1.11/1,025.64/16.88/2.06/0.23/0.22秒**で成功し、fuzzは16 target、campaignなしです。**881入力 / 非Markdown 773入力**の前後hashは一致しました: main `e5304307291987e1b5c0c01f0e4bde5f6dfa6f0bfd04ae66adb0baacd595b0bc`、検証 `c1b2e7089d2fff16eca0c23f3f07b41d52eabbde0dfc01d24e145718a57ae64e`。差は過去Windows reportのCRLFだけで、正規化後の差/追加入力はゼロです。[Windows run 40457319826](https://github.com/carimatics/lang/actions/runs/40457319826)でnative library link修正を確認後、単独の非最適化C hostでstack overflowが発生しました。次の実験ではmanual MSVC test hostに有限の2 MiB entry stackを明示し、C fixtureの段階診断を追加します。guest上限/assert条件とproduction runtime/ABI/SDKは未変更です。残る受入条件は実際のWindows全適合と実験の検証です。I08は下記で完了し、B01は追加/再見積り/消化0で3 ptを維持します。
 

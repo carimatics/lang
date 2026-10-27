@@ -303,6 +303,10 @@ fn generated_typed_counter_c_codecs_and_call_commit_states_run_natively() {
         r#"{}
 #include <stdio.h>
 #include <assert.h>
+#ifdef _WIN32
+#include <io.h>
+#include <fcntl.h>
+#endif
 struct lang_component_v1_result {{uint32_t flags;}};
 static struct lang_component_v1_result answer={{3}};
 static uint32_t calls=0,inspect_failure=0,refuse=0;
@@ -318,6 +322,9 @@ static lc_value_writer writer(uint8_t *data,uint64_t capacity) {{lc_value_writer
 static lc_value_reader reader(const uint8_t *data,uint64_t length) {{lc_value_reader r={{0}};r.data=data;r.length=length;r.left.work=10000;r.left.elements=1000;r.left.depth=128;r.contextual=1;return r;}}
 static void print_frame(const uint8_t *data,uint64_t n) {{uint64_t i;for(i=0;i<n;++i)printf("%02x",data[i]);puts("");}}
 int main(void) {{
+#ifdef _WIN32
+    assert(_setmode(_fileno(stdout),_O_BINARY)!=-1);
+#endif
     uint8_t bytes[1024];lc_value_writer w=writer(bytes,sizeof(bytes));
     {args} args={{0}},decoded={{0}};{result} value={{0}},output={{0}};
     args.p0.index=7;args.p1.f0=40;args.p1.f1.data=(const uint8_t *)"label";args.p1.f1.length=5;
