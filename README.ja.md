@@ -115,6 +115,7 @@ Typed import grant checkpoint（2026-10-23 JST）: `cargo test --test component_
 - [RFC 0030: Native task/component record（implemented）](docs/ja/rfcs/0030-native-task-component-records.md)
 - [RFC 0031: Installed native task package（implemented）](docs/ja/rfcs/0031-installed-native-task-packages.md)
 - [RFC 0032: 明示host binding付きinstalled component package（implemented）](docs/ja/rfcs/0032-installed-component-packages.md)
+- [RFC 0033: Component C v1の互換性と移行（accepted）](docs/ja/rfcs/0033-component-v1-compatibility.md)
 - [コントリビューションガイド](CONTRIBUTING.ja.md)
 
 ## 開発

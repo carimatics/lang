@@ -115,6 +115,7 @@ The rationale and unresolved tradeoffs are documented in [the architecture basel
 - [RFC 0030: Native task and component records (implemented)](docs/rfcs/0030-native-task-component-records.md)
 - [RFC 0031: Installed native task packages (implemented)](docs/rfcs/0031-installed-native-task-packages.md)
 - [RFC 0032: Installed component packages with explicit host bindings (implemented)](docs/rfcs/0032-installed-component-packages.md)
+- [RFC 0033: Component C v1 compatibility and migration (accepted)](docs/rfcs/0033-component-v1-compatibility.md)
 - [Contribution guide](CONTRIBUTING.md)
 
 ## Development
