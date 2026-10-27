@@ -32,6 +32,87 @@ fn hex(text: &str) -> Vec<u8> {
         .collect()
 }
 #[test]
+fn original_decode_ledger_retains_prior_usage_exact_bounds_and_failure_prefixes() {
+    for target in ["aarch64-apple-darwin", "x86_64-pc-windows-msvc"] {
+        for kind in [
+            Kind::Copy,
+            Kind::Task(m::FunctionId(0)),
+            Kind::Component(m::FunctionId(0)),
+        ] {
+            let bytes = fixture(kind, target)
+                .encode(SEMANTIC, Limits::default())
+                .unwrap();
+            let intrinsic = Record::decode(&bytes, SEMANTIC, Limits::default())
+                .unwrap()
+                .usage();
+            let prior = m::Usage {
+                work: 17,
+                allocation_bytes: 23,
+                elements: 5,
+            };
+            let exact = m::Limits {
+                work: prior.work + intrinsic.work,
+                allocations: prior.allocation_bytes + intrinsic.allocation_bytes,
+                elements: prior.elements + intrinsic.elements,
+                ..Default::default()
+            };
+            let mut ledger = m::Budget::with_usage(exact, prior).unwrap();
+            let decoded =
+                Record::decode_with_budget(&bytes, SEMANTIC, bytes.len(), &mut ledger).unwrap();
+            assert_eq!(decoded.usage(), intrinsic);
+            assert_eq!(
+                usage(&ledger),
+                m::Usage {
+                    work: exact.work,
+                    allocation_bytes: exact.allocations,
+                    elements: exact.elements
+                }
+            );
+            let refused =
+                Record::decode_with_budget(&bytes, SEMANTIC, bytes.len(), &mut ledger).unwrap_err();
+            assert!(
+                matches!(refused.kind, ErrorKind::Resource(m::Error { kind: m::ErrorKind::Limit { kind: m::LimitKind::Work, limit, requested }, .. }) if limit == exact.work && requested == limit + 1)
+            );
+            assert_eq!(ledger.work_used(), exact.work);
+            for allowed in 0..intrinsic.work {
+                let mut ledger = m::Budget::with_usage(
+                    m::Limits {
+                        work: prior.work + allowed,
+                        ..exact
+                    },
+                    prior,
+                )
+                .unwrap();
+                let refused =
+                    Record::decode_with_budget(&bytes, SEMANTIC, bytes.len(), &mut ledger)
+                        .unwrap_err();
+                assert!(
+                    matches!(refused.kind, ErrorKind::Resource(m::Error { kind: m::ErrorKind::Limit { kind: m::LimitKind::Work, limit, requested }, .. }) if limit == prior.work + allowed && requested > limit)
+                );
+                assert!(
+                    ledger.work_used() >= prior.work && ledger.work_used() <= prior.work + allowed
+                );
+                assert!(ledger.allocation_bytes() >= prior.allocation_bytes);
+            }
+            let mut ledger = m::Budget::with_usage(
+                m::Limits {
+                    allocations: exact.allocations - 1,
+                    ..exact
+                },
+                prior,
+            )
+            .unwrap();
+            let refused =
+                Record::decode_with_budget(&bytes, SEMANTIC, bytes.len(), &mut ledger).unwrap_err();
+            assert!(
+                matches!(refused.kind, ErrorKind::Resource(m::Error { kind: m::ErrorKind::Limit { kind: m::LimitKind::Allocations, limit, requested }, .. }) if limit == exact.allocations - 1 && requested > limit)
+            );
+            assert!(ledger.allocation_bytes() >= prior.allocation_bytes);
+        }
+    }
+}
+
+#[test]
 fn native_record_golden_freezes_framing_digests_and_metadata() {
     let record = fixture(Kind::Copy, "aarch64-apple-darwin");
     let bytes = record.encode(SEMANTIC, Limits::default()).unwrap();

@@ -235,13 +235,31 @@ impl Record {
     /// Validate framing, checksums and bounded metadata only. This does not
     /// load code, resolve symbols, create contexts, or authorize execution.
     pub fn decode(bytes: &[u8], semantic: &[u8], limits: Limits) -> Result<Self, Error> {
-        if bytes.len() > limits.bytes || semantic.len() > limits.bytes {
+        Self::decode_with_budget(
+            bytes,
+            semantic,
+            limits.bytes,
+            &mut m::Budget::new(limits.validation),
+        )
+    }
+
+    /// Decode on the caller's original preparation ledger. Intrinsic usage is
+    /// reported on success; every admitted prefix remains charged on refusal.
+    /// This operation creates no code, context or execution authority.
+    pub fn decode_with_budget(
+        bytes: &[u8],
+        semantic: &[u8],
+        maximum_bytes: usize,
+        budget: &mut m::Budget,
+    ) -> Result<Self, Error> {
+        if bytes.len() > maximum_bytes || semantic.len() > maximum_bytes {
             return Err(error(0, ErrorKind::Bytes));
         }
+        let mut intrinsic = budget.scope_usage();
         let mut reader = Reader {
             bytes,
             offset: 0,
-            budget: m::Budget::new(limits.validation),
+            budget: &mut intrinsic,
         };
         if reader.raw(8)? != MAGIC {
             return Err(error(0, ErrorKind::Magic));
@@ -276,14 +294,14 @@ impl Record {
         };
         let offset = reader.offset;
         let expected: [u8; 32] = reader.raw(32)?.try_into().unwrap();
-        if hash(semantic, &mut reader.budget, offset)? != expected {
+        if hash(semantic, reader.budget, offset)? != expected {
             return Err(error(offset, ErrorKind::SemanticDigest));
         }
         let digest_offset = reader.offset;
         let expected: [u8; 32] = reader.raw(32)?.try_into().unwrap();
         let length = reader.word()? as usize;
         let object = reader.raw(length)?;
-        if hash(object, &mut reader.budget, digest_offset)? != expected {
+        if hash(object, reader.budget, digest_offset)? != expected {
             return Err(error(digest_offset, ErrorKind::ObjectDigest));
         }
         let mut object_bytes = reader.vector::<u8>(length)?;
@@ -338,7 +356,7 @@ impl Record {
             kind,
             bytes: object_bytes,
             functions,
-            usage: usage(&reader.budget),
+            usage: usage(reader.budget),
         })
     }
 }
@@ -446,12 +464,12 @@ impl Writer<'_> {
         Ok(())
     }
 }
-struct Reader<'a> {
+struct Reader<'a, 'b> {
     bytes: &'a [u8],
     offset: usize,
-    budget: m::Budget,
+    budget: &'b mut m::Budget,
 }
-impl<'a> Reader<'a> {
+impl<'a> Reader<'a, '_> {
     fn raw(&mut self, length: usize) -> Result<&'a [u8], Error> {
         let end = self
             .offset
@@ -461,7 +479,7 @@ impl<'a> Reader<'a> {
             .bytes
             .get(self.offset..end)
             .ok_or_else(|| error(self.offset, ErrorKind::Truncated))?;
-        charged(&mut self.budget, length / 1024 + 1, self.offset)?;
+        charged(self.budget, length / 1024 + 1, self.offset)?;
         self.offset = end;
         Ok(value)
     }

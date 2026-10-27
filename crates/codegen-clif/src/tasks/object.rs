@@ -136,12 +136,28 @@ impl<'p> ObjectArtifact<'p> {
     /// the returned program is dropped. The owner must keep that code alive.
     /// These are trusted native inputs, not a sandbox for foreign machine code.
     pub unsafe fn bind<I>(
-        mut self,
+        self,
         owner: I,
-        mut resolve: impl FnMut(&I, &str) -> Option<*const u8>,
+        resolve: impl FnMut(&I, &str) -> Option<*const u8>,
         limits: m::Limits,
     ) -> Result<LinkedProgram<'p, I>, Error> {
         let mut budget = m::Budget::with_usage(limits, self.image.usage)?;
+        // SAFETY: the caller supplies the exact same image/address/owner proof.
+        unsafe { self.bind_with_budget(owner, resolve, &mut budget) }
+    }
+
+    /// Bind using the original ledger which already admitted reconstruction.
+    /// Failed symbol lookup retains all previously admitted charges.
+    ///
+    /// # Safety
+    /// The exact unmodified image, symbol addresses and retained owner must
+    /// satisfy the same executable-code lifetime obligations as `Self::bind`.
+    pub unsafe fn bind_with_budget<I>(
+        mut self,
+        owner: I,
+        mut resolve: impl FnMut(&I, &str) -> Option<*const u8>,
+        budget: &mut m::Budget,
+    ) -> Result<LinkedProgram<'p, I>, Error> {
         for function in self.image.functions.iter_mut().flatten() {
             budget.charge(1)?;
             function.code = resolve(&owner, &function.metadata.symbol)
@@ -153,7 +169,7 @@ impl<'p> ObjectArtifact<'p> {
                     ))
                 })?;
         }
-        self.image.usage = usage(&budget);
+        self.image.usage = usage(budget);
         Ok(LinkedProgram {
             _owner: owner,
             image: self.image,

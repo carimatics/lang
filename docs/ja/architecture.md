@@ -83,6 +83,8 @@ Hash/build identityは不一致を検出しますが、悪意あるSDKやnative 
 
 ## C ABIとnative SDK
 
+SDK所有component ImageをC gatewayのtrusted AOT mode 2へ接続します（RFC 0027、2026-10-27 JST更新）。既存program-v3/component manifestの有界検査と厳密host/SDK一致を確認してからprivate Imageを参照します。明示unsafe Rust factoryが完全なsemantic/native/bindings snapshotと実code resolver/ownerを保持します。実行時のsemantic対応には同じ不変Unitを使いますが、実instance identity・grant/provider・resource loan・元のcontrol/task/allocator/準備は別々の必須検査です。recordの選択exportだけを実行し、VM/JITへfallbackしません。台帳を共有するdecode・native node/layout/frame再構築・symbol接続は準備失敗prefixを保持します。result bodyとinstance stateの退役後にexecutable ownerを解放します。生成Cのscalar/task/reentry/resource fixtureは合算上限・poison・最終owner解放を検証し、完全query/tableと実両host受入はE01/I08/B01の別成果に残します。native format/C layoutとSDK version 3は不変です。SDK startup/probeに明示生成C gateway consumerを含め、現在の証拠と残る検証は実装表へ記録します。codeに公開更新日はありません。
+
 実装済みRFC 0008境界は、生成C11 headerとtyped adapterを介してscalar、Unit、有限Copy aggregateを許します。Managed tokenやprivate source layoutをC値として公開しません。C importにはlexical `unsafe`と明示的なhost binding/grantが必要であり、`unsafe`はownership/loan/region検査を無効化しません。
 
 共通preflightはdescriptor全体、signature、grant、address、alignment、canonicalなactive fieldを検証します。未初期化であり得る通常のC paddingをRust byte sliceとして読みません。実際のnative objectの有効性、code/provider lifetime、同期owner-thread利用はcallerの責務です。成功した実行、cleanup、検証の後にだけoutputを公開します。Callbackは元contextを保持し、拒否されたreentry/poisonは以前のfailureを保持します。

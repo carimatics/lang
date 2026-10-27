@@ -331,7 +331,21 @@ impl Call<'_, '_> {
                 )
                 .map_err(|_| INVALID)?,
             ),
+            2 => None,
             _ => return Err(UNSUPPORTED.into()),
+        };
+        let aot = if self.current.mode == 2 {
+            Some(
+                self.target
+                    .native
+                    .as_ref()
+                    .ok_or(UNSUPPORTED)?
+                    .image
+                    .bind(program, budget)
+                    .map_err(native_image::callback_refused)?,
+            )
+        } else {
+            None
         };
         let mut memory = a::Allocator::borrow(memory).map_err(|_| INVALID)?;
         let mut host = execution::Invocation::prepare_owned(
@@ -360,7 +374,17 @@ impl Call<'_, '_> {
             ..Default::default()
         };
         let current = task.reborrow().map_err(|_| BUSY)?;
-        let outcome = if let Some(generated) = generated {
+        let outcome = if let Some(aot) = aot {
+            aot.execute_component_in_task(
+                &mut memory,
+                self.control,
+                limits,
+                &values,
+                &mut host,
+                budget,
+                current,
+            )
+        } else if let Some(generated) = generated {
             generated.execute_component_in_task(
                 &mut memory,
                 self.control,

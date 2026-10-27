@@ -3,6 +3,7 @@ mod admission;
 mod callbacks;
 #[cfg(test)]
 mod failure_tests;
+mod native_image;
 mod persistent;
 mod registration;
 mod resources;
@@ -21,6 +22,7 @@ use lang_runtime::{
     execution as e,
     task::runner as r,
 };
+pub use native_image::module_bind_native;
 pub use persistent::{context_resource_keep, context_resource_take};
 pub use resources::{resource_drop, resource_publish};
 use sha2::{Digest, Sha256};
@@ -57,6 +59,7 @@ struct Loaded {
     engine: NonNull<Metadata>,
     module: Rc<Module>,
     digest: [u8; 32],
+    native: Option<Rc<native_image::Lease>>,
 }
 struct Registered {
     provider: Option<native::Provider<'static>>,
@@ -86,6 +89,8 @@ struct InstanceData {
     providers: Vec<native::Provider<'static>>,
     leases: RefCell<Vec<ImportLease>>,
     indices: RefCell<Vec<storage::Claim>>,
+    // Retire executable ownership after state, values and provider leases.
+    native: Option<Rc<native_image::Lease>>,
 }
 struct InstanceHandle(Rc<InstanceData>);
 #[derive(Clone)]
@@ -146,7 +151,6 @@ impl ResultOwner {
     }
 }
 struct CallResult {
-    owner: ResultOwner,
     body: ResultBody,
     usage: e::Usage,
     committed: bool,
@@ -155,6 +159,8 @@ struct CallResult {
     canonical_indices: u64,
     tasks: lang_runtime::task::Usage,
     report: Option<(wire::Report, Vec<u8>)>,
+    // Keep the actual instance/code owner through every result body's drop.
+    owner: ResultOwner,
 }
 
 fn cleanup_description(
@@ -930,9 +936,6 @@ fn prepare(config: ffi::Config) -> Result<Box<Data>, u32> {
     if config.mode > 2 {
         return Err(INVALID);
     }
-    if config.mode == 2 {
-        return Err(UNSUPPORTED);
-    }
     let (Some(allocate), Some(deallocate)) =
         (config.allocator.allocate, config.allocator.deallocate)
     else {
@@ -1178,6 +1181,7 @@ pub unsafe extern "C" fn module_load(
         engine: owner,
         module: Rc::new(module),
         digest,
+        native: None,
     });
     reference.handles.set(count);
     // SAFETY: publication follows the entire checked preparation transaction.
@@ -1486,6 +1490,7 @@ pub unsafe extern "C" fn instance_create(
     let instance = Box::new(InstanceHandle(Rc::new(InstanceData {
         engine: module.engine,
         module: module.module.clone(),
+        native: module.native.clone(),
         state: RefCell::new(state),
         closed: Cell::new(false),
         ceiling: bounds(data.config.ceiling, config.ceiling),
@@ -1591,6 +1596,13 @@ pub unsafe extern "C" fn bind_export(
         Ok(v) => v,
         Err(s) => return s,
     };
+    if instance
+        .native
+        .as_ref()
+        .is_some_and(|native| native.image.0.entry != entry)
+    {
+        return UNSUPPORTED;
+    }
     if retain(owner).is_err() {
         return OOM;
     }
@@ -1793,7 +1805,24 @@ pub unsafe extern "C" fn call(
             &mut session,
         )
         .map_err(|_| INVALID)?;
-        let program = program::Program::prepare(&bound, Default::default()).map_err(|_| INVALID)?;
+        let mut budget = if data.config.mode == 2 {
+            m::Budget::with_usage(data.limits.preparation, session.preparation_usage())
+                .map_err(|_| INVALID)?
+        } else {
+            m::Budget::new(data.limits.preparation)
+        };
+        let program = if data.config.mode == 2 {
+            program::Program::prepare_with_budget(&bound, &mut budget)
+        } else {
+            program::Program::prepare(&bound, Default::default())
+        }
+        .map_err(|reason| {
+            if data.config.mode == 2 {
+                native_image::program_refused(reason, error)
+            } else {
+                INVALID
+            }
+        })?;
         let runtime = r::Limits {
             tasks: lang_runtime::task::Limits {
                 live_tasks: as_size(ceiling.live_tasks)?,
@@ -1815,8 +1844,21 @@ pub unsafe extern "C" fn call(
         } else {
             None
         };
+        let aot = if data.config.mode == 2 {
+            Some(
+                binding
+                    .instance
+                    .native
+                    .as_ref()
+                    .ok_or(UNSUPPORTED)?
+                    .image
+                    .bind(&program, &mut budget)
+                    .map_err(|reason| native_image::refused(reason, error))?,
+            )
+        } else {
+            None
+        };
         let mut invoker = data.bridge.begin(invocation)?;
-        let mut budget = m::Budget::new(data.limits.preparation);
         let mut state = binding.instance.state.try_borrow_mut().map_err(|_| BUSY)?;
         state
             .with_program(&program, |instance| {
@@ -1920,7 +1962,16 @@ pub unsafe extern "C" fn call(
                 if let Err(reason) = host.prepare_output(&mut session) {
                     return early(reason, host.service_work_used(), data.allocator.stats());
                 }
-                let outcome = if let Some(generated) = generated {
+                let outcome = if let Some(aot) = aot {
+                    aot.execute_component_with_budget(
+                        &mut data.allocator,
+                        invocation,
+                        runtime,
+                        &arguments,
+                        &mut host,
+                        &mut budget,
+                    )
+                } else if let Some(generated) = generated {
                     generated.execute_component(
                         &mut data.allocator,
                         invocation,

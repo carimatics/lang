@@ -49,7 +49,7 @@ impl RecordedObject {
         let Kind::Task(entry) = self.record.kind() else {
             return Err(Error::Profile);
         };
-        self.prepare_profile(proof, entry, None, limits)
+        self.prepare_profile(proof, entry, None, limits, None)
     }
     /// Retain the original explicitly bound component and its export authority.
     pub fn prepare_component<'p>(
@@ -63,7 +63,28 @@ impl RecordedObject {
         if !program.is_export(entry) {
             return Err(Error::Entry);
         }
-        self.prepare_profile(program.proof(), entry, Some(program), limits)
+        self.prepare_profile(program.proof(), entry, Some(program), limits, None)
+    }
+    /// Reconstruct on the original ledger which admitted the actual Program.
+    /// Both successful work and failed prefixes remain on that same ledger.
+    pub fn prepare_component_with_budget<'p>(
+        self,
+        program: &'p lang_runtime::component::program::Program<'p>,
+        budget: &mut m::Budget,
+    ) -> Result<ObjectArtifact<'p>, Error> {
+        let Kind::Component(entry) = self.record.kind() else {
+            return Err(Error::Profile);
+        };
+        if !program.is_export(entry) {
+            return Err(Error::Entry);
+        }
+        self.prepare_profile(
+            program.proof(),
+            entry,
+            Some(program),
+            budget.limits(),
+            Some(budget),
+        )
     }
     fn prepare_profile<'p>(
         self,
@@ -71,6 +92,7 @@ impl RecordedObject {
         entry: m::FunctionId,
         component: Option<&'p lang_runtime::component::program::Program<'p>>,
         limits: m::Limits,
+        original: Option<&mut m::Budget>,
     ) -> Result<ObjectArtifact<'p>, Error> {
         let record = self.record;
         let expected = crate::Triple::host();
@@ -82,82 +104,93 @@ impl RecordedObject {
         }
         let mut records = record.functions;
         let mut prefix = None;
-        let (functions, _, budget) = prepare_program_with::<()>(
-            proof,
-            entry,
-            limits,
-            component.is_some(),
-            component,
-            |function, _, budget| {
-                let fail = |kind| Error::Metadata { function, kind };
-                if prefix.is_none() {
-                    budget.allocate::<FunctionCode>(records.capacity())?;
-                    for source in &proof
-                        .typed()
-                        .places()
-                        .declarations()
-                        .types()
-                        .table()
-                        .sources
-                    {
-                        budget.charge(source.text.len() / 1024 + 1)?;
-                    }
-                    let value = object_prefix(proof, entry, component.is_some());
-                    budget.allocate::<u8>(value.capacity())?;
-                    prefix = Some(value);
+        let mut check = |function, _: &[Node], budget: &mut m::Budget| {
+            let fail = |kind| Error::Metadata { function, kind };
+            if prefix.is_none() {
+                budget.allocate::<FunctionCode>(records.capacity())?;
+                for source in &proof
+                    .typed()
+                    .places()
+                    .declarations()
+                    .types()
+                    .table()
+                    .sources
+                {
+                    budget.charge(source.text.len() / 1024 + 1)?;
                 }
-                let mut steps = 0;
-                let index = records.binary_search_by(|record| {
-                    steps += 1;
-                    record.function.0.cmp(&function.0)
-                });
-                budget.charge(steps)?;
-                let metadata = &mut records[index.map_err(|_| fail(MetadataError::FunctionSet))?];
-                budget.allocate::<u8>(metadata.symbol.capacity())?;
-                budget
-                    .allocate::<crate::program::SourceRange>(metadata.source_ranges.capacity())?;
-                if metadata.symbol != format!("{}_f{}", prefix.as_ref().unwrap(), function.0) {
-                    return Err(fail(MetadataError::Symbol));
-                }
-                if metadata.code_size == 0 {
+                let value = object_prefix(proof, entry, component.is_some());
+                budget.allocate::<u8>(value.capacity())?;
+                prefix = Some(value);
+            }
+            let mut steps = 0;
+            let index = records.binary_search_by(|record| {
+                steps += 1;
+                record.function.0.cmp(&function.0)
+            });
+            budget.charge(steps)?;
+            let metadata = &mut records[index.map_err(|_| fail(MetadataError::FunctionSet))?];
+            budget.allocate::<u8>(metadata.symbol.capacity())?;
+            budget.allocate::<crate::program::SourceRange>(metadata.source_ranges.capacity())?;
+            if metadata.symbol != format!("{}_f{}", prefix.as_ref().unwrap(), function.0) {
+                return Err(fail(MetadataError::Symbol));
+            }
+            if metadata.code_size == 0 {
+                return Err(fail(MetadataError::CodeRange));
+            }
+            budget.charge(metadata.source_ranges.len())?;
+            for range in &metadata.source_ranges {
+                if range.start >= range.end || range.end as usize > metadata.code_size {
                     return Err(fail(MetadataError::CodeRange));
                 }
-                budget.charge(metadata.source_ranges.len())?;
-                for range in &metadata.source_ranges {
-                    if range.start >= range.end || range.end as usize > metadata.code_size {
-                        return Err(fail(MetadataError::CodeRange));
-                    }
-                    let valid = proof
-                        .typed()
-                        .places()
-                        .declarations()
-                        .types()
-                        .table()
-                        .sources
-                        .get(range.span.source.0 as usize)
-                        .is_some_and(|source| {
-                            let start = range.span.start as usize;
-                            let end = range.span.end as usize;
-                            start <= end
-                                && end <= source.text.len()
-                                && source.text.is_char_boundary(start)
-                                && source.text.is_char_boundary(end)
-                        });
-                    if !valid {
-                        return Err(fail(MetadataError::SourceSpan));
-                    }
+                let valid = proof
+                    .typed()
+                    .places()
+                    .declarations()
+                    .types()
+                    .table()
+                    .sources
+                    .get(range.span.source.0 as usize)
+                    .is_some_and(|source| {
+                        let start = range.span.start as usize;
+                        let end = range.span.end as usize;
+                        start <= end
+                            && end <= source.text.len()
+                            && source.text.is_char_boundary(start)
+                            && source.text.is_char_boundary(end)
+                    });
+                if !valid {
+                    return Err(fail(MetadataError::SourceSpan));
                 }
-                Ok((
-                    (),
-                    FunctionCode {
-                        function,
-                        symbol: std::mem::take(&mut metadata.symbol),
-                        code_size: metadata.code_size,
-                        source_ranges: std::mem::take(&mut metadata.source_ranges),
-                    },
-                ))
-            },
-        )?;
+            }
+            Ok((
+                (),
+                FunctionCode {
+                    function,
+                    symbol: std::mem::take(&mut metadata.symbol),
+                    code_size: metadata.code_size,
+                    source_ranges: std::mem::take(&mut metadata.source_ranges),
+                },
+            ))
+        };
+        let (functions, preparation) = if let Some(budget) = original {
+            let (functions, _) = prepare_component_with_budget(
+                component.ok_or(Error::Profile)?,
+                entry,
+                budget,
+                &mut check,
+            )?;
+            (functions, usage(budget))
+        } else {
+            let (functions, _, budget) = prepare_program_with::<()>(
+                proof,
+                entry,
+                limits,
+                component.is_some(),
+                component,
+                &mut check,
+            )?;
+            (functions, usage(&budget))
+        };
         if let Some(extra) = records.iter().find(|record| !record.symbol.is_empty()) {
             return Err(Error::Metadata {
                 function: extra.function,
@@ -171,7 +204,7 @@ impl RecordedObject {
                 proof,
                 entry,
                 functions,
-                usage: usage(&budget),
+                usage: preparation,
             },
         })
     }

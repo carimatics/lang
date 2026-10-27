@@ -86,9 +86,13 @@ pub struct Module {
     unit: bindings::Unit,
     contract: wire::Contract,
     source_idl: Option<m::Source>,
+    artifact_entry: Option<m::FunctionId>,
     usage: m::Usage,
 }
 impl Module {
+    pub(crate) fn artifact_entry(&self) -> Option<m::FunctionId> {
+        self.artifact_entry
+    }
     pub fn unit(&self) -> &bindings::Unit {
         &self.unit
     }
@@ -273,6 +277,7 @@ pub fn load(format: u32, program: &[u8], contract: &[u8], limits: Limits) -> Res
             Ok(Module {
                 unit,
                 contract,
+                artifact_entry: None,
                 source_idl: Some(m::Source {
                     path: "component-idl.json".into(),
                     text: snapshot,
@@ -294,9 +299,10 @@ pub fn load(format: u32, program: &[u8], contract: &[u8], limits: Limits) -> Res
                 available,
             );
             artifact_limits.metadata = metadata(artifact_limits.metadata, available);
-            let unit = artifact::component::decode(program, artifact_limits)
-                .map_err(Error::Artifact)?
-                .into_unit();
+            let decoded =
+                artifact::component::decode(program, artifact_limits).map_err(Error::Artifact)?;
+            let artifact_entry = decoded.entry();
+            let unit = decoded.into_unit();
             let prior = add(common, base, unit.usage())?;
             let mut session = wire::Session::with_usage(metadata(limits.metadata, common), prior)
                 .map_err(Error::Wire)?;
@@ -307,6 +313,7 @@ pub fn load(format: u32, program: &[u8], contract: &[u8], limits: Limits) -> Res
                 unit,
                 contract,
                 source_idl: None,
+                artifact_entry,
                 usage: session.preparation_usage(),
             })
         }

@@ -309,6 +309,16 @@ impl Inventory {
             include_bytes!("sdk_startup/component-host.rs"),
         );
         result.bytes(
+            "startup",
+            "startup/component-gateway-host.rs",
+            include_bytes!("sdk_startup/component-gateway-host.rs"),
+        );
+        result.bytes(
+            "startup",
+            "startup/component-client.c.in",
+            include_bytes!("sdk_startup/component-client.c.in"),
+        );
+        result.bytes(
             "documentation",
             "docs/ja/native-sdk.md",
             include_bytes!("../../docs/ja/native-sdk.md"),

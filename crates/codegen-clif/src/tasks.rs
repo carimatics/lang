@@ -484,78 +484,7 @@ fn prepare_program_with<I>(
             elements: proof.plan().elements_used(),
         }),
     )?;
-    let mut reachable = budget.vector(typed.functions().len())?;
-    let mut seen = budget.vector(typed.functions().len())?;
-    seen.resize(typed.functions().len(), false);
-    reachable.push(entry.0 as usize);
-    seen[entry.0 as usize] = true;
-    let mut at = 0;
-    while at < reachable.len() {
-        let index = reachable[at];
-        at += 1;
-        let body = &typed.functions()[index];
-        let declaration = &declarations.functions()[index];
-        if !r::signature_supported(types, declaration) {
-            return Err(Error::Unsupported {
-                span: declaration.span,
-            });
-        }
-        for ty in declaration
-            .locals
-            .iter()
-            .map(|l| l.ty.ty)
-            .chain(
-                typed.places().functions()[index]
-                    .values
-                    .iter()
-                    .map(|v| v.ty),
-            )
-            .chain(std::iter::once(declaration.result.ty))
-        {
-            budget.charge(1)?;
-            let claim = matches!(ty,o::Type::Constructed(id) if matches!(types.table().constructed[id.0 as usize].constructor,o::Constructor::Task(_)));
-            let storage_supported = claim
-                || (if component.is_some() {
-                    r::managed_component_type_supported(types, ty, &mut budget)
-                } else if services {
-                    r::managed_service_type_supported(types, ty, &mut budget)
-                } else {
-                    r::managed_type_supported(types, ty, &mut budget)
-                })
-                .map_err(|e| match e {
-                    r::Reason::Resource(e) => Error::Resource(e),
-                    e => backend(format!("{e:?}")),
-                })?;
-            if !storage_supported {
-                return Err(Error::Unsupported {
-                    span: declaration.span,
-                });
-            }
-        }
-        for i in body.blocks.iter().flat_map(|b| &b.instructions) {
-            budget.charge(1)?;
-            if let b::Op::Import { import, .. } = i.op {
-                let program = component.ok_or(Error::Unsupported { span: i.span })?;
-                if !r::component_import_supported(program, import, &mut budget).map_err(
-                    |error| match error {
-                        r::Reason::Resource(error) => Error::Resource(error),
-                        error => backend(format!("{error:?}")),
-                    },
-                )? {
-                    return Err(Error::Unsupported { span: i.span });
-                }
-            }
-            if !supported(&i.op) || !r::instruction_supported(typed, index, i) {
-                return Err(Error::Unsupported { span: i.span });
-            }
-            if let b::Op::Call { function, .. } | b::Op::TaskSpawn { function, .. } = i.op
-                && !seen[function.0 as usize]
-            {
-                seen[function.0 as usize] = true;
-                reachable.push(function.0 as usize);
-            }
-        }
-    }
+    let reachable = reachable_program(proof, entry, component, &mut budget)?;
     let layouts = if let Some(component) = component {
         l::Layouts::compile_component_program(component, limits)?
     } else if services {
@@ -608,6 +537,128 @@ fn prepare_program_with<I>(
         ids.push((index, id));
     }
     Ok((functions, ids, budget))
+}
+
+fn reachable_program(
+    proof: &o::tasks::VerifiedTasks,
+    entry: m::FunctionId,
+    component: Option<&lang_runtime::component::program::Program<'_>>,
+    budget: &mut m::Budget,
+) -> Result<Vec<usize>, Error> {
+    let typed = proof.typed();
+    let declarations = typed.places().declarations();
+    let types = declarations.types();
+    let services = types.service_feature_span().is_some();
+    let mut reachable = budget.vector(typed.functions().len())?;
+    let mut seen = budget.vector(typed.functions().len())?;
+    seen.resize(typed.functions().len(), false);
+    reachable.push(entry.0 as usize);
+    seen[entry.0 as usize] = true;
+    let mut at = 0;
+    while at < reachable.len() {
+        let index = reachable[at];
+        at += 1;
+        let body = &typed.functions()[index];
+        let declaration = &declarations.functions()[index];
+        if !r::signature_supported(types, declaration) {
+            return Err(Error::Unsupported {
+                span: declaration.span,
+            });
+        }
+        for ty in declaration
+            .locals
+            .iter()
+            .map(|l| l.ty.ty)
+            .chain(
+                typed.places().functions()[index]
+                    .values
+                    .iter()
+                    .map(|v| v.ty),
+            )
+            .chain(std::iter::once(declaration.result.ty))
+        {
+            budget.charge(1)?;
+            let claim = matches!(ty,o::Type::Constructed(id) if matches!(types.table().constructed[id.0 as usize].constructor,o::Constructor::Task(_)));
+            let storage_supported = claim
+                || (if component.is_some() {
+                    r::managed_component_type_supported(types, ty, budget)
+                } else if services {
+                    r::managed_service_type_supported(types, ty, budget)
+                } else {
+                    r::managed_type_supported(types, ty, budget)
+                })
+                .map_err(|e| match e {
+                    r::Reason::Resource(e) => Error::Resource(e),
+                    e => backend(format!("{e:?}")),
+                })?;
+            if !storage_supported {
+                return Err(Error::Unsupported {
+                    span: declaration.span,
+                });
+            }
+        }
+        for i in body.blocks.iter().flat_map(|b| &b.instructions) {
+            budget.charge(1)?;
+            if let b::Op::Import { import, .. } = i.op {
+                let program = component.ok_or(Error::Unsupported { span: i.span })?;
+                if !r::component_import_supported(program, import, budget).map_err(|error| {
+                    match error {
+                        r::Reason::Resource(error) => Error::Resource(error),
+                        error => backend(format!("{error:?}")),
+                    }
+                })? {
+                    return Err(Error::Unsupported { span: i.span });
+                }
+            }
+            if !supported(&i.op) || !r::instruction_supported(typed, index, i) {
+                return Err(Error::Unsupported { span: i.span });
+            }
+            if let b::Op::Call { function, .. } | b::Op::TaskSpawn { function, .. } = i.op
+                && !seen[function.0 as usize]
+            {
+                seen[function.0 as usize] = true;
+                reachable.push(function.0 as usize);
+            }
+        }
+    }
+    Ok(reachable)
+}
+
+type PreparedFunctionSet<I> = (Vec<Option<Function>>, Vec<(usize, I)>);
+
+fn prepare_component_with_budget<I>(
+    program: &lang_runtime::component::program::Program<'_>,
+    entry: m::FunctionId,
+    budget: &mut m::Budget,
+    mut code: impl FnMut(
+        m::FunctionId,
+        &[Node],
+        &mut m::Budget,
+    ) -> Result<(I, super::program::FunctionCode), Error>,
+) -> Result<PreparedFunctionSet<I>, Error> {
+    if !program.is_export(entry) {
+        return Err(Error::Entry);
+    }
+    let proof = program.proof();
+    let reachable = reachable_program(proof, entry, Some(program), budget)?;
+    let layouts = l::Layouts::compile_component_program_with_budget(program, budget)?;
+    let mut functions = budget.vector(proof.typed().functions().len())?;
+    functions.resize_with(proof.typed().functions().len(), || None);
+    let mut ids = budget.vector(reachable.len())?;
+    for index in reachable {
+        let function = m::FunctionId(index as u32);
+        let plan =
+            l::FramePlan::compile_tasks_with_budget(&layouts, proof, function, budget, usize::MAX)?;
+        let nodes = prepare(proof, function, &plan, budget, true)?;
+        let (id, metadata) = code(function, &nodes, budget)?;
+        functions[index] = Some(Function {
+            nodes,
+            code: std::ptr::null(),
+            metadata,
+        });
+        ids.push((index, id));
+    }
+    Ok((functions, ids))
 }
 
 fn supported(op: &b::Op) -> bool {

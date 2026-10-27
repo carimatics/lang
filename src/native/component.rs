@@ -6,6 +6,9 @@ use lang_codegen_clif::{self as clif, native_record, sdk, tasks};
 use lang_mir::unit as m;
 use lang_runtime::component::program;
 use std::{ffi::c_void, fmt, ptr::NonNull};
+mod image;
+pub(crate) use image::compatible;
+pub use image::{Image, ImageError};
 
 #[derive(Clone, Copy, Debug, Default)]
 pub struct Limits {

@@ -1295,15 +1295,20 @@ unsafe extern "C" fn probe_engine_lifecycle(
     // SAFETY: all dependents closed; original allocator callbacks remain live.
     assert_eq!(unsafe { gateway::engine_destroy(engine, &mut error) }, 0);
     // SAFETY: a copied initialized descriptor is valid for this test.
-    let mut unavailable = unsafe { *config };
-    unavailable.mode = 2;
-    let mut untouched = sentinel;
-    // SAFETY: unsupported mode must refuse without output publication.
+    let mut native = unsafe { *config };
+    native.mode = 2;
+    let mut native_engine = std::ptr::null_mut();
+    // SAFETY: native mode accepts configuration, while source/artifact loading
+    // still refuses before publication; it requires module_bind_native.
     assert_eq!(
-        unsafe { gateway::engine_create(&unavailable, &mut untouched, &mut error) },
-        3
+        unsafe { gateway::engine_create(&native, &mut native_engine, &mut error) },
+        0
     );
-    assert_eq!(untouched, sentinel);
+    let module_sentinel = 1usize as *mut ffi::Module;
+    let mut untouched = module_sentinel;
+    assert_eq!(unsafe { gateway::module_load(native_engine, format, code, idl, &mut untouched, &mut error) }, 3);
+    assert_eq!(untouched, module_sentinel);
+    assert_eq!(unsafe { gateway::engine_destroy(native_engine, &mut error) }, 0);
     0
 }
 fn main() {

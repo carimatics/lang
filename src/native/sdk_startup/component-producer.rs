@@ -50,4 +50,21 @@ fn main() {
             std::env::args_os().nth(1).expect("output package"),
         ))
         .unwrap();
+    if let Some(header_path) = std::env::args_os().nth(2) {
+        let target = if cfg!(windows) {
+            lang::component_bindings::abi::Target::WindowsX86_64Msvc
+        } else {
+            lang::component_bindings::abi::Target::MacosAarch64
+        };
+        let generated =
+            lang::component_bindings::c::generate(&contract, target, Default::default()).unwrap();
+        let function = &generated.functions[0];
+        let header_path = std::path::PathBuf::from(header_path);
+        std::fs::write(&header_path, &generated.header).unwrap();
+        let client = include_str!("component-client.c.in")
+            .replace("@NAME@", &function.name)
+            .replace("@ARGUMENTS@", &function.arguments)
+            .replace("@RESULT@", &function.result);
+        std::fs::write(header_path.with_file_name("component-client.c"), client).unwrap();
+    }
 }

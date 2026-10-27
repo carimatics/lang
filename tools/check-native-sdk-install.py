@@ -199,7 +199,7 @@ def verify(args):
             command += ["--extern", name + "=" + str(matches[0])]
         _, producer_seconds = run(command, output, env)
         package = output / "component-package"
-        _, compile_seconds = run([str(producer), str(package)], output, env)
+        _, compile_seconds = run([str(producer), str(package), str(package / "component-api.h")], output, env)
         producer.unlink()
         executable = output / ("component.exe" if os.name == "nt" else "component")
         _, link_seconds = run([str(compiler), "link-native", "--sdk", str(sdk),
@@ -210,6 +210,21 @@ def verify(args):
                      "manifest_profile": package_manifest["profile"], "compile_seconds": compile_seconds,
                      "producer_compile_seconds": producer_seconds, "link_seconds": link_seconds,
                      "executable": str(executable), "files": package_manifest["files"]})
+        if os.name == "nt":
+            client = package / "component-client.obj"
+            command = ["cl", "/nologo", "/std:c11", "/MD", "/c", "component-client.c", "/Focomponent-client.obj"]
+        else:
+            client = package / "component-client.o"
+            command = ["cc", "-std=c11", "-Wall", "-Wextra", "-Werror", "-c", "component-client.c", "-o", "component-client.o"]
+        _, client_seconds = run(command, package, env)
+        executable = output / ("component-gateway.exe" if os.name == "nt" else "component-gateway")
+        _, link_seconds = run([str(compiler), "link-native", "--sdk", str(sdk),
+                               "--package", str(package), "--host", str(sdk / "startup/component-gateway-host.rs"),
+                               "--object", str(client), "--output", str(executable)], output, env)
+        rows.append({"profile": "component-gateway", "manifest_version": package_manifest["version"],
+                     "manifest_profile": package_manifest["profile"], "compile_seconds": compile_seconds,
+                     "producer_compile_seconds": producer_seconds, "client_compile_seconds": client_seconds,
+                     "link_seconds": link_seconds, "executable": str(executable), "files": package_manifest["files"]})
         packages.append(package)
     # All actual linked input paths disappear before any application is started.
     for package in packages:
@@ -218,7 +233,9 @@ def verify(args):
     for row in rows:
         stdout, seconds = run([row["executable"]], output, env)
         expected = ("component 42/panic -42/reuse 1/fuel refusal; zero inventory"
-                    if row["profile"] == "component" else "" if row["profile"] == "c" else "42")
+                    if row["profile"] == "component" else
+                    "component C gateway 42/panic/reuse/fuel; owners retired; zero inventory"
+                    if row["profile"] == "component-gateway" else "" if row["profile"] == "c" else "42")
         if stdout.strip() != expected:
             raise ValueError(f"{row['profile']} returned unexpected output: {stdout!r}")
         row.update(stdout=stdout.strip(), startup_seconds=seconds, success=True)
