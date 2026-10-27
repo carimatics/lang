@@ -459,7 +459,7 @@ int64_t typed_result(lang_component_v1_bytes bytes) {{
         .unwrap()
         .to_path_buf();
     let mut compiler = Command::new("rustc");
-    artifacts::native_search_paths(&mut compiler);
+    artifacts::configure_host(&mut compiler);
     compiler
         .current_dir(&files.0)
         .args(["--edition=2024", "--crate-type=bin"])

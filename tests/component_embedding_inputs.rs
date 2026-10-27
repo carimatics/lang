@@ -1050,6 +1050,7 @@ fn native_c_host_loads_snapshots_and_repeats_generated_typed_calls_on_vm_and_jit
 {task_header}
 #include <assert.h>
 #include <stdlib.h>
+#include <stdio.h>
 #include <string.h>
 #ifdef _WIN32
 #include <malloc.h>
@@ -1303,6 +1304,10 @@ static void LANG_COMPONENT_V1_CALL deallocate(void *user,uint8_t *data,uint64_t 
     free(data);
 #endif
 }}
+static void checkpoint(uint32_t format,uint32_t mode,const char *stage) {{
+    fprintf(stderr,"component fixture format=%u mode=%u stage=%s\n",format,mode,stage);
+    fflush(stderr);
+}}
 uint32_t fixture(void) {{
     uint32_t format,mode,repeat;uint64_t before;
     owner *o=(owner *)calloc(1,sizeof(owner));assert(o);
@@ -1340,6 +1345,7 @@ uint32_t fixture(void) {{
             config.ceiling.value_elements=65536;config.ceiling.serialization_bytes=1048576;
             config.ceiling.depth=128;config.ceiling.decoder_allocation_bytes=16777216;
             config.ceiling.suppressed_records=64;config.ceiling.trace_frames=64;
+            checkpoint(format,0,"engine-lifecycle");
             assert(probe_engine_lifecycle(&config,format,program,metadata)==0);
             {{
                 lang_component_v1_api api={{0}};
@@ -1359,15 +1365,19 @@ uint32_t fixture(void) {{
                 for(mode=0;mode<2;++mode){{
                     lang_component_v1_config reduced=config;config.mode=mode;reduced.mode=mode;
                     reduced.ceiling.metadata_bytes=1048576;
-                    bound_case(&api,&reduced,format,program,metadata,1);
-                    bound_case(&api,&config,format,program,metadata,0);
-                    decoder_refusal_case(&api,&config,format,program,metadata);
-                    registry_case(&api,&config,format);resource_case(&api,&config,format,0);resource_case(&api,&config,format,1);
+                    checkpoint(format,mode,"bound-limited");bound_case(&api,&reduced,format,program,metadata,1);
+                    checkpoint(format,mode,"bound");bound_case(&api,&config,format,program,metadata,0);
+                    checkpoint(format,mode,"decoder-refusal");decoder_refusal_case(&api,&config,format,program,metadata);
+                    checkpoint(format,mode,"registry");registry_case(&api,&config,format);
+                    checkpoint(format,mode,"resource");resource_case(&api,&config,format,0);
+                    checkpoint(format,mode,"resource-limit");resource_case(&api,&config,format,1);
+                    checkpoint(format,mode,"task-root");
                     task_root_case(&api,&config,format);
                     assert(o->live==0&&o->allocated==o->released);
                 }}
             }}
         }}
+        checkpoint(format,0,"legacy-load");
         module=probe_load(format,code,code_length,contract,idl_length,allocator);assert(module);
         memset(code,0,(size_t)code_length);free(code);
         if(contract){{memset(contract,0,(size_t)idl_length);free(contract);}}
@@ -1481,7 +1491,7 @@ uint32_t fixture(void) {{
     std::fs::write(&driver, driver_source).unwrap();
     let dependency = artifacts::library("lang_runtime");
     let mut rustc = Command::new("rustc");
-    artifacts::native_search_paths(&mut rustc);
+    artifacts::configure_host(&mut rustc);
     rustc
         .arg("--edition=2024")
         .arg(&driver)

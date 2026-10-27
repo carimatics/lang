@@ -411,7 +411,7 @@ fn main() {{
             .unwrap()
             .to_path_buf();
         let mut command = Command::new("rustc");
-        artifacts::native_search_paths(&mut command);
+        artifacts::configure_host(&mut command);
         command
             .current_dir(env!("CARGO_MANIFEST_DIR"))
             .args(["--edition=2024", "--crate-type=bin"])

@@ -12,7 +12,7 @@
 
 M2は完了済みです。18/18ゲート、過去のゲート重み113/113です。[完了ボード](milestone-2.md)に成果と見積もり収支、[機能ガイド](milestone-2-capabilities.md)に実際のsource/VM/native/C/SDK/debugの根拠と制約を記録しています。この件数はM2のもので、将来の全作業ではありません。
 
-**M3 は進行中です。** [実装Todo](milestone-3.md)は **76 done · 1 doing · 2 todo · 8 remaining pt**です。I08は`8f41f44`で完了し、両host SDK Actions run 40456240378のcheckoutなし・Cargoなしconsumerで7 profileの実行と元owner/割当退役に成功しました。永続reportに厳密source/build IDを保持します。B01だけを3 ptのdoingにし、Windows CI 40456200897のformat/Clippy/build成功後に判明したmanual rustc C host fixtureのCargo native探索path欠落を共通test helperで修正し、Windows全適合を再検証します。I08の1 ptを消化、追加/再見積り0、79行、台帳 **110 + 99 − 201 = 8**、gateは完全な出口監査まで**3/15・18/96**です。B02安定化と最終Z02の依存を維持し、pushとCIに応じた修正/再実行は承認済みです。
+**M3 は進行中です。** [実装Todo](milestone-3.md)は **76 done · 1 doing · 2 todo · 8 remaining pt**です。I08は`8f41f44`で完了し、両host SDK Actions run 40456240378のcheckoutなし・Cargoなしconsumerで7 profileと元owner/割当退役に成功しました。B01だけを3 ptのdoingにします。`d63013d`でCargo native探索pathを伝播しlocalの153 suite・2,319 testと全7段階に成功しましたが、Windows run 40457319826で単独debug C hostのstack overflowが判明しました。次は有限2 MiB test host stack/段階診断の実験を行い、guest上限/assert条件とproduction runtime/ABI/SDK codeは維持します。I08の1 ptを消化し追加/再見積り0、79行、台帳 **110 + 99 − 201 = 8**、gate **3/15・18/96**です。実Windows適合・B02安定化・最終Z02は引き続き必要で、pushとCIに応じた修正/再実行は承認済みです。
 
 resource所有権/loan・永続provider・元accounting/control・callback・installed native Image・完全な公開C API・明示権限plugin例・有限cost観測・実両hostのinstalled startupには実行証拠があります。B01はWindows/macOSの全ownership/failure/capability/resource適合成功を必要とし、installed startup成功だけでは満たしません。今回の修正はtest linkだけでruntime/ABI/SDK動作を維持します。B01 → B02の順を保ち、Z02はB02とX01/Z01後の最終監査/guideとします。scopeと見積りは追加しません。
 

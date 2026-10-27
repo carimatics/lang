@@ -205,7 +205,7 @@ pub unsafe extern "C" fn lang_owned_static_driver(source: *const std::ffi::c_cha
         "runtime.a"
     });
     let mut compiler = Command::new("rustc");
-    artifacts::native_search_paths(&mut compiler);
+    artifacts::configure_host(&mut compiler);
     compiler
         .current_dir(&root)
         .args([
