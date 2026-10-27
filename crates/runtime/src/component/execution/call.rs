@@ -878,6 +878,9 @@ pub trait NativeContext {
     fn call_frame(&self) -> Option<&NativeCallFrame> {
         None
     }
+    fn resource_indices(&self) -> u64 {
+        0
+    }
     fn matches_provider(&self, _: &super::super::native::Provider<'_>) -> bool {
         false
     }
@@ -885,6 +888,14 @@ pub trait NativeContext {
         Err(4)
     }
     fn resource_take(&mut self, _: u32, _: &mut PersistentResources) -> Result<u32, u32> {
+        Err(4)
+    }
+    fn resource_drop(
+        &mut self,
+        _: u32,
+        _: &mut dyn Invoker,
+        _: &mut dyn FnMut(&mut m::Budget) -> Result<(), m::Error>,
+    ) -> Result<Option<c::Report>, u32> {
         Err(4)
     }
     fn with_callback(&mut self, _: &mut dyn CallbackOperation) -> Result<(), u32> {
@@ -972,6 +983,7 @@ pub(crate) struct CallContext<'r, 'm, 'b, 'scope, 'code> {
     task: Option<crate::task::CurrentTask<'r>>,
     instance: Option<&'r mut dyn instance::CallbackInstance>,
     session: Option<&'b mut wire::Session>,
+    pub(super) cleanup: Option<&'r mut c::Session>,
     span: Option<m::Span>,
     function: Option<m::FunctionId>,
 }
@@ -1003,6 +1015,7 @@ impl<'r, 'm, 'b, 'scope, 'code> CallContext<'r, 'm, 'b, 'scope, 'code> {
             task: None,
             instance: None,
             session: None,
+            cleanup: None,
             span: None,
             function: None,
         }
@@ -1035,6 +1048,10 @@ impl<'r, 'm, 'b, 'scope, 'code> CallContext<'r, 'm, 'b, 'scope, 'code> {
     }
     pub fn with_session(mut self, session: &'b mut wire::Session) -> Self {
         self.session = Some(session);
+        self
+    }
+    pub fn with_cleanup(mut self, cleanup: &'r mut c::Session) -> Self {
+        self.cleanup = Some(cleanup);
         self
     }
     pub fn with_source(mut self, function: m::FunctionId, span: m::Span) -> Self {
@@ -1163,6 +1180,9 @@ impl NativeContext for CallContext<'_, '_, '_, '_, '_> {
     fn call_frame(&self) -> Option<&NativeCallFrame> {
         self.native_frame
     }
+    fn resource_indices(&self) -> u64 {
+        self.resource_indices()
+    }
     fn matches_provider(&self, provider: &super::super::native::Provider<'_>) -> bool {
         self.provider
             .is_some_and(|current| current.same_registration(provider))
@@ -1172,6 +1192,87 @@ impl NativeContext for CallContext<'_, '_, '_, '_, '_> {
     }
     fn resource_take(&mut self, index: u32, state: &mut PersistentResources) -> Result<u32, u32> {
         self.take(index, state)
+    }
+    fn resource_drop(
+        &mut self,
+        index: u32,
+        invoker: &mut dyn Invoker,
+        prepare_result: &mut dyn FnMut(&mut m::Budget) -> Result<(), m::Error>,
+    ) -> Result<Option<c::Report>, u32> {
+        if self.cleanup.is_none() {
+            return Err(4);
+        }
+        self.budget
+            .charge(self.owners.len().saturating_mul(2).saturating_add(1))
+            .map_err(|error| {
+                self.remember_failure(Reason::Resource(error));
+                12u32
+            })?;
+        let position = index.checked_sub(1).ok_or(2u32)? as usize;
+        let view = self.views.get(position).ok_or(5u32)?;
+        let NativeAuthority::Own(claim, holder) = view.authority else {
+            return Err(2);
+        };
+        if holder != self.holder
+            || !self
+                .owners
+                .iter()
+                .any(|owner| owner.claim == claim && owner.held.get())
+        {
+            return Err(5);
+        }
+        let kind = self
+            .resources
+            .retirement_kind(claim, holder, self.memory)
+            .map_err(|error| match error {
+                storage::Error::Table(
+                    super::super::resource::ResourceTableError::ResourceInUse { .. },
+                ) => 4u32,
+                _ => 5u32,
+            })?;
+        if !kind.same_implementation(&view.kind) {
+            return Err(2);
+        }
+        prepare_result(self.budget).map_err(|error| {
+            self.remember_failure(Reason::Resource(error));
+            12u32
+        })?;
+        let span = self.span;
+        let resources = &mut *self.resources;
+        let memory = &mut *self.memory;
+        let owners = &mut *self.owners;
+        let mut cleaner = c::Contextual::new(|_: &mut (), _, context: &mut c::Context<'_>| {
+            // Complete original-table preflight precedes this commit. The
+            // receipt changes only after the table detached the actual owner.
+            let mut backing = resources.detach(claim, holder, memory).map_err(|_| 17u32)?;
+            for owner in owners.iter().filter(|owner| owner.claim == claim) {
+                owner.held.set(false);
+            }
+            let mut destroy = c::Contextual::new(|_: &mut (), _, context: &mut c::Context<'_>| {
+                invoker.destroy(kind.clone(), &mut backing, memory, context)
+            });
+            context.field((), span, &mut destroy);
+            backing.release(memory).map_err(|_| 17u32)
+        });
+        let result = self.cleanup.as_deref_mut().ok_or(4u32)?.retire_with_report(
+            c::Slot(position),
+            span,
+            c::Reason::Explicit,
+            &mut cleaner,
+            self.budget,
+        );
+        match result {
+            Ok(report) => {
+                if report.is_some() {
+                    self.remember_failure(Reason::Cleanup);
+                }
+                Ok(report)
+            }
+            Err(error) => {
+                self.remember_failure(Reason::Resource(error));
+                Err(12)
+            }
+        }
     }
     fn with_callback(&mut self, operation: &mut dyn CallbackOperation) -> Result<(), u32> {
         let task = self.task.as_mut().ok_or(4u32)?;
@@ -1492,7 +1593,9 @@ mod callback_authority_tests {
         let mut owners = vec![NativeOwner::new(a, 0), NativeOwner::new(b, 1)];
         let kind = |_: &[u8], _: &mut m::Budget| Err(native::ResourceLookupError::Unknown);
         let implementation = |kind: &ResourceKind<'_>| kind.provider().same_registration(&first);
-        let context = CallContext::new(
+        let mut cleanup =
+            c::Session::prepare(std::num::NonZeroUsize::new(3).unwrap(), &mut budget).unwrap();
+        let mut context = CallContext::new(
             &mut resources,
             &mut memory,
             &mut budget,
@@ -1501,7 +1604,8 @@ mod callback_authority_tests {
             holder,
             &kind,
         )
-        .with_implementation(&implementation);
+        .with_implementation(&implementation)
+        .with_cleanup(&mut cleanup);
         assert_eq!(context.resource_read(1).unwrap().length, 8);
         assert!(context.resource_write(1).is_ok());
         assert!(matches!(context.resource_read(2), Err(7)));
@@ -1556,6 +1660,148 @@ mod callback_authority_tests {
             .unwrap()
             .release(context.memory)
             .unwrap();
+        assert!(context.resources.is_empty());
+        struct Retirer<'a> {
+            expected: ResourceKind<'a>,
+            calls: usize,
+        }
+        impl Invoker for Retirer<'_> {
+            fn control(&self) -> crate::execution::Control<'_> {
+                Default::default()
+            }
+            fn control_matches(&self, _: crate::execution::Control<'_>) -> bool {
+                true
+            }
+            fn service_work_limit(&self) -> Option<u64> {
+                None
+            }
+            fn check_control(&self) -> Result<(), crate::execution::Failure> {
+                Ok(())
+            }
+            fn invoke(
+                &mut self,
+                _: &native::Method,
+                _: &[u8],
+                _: &mut dyn NativeContext,
+            ) -> Result<NativeReturn, u32> {
+                Err(4)
+            }
+            fn destroy(
+                &mut self,
+                kind: ResourceKind<'_>,
+                backing: &mut storage::Detached<'_>,
+                memory: &mut dyn Memory,
+                _: &mut c::Context<'_>,
+            ) -> Result<(), u32> {
+                assert!(kind.same_implementation(&self.expected));
+                assert_eq!(backing.bytes_mut(memory).unwrap(), &43_i64.to_le_bytes());
+                self.calls += 1;
+                Ok(())
+            }
+        }
+        let foreign = other.resource_kind(&key, &mut session).unwrap();
+        let claim = context
+            .resources
+            .publish(
+                foreign.clone(),
+                holder,
+                &43_i64.to_le_bytes(),
+                context.memory,
+            )
+            .unwrap();
+        let bytes = context
+            .resources
+            .owned_view(claim, holder, foreign.clone(), context.memory)
+            .unwrap();
+        context.views.push(NativeView {
+            authority: NativeAuthority::Own(claim, holder),
+            kind: foreign.clone(),
+            access: idl::Access::Exclusive,
+            bytes,
+        });
+        context.owners.push(NativeOwner::new(claim, 2));
+        let mut retirer = Retirer {
+            expected: foreign.clone(),
+            calls: 0,
+        };
+        assert!(matches!(
+            context.resource_drop(2, &mut retirer, &mut |_| Ok(())),
+            Err(5)
+        ));
+        assert!(
+            matches!(context.resource_read(3), Err(7)),
+            "foreign backing stays opaque"
+        );
+        let loan = {
+            let arguments = CallbackArguments {
+                views: RefCell::new(&mut *context.views),
+                owners: RefCell::new(&mut *context.owners),
+                holder,
+                index_limit: 4,
+            };
+            let used = wire::ResourceUse {
+                index: BoundaryResourceIndex::new(3).unwrap(),
+                key: &key,
+                access: wire::ResourceAccess::Borrow(idl::Access::Shared),
+                value: wire::ValueId(0),
+                offset: 0,
+            };
+            let input = arguments
+                .input(&used, context.resources, holder, context.memory)
+                .unwrap();
+            let transfer = context
+                .resources
+                .prepare_call([input].into_iter(), holder, guest, context.memory)
+                .unwrap();
+            let mut loans = [None];
+            context
+                .resources
+                .commit_call(transfer, context.memory, &mut loans)
+                .unwrap();
+            loans[0].unwrap()
+        };
+        let bytes = context
+            .resources
+            .view(loan, foreign.clone(), idl::Access::Shared, context.memory)
+            .unwrap();
+        context.views.push(NativeView {
+            authority: NativeAuthority::Loan(loan),
+            kind: foreign,
+            access: idl::Access::Shared,
+            bytes,
+        });
+        assert!(matches!(
+            context.resource_drop(4, &mut retirer, &mut |_| Ok(())),
+            Err(2)
+        ));
+        assert!(matches!(
+            context.resource_drop(3, &mut retirer, &mut |_| Ok(())),
+            Err(4)
+        ));
+        assert_eq!(retirer.calls, 0);
+        assert!(context.owners[2].held.get());
+        context.resources.end_loan(loan).unwrap();
+        assert!(matches!(
+            context.resource_drop(3, &mut retirer, &mut |budget| {
+                budget.allocate::<u8>(budget.limits().allocations.saturating_add(1))
+            }),
+            Err(12)
+        ));
+        assert!(context.owners[2].held.get());
+        assert_eq!(retirer.calls, 0);
+        assert!(
+            context
+                .resource_drop(3, &mut retirer, &mut |_| Ok(()))
+                .unwrap()
+                .is_none()
+        );
+        assert_eq!(retirer.calls, 1);
+        assert!(!context.owners[2].held.get());
+        assert!(matches!(
+            context.resource_drop(3, &mut retirer, &mut |_| Ok(())),
+            Err(5)
+        ));
+        assert_eq!(retirer.calls, 1);
         assert!(context.resources.is_empty());
         drop(context);
         assert_eq!(memory.stats().live_allocations, 0);

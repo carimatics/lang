@@ -11,6 +11,22 @@ enum Profile {
     Task,
     Callback,
     Resource,
+    ResourceDrop,
+}
+#[derive(Clone, Copy, Debug)]
+enum EngineMode {
+    Vm,
+    Jit,
+    Aot,
+}
+impl EngineMode {
+    fn c_mode(self) -> u32 {
+        match self {
+            Self::Vm => 0,
+            Self::Jit => 1,
+            Self::Aot => 2,
+        }
+    }
 }
 struct Files(PathBuf);
 impl Drop for Files {
@@ -37,6 +53,13 @@ fn exact_sdk_image_reenters_a_second_aot_instance_on_the_original_scope() {
 #[test]
 fn exact_sdk_resource_image_preserves_destructors_poison_and_both_code_owners() {
     image_profile(Profile::Resource);
+}
+
+#[test]
+fn public_api_retires_callback_owners_once_and_retains_the_failed_drop_result() {
+    for mode in [EngineMode::Vm, EngineMode::Jit, EngineMode::Aot] {
+        image_mode(Profile::ResourceDrop, mode);
+    }
 }
 
 fn callback_artifact(resource: bool) -> Vec<u8> {
@@ -265,13 +288,20 @@ async fn worker(value:i64)->i64 {{
 }
 
 fn image_profile(profile: Profile) {
+    image_mode(profile, EngineMode::Aot);
+}
+
+fn image_mode(profile: Profile, mode: EngineMode) {
     let task = matches!(profile, Profile::Task);
-    let resource = matches!(profile, Profile::Resource);
-    let callback = matches!(profile, Profile::Callback | Profile::Resource);
+    let resource = matches!(profile, Profile::Resource | Profile::ResourceDrop);
+    let callback = matches!(
+        profile,
+        Profile::Callback | Profile::Resource | Profile::ResourceDrop
+    );
     use lang::{component_bindings as g, component_embedding as embedding};
     use lang_runtime::component::{idl, wire};
     let files = Files(std::env::temp_dir().join(format!(
-        "lang native image-{}-{profile:?}",
+        "lang native image-{}-{profile:?}-{mode:?}",
         std::process::id()
     )));
     fs::create_dir(&files.0).unwrap();
@@ -324,10 +354,24 @@ fn image_profile(profile: Profile) {
 typedef uint32_t (*Call)(lang_component_v1_binding *,lang_component_v1_control *,lang_component_v1_bytes,lang_component_v1_result **,lang_component_v1_error *);
 typedef uint32_t (*Info)(const lang_component_v1_result *,lang_component_v1_result_info *,lang_component_v1_error *);
 uint32_t typed_call(Call call,Info info,lang_component_v1_binding *binding,lang_component_v1_control *control,int64_t value,lang_component_v1_result **result,lang_component_v1_error *error) {{
-    lang_component_v1_api api={{0}};{arguments} args={{0}};lc_value_writer writer={{0}};lc_value_outcome outcome;uint8_t scratch[1024];
-    api.call=call;api.result_info=info;args.p0=value;
+    const lang_component_v1_api *api=NULL;{arguments} args={{0}};lc_value_writer writer={{0}};lc_value_outcome outcome;uint8_t scratch[1024];
+    assert(lang_component_v1_get_api(1,sizeof(*api),&api,error)==0);assert(api->call==call);assert(api->result_info==info);args.p0=value;
+    assert(api->header.size==sizeof(*api)&&api->header.version==1);
+    assert(api->reserved[0]==0&&api->reserved[1]==0);
+    assert(api->engine_create&&api->engine_destroy&&api->module_load&&api->module_drop&&api->module_bind_native&&api->provider_register&&api->provider_drop&&api->instance_create&&api->instance_close&&api->bind_export&&api->binding_drop&&api->control_create&&api->interrupt&&api->control_drop&&api->call&&api->context_call&&api->context_check&&api->context_buffer_create&&api->context_buffer_drop&&api->buffer_mut_bytes&&api->result_info&&api->result_usage&&api->result_bytes&&api->result_drop&&api->resource_drop&&api->resource_publish&&api->context_resource_publish&&api->context_resource_drop&&api->context_resource_read&&api->context_resource_write&&api->context_resource_keep&&api->context_resource_take);
+    const lang_component_v1_api *sentinel=(const lang_component_v1_api *)(uintptr_t)42;const lang_component_v1_api *untouched=sentinel;
+    lang_component_v1_error saved=*error;
+    assert(lang_component_v1_get_api(0,sizeof(*api),&untouched,error)==3&&untouched==sentinel);
+    assert(lang_component_v1_get_api(2,sizeof(*api),&untouched,error)==3&&untouched==sentinel);
+    assert(lang_component_v1_get_api(1,sizeof(*api)-1,&untouched,error)==2&&untouched==sentinel);
+    assert(lang_component_v1_get_api(1,sizeof(*api)+1,&untouched,error)==2&&untouched==sentinel);
+    assert(lang_component_v1_get_api(1,sizeof(*api),NULL,error)==2);
+    assert(lang_component_v1_get_api(1,sizeof(*api),&untouched,error)==0&&untouched==api);
+    lang_component_v1_error invalid={{0}};invalid.header.size=sizeof(invalid);invalid.header.version=2;untouched=sentinel;
+    assert(lang_component_v1_get_api(1,sizeof(*api),&untouched,&invalid)==2&&untouched==sentinel);
+    *error=saved;
     writer.data=scratch;writer.capacity=sizeof(scratch);writer.left.work=1000000;writer.left.elements=1000;writer.left.depth=128;
-    outcome={name}_call(&api,control,binding,&args,&writer,error);
+    outcome={name}_call(api,control,binding,&args,&writer,error);
     if(outcome.status==0)assert(outcome.poisoned==0);*result=outcome.result;return outcome.status;
 }}
 int64_t typed_result(lang_component_v1_bytes bytes) {{
@@ -379,8 +423,25 @@ int64_t typed_result(lang_component_v1_bytes bytes) {{
         include_str!("support/component_native_image_host.rs")
             .replace("@PACKAGE@", &format!("{:?}", root))
             .replace("@TASK@", if task { "true" } else { "false" })
+            .replace("@MODE@", &mode.c_mode().to_string())
+            .replace(
+                "@NATIVE@",
+                if matches!(mode, EngineMode::Aot) {
+                    "true"
+                } else {
+                    "false"
+                },
+            )
             .replace("@CALLBACK@", if callback { "true" } else { "false" })
             .replace("@RESOURCE@", if resource { "true" } else { "false" })
+            .replace(
+                "@DROP@",
+                if matches!(profile, Profile::ResourceDrop) {
+                    "true"
+                } else {
+                    "false"
+                },
+            )
             .replace(
                 "@PROVIDER@",
                 include_str!("support/component_native_image_provider.rs"),

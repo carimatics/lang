@@ -1,6 +1,7 @@
 //! Checked, owned module inputs for the RFC 0027 embedding gateway.
 //!
-//! This preparation layer supplies no C API table or execution authority.
+//! The gateway publishes the versioned C table; module metadata supplies no
+//! execution authority without explicit grants and retained implementations.
 pub mod ffi;
 pub mod gateway;
 

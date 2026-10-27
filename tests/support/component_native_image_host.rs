@@ -30,7 +30,7 @@ fn main() {
         include_bytes!(concat!(@PACKAGE@,"/bindings.rs")),(),bindings::resolve,Default::default(),
     )}.unwrap());
     let mut config:ffi::Config=unsafe{std::mem::zeroed()};
-    config.header=header::<ffi::Config>();config.mode=2;
+    config.header=header::<ffi::Config>();config.mode=@MODE@;
     config.allocator.header=header::<ffi::Allocator>();config.allocator.allocate=Some(allocate);config.allocator.deallocate=Some(deallocate);
     config.ceiling.header=header::<ffi::Limits>();
     config.ceiling.fuel=1000000;config.ceiling.service_work=1000000;config.ceiling.host_calls=1000;
@@ -39,10 +39,14 @@ fn main() {
     config.ceiling.metadata_bytes=16777216;config.ceiling.value_elements=65536;config.ceiling.serialization_bytes=1048576;
     config.ceiling.depth=128;config.ceiling.decoder_allocation_bytes=16777216;config.ceiling.suppressed_records=64;config.ceiling.trace_frames=64;
     let mut error:ffi::Error=unsafe{std::mem::zeroed()};error.header=header::<ffi::Error>();
+    let mut api=ptr::null();
+    unsafe {assert_eq!(gateway::lang_component_v1_get_api(1,std::mem::size_of::<ffi::Api>() as u32,&mut api,&mut error),0);}
+    let api=unsafe {&*api};
     let mut engine=ptr::null_mut();let mut module=ptr::null_mut();let mut instance=ptr::null_mut();let mut binding=ptr::null_mut();
     let descriptor=ffi::NativeImage{header:header::<ffi::NativeImage>(),metadata:bytes(image.metadata()),program:image.as_opaque(),owner:ptr::null_mut(),release_owner:Some(release),reserved:[0;2]};
     unsafe {
-        assert_eq!(gateway::engine_create(&config,&mut engine,&mut error),0);
+        assert_eq!((api.engine_create)(&config,&mut engine,&mut error),0);
+        if @NATIVE@ {
         // Incompatible passive metadata must refuse before touching this
         // deliberately invalid private pointer or consuming the supplied owner.
         let mut incompatible=image.metadata().to_vec();
@@ -50,17 +54,21 @@ fn main() {
         incompatible[start]=if incompatible[start]==b'0'{b'1'}else{b'0'};
         let mut bad=descriptor;bad.metadata=bytes(&incompatible);bad.program=1usize as *const c_void;
         let sentinel=42usize as *mut ffi::Module;let mut untouched=sentinel;
-        assert_eq!(gateway::module_bind_native(engine,&bad,&mut untouched,&mut error),3);
+        assert_eq!((api.module_bind_native)(engine,&bad,&mut untouched,&mut error),3);
         assert_eq!(untouched,sentinel);assert_eq!(RELEASED.load(Ordering::Relaxed),0);
         bad.metadata=bytes(b"{");
-        assert_eq!(gateway::module_bind_native(engine,&bad,&mut untouched,&mut error),2);
+        assert_eq!((api.module_bind_native)(engine,&bad,&mut untouched,&mut error),2);
         assert_eq!(untouched,sentinel);assert_eq!(RELEASED.load(Ordering::Relaxed),0);
-        assert_eq!(gateway::module_bind_native(engine,&descriptor,&mut module,&mut error),0,"native admission");
+        assert_eq!((api.module_bind_native)(engine,&descriptor,&mut module,&mut error),0,"native admission");
+        } else {
+            assert_eq!((api.module_load)(engine,1,bytes(bindings::SEMANTIC),bytes(&[]),&mut module,&mut error),0);
+        }
         drop(image);
         let mut registered=ptr::null_mut();let mut child_instance=ptr::null_mut();let mut child_binding=ptr::null_mut();
         let mut state: *mut provider::State=ptr::null_mut();let mut grant_bytes=Vec::new();
         if @CALLBACK@ {
             let owner=Box::new(provider::State::with_resources(@RESOURCE@));
+            owner.explicit_drop.set(@DROP@);
             let mut session=wire::Session::new(Default::default());
             let host=wire::encode_contract(&owner.host,&mut session).unwrap();
             for member in if @RESOURCE@ {&["add","make"][..]}else{&["add"][..]} {
@@ -76,40 +84,40 @@ fn main() {
             }
             let resource=ffi::ResourceType{header:header::<ffi::ResourceType>(),resource_key:bytes(b"demo:host/api.item"),destroy:Some(provider::destroy),user:state.cast(),reserved:[0;2]};
             let options=ffi::ProviderConfig{header:header::<ffi::ProviderConfig>(),contract:bytes(&host),imports:methods.as_ptr(),import_count:methods.len() as u64,resource_types:if @RESOURCE@ {&resource}else{ptr::null()},resource_type_count:if @RESOURCE@ {1}else{0},owner:state.cast(),release_owner:Some(provider::release),reserved:[0;2]};
-            assert_eq!(gateway::provider_register(engine,&options,&mut registered,&mut error),0);
+            assert_eq!((api.provider_register)(engine,&options,&mut registered,&mut error),0);
         }
         let grants=grant_bytes.iter().map(|b|bytes(b)).collect::<Vec<_>>();
         let options=ffi::InstanceConfig{header:header::<ffi::InstanceConfig>(),grants:grants.as_ptr(),grant_count:grants.len() as u64,ceiling:config.ceiling,reserved:[0;2]};
-        assert_eq!(gateway::instance_create(module,&options,&mut instance,&mut error),0);
+        assert_eq!((api.instance_create)(module,&options,&mut instance,&mut error),0);
         if @CALLBACK@ {
-            assert_eq!(gateway::instance_create(module,&options,&mut child_instance,&mut error),0);
-            assert_eq!(gateway::bind_export(child_instance,bytes(include_bytes!(concat!(@PACKAGE@,"/request.bin"))),&mut child_binding,&mut error),0);
+            assert_eq!((api.instance_create)(module,&options,&mut child_instance,&mut error),0);
+            assert_eq!((api.bind_export)(child_instance,bytes(include_bytes!(concat!(@PACKAGE@,"/request.bin"))),&mut child_binding,&mut error),0);
             (*state).child.set(child_binding);grant_bytes.clear();
         }
-        assert_eq!(gateway::module_drop(module,&mut error),0);assert_eq!(RELEASED.load(Ordering::Relaxed),0);
-        assert_eq!(gateway::bind_export(instance,bytes(include_bytes!(concat!(@PACKAGE@,"/request.bin"))),&mut binding,&mut error),0);
+        assert_eq!((api.module_drop)(module,&mut error),0);assert_eq!(RELEASED.load(Ordering::Relaxed),0);
+        assert_eq!((api.bind_export)(instance,bytes(include_bytes!(concat!(@PACKAGE@,"/request.bin"))),&mut binding,&mut error),0);
         let mut retained=ptr::null_mut();let mut baseline:ffi::Usage=std::mem::zeroed();baseline.header=header::<ffi::Usage>();
         for (value,fuel,interrupt,task_limit) in [(41,1000000,false,64),(-1,1000000,false,64),(0,1000000,false,64),(41,0,false,64),(41,1000000,true,64),(41,1000000,false,1)] {
             let mut limits=config.ceiling;limits.fuel=fuel;limits.live_tasks=task_limit;let mut control=ptr::null_mut();let mut result=ptr::null_mut();
-            assert_eq!(gateway::control_create(engine,&limits,&mut control,&mut error),0);
-            if interrupt {gateway::interrupt(control);}
-            let status=typed_call(gateway::call,gateway::result_info,binding,control,value,&mut result,&mut error);
+            assert_eq!((api.control_create)(engine,&limits,&mut control,&mut error),0);
+            if interrupt {(api.interrupt)(control);}
+            let status=typed_call(api.call,api.result_info,binding,control,value,&mut result,&mut error);
             if status==1&&value>=0&&fuel>0&&!interrupt&&!(@TASK@&&task_limit==1) {
-                let mut failed=ffi::Bytes{data:ptr::null(),length:0};assert_eq!(gateway::result_bytes(result,&mut failed,&mut error),0);
+                let mut failed=ffi::Bytes{data:ptr::null(),length:0};assert_eq!((api.result_bytes)(result,&mut failed,&mut error),0);
                 let report=wire::decode_report(std::slice::from_raw_parts(failed.data,failed.length as usize),&mut wire::Session::new(Default::default())).unwrap();
                 panic!("unexpected native failure {report:?}");
             }
             assert_eq!(status,u32::from(value<0||fuel==0||interrupt||(@TASK@&&task_limit==1)),"native call value={value} fuel={fuel}");assert!(!result.is_null());
-            let mut view=ffi::Bytes{data:ptr::null(),length:0};assert_eq!(gateway::result_bytes(result,&mut view,&mut error),0);
-            if value==41&&fuel>0&&!interrupt&&task_limit==64 {assert_eq!(gateway::result_usage(result,&mut baseline,&mut error),0);}
+            let mut view=ffi::Bytes{data:ptr::null(),length:0};assert_eq!((api.result_bytes)(result,&mut view,&mut error),0);
+            if value==41&&fuel>0&&!interrupt&&task_limit==64 {assert_eq!((api.result_usage)(result,&mut baseline,&mut error),0);}
             if status==0 {assert_eq!(typed_result(view),value+1);} else {
                 let report=wire::decode_report(std::slice::from_raw_parts(view.data,view.length as usize),&mut wire::Session::new(Default::default())).unwrap();
                 assert!(!report.poisoned,"control value={value} fuel={fuel} interrupted={interrupt} report={report:?}");assert_eq!(report.primary.diagnostic,if value<0{wire::Diagnostic::Panic}else if interrupt{wire::Diagnostic::Interrupted}else{wire::Diagnostic::Limit});
-                if let Some(origin)=report.primary.origin {assert_eq!(origin.mode,wire::Mode::Aot);}
+                if let Some(origin)=report.primary.origin {assert_eq!(origin.mode,if @NATIVE@ {wire::Mode::Aot}else if @MODE@==1 {wire::Mode::Jit}else{wire::Mode::Vm});}
                 if @TASK@&&task_limit==1 {let detail=report.primary.limit.unwrap();assert_eq!(detail.kind,wire::ReportLimitKind::LiveTasks);assert_eq!((detail.limit,detail.attempted),(1,2));}
             }
-            if value<0 {retained=result;} else {assert_eq!(gateway::result_drop(result,&mut error),0);}
-            assert_eq!(gateway::control_drop(control,&mut error),0);
+            if value<0 {retained=result;} else {assert_eq!((api.result_drop)(result,&mut error),0);}
+            assert_eq!((api.control_drop)(control,&mut error),0);
         }
         assert!(baseline.fuel>0&&baseline.fuel<1000);
         assert_eq!(baseline.peak_live_tasks,if @TASK@ {2}else{1});
@@ -119,17 +127,17 @@ fn main() {
             let mut limits=config.ceiling;limits.fuel=prefix;
             limits.frames=baseline.peak_frames;limits.live_cells=baseline.peak_live_cells;limits.live_tasks=baseline.peak_live_tasks;
             let mut control=ptr::null_mut();let mut result=ptr::null_mut();
-            assert_eq!(gateway::control_create(engine,&limits,&mut control,&mut error),0);
-            let status=typed_call(gateway::call,gateway::result_info,binding,control,41,&mut result,&mut error);
+            assert_eq!((api.control_create)(engine,&limits,&mut control,&mut error),0);
+            let status=typed_call(api.call,api.result_info,binding,control,41,&mut result,&mut error);
             assert_eq!(status,u32::from(prefix<baseline.fuel));assert!(!result.is_null());
-            let mut view=ffi::Bytes{data:ptr::null(),length:0};assert_eq!(gateway::result_bytes(result,&mut view,&mut error),0);
+            let mut view=ffi::Bytes{data:ptr::null(),length:0};assert_eq!((api.result_bytes)(result,&mut view,&mut error),0);
             if status==0 {assert_eq!(typed_result(view),42);} else {
                 let report=wire::decode_report(std::slice::from_raw_parts(view.data,view.length as usize),&mut wire::Session::new(Default::default())).unwrap();
                 assert!(!report.poisoned,"fuel prefix={prefix} report={report:?}");assert_eq!(report.primary.diagnostic,wire::Diagnostic::Limit);
                 let detail=report.primary.limit.unwrap();assert_eq!(detail.kind,wire::ReportLimitKind::Fuel);
                 assert_eq!((detail.limit,detail.attempted),(prefix,prefix+1));
             }
-            assert_eq!(gateway::result_drop(result,&mut error),0);assert_eq!(gateway::control_drop(control,&mut error),0);
+            assert_eq!((api.result_drop)(result,&mut error),0);assert_eq!((api.control_drop)(control,&mut error),0);
         }
         if @CALLBACK@ {
             let cost=(*state).after.get().work.checked_sub((*state).before.get().work).unwrap();
@@ -137,58 +145,92 @@ fn main() {
             for remaining in [0,1,cost/4,cost/2,3*cost/4,cost-1] {
                 (*state).reserve.set(Some(remaining));
                 let mut control=ptr::null_mut();let mut result=ptr::null_mut();
-                assert_eq!(gateway::control_create(engine,&config.ceiling,&mut control,&mut error),0);
-                let status=typed_call(gateway::call,gateway::result_info,binding,control,41,&mut result,&mut error);
+                assert_eq!((api.control_create)(engine,&config.ceiling,&mut control,&mut error),0);
+                let status=typed_call(api.call,api.result_info,binding,control,41,&mut result,&mut error);
                 assert_eq!(status,1,"original preparation remaining={remaining} cost={cost}");assert!(!result.is_null());
-                let mut view=ffi::Bytes{data:ptr::null(),length:0};assert_eq!(gateway::result_bytes(result,&mut view,&mut error),0);
+                let mut view=ffi::Bytes{data:ptr::null(),length:0};assert_eq!((api.result_bytes)(result,&mut view,&mut error),0);
                 let report=wire::decode_report(std::slice::from_raw_parts(view.data,view.length as usize),&mut wire::Session::new(Default::default())).unwrap();
                 assert!(!report.poisoned,"preparation remaining={remaining} cost={cost} report={report:?}");assert_eq!(report.primary.diagnostic,wire::Diagnostic::Limit);
                 let detail=report.primary.limit.unwrap();assert_eq!(detail.kind,wire::ReportLimitKind::PreparationWork);
                 assert_eq!(detail.limit,config.ceiling.preparation_work);assert!(detail.attempted>detail.limit);
-                assert_eq!(gateway::result_drop(result,&mut error),0);assert_eq!(gateway::control_drop(control,&mut error),0);
+                assert_eq!((api.result_drop)(result,&mut error),0);assert_eq!((api.control_drop)(control,&mut error),0);
             }
             (*state).reserve.set(None);
             let mut control=ptr::null_mut();let mut result=ptr::null_mut();
-            assert_eq!(gateway::control_create(engine,&config.ceiling,&mut control,&mut error),0);
-            assert_eq!(typed_call(gateway::call,gateway::result_info,binding,control,0,&mut result,&mut error),0);
-            let mut view=ffi::Bytes{data:ptr::null(),length:0};assert_eq!(gateway::result_bytes(result,&mut view,&mut error),0);assert_eq!(typed_result(view),1);
-            assert_eq!(gateway::result_drop(result,&mut error),0);assert_eq!(gateway::control_drop(control,&mut error),0);
+            assert_eq!((api.control_create)(engine,&config.ceiling,&mut control,&mut error),0);
+            assert_eq!(typed_call(api.call,api.result_info,binding,control,0,&mut result,&mut error),0);
+            let mut view=ffi::Bytes{data:ptr::null(),length:0};assert_eq!((api.result_bytes)(result,&mut view,&mut error),0);assert_eq!(typed_result(view),1);
+            assert_eq!((api.result_drop)(result,&mut error),0);assert_eq!((api.control_drop)(control,&mut error),0);
+        }
+        if @DROP@ {
+            let cost=(*state).drop_after.get().work-(*state).drop_before.get().work;
+            assert!(cost>1&&cost<128);
+            for remaining in 0..cost {
+                (*state).drop_reserve.set(Some(remaining));
+                let mut control=ptr::null_mut();let mut result=ptr::null_mut();
+                assert_eq!((api.control_create)(engine,&config.ceiling,&mut control,&mut error),0);
+                assert_eq!(typed_call(api.call,api.result_info,binding,control,41,&mut result,&mut error),1);
+                let mut view=ffi::Bytes{data:ptr::null(),length:0};assert_eq!((api.result_bytes)(result,&mut view,&mut error),0);
+                let report=wire::decode_report(std::slice::from_raw_parts(view.data,view.length as usize),&mut wire::Session::new(Default::default())).unwrap();
+                assert!(!report.poisoned,"drop remaining={remaining} cost={cost} report={report:?}");
+                let detail=report.primary.limit.unwrap();assert_eq!(detail.kind,wire::ReportLimitKind::PreparationWork);
+                assert_eq!(detail.limit,config.ceiling.preparation_work);assert!(detail.attempted>detail.limit);
+                assert_eq!((*state).created.get(),(*state).retired.get());assert!((*state).live.borrow().is_empty());
+                assert!((*state).drop_report.get().is_null());
+                assert_eq!((api.result_drop)(result,&mut error),0);assert_eq!((api.control_drop)(control,&mut error),0);
+            }
+            (*state).drop_reserve.set(None);
+            let mut control=ptr::null_mut();let mut result=ptr::null_mut();
+            assert_eq!((api.control_create)(engine,&config.ceiling,&mut control,&mut error),0);
+            (*state).control.set(control);(*state).interrupt_drop.set(true);
+            assert_eq!(typed_call(api.call,api.result_info,binding,control,41,&mut result,&mut error),1);
+            let mut view=ffi::Bytes{data:ptr::null(),length:0};assert_eq!((api.result_bytes)(result,&mut view,&mut error),0);
+            let report=wire::decode_report(std::slice::from_raw_parts(view.data,view.length as usize),&mut wire::Session::new(Default::default())).unwrap();
+            assert!(!report.poisoned);assert_eq!(report.primary.diagnostic,wire::Diagnostic::Interrupted);
+            assert_eq!((*state).created.get(),(*state).retired.get());assert!((*state).live.borrow().is_empty());
+            (*state).control.set(ptr::null_mut());
+            assert_eq!((api.result_drop)(result,&mut error),0);assert_eq!((api.control_drop)(control,&mut error),0);
         }
         let mut poisoned=ptr::null_mut();
         if @RESOURCE@ {
             assert_eq!((*state).created.get(),(*state).retired.get());assert!((*state).live.borrow().is_empty());
             (*state).fail_destroy.set(true);
-            let mut control=ptr::null_mut();assert_eq!(gateway::control_create(engine,&config.ceiling,&mut control,&mut error),0);
-            assert_eq!(typed_call(gateway::call,gateway::result_info,binding,control,41,&mut poisoned,&mut error),1);assert!(!poisoned.is_null());
-            let mut view=ffi::Bytes{data:ptr::null(),length:0};assert_eq!(gateway::result_bytes(poisoned,&mut view,&mut error),0);
+            let mut control=ptr::null_mut();assert_eq!((api.control_create)(engine,&config.ceiling,&mut control,&mut error),0);
+            assert_eq!(typed_call(api.call,api.result_info,binding,control,41,&mut poisoned,&mut error),1);assert!(!poisoned.is_null());
+            let mut view=ffi::Bytes{data:ptr::null(),length:0};assert_eq!((api.result_bytes)(poisoned,&mut view,&mut error),0);
             let report=wire::decode_report(std::slice::from_raw_parts(view.data,view.length as usize),&mut wire::Session::new(Default::default())).unwrap();
-            assert!(report.poisoned);assert_eq!(report.primary.diagnostic,wire::Diagnostic::Destructor);assert!(!report.suppressed.is_empty());
+            assert!(report.poisoned);assert_eq!(report.primary.diagnostic,wire::Diagnostic::Destructor);if !@DROP@ {assert!(!report.suppressed.is_empty());}
             assert_eq!((*state).created.get(),(*state).retired.get());assert!((*state).live.borrow().is_empty());
-            assert_eq!(gateway::control_drop(control,&mut error),0);
+            assert_eq!((api.control_drop)(control,&mut error),0);
             let before=((*state).created.get(),(*state).calls.get());
-            assert_eq!(gateway::control_create(engine,&config.ceiling,&mut control,&mut error),0);
-            let mut refused=ptr::null_mut();assert_eq!(typed_call(gateway::call,gateway::result_info,binding,control,41,&mut refused,&mut error),2);
+            assert_eq!((api.control_create)(engine,&config.ceiling,&mut control,&mut error),0);
+            let mut refused=ptr::null_mut();assert_eq!(typed_call(api.call,api.result_info,binding,control,41,&mut refused,&mut error),2);
             assert!(refused.is_null());assert_eq!(((*state).created.get(),(*state).calls.get()),before);
-            assert_eq!(gateway::control_drop(control,&mut error),0);
+            assert_eq!((api.control_drop)(control,&mut error),0);
         }
+        let drop_report=if @RESOURCE@ {(*state).drop_report.replace(ptr::null_mut())}else{ptr::null_mut()};
         let mut closed=1usize as *mut ffi::Result;
-        assert_eq!(gateway::instance_close(instance,&mut closed,&mut error),0);assert!(closed.is_null());
+        assert_eq!((api.instance_close)(instance,&mut closed,&mut error),0);assert!(closed.is_null());
         if @CALLBACK@ {
             (*state).child.set(ptr::null_mut());
-            assert_eq!(gateway::instance_close(child_instance,&mut closed,&mut error),0);assert!(closed.is_null());
-            assert_eq!(gateway::binding_drop(child_binding,&mut error),0);
-            assert_eq!(gateway::provider_drop(registered,&mut closed,&mut error),0);assert!(closed.is_null());
+            assert_eq!((api.instance_close)(child_instance,&mut closed,&mut error),0);assert!(closed.is_null());
+            assert_eq!((api.binding_drop)(child_binding,&mut error),0);
+            assert_eq!((api.provider_drop)(registered,&mut closed,&mut error),0);assert!(closed.is_null());
             assert_eq!(provider::RELEASED.load(Ordering::Relaxed),0);
         }
-        assert_eq!(gateway::binding_drop(binding,&mut error),0);assert_eq!(RELEASED.load(Ordering::Relaxed),0);
-        assert_eq!(gateway::result_drop(retained,&mut error),0);
+        assert_eq!((api.binding_drop)(binding,&mut error),0);assert_eq!(RELEASED.load(Ordering::Relaxed),0);
+        assert_eq!((api.result_drop)(retained,&mut error),0);
         if @RESOURCE@ {
             assert_eq!(RELEASED.load(Ordering::Relaxed),0);assert_eq!(provider::RELEASED.load(Ordering::Relaxed),0);
-            assert_eq!(gateway::result_drop(poisoned,&mut error),0);
+            assert_eq!((api.result_drop)(poisoned,&mut error),0);
         }
-        assert_eq!(RELEASED.load(Ordering::Relaxed),1);
+        if !drop_report.is_null() {
+            assert_eq!(RELEASED.load(Ordering::Relaxed),0);assert_eq!(provider::RELEASED.load(Ordering::Relaxed),0);
+            assert_eq!((api.result_drop)(drop_report,&mut error),0);
+        }
+        assert_eq!(RELEASED.load(Ordering::Relaxed),u32::from(@NATIVE@) as usize);
         if @CALLBACK@ {assert_eq!(provider::RELEASED.load(Ordering::Relaxed),1);}
-        assert_eq!(gateway::engine_destroy(engine,&mut error),0);assert_eq!(LIVE.load(Ordering::Relaxed),0);
+        assert_eq!((api.engine_destroy)(engine,&mut error),0);assert_eq!(LIVE.load(Ordering::Relaxed),0);
     }
     println!("native image C: 42; panic; reuse; fuel; owner released");
 }

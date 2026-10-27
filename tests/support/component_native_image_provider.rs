@@ -32,6 +32,13 @@ pub struct State {
     pub retired: Cell<usize>,
     pub live: RefCell<Vec<usize>>,
     pub fail_destroy: Cell<bool>,
+    pub explicit_drop: Cell<bool>,
+    pub drop_report: Cell<*mut ffi::Result>,
+    pub interrupt_drop: Cell<bool>,
+    pub control: Cell<*mut ffi::Control>,
+    pub drop_reserve: Cell<Option<usize>>,
+    pub drop_before: Cell<m::Usage>,
+    pub drop_after: Cell<m::Usage>,
 }
 pub fn header<T>() -> ffi::Header {
     ffi::Header {
@@ -44,6 +51,23 @@ pub fn bytes(data: &[u8]) -> ffi::Bytes {
         data: data.as_ptr(),
         length: data.len() as u64,
     }
+}
+fn api() -> &'static ffi::Api {
+    let mut error: ffi::Error = unsafe { std::mem::zeroed() };
+    error.header = header::<ffi::Error>();
+    let mut output = ptr::null();
+    assert_eq!(
+        unsafe {
+            gateway::lang_component_v1_get_api(
+                1,
+                size_of::<ffi::Api>() as u32,
+                &mut output,
+                &mut error,
+            )
+        },
+        0
+    );
+    unsafe { &*output }
 }
 pub fn contract(input: &[u8]) -> wire::Contract {
     wire::Contract::new(
@@ -93,6 +117,13 @@ impl State {
             retired: Cell::new(0),
             live: RefCell::new(Vec::new()),
             fail_destroy: Cell::new(false),
+            explicit_drop: Cell::new(false),
+            drop_report: Cell::new(ptr::null_mut()),
+            interrupt_drop: Cell::new(false),
+            control: Cell::new(ptr::null_mut()),
+            drop_reserve: Cell::new(None),
+            drop_before: Cell::new(m::Usage::default()),
+            drop_after: Cell::new(m::Usage::default()),
         }
     }
     pub fn signature<'a>(&'a self, host: bool, session: &mut wire::Session) -> wire::Signature<'a> {
@@ -164,6 +195,61 @@ unsafe fn observe_budget(
     Ok(meter.seen)
 }
 
+unsafe fn observe_retirement_budget(
+    context: *const ffi::Context,
+    reserve: Option<usize>,
+) -> m::Usage {
+    use lang_runtime::{
+        component::{execution, storage},
+        execution as e,
+    };
+    struct Meter {
+        reserve: Option<usize>,
+        seen: m::Usage,
+    }
+    impl execution::StorageOperation for Meter {
+        fn run(
+            &mut self,
+            _: &mut storage::Resources<'_>,
+            _: &mut dyn storage::Memory,
+            budget: &mut m::Budget,
+            _: storage::Holder,
+            _: &e::InvocationAccounting,
+        ) -> Result<(), u32> {
+            if let Some(remaining) = self.reserve {
+                budget
+                    .charge(
+                        budget
+                            .limits()
+                            .work
+                            .saturating_sub(budget.work_used())
+                            .saturating_sub(remaining),
+                    )
+                    .map_err(|_| 2u32)?;
+            }
+            self.seen = m::Usage {
+                work: budget.work_used(),
+                allocation_bytes: budget.allocation_bytes(),
+                elements: budget.elements_used(),
+            };
+            Ok(())
+        }
+    }
+    let mut meter = Meter {
+        reserve,
+        seen: m::Usage::default(),
+    };
+    // SAFETY: only the actual original retirement ledger is observed/spent.
+    // No resource, invocation, guest entry or replacement budget is created.
+    unsafe {
+        lang_codegen_clif::component::with_retirement(context, |_, call| {
+            call.with_storage(&mut meter)
+        })
+    }
+    .unwrap();
+    meter.seen
+}
+
 // This same real implementation supplies the producer's actual provider and
 // the separately linked consumer's owning C registration.
 pub unsafe extern "C" fn invoke(
@@ -175,7 +261,7 @@ pub unsafe extern "C" fn invoke(
     let state = unsafe { &*user.cast::<State>() };
     let mut error: ffi::Error = unsafe { std::mem::zeroed() };
     error.header = header::<ffi::Error>();
-    if unsafe { gateway::context_check(context, &mut error) } != 0 {
+    if unsafe { (api().context_check)(context, &mut error) } != 0 {
         return 1;
     }
     state.calls.set(state.calls.get() + 1);
@@ -213,7 +299,7 @@ pub unsafe extern "C" fn invoke(
         }
         state.depth.set(1);
         let status = unsafe {
-            gateway::context_call(
+            (api().context_call)(
                 context,
                 state.child.get(),
                 bytes(&encoded),
@@ -224,7 +310,7 @@ pub unsafe extern "C" fn invoke(
         state.depth.set(0);
         if status != 0 {
             if !result.is_null() {
-                assert_eq!(unsafe { gateway::result_drop(result, &mut error) }, 0);
+                assert_eq!(unsafe { (api().result_drop)(result, &mut error) }, 0);
             }
             if status != 1 && state.reserve.get().is_some() {
                 // A refused preparation loan preserves the original failure.
@@ -232,7 +318,7 @@ pub unsafe extern "C" fn invoke(
                 let mut failure = ptr::null_mut();
                 assert_eq!(
                     unsafe {
-                        gateway::context_call(
+                        (api().context_call)(
                             context,
                             state.child.get(),
                             bytes(&encoded),
@@ -243,7 +329,7 @@ pub unsafe extern "C" fn invoke(
                     1
                 );
                 assert!(!failure.is_null());
-                assert_eq!(unsafe { gateway::result_drop(failure, &mut error) }, 0);
+                assert_eq!(unsafe { (api().result_drop)(failure, &mut error) }, 0);
                 return 0;
             }
             // The original child failure stays latched in the original scope.
@@ -258,7 +344,7 @@ pub unsafe extern "C" fn invoke(
             length: 0,
         };
         assert_eq!(
-            unsafe { gateway::result_bytes(result, &mut view, &mut error) },
+            unsafe { (api().result_bytes)(result, &mut view, &mut error) },
             0
         );
         let values = wire::decode_values(
@@ -271,7 +357,7 @@ pub unsafe extern "C" fn invoke(
         let wire::Value::I64(value) = values.nodes[values.roots[0].0] else {
             panic!("i64 child result")
         };
-        assert_eq!(unsafe { gateway::result_drop(result, &mut error) }, 0);
+        assert_eq!(unsafe { (api().result_drop)(result, &mut error) }, 0);
         value
     } else {
         let Some(answer) = value.checked_add(1) else {
@@ -290,7 +376,7 @@ pub unsafe extern "C" fn invoke(
     )
     .unwrap();
     let status = unsafe {
-        gateway::context_buffer_create(context, encoded.len() as u64, 1, output, &mut error)
+        (api().context_buffer_create)(context, encoded.len() as u64, 1, output, &mut error)
     };
     if status != 0 {
         return status;
@@ -299,7 +385,7 @@ pub unsafe extern "C" fn invoke(
         data: ptr::null_mut(),
         length: 0,
     };
-    let status = unsafe { gateway::buffer_mut_bytes(context, *output, &mut view, &mut error) };
+    let status = unsafe { (api().buffer_mut_bytes)(context, *output, &mut view, &mut error) };
     if status != 0 {
         return status;
     }
@@ -314,6 +400,75 @@ pub unsafe extern "C" fn make(
     output: *mut *mut ffi::Buffer,
 ) -> u32 {
     let state = unsafe { &*user.cast::<State>() };
+    if state.explicit_drop.replace(false) {
+        // The temporary result buffer and its independently owned resource
+        // have separate lifetimes. Reuse the real implementation once, then
+        // release the buffer before explicitly retiring its actual owner.
+        let mut temporary = ptr::null_mut();
+        let status = unsafe { make(user, context, input, &mut temporary) };
+        state.explicit_drop.set(true);
+        if status != 0 {
+            return status;
+        }
+        let mut error: ffi::Error = unsafe { std::mem::zeroed() };
+        error.header = header::<ffi::Error>();
+        let mut view = ffi::MutBytes {
+            data: ptr::null_mut(),
+            length: 0,
+        };
+        assert_eq!(
+            unsafe { (api().buffer_mut_bytes)(context, temporary, &mut view, &mut error) },
+            0
+        );
+        assert_eq!(view.length, 49);
+        let index = u32::from_le_bytes(
+            unsafe { std::slice::from_raw_parts(view.data.add(45), 4) }
+                .try_into()
+                .unwrap(),
+        );
+        assert_eq!(
+            unsafe { (api().context_buffer_drop)(context, temporary, &mut error) },
+            0
+        );
+        let sentinel = 42usize as *mut ffi::Result;
+        let mut retired = sentinel;
+        state
+            .drop_before
+            .set(unsafe { observe_retirement_budget(context, state.drop_reserve.get()) });
+        let interrupted = state.interrupt_drop.replace(false);
+        if interrupted {
+            assert!(!state.control.get().is_null());
+            unsafe { (api().interrupt)(state.control.get()) };
+        }
+        let status =
+            unsafe { (api().context_resource_drop)(context, index, &mut retired, &mut error) };
+        state
+            .drop_after
+            .set(unsafe { observe_retirement_budget(context, None) });
+        if status == 1 {
+            assert!(!retired.is_null() && retired != sentinel);
+            assert!(state.drop_report.replace(retired).is_null());
+            return 1;
+        }
+        if status != 0 {
+            assert_eq!(retired, sentinel);
+            return 1;
+        }
+        assert!(retired.is_null());
+        retired = sentinel;
+        assert_eq!(
+            unsafe { (api().context_resource_drop)(context, index, &mut retired, &mut error) },
+            5
+        );
+        assert_eq!(retired, sentinel);
+        assert_eq!(
+            unsafe { (api().context_check)(context, &mut error) },
+            u32::from(interrupted)
+        );
+        if interrupted {
+            return 1;
+        }
+    }
     let result = (|| -> Result<(), u32> {
         if input.length != 45 || input.data.is_null() || output.is_null() {
             return Err(2);
@@ -322,7 +477,7 @@ pub unsafe extern "C" fn make(
         error.header = header::<ffi::Error>();
         let mut backing = ptr::null_mut();
         let status =
-            unsafe { gateway::context_buffer_create(context, 8, 8, &mut backing, &mut error) };
+            unsafe { (api().context_buffer_create)(context, 8, 8, &mut backing, &mut error) };
         if status != 0 {
             return Err(status);
         }
@@ -330,7 +485,7 @@ pub unsafe extern "C" fn make(
             data: ptr::null_mut(),
             length: 0,
         };
-        let status = unsafe { gateway::buffer_mut_bytes(context, backing, &mut view, &mut error) };
+        let status = unsafe { (api().buffer_mut_bytes)(context, backing, &mut view, &mut error) };
         if status != 0 {
             return Err(status);
         }
@@ -339,7 +494,7 @@ pub unsafe extern "C" fn make(
         let address = view.data as usize;
         let mut index = 0;
         let status = unsafe {
-            gateway::context_resource_publish(
+            (api().context_resource_publish)(
                 context,
                 bytes(b"demo:host/api.item"),
                 backing,
@@ -354,11 +509,11 @@ pub unsafe extern "C" fn make(
         state.live.borrow_mut().push(address);
         let mut result = ptr::null_mut();
         let status =
-            unsafe { gateway::context_buffer_create(context, 49, 1, &mut result, &mut error) };
+            unsafe { (api().context_buffer_create)(context, 49, 1, &mut result, &mut error) };
         if status != 0 {
             return Err(status);
         }
-        let status = unsafe { gateway::buffer_mut_bytes(context, result, &mut view, &mut error) };
+        let status = unsafe { (api().buffer_mut_bytes)(context, result, &mut view, &mut error) };
         if status != 0 {
             return Err(status);
         }
@@ -384,7 +539,7 @@ pub unsafe extern "C" fn destroy(
     let state = unsafe { &*user.cast::<State>() };
     let mut error: ffi::Error = unsafe { std::mem::zeroed() };
     error.header = header::<ffi::Error>();
-    assert_eq!(unsafe { gateway::context_check(context, &mut error) }, 0);
+    assert_eq!(unsafe { (api().context_check)(context, &mut error) }, 0);
     assert_eq!(backing.length, 8);
     assert_eq!(
         unsafe { std::slice::from_raw_parts(backing.data, 8) },

@@ -1037,7 +1037,8 @@ impl<'state, 'p, 'u, 'resources, 'code, 'native> Host
             .with_parent_live(parent_live)
             .with_task(task)
             .with_instance(self.instance, target.method().flags & 1 != 0)
-            .with_session(session);
+            .with_session(session)
+            .with_cleanup(arguments.cleanup.as_mut().ok_or(Reason::Invariant)?);
             native_exit = Some((native_frame.clone(), failure_slot));
             let returned = self.invoker.invoke(target.method(), &bytes, &mut context);
             let session = context.take_session()?;
@@ -1048,9 +1049,9 @@ impl<'state, 'p, 'u, 'resources, 'code, 'native> Host
                     // An undefined native status cannot replace the selected
                     // child cause, but still records its actual exit-contract
                     // violation during failed-scope retirement and poisons.
-                    arguments
+                    context
                         .cleanup
-                        .as_mut()
+                        .as_deref_mut()
                         .ok_or(Reason::Invariant)?
                         .execution(c::ExecutionFailure::Invariant, Some(span));
                 }
@@ -1221,7 +1222,10 @@ impl<'state, 'p, 'u, 'resources, 'code, 'native> Host
                 ending.get_or_insert(error);
             }
         }
-        let mut cleanup_failed = false;
+        let mut cleanup_failed = arguments
+            .cleanup
+            .as_ref()
+            .is_some_and(c::Session::is_poisoned);
         for owner in owned.into_iter().rev() {
             if !owner.held.get() {
                 continue;

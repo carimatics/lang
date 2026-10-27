@@ -67,6 +67,42 @@ impl Session {
             Ok(())
         }
     }
+    /// Reserve an immutable report before one explicit retirement. The original
+    /// Session keeps every primary/suppressed record and remains authoritative.
+    /// The cleaner retains custody until called, including preparation refusal.
+    pub fn retire_with_report<C: Cleaner<()>>(
+        &mut self,
+        slot: Slot,
+        span: Option<Span>,
+        reason: Reason,
+        cleaner: &mut C,
+        budget: &mut m::Budget,
+    ) -> Result<Option<Report>, m::Error> {
+        budget.allocate::<Report>(1)?;
+        let secondary = budget.vector(self.report.limit - 1)?;
+        budget.charge(self.report.limit)?;
+        let mut snapshot = Report {
+            primary: None,
+            secondary,
+            limit: self.report.limit,
+            truncated: 0,
+            quarantined: 0,
+            cleanup_failures: 0,
+        };
+        if self.retire(slot, (), span, reason, cleaner).is_ok() {
+            return Ok(None);
+        }
+        // Capacity and all passive record-copy work were admitted before the
+        // cleaner. CodeOwnerLease clones retain existing owners without calls.
+        snapshot.primary = self.report.primary.clone();
+        snapshot
+            .secondary
+            .extend(self.report.secondary.iter().cloned());
+        snapshot.truncated = self.report.truncated;
+        snapshot.quarantined = self.report.quarantined;
+        snapshot.cleanup_failures = self.report.cleanup_failures;
+        Ok(Some(snapshot))
+    }
     /// Append an already completed task's bounded evidence without allocation.
     /// Callers choose the primary task first, then the required secondary order.
     pub fn append(&mut self, other: Self) {
@@ -93,6 +129,59 @@ impl Session {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn explicit_retirement_snapshots_preserve_prior_primary_and_do_not_mutate_later() {
+        let mut budget = m::Budget::new(Default::default());
+        let mut session = Session::prepare(NonZeroUsize::new(3).unwrap(), &mut budget).unwrap();
+        session.execution(ExecutionFailure::FuelLimit, None);
+        let calls = std::cell::Cell::new(0);
+        let mut cleaner = Contextual::new(|_: &mut (), _, _: &mut Context<'_>| {
+            calls.set(calls.get() + 1);
+            Err(19)
+        });
+        for limits in [
+            m::Limits {
+                work: 0,
+                ..Default::default()
+            },
+            m::Limits {
+                allocations: 0,
+                ..Default::default()
+            },
+        ] {
+            let mut refused = m::Budget::new(limits);
+            assert!(
+                session
+                    .retire_with_report(Slot(0), None, Reason::Explicit, &mut cleaner, &mut refused)
+                    .is_err()
+            );
+            assert_eq!(calls.get(), 0);
+            assert!(!session.is_poisoned());
+            assert!(session.report().secondary().is_empty());
+        }
+        let snapshot = session
+            .retire_with_report(Slot(0), None, Reason::Explicit, &mut cleaner, &mut budget)
+            .unwrap()
+            .unwrap();
+        assert_eq!(calls.get(), 1);
+        assert!(session.is_poisoned());
+        assert_eq!(
+            snapshot.primary().unwrap().kind,
+            FailureKind::Execution(ExecutionFailure::FuelLimit)
+        );
+        assert_eq!(snapshot.secondary()[0].kind, FailureKind::Cleanup(19));
+        assert_eq!(snapshot.secondary(), session.report().secondary());
+        assert!(
+            session
+                .retire(Slot(1), (), None, Reason::Explicit, &mut cleaner)
+                .is_err()
+        );
+        assert_eq!(calls.get(), 2);
+        assert_eq!(session.report().secondary().len(), 2);
+        assert_eq!(snapshot.secondary().len(), 1);
+        assert_eq!(snapshot.truncated(), 0);
+    }
 
     #[test]
     fn late_invariants_preserve_the_primary_and_poison_even_when_truncated() {

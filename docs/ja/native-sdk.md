@@ -47,11 +47,17 @@ SDK/bin/lang link-native --sdk SDK --package c-program --host c-host.rs --object
 
 Version-1/2 file表は全hash、上限付きsize、正確なtarget／build／rustc／profile／feature policyを記録します。Componentをstreamコピーして新directoryをatomic公開し、失敗時は所有staging fileだけを削除します。Compilerの実行権限を保持します。Toolがcomponentを使う前にproduction `SdkSnapshot` APIでSDKを検証します。Native code、library、生成Rust／C host、build出力は信頼済み入力であり、hashは対応／整合性を検査するだけでnative codeの真正性は証明しません。未対応／不一致artifactは対応SDKでrebuildします。Build間のRust ABI安定性、性能／size改善は約束しません。
 
+## Public component-v1 API
+
+`lang_component_v1_get_api(1, sizeof(lang_component_v1_api), &api, &error)`は、全32 entryが非nullの単一の不変tableを公開します。先に厳密なerror headerを初期化します。未知のAPI versionは3、table size不一致・null output/error pointer・初期化済みerror header不正は2です。拒否時はtable outputを変更しません。返されたtableはprocess存続中利用できますが、engine・resource・grant・実行権限は付与しません。各要求の厳密size/version headerとreserved 0、生きたhandleのowner thread/lifetime規則は引き続き必要です。
+
+modeはVM 0・JIT 1・厳密SDK AOT 2です。VM/JITの`module_load`は明示source+IDLまたは再検証artifactを受理し、AOTは`module_bind_native`と下記Image factoryを必要とします。`context_resource_drop`は現在のowning receiptと元holder/tableを検査し、borrowed・stale・移動済み・使用中claimを拒否して元cleanup Sessionで退役します。割込み後もguest再入許可なしで後始末を完了できます。destructor失敗は保持可能な不変reportを返し、元の実行をpoisonします。result解放とowner退役は別です。公開queryのC試験はVM/JIT/AOTを検証していますが、安定化と実両host適合はB02/B01に残ります。これは実験段階のRFC 0027 surfaceであり、安定性保証の完了を意味しません。
+
 ## SDK-owned component Image
 
 RFC 0027のnative Image入口（2026-10-27 JST、実験段階）では、`unsafe native::component::Image::new`へ完全なversion-3/component `package.json`、既存SDK `Input`（target/build ID・semantic/native byte）、生成`bindings.rs`の実byte、実code owner/resolver、有限な準備上限を渡します。全4 roleのsize/hash、規範snapshot、選択export、record/target/buildの一致を検査し、実code ownerを保持します。Cの`native_image.program`はこの厳密SDKのImageを指し、metadataは元のmanifestです。可動なRust値を指す期間は`Box<Image>`等で配置を維持してください。成功したregistrationは必要なdataを保持し、入力C ownerを最後のmodule/instance/binding/result/code leaseまで保持します。失敗時はcaller所有権を保ちます。
 
-SDKのRust facade `component_embedding::gateway`はmode 2、`module_bind_native`と既存C呼出し規約を接続します。private pointer参照より前に受動的なmanifestでhost/厳密SDK一致を検査し、未知constructor・filesystem探索・VM/JIT fallbackを使いません。imageはrecordの選択済みexportだけを実行します。他の有効なexportはunsupported-profileです。実instance grant/providerは引き続き必要で、packageやhashから権限は得られません。nativeコードはtrustedで、跨SDK Rust ABIの安定性やsandboxを提供しません。全32操作の公開query/tableはE01の未完要件です。
+SDKのRust facade `component_embedding::gateway`はmode 2、`module_bind_native`と既存C呼出し規約を接続します。private pointer参照より前に受動的なmanifestでhost/厳密SDK一致を検査し、未知constructor・filesystem探索・VM/JIT fallbackを使いません。imageはrecordの選択済みexportだけを実行します。他の有効なexportはunsupported-profileです。実instance grant/providerは引き続き必要で、packageやhashから権限は得られません。nativeコードはtrustedで、跨SDK Rust ABIの安定性やsandboxを提供しません。完全な公開query統合と上記installed受入はE01で追跡します。
 
 `startup/component-producer.rs OUTPUT [HEADER]`の任意第2引数は、package roleを変えず、明示host入力用の`component-api.h`と`component-client.c`を出力します。SDKにはC template `startup/component-client.c.in`とRust host `startup/component-gateway-host.rs`を同梱します。生成Cを通常のtarget compilerでobjectにして、既存`link-native --host ... --object ...`に渡します。`tools/check-native-sdk-install.py`は、既存6 profileに`component-gateway`を追加し、全package/private SDK/link入力を消してからC gatewayの42・panic・再利用・fuel拒否・owner退役・空inventoryを確認します。E16の隔離検証はM3表へ記録し、Windowsの実行証拠とは区別します。
 

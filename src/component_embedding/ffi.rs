@@ -1,5 +1,5 @@
 //! Rust layout mirror of the normative component-v1 C header.
-//! The API table is declared here; no query/table is published.
+//! The complete table is published by gateway::lang_component_v1_get_api.
 
 pub use lang_runtime::component::native::{Buffer, Bytes, Context, Engine, Header, MutBytes};
 pub type Status = u32;

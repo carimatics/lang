@@ -121,6 +121,19 @@ fn main() {
     config.ceiling.trace_frames = 64;
     let mut error: ffi::Error = unsafe { std::mem::zeroed() };
     error.header = header::<ffi::Error>();
+    let mut api = ptr::null();
+    assert_eq!(
+        unsafe {
+            gateway::lang_component_v1_get_api(
+                1,
+                size_of::<ffi::Api>() as u32,
+                &mut api,
+                &mut error,
+            )
+        },
+        0
+    );
+    let api = unsafe { &*api };
     let mut engine = ptr::null_mut();
     let mut module = ptr::null_mut();
     let mut instance = ptr::null_mut();
@@ -136,9 +149,9 @@ fn main() {
     // SAFETY: every exact live handle is closed once in dependency order; all
     // initialized descriptors and their source views remain valid through use.
     unsafe {
-        assert_eq!(gateway::engine_create(&config, &mut engine, &mut error), 0);
+        assert_eq!((api.engine_create)(&config, &mut engine, &mut error), 0);
         assert_eq!(
-            gateway::module_bind_native(engine, &native, &mut module, &mut error),
+            (api.module_bind_native)(engine, &native, &mut module, &mut error),
             0
         );
         drop(image);
@@ -150,12 +163,12 @@ fn main() {
             reserved: [0; 2],
         };
         assert_eq!(
-            gateway::instance_create(module, &options, &mut instance, &mut error),
+            (api.instance_create)(module, &options, &mut instance, &mut error),
             0
         );
-        assert_eq!(gateway::module_drop(module, &mut error), 0);
+        assert_eq!((api.module_drop)(module, &mut error), 0);
         assert_eq!(
-            gateway::bind_export(instance, bytes(&request), &mut binding, &mut error),
+            (api.bind_export)(instance, bytes(&request), &mut binding, &mut error),
             0
         );
         let mut retained = ptr::null_mut();
@@ -165,13 +178,13 @@ fn main() {
             let mut control = ptr::null_mut();
             let mut result = ptr::null_mut();
             assert_eq!(
-                gateway::control_create(engine, &limits, &mut control, &mut error),
+                (api.control_create)(engine, &limits, &mut control, &mut error),
                 0
             );
             assert_eq!(
                 component_typed_call(
-                    gateway::call,
-                    gateway::result_info,
+                    api.call,
+                    api.result_info,
                     binding,
                     control,
                     value,
@@ -184,7 +197,7 @@ fn main() {
                 data: ptr::null(),
                 length: 0,
             };
-            assert_eq!(gateway::result_bytes(result, &mut view, &mut error), 0);
+            assert_eq!((api.result_bytes)(result, &mut view, &mut error), 0);
             if value >= 0 && fuel > 0 {
                 assert_eq!(component_typed_result(view), value + 1);
             } else {
@@ -209,21 +222,18 @@ fn main() {
             if value < 0 {
                 retained = result;
             } else {
-                assert_eq!(gateway::result_drop(result, &mut error), 0);
+                assert_eq!((api.result_drop)(result, &mut error), 0);
             }
-            assert_eq!(gateway::control_drop(control, &mut error), 0);
+            assert_eq!((api.control_drop)(control, &mut error), 0);
         }
         let mut closed = ptr::null_mut();
-        assert_eq!(
-            gateway::instance_close(instance, &mut closed, &mut error),
-            0
-        );
+        assert_eq!((api.instance_close)(instance, &mut closed, &mut error), 0);
         assert!(closed.is_null());
-        assert_eq!(gateway::binding_drop(binding, &mut error), 0);
+        assert_eq!((api.binding_drop)(binding, &mut error), 0);
         assert_eq!(RELEASED.load(Ordering::Relaxed), 0);
-        assert_eq!(gateway::result_drop(retained, &mut error), 0);
+        assert_eq!((api.result_drop)(retained, &mut error), 0);
         assert_eq!(RELEASED.load(Ordering::Relaxed), 1);
-        assert_eq!(gateway::engine_destroy(engine, &mut error), 0);
+        assert_eq!((api.engine_destroy)(engine, &mut error), 0);
         assert_eq!(LIVE.load(Ordering::Relaxed), 0);
     }
     println!("component C gateway 42/panic/reuse/fuel; owners retired; zero inventory");

@@ -458,7 +458,7 @@ pub unsafe fn with_child<T>(
     // SAFETY: preserve the strict existing entry and refuse failed control
     // before exposing the operation's borrowed capabilities.
     unsafe {
-        child_scope(context, false, |invoker, call, control, _| {
+        child_scope(context, ScopeKind::Child, |invoker, call, control, _| {
             operation(invoker, call, control)
         })
     }
@@ -479,12 +479,41 @@ pub unsafe fn with_child_admission<T>(
     ) -> Result<T, u32>,
 ) -> Result<T, u32> {
     // SAFETY: the caller respects the failed-admission reporting restriction.
-    unsafe { child_scope(context, true, operation) }
+    unsafe { child_scope(context, ScopeKind::ReportingChild, operation) }
 }
 
+/// Lend only original native retirement/storage capabilities, including after
+/// a control failure. This operation grants no guest-entry permission.
+///
+/// # Safety
+/// The exact live ordinary native context follows with_child's provenance
+/// rules. The closure may only reserve passive result storage or call
+/// NativeContext::resource_drop; it must never enter guest code or retain a
+/// borrowed capability. Cleanup contexts and expired tokens remain refused.
+pub unsafe fn with_retirement<T>(
+    context: *const native::Context,
+    operation: impl for<'scope> FnOnce(
+        &'scope mut dyn Invoker,
+        &'scope mut dyn NativeContext,
+    ) -> Result<T, u32>,
+) -> Result<T, u32> {
+    // SAFETY: the caller restricts this loan to original mandatory retirement.
+    unsafe {
+        child_scope(context, ScopeKind::Retirement, |invoker, call, _, _| {
+            operation(invoker, call)
+        })
+    }
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum ScopeKind {
+    Child,
+    ReportingChild,
+    Retirement,
+}
 unsafe fn child_scope<T>(
     context: *const native::Context,
-    report_failure: bool,
+    kind: ScopeKind,
     operation: impl for<'scope> FnOnce(
         &'scope mut dyn Invoker,
         &'scope mut dyn NativeContext,
@@ -492,6 +521,7 @@ unsafe fn child_scope<T>(
         Result<(), e::Failure>,
     ) -> Result<T, u32>,
 ) -> Result<T, u32> {
+    let report_failure = kind != ScopeKind::Child;
     if context.is_null() {
         return Err(2);
     }
@@ -514,7 +544,7 @@ unsafe fn child_scope<T>(
     if status != 0 {
         return Err(status);
     }
-    if !state.reentry {
+    if !state.reentry && kind != ScopeKind::Retirement {
         return Err(4);
     }
     let call = state.call.ok_or(4u32)?;
@@ -577,6 +607,9 @@ unsafe fn child_scope<T>(
         control,
         accounting: Some(accounting.clone()),
     };
+    if kind == ScopeKind::Retirement {
+        return operation(&mut child, call, control, admission);
+    }
     let mut operation = Some(operation);
     let entered = accounting.with_parent(parent_live, || {
         operation.take().expect("a child operation runs once")(&mut child, call, control, admission)

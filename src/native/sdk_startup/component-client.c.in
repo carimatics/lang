@@ -3,10 +3,10 @@
 typedef uint32_t (*Call)(lang_component_v1_binding *,lang_component_v1_control *,lang_component_v1_bytes,lang_component_v1_result **,lang_component_v1_error *);
 typedef uint32_t (*Info)(const lang_component_v1_result *,lang_component_v1_result_info *,lang_component_v1_error *);
 uint32_t component_typed_call(Call call,Info info,lang_component_v1_binding *binding,lang_component_v1_control *control,int64_t value,lang_component_v1_result **result,lang_component_v1_error *error) {
-    lang_component_v1_api api={0};@ARGUMENTS@ args={0};lc_value_writer writer={0};lc_value_outcome outcome;uint8_t scratch[1024];
-    api.call=call;api.result_info=info;args.p0=value;
+    const lang_component_v1_api *api=NULL;@ARGUMENTS@ args={0};lc_value_writer writer={0};lc_value_outcome outcome;uint8_t scratch[1024];
+    assert(lang_component_v1_get_api(1,sizeof(*api),&api,error)==0);assert(api->call==call);assert(api->result_info==info);args.p0=value;
     writer.data=scratch;writer.capacity=sizeof(scratch);writer.left.work=1000000;writer.left.elements=1000;writer.left.depth=128;
-    outcome=@NAME@_call(&api,control,binding,&args,&writer,error);
+    outcome=@NAME@_call(api,control,binding,&args,&writer,error);
     assert(outcome.poisoned==0);*result=outcome.result;return outcome.status;
 }
 int64_t component_typed_result(lang_component_v1_bytes bytes) {

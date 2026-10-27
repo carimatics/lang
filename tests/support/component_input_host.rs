@@ -1,4 +1,4 @@
-//! Private native-host experiment. This exports no component-v1 query/table.
+//! Native-host fixtures route operations through the public component-v1 table.
 use lang::component_embedding::{self as embedding, Module, ffi, gateway};
 use lang_codegen_clif::{c_abi::allocator::ForeignProvider, component, tasks};
 use lang_mir::unit as m;
@@ -141,13 +141,21 @@ fn assert_resource_cleanup_origin(record: &wire::Record) {
     assert!(origin.span.is_none());
 }
 
+fn api() -> &'static ffi::Api {
+    let mut error: ffi::Error = unsafe { std::mem::zeroed() };
+    error.header = ffi::Header {size: size_of::<ffi::Error>() as u32, version: 1};
+    let mut output = ptr::null();
+    // SAFETY: exact initialized local outputs receive the immutable SDK table.
+    assert_eq!(unsafe {gateway::lang_component_v1_get_api(1,size_of::<ffi::Api>() as u32,&mut output,&mut error)},0);
+    unsafe { &*output }
+}
 macro_rules! operation {
     ($name:ident,$target:ident,($($arg:ident:$ty:ty),*$(,)?)->$out:ty) => {
         #[unsafe(no_mangle)]
         unsafe extern "C" fn $name($($arg:$ty),*)->$out {
             // SAFETY: the native fixture supplies the exact C signature's
             // live objects/storage through this complete forwarded operation.
-            unsafe {gateway::$target($($arg),*)}
+            unsafe {(api().$target)($($arg),*)}
         }
     };
 }

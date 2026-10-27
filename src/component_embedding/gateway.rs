@@ -1,5 +1,7 @@
-//! Component C operation implementations. No API query/table is published yet.
+//! Component C operation implementations and the checked version-1 API query.
 mod admission;
+mod api;
+pub use api::lang_component_v1_get_api;
 mod callbacks;
 #[cfg(test)]
 mod failure_tests;
@@ -24,7 +26,7 @@ use lang_runtime::{
 };
 pub use native_image::module_bind_native;
 pub use persistent::{context_resource_keep, context_resource_take};
-pub use resources::{resource_drop, resource_publish};
+pub use resources::{context_resource_drop, resource_drop, resource_publish};
 use sha2::{Digest, Sha256};
 use std::{
     cell::{Cell, RefCell},

@@ -83,6 +83,8 @@ Hash/build identityは不一致を検出しますが、悪意あるSDKやnative 
 
 ## C ABIとnative SDK
 
+実験段階のcomponent-v1 query `lang_component_v1_get_api`は、厳密size/version検査済みで全32 entryが非nullの単一の不変tableを公開します。VM/JITのsource/artifact呼出しと厳密SDK AOT Imageは、実grantと保持ownerを伴ってこの公開surfaceを使います。callback資源退役は元の生きたholder/table/owning receiptを検査し、result/report snapshotを元preparation Budgetで事前計上し、元の事前確保済みcleanup Sessionを使います。制限されたretirement loanはparent bridge状態を保存・復元し、guest再入なしで割込み後の後始末を許可します。borrowed・移動済み・stale・使用中claimは副作用前に拒否し、異なる実装のownerもopaqueなまま元destructorで退役します。receipt退役で再試行を防ぎ、失敗後もbacking解放を続け、Sessionのpoisonでnativeの成功result公開を防ぎます。生成C prototypeはVM/JIT/AOTでこれらを実行し、boardはE01の全検証/installed query受入、B01の実両host適合、B02の安定化を追跡します。C/保存layoutは変更しません（RFC 0027、2026-10-27 JST更新）。
+
 SDK所有component ImageをC gatewayのtrusted AOT mode 2へ接続します（RFC 0027、2026-10-27 JST更新）。既存program-v3/component manifestの有界検査と厳密host/SDK一致を確認してからprivate Imageを参照します。明示unsafe Rust factoryが完全なsemantic/native/bindings snapshotと実code resolver/ownerを保持します。実行時のsemantic対応には同じ不変Unitを使いますが、実instance identity・grant/provider・resource loan・元のcontrol/task/allocator/準備は別々の必須検査です。recordの選択exportだけを実行し、VM/JITへfallbackしません。台帳を共有するdecode・native node/layout/frame再構築・symbol接続は準備失敗prefixを保持します。result bodyとinstance stateの退役後にexecutable ownerを解放します。生成Cのscalar/task/reentry/resource fixtureは合算上限・poison・最終owner解放を検証し、完全query/tableと実両host受入はE01/I08/B01の別成果に残します。native format/C layoutとSDK version 3は不変です。SDK startup/probeに明示生成C gateway consumerを含め、現在の証拠と残る検証は実装表へ記録します。codeに公開更新日はありません。
 
 実装済みRFC 0008境界は、生成C11 headerとtyped adapterを介してscalar、Unit、有限Copy aggregateを許します。Managed tokenやprivate source layoutをC値として公開しません。C importにはlexical `unsafe`と明示的なhost binding/grantが必要であり、`unsafe`はownership/loan/region検査を無効化しません。

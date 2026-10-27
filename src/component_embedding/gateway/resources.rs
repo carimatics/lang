@@ -258,6 +258,116 @@ pub unsafe extern "C" fn resource_drop(
     }
 }
 
+/// # Safety
+/// Context and initialized output/error storage obey the exact live native
+/// callback contract. No owning index or code lease may outlive its engine.
+pub unsafe extern "C" fn context_resource_drop(
+    context: *const ffi::Context,
+    index: u32,
+    output: *mut *mut ffi::Result,
+    error: *mut ffi::Error,
+) -> u32 {
+    if context.is_null() || output.is_null() || !unsafe { error_ready(error) } {
+        return INVALID;
+    }
+    // SAFETY: immutable routing and live scope validation precede state access.
+    let owner = match unsafe { metadata((*context).engine) } {
+        Ok(owner) => unsafe { owner.as_ref() },
+        Err(status) => return status,
+    };
+    let scope = unsafe { component::context_check(context) };
+    if scope != OK && scope != 1 {
+        return scope;
+    }
+    if !owner.active.get() {
+        return BUSY;
+    }
+    let Some(current) = owner.current.borrow().clone() else {
+        return BUSY;
+    };
+    let reservation = match ResultReservation::new(owner) {
+        Ok(value) => value,
+        Err(status) => return status,
+    };
+    let mut metrics = RetirementMetrics::default();
+    // SAFETY: this loan permits passive reservation and original native owner
+    // retirement only. It never invokes a guest or constructs another root.
+    let retired = unsafe {
+        component::with_retirement(context, |invoker, call| {
+            // Validate this original allocator/task before custody changes.
+            call.with_task_storage(&mut metrics)?;
+            let report = call.resource_drop(index, invoker, &mut |budget| {
+                budget.allocate::<CallResult>(1)
+            })?;
+            // A destructor cannot replace the caller's allocator or TaskId;
+            // the same preflighted storage loan remains valid after retirement.
+            call.with_task_storage(&mut metrics)
+                .expect("retirement retains its original task and allocator");
+            metrics.indices = call.resource_indices();
+            Ok(report)
+        })
+    };
+    let report = match retired {
+        Ok(report) => report,
+        Err(12 | 17) => return OOM,
+        Err(status @ 0..=6) => return status,
+        Err(_) => return INVALID,
+    };
+    let Some(report) = report else {
+        // SAFETY: complete successful retirement publishes no failure handle.
+        unsafe { output.write(ptr::null_mut()) };
+        return OK;
+    };
+    let projection = cleanup_projection(
+        &report,
+        metrics.allocations,
+        metrics.indices,
+        current.instance.ceiling.suppressed_records,
+    );
+    let result = CallResult {
+        body: ResultBody::Cleanup {
+            report: Box::new(report),
+            _code: Vec::new(),
+        },
+        usage: metrics.usage,
+        committed: true,
+        poisoned: true,
+        allocations: metrics.allocations,
+        canonical_indices: metrics.indices,
+        tasks: metrics.tasks,
+        report: Some(projection),
+        owner: ResultOwner::Instance(current.instance),
+    };
+    // SAFETY: the retained immutable failure owns its original code leases.
+    unsafe { output.write(Box::into_raw(Box::new(result)).cast()) };
+    reservation.commit();
+    1
+}
+
+#[derive(Default)]
+struct RetirementMetrics {
+    allocations: a::Stats,
+    usage: e::Usage,
+    tasks: lang_runtime::task::Usage,
+    indices: u64,
+}
+impl execution::TaskStorageOperation for RetirementMetrics {
+    fn run(
+        &mut self,
+        _: &mut storage::Resources<'_>,
+        memory: &mut dyn storage::Memory,
+        _: &mut m::Budget,
+        _: storage::Holder,
+        accounting: &e::InvocationAccounting,
+        task: &mut lang_runtime::task::CurrentTask<'_>,
+    ) -> Result<(), u32> {
+        self.allocations = a::Allocator::borrow(memory).map_err(|_| INVALID)?.stats();
+        self.usage = accounting.snapshot();
+        self.tasks = task.usage();
+        Ok(())
+    }
+}
+
 pub(super) fn retire(
     owner: ResultOwner,
     data: &mut Data,
