@@ -590,7 +590,24 @@ fn public_link_native_runs_all_profiles_without_source_or_installed_sdk_at_start
                 .arg("--object")
                 .arg(object);
         }
-        ok(link.output().unwrap());
+        let output = link.output().unwrap();
+        if !output.status.success() {
+            let changed: Vec<_> = manifest
+                .files()
+                .iter()
+                .filter_map(|file| {
+                    let bytes = fs::read(sdk_root.join(file.path())).unwrap();
+                    let actual = sdk::digest(&bytes);
+                    let expected = file.hash().to_string();
+                    (actual != expected).then(|| (file.path(), expected, actual))
+                })
+                .collect();
+            panic!(
+                "link profile {name}: {}\n{}\nSDK files changed since assembly: {changed:?}",
+                String::from_utf8_lossy(&output.stdout),
+                String::from_utf8_lossy(&output.stderr),
+            );
+        }
         fs::rename(&package, dir.0.join(format!("{name}-package-away"))).unwrap();
         executables.push((name, expected, executable));
     }
