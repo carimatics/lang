@@ -26,7 +26,8 @@ jobs:
       fail-fast: false
       matrix:
         version: [26, 15]
-        shard: [core, native, owned]
+        # Four jobs fit the repository's five concurrent macOS runner slots.
+        shard: [core, native-all]
     runs-on: macos-${{ matrix.version }}
     timeout-minutes: 40
     steps:

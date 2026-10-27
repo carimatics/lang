@@ -8,13 +8,13 @@ import subprocess
 
 
 ROOT = Path(__file__).resolve().parents[2]
-SHARDS = ("core", "native", "owned")
+SHARDS = ("core", "native", "owned", "native-all")
 
 
 def shard_for(name):
-    # The longest suite gets its own runner. New integration targets are included
-    # automatically; do not maintain an allowlist that can silently omit tests.
-    if name == "native_owned_boundary":
+    # Balance the expensive ownership and task suites against the other native
+    # targets. New targets remain included without a coverage allowlist.
+    if name in ("native_owned_boundary", "native_task_execution"):
         return "owned"
     if name.startswith("native_"):
         return "native"
@@ -28,7 +28,9 @@ def commands(metadata, shard):
     targets = sorted(
         t["name"]
         for t in package["targets"]
-        if "test" in t["kind"] and shard_for(t["name"]) == shard
+        if "test" in t["kind"]
+        and (shard_for(t["name"]) == shard
+             or (shard == "native-all" and shard_for(t["name"]) != "core"))
     )
     if not targets:
         raise ValueError(f"empty shard: {shard}")

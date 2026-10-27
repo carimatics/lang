@@ -2,14 +2,14 @@
 
 import unittest
 
-from run_tests import SHARDS, commands
+from run_tests import commands
 
 
 class PartitionTests(unittest.TestCase):
     def setUp(self):
         self.names = [
             "repository_consistency", "native_owned_boundary", "native_link",
-            "new_integration", "native_future_integration",
+            "new_integration", "native_future_integration", "native_task_execution",
         ]
         self.metadata = {"packages": [{
             "name": "lang",
@@ -19,14 +19,16 @@ class PartitionTests(unittest.TestCase):
         }]}
 
     def test_every_integration_target_runs_exactly_once(self):
-        selected = []
-        for shard in SHARDS:
-            for command in commands(self.metadata, shard):
-                selected.extend(command[i + 1] for i, arg in enumerate(command)
-                                if arg == "--test")
-                self.assertIn("--locked", command)
-                self.assertIn("--all-features", command)
-        self.assertCountEqual(selected, self.names)
+        for partition in (("core", "native", "owned"), ("core", "native-all")):
+            with self.subTest(partition=partition):
+                selected = []
+                for shard in partition:
+                    for command in commands(self.metadata, shard):
+                        selected.extend(command[i + 1] for i, arg in enumerate(command)
+                                        if arg == "--test")
+                        self.assertIn("--locked", command)
+                        self.assertIn("--all-features", command)
+                self.assertCountEqual(selected, self.names)
 
     def test_core_keeps_other_workspace_members_and_all_non_integration_targets(self):
         workspace, root = commands(self.metadata, "core")
@@ -36,8 +38,8 @@ class PartitionTests(unittest.TestCase):
         self.assertNotIn("--all-targets", root)
 
     def test_heavy_suites_use_separate_runners(self):
-        self.assertEqual(commands(self.metadata, "owned")[0][-2:],
-                         ["--test", "native_owned_boundary"])
+        self.assertEqual(commands(self.metadata, "owned")[0][-4:],
+                         ["--test", "native_owned_boundary", "--test", "native_task_execution"])
         native = commands(self.metadata, "native")[0]
         self.assertIn("native_future_integration", native)
         self.assertNotIn("native_owned_boundary", native)
