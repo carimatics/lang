@@ -12,13 +12,13 @@
 
 M2は完了済みです。18/18ゲート、過去のゲート重み113/113です。[完了ボード](milestone-2.md)に成果と見積もり収支、[機能ガイド](milestone-2-capabilities.md)に実際のsource/VM/native/C/SDK/debugの根拠と制約を記録しています。この件数はM2のもので、将来の全作業ではありません。
 
-**M3 は進行中です。** [実装Todo](milestone-3.md)は **72 done · 1 doing · 6 todo · 17 remaining pt**です。E16は`42b27ba`で完了しました（2026-10-27 10:47 JST検証）。厳密SDK所有native Imageから生成C AOTを実行し、元task/allocator/control/preparation・callback/resource・owner cleanupを検証しました。868入力固定の151 suite・2,317 testと全7検証段階が成功しました。厳密sourceのcleanな102ファイルSDKはproducer退避後のcheckoutなし起動7 profileに成功し、reportはisolated=trueです。E16の3 ptを消化します。context_resource_dropが宣言のみで未実装と判明したためE01を1→3 pt（+2）へ再見積りし、元scopeの資源退役と完全32/query公開をE01だけのdoingで進めます。79行、台帳 **110 + 99 − 192 = 17**、gate **3/15・18/96**です。実両hostのI08/B01、安定化、機能ガイドは未完です。Windows環境はなくpushもしません。
+**M3 は進行中です。** [実装Todo](milestone-3.md)は **73 done · 1 doing · 5 todo · 14 remaining pt**です。E01は`40158d6`で完了しました（2026-10-27 12:16 JST検証）。不変の全32 entry C query/tableと元scopeのcallback資源退役をVM/JIT/AOTで実行します。869入力固定の151 suite・2,319 testと全7検証段階が成功し、厳密sourceのcleanな102ファイルSDKはproducer退避後のcheckoutなし起動7 profileに成功、reportはisolated=trueです。E01の最後の3 ptを消化し、追加/再見積り0です。実行可能例を作るX01（2 pt）だけをdoingにします。依存監査でX01をE01後、Z01観測をE01/L04後に進め、最終guideが実両host適合/安定化を待つようZ02へB02を明示的に保持します。79行、台帳 **110 + 99 − 195 = 14**、gate **3/15・18/96**です。実両hostのI08/B01、B02安定性、最終機能guideは未完です。Windows環境はなくpushもしません。
 
-resource所有権/loan・永続provider・元accounting/control・callback・installed native Imageにはscopeごとのsource証拠があります。次はE01のcallback resource dropと検査済み公開table/queryを完成します。I08は実両hostのinstalled startupを保持し、B01の適合完了にはI08とE01の両方が必要です。元table/allocator・明示grant・task/accounting・code ownerを再利用します。
+resource所有権/loan・永続provider・元accounting/control・callback・installed native Imageと完全な公開C APIにはscopeごとの実行証拠があります。X01の明示権限付き例とZ01の受理workload計測を進めます。host限定観測はWindows証拠やAPI安定性を意味しません。I08は実両hostのinstalled startup、B01はI08/E01を要求し、B02は最終Z02 guideに先行します。元table/allocator・grant・task/accounting・code ownerを再利用します。
 
 ## 進行中 milestone の実行
 
-M3のsource/task/channel/service契約は受理済みで、対応VM/native profileで実行します。boardはIDL/codec・binding/交渉/grant・schema-5 artifact・resource移動/loan/cleanup・callback・複合上限・installed task/component/native-image packageを実検証scopeで記録します。E15がtyped C root task、E16が厳密SDK所有AOT gateway実行を実装しました。E01でcallback資源退役と公開APIを完成し、実両hostのI08/B01証拠を経てB02の安定化、X/Zのexample・cost・最終guideへ進みます。各gateの完全受入条件を保ち、残見積りを96点のexit-gate重みと区別し、M2計測を保持します。
+M3のsource/task/channel/service契約は受理済みで、対応VM/native profileで実行します。boardはIDL/codec・binding/交渉/grant・schema-5 artifact・resource移動/loan/cleanup・callback・複合上限・installed task/component/native-image packageを実検証scopeで記録します。E15がtyped C root task、E16が厳密SDK所有AOT gateway、E01が完全な公開query/APIとcallback退役を実装しました。これら完了前提を使ってX01、続いてZ01を実装し、I08/B01/B02には実両host適合/安定性を残します。Z02の最終監査/guideはX01/Z01に加えB02を明示的に待ちます。各gateの完全条件を保ち、残見積りと96点のexit-gate重みを区別し、M2計測を保持し、test時間をbenchmarkとして使いません。
 
 保守やレビューのために完了済みM2ボードを拡大しません。修正はscopeを限定したchecklistに記録し、code、文書、検証を同じ変更にまとめます。新たな言語／ABI／形式の選択には引き続き明示的RFC判断が必要ですが、実験段階の委任により個別owner承認待ちは不要です。
 
