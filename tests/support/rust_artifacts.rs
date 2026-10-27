@@ -99,7 +99,7 @@ pub fn configure_host(command: &mut Command) {
     // Give MSVC executables an explicit, finite entry stack for compiler and
     // nested callback probes; guest execution ceilings remain unchanged.
     if cfg!(all(target_os = "windows", target_env = "msvc")) {
-        command.args(["-C", "link-arg=/STACK:2097152"]);
+        command.args(["-C", "link-arg=/STACK:8388608"]);
     }
     for path in &artifacts().native_paths {
         command.arg("-L").arg(format!("native={}", path.display()));

@@ -299,6 +299,8 @@ static uint8_t *registry_copy(const uint8_t *bytes,uint64_t length) {
     if(length){assert(copy);memcpy(copy,bytes,(size_t)length);}return copy;
 }
 static void registry_profile(const lang_component_v1_api *api,const lang_component_v1_config *original,uint32_t format,uint32_t profile,uint32_t allocation_case) {
+    fprintf(stderr,"component registry format=%u mode=%u profile=%u allocation=%u\n",format,original->mode,profile,allocation_case);
+    fflush(stderr);
     RegistryOwner owner={0},other={0};
     lang_component_v1_config config=*original;
     lang_component_v1_provider_config registration={0};
