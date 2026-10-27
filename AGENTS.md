@@ -56,6 +56,20 @@ Policy updated: 2026-10-28 JST.
 - Before declaring the work unit complete, switch back to the branch recorded at its start, fetch its remote, and verify that local and remote tips match with no ahead/behind commits and no uncommitted task changes. Use fast-forward updates where possible; never discard user changes or force-reset divergent history to manufacture synchronization.
 - If permissions, CI, conflicts, missing remote configuration, or unrelated local changes prevent completion, preserve the work and report the branch, pull request, and unresolved condition. Do not claim merge or synchronization completed. See [CONTRIBUTING.md](CONTRIBUTING.md#branch-to-merge-procedure) for the procedure and its relationship to existing rules.
 
+## Repository-scoped approvals
+
+Policy updated: 2026-10-28 JST.
+
+- Manage persistent approvals granted for work in this repository at repository scope by default, with separate storage for each approval type. Preserve the scope the user approved; a one-time approval does not authorize a persistent rule or a broader command, tool, app, or server allowance.
+- Store shell-command approvals in `.codex/rules/user.rules` using the supported `prefix_rule` syntax. Keep this personal file ignored by Git. Do not put app or MCP approval settings in a `.rules` file.
+- Store app and MCP tool approvals in the repository's `.codex/config.toml`, using the documented tool-specific `approval_mode` setting, such as `apps.<id>.tools.<tool>.approval_mode` or `mcp_servers.<id>.tools.<tool>.approval_mode`. Prefer the individual approved tool over an app-wide or server-wide allowance.
+- Approval dialogs may save settings to the user layer instead. After persisting an approval, inspect the actual destination. Move a newly saved repository-only approval to the appropriate repository file and remove its user-level duplicate only after verifying the local entry. Preserve unrelated settings and pre-existing shared approvals; do not infer that an older global approval belongs exclusively to this repository. Respect permission barriers when editing user-level settings and report any migration that could not be completed.
+- Keep personal approval entries out of commits. `.codex/config.toml` is currently tracked: preserve personal entries as local settings, record them separately from task changes, and stage shared configuration edits selectively. Commit approval settings only when the user explicitly intends to establish a shared repository policy. Never include credentials or tokens.
+- Project-local config and rules require a trusted project. Their scope controls when settings load; it does not constrain a GitHub tool's target repository or a command's remote destination. Continue to target the repository authorized by the task explicitly.
+- Before reporting completion of approval management, verify the destination, syntax, and intended scope, and check that newly created repository-only approvals were not left in the user layer. Report persistent local settings separately from uncommitted task changes; do not claim that storing a rule proves it has been reloaded into an already running session.
+
+Sources: [OpenAI Rules](https://developers.openai.com/codex/rules), [Config basics](https://developers.openai.com/codex/config-basic), and [Configuration Reference](https://developers.openai.com/codex/config-reference). Publication/update dates are not provided; verified 2026-10-28 JST.
+
 ## Research
 
 - Confirm the current date and timezone before web research.
