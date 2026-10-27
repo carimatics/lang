@@ -63,7 +63,9 @@ Relevant native changes also trigger actual LLDB/CDB source-step and logical-sta
 
 The tier-1 AOT integrations share `tests/fixtures/aot_harness.c`. Its optimized C callbacks use unsigned arithmetic and bit-preserving conversion to match Rust wrapping behavior, and exercise `i64` extremes, allocation sums, and overflowing Fibonacci as well as ordinary inputs.
 
-The macOS workflow uses the `macos-15` ARM64 label and asserts the actual architecture so cfg-gated native tests cannot silently be skipped on an Intel runner. Source: [GitHub-hosted runners reference](https://docs.github.com/en/actions/reference/runners/github-hosted-runners), living documentation without a publication/update date, verified 2026-10-17. New workflow execution is not evidence until a remote run succeeds.
+The macOS workflow runs the full baseline on both `macos-26` and `macos-15` ARM64 runners and asserts the actual architecture so cfg-gated native tests cannot silently be skipped on an Intel runner. Native debugger validation, isolated SDK installation and source/Rust/C benchmarks also cover both macOS versions; Windows continues to use `windows-2025` x86-64 MSVC. Matrix jobs disable fail-fast so a failure on one OS does not cancel validation on another. Source: [GitHub runner-image catalog](https://github.com/actions/runner-images/blob/main/README.md), updated 2026-09-17, verified 2026-10-27. New workflow execution is not evidence until a remote run succeeds.
+
+SDK artifacts, debugger caches/evidence and benchmark artifacts include the runner label to keep the two macOS builds separate. Each isolated SDK consumer downloads the artifact built for its own OS and target; this checks installation on each OS, not cross-version binary compatibility. The benchmark workflow's `macos` selector runs both macOS versions, `windows` runs only Windows, and `both` runs all three environments.
 
 Prefer observable and cross-backend tests:
 

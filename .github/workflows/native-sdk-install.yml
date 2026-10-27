@@ -21,11 +21,13 @@ env:
 
 jobs:
   producer:
-    name: Build SDK / ${{ matrix.target }}
+    name: Build SDK / ${{ matrix.os }} / ${{ matrix.target }}
     strategy:
       fail-fast: false
       matrix:
         include:
+          - os: macos-26
+            target: aarch64-apple-darwin
           - os: macos-15
             target: aarch64-apple-darwin
           - os: windows-2025
@@ -52,7 +54,7 @@ jobs:
           subprocess.run(['python', 'tools/check-native-sdk-install.py', 'bundle', '--sdk', str(temporary / 'sdk'), '--output', str(temporary / 'SDK.tar'), '--revision', os.environ['GITHUB_SHA']], cwd=root, check=True)
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: native-sdk-${{ matrix.target }}
+          name: native-sdk-${{ matrix.os }}-${{ matrix.target }}
           path: ${{ runner.temp }}/SDK.tar
           # Raw upload ignores name; a stored zip preserves distinct matrix names.
           # Executable permissions remain inside the tar, not the zip envelope.
@@ -61,12 +63,14 @@ jobs:
           retention-days: 7
 
   consumer:
-    name: No-checkout install / ${{ matrix.target }}
+    name: No-checkout install / ${{ matrix.os }} / ${{ matrix.target }}
     needs: producer
     strategy:
       fail-fast: false
       matrix:
         include:
+          - os: macos-26
+            target: aarch64-apple-darwin
           - os: macos-15
             target: aarch64-apple-darwin
           - os: windows-2025
@@ -84,7 +88,7 @@ jobs:
           arch: x64
       - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
-          name: native-sdk-${{ matrix.target }}
+          name: native-sdk-${{ matrix.os }}-${{ matrix.target }}
           path: ${{ runner.temp }}/incoming
       - name: Install declared external Rust toolchain and run private probe
         shell: python
@@ -99,7 +103,7 @@ jobs:
       - name: Retain isolated install evidence
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: native-sdk-install-${{ matrix.target }}
+          name: native-sdk-install-${{ matrix.os }}-${{ matrix.target }}
           path: ${{ runner.temp }}/sdk-install-result/report.json
           if-no-files-found: error
           retention-days: 30

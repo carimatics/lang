@@ -19,8 +19,12 @@ env:
 
 jobs:
   macos-aarch64:
-    name: macOS 15 / AArch64
-    runs-on: macos-15
+    name: macOS ${{ matrix.version }} / AArch64
+    strategy:
+      fail-fast: false
+      matrix:
+        version: [26, 15]
+    runs-on: macos-${{ matrix.version }}
     timeout-minutes: 120
     steps:
       - name: Check out repository

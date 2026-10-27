@@ -63,7 +63,9 @@ RFCでは、承認済み要件と仮説を区別し、代替案、コスト、�
 
 Tier-1 AOT integrationは `tests/fixtures/aot_harness.c` を共有します。最適化したC callbackはunsigned演算とbit保持変換でRustのwrapping behaviorに合わせ、通常入力に加えて `i64` 境界値、allocation sum、overflowするFibonacciを検証します。
 
-macOS workflowは `macos-15` ARM64 labelを使用し、Intel runner上でcfg-gated native testが黙ってskipされないよう実際のarchitectureを確認します。情報源：[GitHub-hosted runners reference](https://docs.github.com/en/actions/reference/runners/github-hosted-runners)（公開／更新日のないliving documentation、2026-10-17確認）。新workflowはremote run成功前には実行evidenceになりません。
+macOS workflowは `macos-26` と `macos-15` の両ARM64 runnerで全baselineを実行し、Intel runner上でcfg-gated native testが黙ってskipされないよう実際のarchitectureを確認します。Native debugger検証、隔離SDKインストール、source／Rust／C benchmarkも両macOSバージョンを対象とし、Windowsは引き続き `windows-2025` x86-64 MSVCを使用します。Matrix jobはfail-fastを無効にし、あるOSの失敗で別OSの検証がcancelされないようにします。情報源：[GitHub runner-image catalog](https://github.com/actions/runner-images/blob/main/README.md)（2026-09-17更新、2026-10-27確認）。新workflowはremote run成功前には実行evidenceになりません。
+
+SDK artifact、debugger cache／evidence、benchmark artifactはrunner labelを含め、2つのmacOS buildを分離します。隔離SDK consumerは自身のOSとtarget向けにbuildされたartifactを取得します。これは各OSでのインストールを検証するもので、OSバージョン間のbinary互換性検証ではありません。Benchmark workflowの `macos` selectorは両macOSバージョン、`windows` はWindowsのみ、`both` は3環境すべてを実行します。
 
 観測可能でbackend横断のテストを優先します。
 
