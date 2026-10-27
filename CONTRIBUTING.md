@@ -20,6 +20,26 @@ Verify the checkout with:
 cargo test --workspace --all-targets --all-features
 ```
 
+## Branch-to-merge procedure
+
+Policy updated: 2026-10-28 JST. The [repository workflow rules](AGENTS.md#branch-and-pull-request-workflow) apply to a single prompt and to the related tasks in a Codex Goal.
+
+1. Record the starting branch, remote/upstream, and working-tree state (`git branch --show-current`, `git remote -v`, and `git status --short --branch`). Preserve existing changes. Fetch the intended remote and inspect any divergence before starting; do not use a destructive reset. If the checkout is detached or the remote/base cannot be identified, resolve that before editing.
+2. Before changing Git-managed files, create a branch for a coherent outcome, for example `git switch -c codex/describe-the-outcome`. Record its source branch as the PR base, even when that branch is not `main`. Continue related tasks on this branch. Split branches only when separate reviewable outcomes or dependencies justify it, not for every Goal subtask or delivery row.
+3. Implement the scoped change, update translation pairs and relevant delivery evidence, and run the [required local checks](#required-checks). Inspect the diff, commit meaningful changes, and push the work branch to the intended remote. Do not edit, stage, or commit on `main`, or push task changes directly to a base branch.
+4. Open a remote pull request with the recorded base and work branch as head. Explain the outcome, relevant RFCs or why none is needed, and validation results. Select a merge method that preserves any commit hashes used as delivery evidence; prefer a merge commit when those hashes must remain in the base history.
+5. Check the PR's latest head SHA and wait for all applicable CI checks to succeed. Confirm that the expected workflows actually ran; pending, failed, cancelled, and unexpectedly absent checks block merging. Existing documented path/job conditions may make a check inapplicable; record the reason when relevant. Local validation and CI for an earlier SHA are insufficient. If the head changes, check the new head again.
+6. Investigate failures and fix their underlying cause on the work branch, then push and repeat validation. Do not skip/delete failing tests, weaken assertions or CI coverage, or add a hack merely to turn CI green. Retry transient infrastructure failures only when the evidence supports that diagnosis. Satisfy required reviews and other repository protections without bypassing them.
+7. Merge through the PR after the gate succeeds, and verify the remote PR reports `merged`. Fetch the remote, switch to the local base branch, and fast-forward it to the corresponding remote branch (for example `git merge --ff-only origin/main` when the recorded base is `main` on `origin`). If it has diverged, preserve local work and resolve the cause rather than force-resetting it. Repeat this lifecycle for each completed work branch, in dependency order when necessary.
+8. At the end of the entire work unit, return to the branch recorded in step 1. Fetch and compare its local and remote tips: both counts in `git rev-list --left-right --count HEAD...@{upstream}` must be zero when that upstream is the intended remote branch. Confirm with `git status --short --branch` that no task changes remain uncommitted and that pre-existing user changes are preserved. Report the PR, CI outcome, merge confirmation, and synchronization result. If any step remains blocked, preserve the work and report the exact incomplete condition instead of declaring completion.
+
+### Relationship to existing rules
+
+- Delivery rows and meaningful commits remain the planning and evidence units; they do not each require a branch. A branch may contain several related deliveries, and a Goal may span several justified branches.
+- The documentation-only planning exception below reduces repeated **local** validation. It does not waive PR CI or permit merging before applicable checks succeed.
+- RFC 0001's delegated design acceptance remains in force. Accepting an RFC does not replace the branch, PR, CI, or merge requirements, and these requirements do not add routine owner reconfirmation.
+- Updating `main` to commits already merged remotely is synchronization, not authoring changes on `main`. Preserve user changes throughout; permissions, conflicts, or divergence must be resolved or explicitly reported, never concealed by discarding work.
+
 ## Required checks
 
 Before submitting a code change, run:

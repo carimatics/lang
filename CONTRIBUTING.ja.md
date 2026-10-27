@@ -20,6 +20,26 @@ mise install
 cargo test --workspace --all-targets --all-features
 ```
 
+## ブランチ作成からマージまで
+
+方針更新日: 2026-10-28 JST。[リポジトリの作業ルール](AGENTS.ja.md#ブランチとpull-requestの作業手順)は、単一のプロンプトとCodex Goalで進める一連の関連taskに適用します。
+
+1. 開始時のブランチ、remote／upstream、作業ツリーの状態を記録します（`git branch --show-current`、`git remote -v`、`git status --short --branch`）。既存の変更を保持してください。対象remoteをfetchして履歴の分岐を確認し、破壊的なresetは行わないでください。detached HEADの場合やremote／baseを特定できない場合は、編集前に解決してください。
+2. Git管理対象ファイルを変更する前に、まとまりのある成果のためのブランチを作成します。例: `git switch -c codex/describe-the-outcome`。分岐元が `main` 以外でも、そのブランチをPRのbaseとして記録します。関連taskはこのブランチで継続してください。独立してレビュー可能な成果や依存関係に理由がある場合だけブランチを分け、Goalの個々のtaskやdelivery行ごとには分けません。
+3. 対象範囲の変更を実装し、翻訳ペアと関連するdelivery evidenceを更新して、[必須のローカルcheck](#必須チェック)を実行します。差分を確認し、意味のある単位でcommitして、対象remoteへ作業ブランチをpushしてください。`main` で編集・stage・commitしたり、baseブランチへ作業変更を直接pushしたりしてはいけません。
+4. 記録したbaseと作業ブランチのheadを指定して、remoteにpull requestを作成します。成果、関連RFCまたはRFCが不要な理由、検証結果を説明してください。delivery evidenceで使用するcommit hashが保持されるマージ方式を選び、そのhashをbaseの履歴に残す必要がある場合はmerge commitを優先してください。
+5. PRの最新head SHAを確認し、適用対象のCI checkがすべて成功するまで待ちます。期待するworkflowが実際に実行されたことを確認してください。待機中、失敗、キャンセル、想定外のcheck欠落があればマージできません。既存の文書化されたpath／job条件によってcheckが適用対象外になる場合は、必要に応じて理由を記録します。ローカル検証や以前のSHAのCI結果では不十分です。headが変わったら、新しいheadを再確認してください。
+6. 失敗の原因を調査し、作業ブランチで根本原因を修正してpushし、検証を繰り返します。失敗するテストのskip・削除、assertionやCI検証範囲の弱体化、CIを成功させるだけのhackは禁止です。一時的な実行基盤の障害は、診断を裏付ける根拠がある場合だけ再試行します。必須レビューなどの保護設定も迂回せず満たしてください。
+7. 条件を満たしたらPRを通じてマージし、remoteのPRが `merged` になったことを確認します。remoteをfetchし、ローカルのbaseブランチへswitchして、対応するremoteブランチまでfast-forwardします（記録したbaseが `origin` の `main` なら、例: `git merge --ff-only origin/main`）。履歴が分岐している場合は、ローカル作業を保持して原因を解決し、強制resetしないでください。完了した各作業ブランチでこの手順を実行し、依存関係がある場合はその順序に従ってください。
+8. 作業単位全体の終了時には、手順1で記録したブランチへ戻ります。fetchしてローカルとremoteの先端を比較してください。upstreamが意図したremoteブランチなら、`git rev-list --left-right --count HEAD...@{upstream}` の両方の値が0である必要があります。`git status --short --branch` で未commitの作業変更がなく、作業前のユーザーの変更が保持されていることを確認してください。PR、CI結果、マージ確認、同期結果を報告します。未解決の手順がある場合は作業を保持し、完了を宣言せず、未完了の条件を具体的に報告してください。
+
+### 既存ルールとの関係
+
+- delivery行と意味のあるcommitは引き続き計画・evidenceの単位であり、それぞれにブランチを作る必要はありません。1つのブランチに複数の関連deliveryを含められ、理由があれば1つのGoalで複数のブランチを使えます。
+- 以下の文書だけの計画変更に対する例外は、**ローカル**検証の重複を減らすものです。PR CIは免除されず、適用対象のcheckが成功する前にマージしてはいけません。
+- RFC 0001の設計判断の委任は引き続き有効です。RFCの受理はブランチ、PR、CI、マージの要件を代替せず、これらの要件によって定型的なownerへの再確認を追加することもありません。
+- remoteでマージ済みのcommitへ `main` を更新することは同期であり、`main` 上で変更を作成する行為ではありません。常にユーザーの変更を保持し、権限、競合、履歴の分岐は解決するか明示的に報告してください。作業を破棄して問題を隠してはいけません。
+
 ## 必須チェック
 
 Code変更を提出する前に、次を実行してください。
