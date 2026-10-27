@@ -4,7 +4,7 @@
 
 [English](../../rfcs/0027-production-component-interface.md)
 
-- Status: accepted
+- Status: implemented
 - Authors: Project contributors
 - Created: 2026-10-22
 - Last updated: 2026-10-27
@@ -16,7 +16,7 @@
 
 component IDL v1、rich component-contract schema 3、typed value-frame v1、独立した component C ABI v1 を定義します。[RFC 0003](0003-versioned-component-contracts.md) の capability・negotiation・所有権・failure・poison 規則を維持します。native host が検証済み source または検証した artifact を読み込み、型付き import と grant を供給して script export を呼び、同じ計上対象 invocation で nested guest callback を受け取ります。native body の演算/制御は生成 native code のままです。adapter は MIR 解釈へ fallback しません。
 
-この profile は accepted です。下記の IDL/codec checkpoint で一部を実装していますが、source/MIR component proof・実 grant/resource/callback・production embedding・両 host 実行は実装 Todo に残ります。既存 scalar/resource application prototype と M2 C profile 1 は別 profile のままです。公開 C の安定化は実 conformance 後に B02 が管理します。
+このprofileはM3の受理範囲でimplementedです。source/MIR proof・grant/resource/callback・production embedding・保存artifact/native package・両host実行が完了しました。`9e78f2d`で旧C client移行を含むmacOS/Windows全適合が成功し、公開C v1と既存生成clientの安定性は[stabilized RFC 0033](0033-component-v1-compatibility.md)に従います。source構文・private Rust/native SDK ABI・各保存formatの独立versionを一括安定化するものではありません。下記の段階checkpointは履歴であり、現在の完了証拠は[M3 board](../milestone-3.md)に記録します。
 
 ## Motivation
 

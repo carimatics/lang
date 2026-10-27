@@ -1,0 +1,107 @@
+{
+  "schema": 1,
+  "source": "9e78f2dca4f358f3c197bc9330b079a4c376ad53",
+  "verified_at": "2026-10-27T09:02:05Z",
+  "purpose": "M3-B02 executable previous-client C v1 migration, not performance evidence",
+  "previous_client_source": "40158d651a391e4b4caab55caec6b8fce96adfe0",
+  "fixtures": "../../tests/fixtures/component-v1-40158d6/provenance.json",
+  "macos": {
+    "metrics": {
+      "started_utc": "2026-10-27 08:10:32 UTC",
+      "stages": [
+        {
+          "name": "fmt",
+          "exit": 0,
+          "seconds": 1.81
+        },
+        {
+          "name": "clippy",
+          "exit": 0,
+          "seconds": 117.21
+        },
+        {
+          "name": "tests",
+          "exit": 0,
+          "seconds": 1967.49
+        },
+        {
+          "name": "doc",
+          "exit": 0,
+          "seconds": 16.4
+        },
+        {
+          "name": "fuzz-fmt",
+          "exit": 0,
+          "seconds": 2.06
+        },
+        {
+          "name": "fuzz-check",
+          "exit": 0,
+          "seconds": 0.73
+        },
+        {
+          "name": "fuzz-clippy",
+          "exit": 0,
+          "seconds": 0.41
+        }
+      ],
+      "seconds": 2106.11,
+      "updated_utc": "2026-10-27 08:45:38 UTC"
+    },
+    "suites": 153,
+    "passed": 2321,
+    "failed": 0,
+    "ignored": 1,
+    "suite_seconds": 863.39,
+    "normalized_log_sha256": "9b991d1ca0cf45d6fc4c0a219b709c5857d672cbb2bd6f368af06b9f028bf572",
+    "previous_client_results": [
+      "test previous_v1_c_client_runs_current_vm_jit_ownership_failures_resources_and_tasks ... ok",
+      "test previous_v1_generated_counter_preserves_frames_and_transfer_commit_outcomes ... ok"
+    ],
+    "fixed_inputs": {
+      "count": 888,
+      "nonMarkdown": 778,
+      "main": "ef83de7cf6691166a02b84fb03c381806b9f16651b3c8b459e866063044ab5dc",
+      "worktree": "2af7a4f98a5d1d2f11105ecd35a5f107e5f08e35d890245da6a942f078d83abc",
+      "rawDifferences": [
+        "benchmarks/results/2026-10-17-windows-x86_64-7c37d5d.json"
+      ],
+      "normalizedDifferences": [],
+      "extraInputs": []
+    },
+    "unchanged_before_after": true,
+    "fuzz_targets": 16,
+    "fuzz_campaign": false
+  },
+  "windows": {
+    "suites": 153,
+    "passed": 2306,
+    "failed": 0,
+    "ignored": 1,
+    "suite_seconds": 2083.42,
+    "normalized_log_sha256": "bc20d885b1e5a33e399dfac95c50f19f933f9a003190f66ae162456339c08238",
+    "previous_client_results": [
+      "test previous_v1_c_client_runs_current_vm_jit_ownership_failures_resources_and_tasks ... ok",
+      "test previous_v1_generated_counter_preserves_frames_and_transfer_commit_outcomes ... ok"
+    ],
+    "errors": [],
+    "bytes": 619555,
+    "run": 40471721760,
+    "job": 122080165553,
+    "url": "https://github.com/carimatics/lang/actions/runs/40471721760",
+    "completed_at": "2026-10-27T09:01:42Z",
+    "conclusion": "success",
+    "all_steps_passed": true,
+    "test_step_started_at": "2026-10-27T08:18:46.7176699Z",
+    "next_step_started_at": "2026-10-27T08:53:34.5545259Z"
+  },
+  "platform_difference": "The same 15 platform-specific filesystem/linker/DWARF/Darwin dynamic-image tests and three equivalent platform swaps documented in the B01 record; no core M3 test is newly skipped.",
+  "b01": "2026-10-27-m3-conformance-19a29c0.json",
+  "installed_sdk": {
+    "source": "8f41f4421609aabb9bdd6509677963d8c1d882e6",
+    "run": 40456240378,
+    "unchanged_production_since": true,
+    "macos": "2026-10-27-m3-sdk-macos-8f41f44.json",
+    "windows": "2026-10-27-m3-sdk-windows-8f41f44.json"
+  }
+}

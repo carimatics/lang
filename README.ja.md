@@ -109,13 +109,13 @@ Typed import grant checkpoint（2026-10-23 JST）: `cargo test --test component_
 - [RFC 0025: 有限 channel と backpressure（accepted）](docs/ja/rfcs/0025-bounded-channels-and-backpressure.md)
 
 - [RFC 0026: Source isolated service（accepted）](docs/ja/rfcs/0026-source-isolated-services.md)
-- [RFC 0027: Production component IDL・wire・embedding profile（accepted）](docs/ja/rfcs/0027-production-component-interface.md)
+- [RFC 0027: Production component IDL・wire・embedding profile（implemented）](docs/ja/rfcs/0027-production-component-interface.md)
 - [RFC 0028: Task と component MIR の直列化（implemented）](docs/ja/rfcs/0028-task-component-artifacts.md)
 - [RFC 0029: Component adapter work と invocation 計量（implemented）](docs/ja/rfcs/0029-component-adapter-work.md)
 - [RFC 0030: Native task/component record（implemented）](docs/ja/rfcs/0030-native-task-component-records.md)
 - [RFC 0031: Installed native task package（implemented）](docs/ja/rfcs/0031-installed-native-task-packages.md)
 - [RFC 0032: 明示host binding付きinstalled component package（implemented）](docs/ja/rfcs/0032-installed-component-packages.md)
-- [RFC 0033: Component C v1の互換性と移行（accepted）](docs/ja/rfcs/0033-component-v1-compatibility.md)
+- [RFC 0033: Component C v1の互換性と移行（stabilized）](docs/ja/rfcs/0033-component-v1-compatibility.md)
 - [コントリビューションガイド](CONTRIBUTING.ja.md)
 
 ## 開発

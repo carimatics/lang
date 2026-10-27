@@ -83,7 +83,7 @@ Hash/build identityは不一致を検出しますが、悪意あるSDKやnative 
 
 ## C ABIとnative SDK
 
-Component C v1の移行方針（[RFC 0033](rfcs/0033-component-v1-compatibility.md)、2026-10-27 JST accepted）: 公開32 entry・厳密size/version・status・所有権/失敗契約を固定し、旧header/生成clientを現在の実装で実行します。B01の実両host全適合とI08のisolated SDK 7 profileは成功済みです。B02の旧client両host移行試験完了後に安定化を記録します。新しい非互換C拡張には別version/namespaceを必要とし、private Rust/SDK ABIは引き続き厳密build一致と再buildを要求します。対応しない保存formatは元sourceと一致toolで再encode/compileします。
+Component C v1は[stabilized RFC 0033](rfcs/0033-component-v1-compatibility.md)に従い安定化しました（2026-10-27 JST）。公開32 entry・厳密size/version・status・所有権/失敗契約を固定し、旧header/生成clientは`9e78f2d`の実macOS/Windowsで成功しました。[移行記録](../evidence/2026-10-27-m3-migration-9e78f2d.json)が来歴と全検証を保持します。両host isolated SDK 7 profileも成功済みです。非互換C拡張には別version/namespaceを必要とし、private Rust/SDK ABIは厳密build一致と再buildを要求します。対応しない保存formatは元sourceと一致toolで再encode/compileします。
 
 実験段階のcomponent-v1 query `lang_component_v1_get_api`は、厳密size/version検査済みで全32 entryが非nullの単一の不変tableを公開します。VM/JITのsource/artifact呼出しと厳密SDK AOT Imageは、実grantと保持ownerを伴ってこの公開surfaceを使います。callback資源退役は元の生きたholder/table/owning receiptを検査し、result/report snapshotを元preparation Budgetで事前計上し、元の事前確保済みcleanup Sessionを使います。制限されたretirement loanはparent bridge状態を保存・復元し、guest再入なしで割込み後の後始末を許可します。borrowed・移動済み・stale・使用中claimは副作用前に拒否し、異なる実装のownerもopaqueなまま元destructorで退役します。receipt退役で再試行を防ぎ、失敗後もbacking解放を続け、Sessionのpoisonでnativeの成功result公開を防ぎます。生成C prototypeはVM/JIT/AOTでこれらを実行し、boardはE01の全検証/installed query受入、B01の実両host適合、B02の安定化を追跡します。C/保存layoutは変更しません（RFC 0027、2026-10-27 JST更新）。
 

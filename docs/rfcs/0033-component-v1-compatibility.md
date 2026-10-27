@@ -4,7 +4,7 @@
 
 [日本語版](../ja/rfcs/0033-component-v1-compatibility.md)
 
-- Status: accepted
+- Status: stabilized
 - Authors: Codex under the owner's experimental delegation
 - Created: 2026-10-27
 - Last updated: 2026-10-27
@@ -85,4 +85,4 @@ No blocking design question. Future platforms and new major APIs need their own 
 - [B01 evidence](../evidence/2026-10-27-m3-conformance-19a29c0.json), recorded 2026-10-27: actual both-host conformance; Windows run completed 2026-10-27 07:45:35 UTC.
 - [RFC 0032](0032-installed-component-packages.md), updated 2026-10-27: separate SDK/image trust and versioning.
 
-Decision: **accepted under RFC 0001's experimental delegation**, 2026-10-27 JST. The existing contract has actual both-host evidence; retaining old clients adds a meaningful migration boundary without broadening private ABI guarantees. The remaining unverified assumption is executable old-client compatibility on both hosts, required before marking this RFC stabilized.
+Decision: **accepted under RFC 0001's experimental delegation**, 2026-10-27 JST; **stabilized the same day**. Previous clients at `9e78f2d` pass the macOS seven-stage baseline (153 suites / 2,321 passed) and [full Windows CI](https://github.com/carimatics/lang/actions/runs/40471721760) (153 suites / 2,306 passed), with zero failures. The [migration record](../evidence/2026-10-27-m3-migration-9e78f2d.json) retains fixed inputs, provenance, log digests and both old-client cases. Private ABI guarantees remain unchanged; no unverified assumption blocks this acceptance.

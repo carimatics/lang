@@ -4,7 +4,7 @@
 
 [日本語版](../ja/rfcs/0027-production-component-interface.md)
 
-- Status: accepted
+- Status: implemented
 - Authors: Project contributors
 - Created: 2026-10-22
 - Last updated: 2026-10-27
@@ -16,7 +16,7 @@
 
 Define component IDL v1, rich component-contract schema 3, typed value-frame v1 and a separate component C ABI v1. Preserve [RFC 0003](0003-versioned-component-contracts.md)'s capability, negotiation, ownership, failure and poisoning rules. A native host loads verified source or a validated artifact, supplies typed imports and grants, calls a script export and receives a nested guest callback within one accounted invocation. Generated native bodies continue to execute native arithmetic/control; adapters never interpret MIR as a fallback.
 
-This profile is accepted. The IDL/codec checkpoints below implement parts of it; source/MIR component proof, actual grants/resources/callbacks, production embedding and both-host execution remain on the delivery board. Existing scalar/resource application prototypes and M2 C profile 1 remain separate profiles. B02 owns public C stabilization after actual conformance.
+This profile is implemented at M3's admitted scope: source/MIR proof, actual grants/resources/callbacks, production embedding, stored artifacts/native packages and both-host execution are complete. Full macOS/Windows conformance at `9e78f2d` includes previous C clients; public C v1 and existing generated-client stability follow [stabilized RFC 0033](0033-component-v1-compatibility.md). Source syntax, private Rust/native SDK ABI and independently versioned stored formats do not acquire blanket stability. The staged checkpoints below are historical; current completion evidence is on the [M3 board](../milestone-3.md).
 
 ## Motivation
 

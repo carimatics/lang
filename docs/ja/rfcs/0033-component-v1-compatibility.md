@@ -4,7 +4,7 @@
 
 [English](../../rfcs/0033-component-v1-compatibility.md)
 
-- Status: accepted
+- Status: stabilized
 - Authors: Codex under the owner's experimental delegation
 - Created: 2026-10-27
 - Last updated: 2026-10-27
@@ -85,4 +85,4 @@ blocking設計課題はありません。将来のplatformとmajor APIには別�
 - [B01証拠](../../evidence/2026-10-27-m3-conformance-19a29c0.json)、記録2026-10-27: 実両host適合。Windows runは2026-10-27 07:45:35 UTC完了。
 - [RFC 0032](0032-installed-component-packages.md)、更新2026-10-27: SDK/imageの独立trust/version。
 
-決定: **RFC 0001の実験段階委譲によりaccepted**、2026-10-27 JST。既存契約には実両host証拠があり、旧client保持でprivate ABI保証を広げず有意な移行境界を加えます。残る未検証の仮定は両hostでの旧client実行互換性であり、本RFCをstabilizedにする前の必須条件です。
+決定: **RFC 0001の実験段階委譲によりaccepted**、2026-10-27 JST。**同日stabilized**: `9e78f2d`の旧client実行がmacOS全7段階（153 suite / 2,321成功）と[Windows全CI](https://github.com/carimatics/lang/actions/runs/40471721760)（153 suite / 2,306成功）、失敗0で成功しました。[移行記録](../../evidence/2026-10-27-m3-migration-9e78f2d.json)に固定入力・来歴・log digest・旧client 2ケースを保持します。private ABI保証は広げず、受入を妨げる未検証の仮定はありません。
