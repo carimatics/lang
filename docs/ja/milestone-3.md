@@ -6,11 +6,11 @@
 
 更新日: **2026-10-27 JST**。開始チェックポイント: `984557d`。M2 とリポジトリレビューは完了済みです。
 
-**76 done · 1 doing · 2 todo · 8 remaining pt**
+**77 done · 1 doing · 1 todo · 5 remaining pt**
 
-**次: M3-B01 → Windows stress hostを検証し両host適合を完了する。**
+**次: M3-B02 → 旧clientの実行可能な移行証拠を伴うC v1安定化。**
 
-現在のB01 checkpoint **`951a083`**、[Windows run 40462157234](https://github.com/carimatics/lang/actions/runs/40462157234)でbinary stdout修正後の厳密C codec出力に成功し、scoped rootは54/55件が成功しました。残る再帰fault testはLFを含む注入needleによりCRLF checkoutで`return 41`を書き換えられていませんでした。LF/CRLF matrix追加で同じ失敗をlocal再現（修正前失敗**0.20秒**）し、一意なstatementの改行非依存注入へ修正しました。元のVM/JIT・準備work・task caller/span assertは両改行ですべて成功（**0.35秒**）し、同型のtail panic注入も修正してescrow/cleanup testが成功しました（**0.46秒**）。production runtime/generator/ABI/SDK動作は未変更です。旧`25a915a` snapshotはlocal全7段階、**153 suite / 2,319成功 / 失敗0 / 既存ignore 1**、suite合計**866.42秒**、test **977.41秒**に成功し、検証digest `eaf7acd43d4c7febee2429a08fe71b41670b22323d5201536d7817b9978feee6`も不変でした。新sourceのlocal/Windows全適合は未完で、B01はscope/見積り追加/消化0、3 ptを維持します。
+B01を`19a29c0`で完了（**2026-10-27 17:03 JST検証**）: [Windows run 40464600289](https://github.com/carimatics/lang/actions/runs/40464600289)は厳密sourceで全段階に成功し、**153 suite / 2,304成功 / 失敗0 / 既存ignore 1**です。同じsourceのmacOS全7段階baselineも**153 suite / 2,319成功 / 失敗0 / 既存ignore 1**で、fuzz 16 targetのbuild/lintを含め成功しました（campaignなし）。[適合記録](../evidence/2026-10-27-m3-conformance-19a29c0.json)に来歴・件数・platform固有差・Windows log digestを保持します。15件の差はfilesystem/linker/DWARF/dynamic image固有の検証であり、M3 component/task検証のskipではありません。実WindowsのC所有権/registry/resource/callback、codecの厳密frame、CRLF guest fault/caller span、escrow cleanup回帰も成功しました。`8f41f44`以降の変更はtest/docsだけでproduction/compiler/runtime/ABI/SDKは未変更のため、両host isolated SDK証拠も有効です。**完了: 1 delivery / 3 pt消化、追加/再見積り: 0 pt**。照合は**8 + 0 − 3 = 5 pt**、**79行 / 77 done / 1 doing / 1 todo**、台帳**110 + 99 − 204 = 5**です。B02だけを3 ptのdoingとし、受理したC v1契約を固定し、旧header/生成clientの移行fixtureを両hostで実行します。Z02は全gate最終監査/guideを維持し、その監査までgateは**3/15・18/96**です。下記の未完checkpointは履歴であり、この記録が置き換えます。
 
 B01未完checkpoint: 最後のcommit済み実行source **`d63013d`**は**2026-10-27 15:06 JST**に固定入力local全7段階baselineに成功しました（**153 suite / 2,319成功 / 失敗0 / 既存ignore 1**、suite合計**865.63秒**、test段階**1,025.64秒**）。fmt/Clippy/test/doc/fuzz fmt/check/Clippyは**1.81/1.11/1,025.64/16.88/2.06/0.23/0.22秒**で成功し、fuzzは16 target、campaignなしです。**881入力 / 非Markdown 773入力**の前後hashは一致しました: main `e5304307291987e1b5c0c01f0e4bde5f6dfa6f0bfd04ae66adb0baacd595b0bc`、検証 `c1b2e7089d2fff16eca0c23f3f07b41d52eabbde0dfc01d24e145718a57ae64e`。差は過去Windows reportのCRLFだけで、正規化後の差/追加入力はゼロです。[Windows run 40457319826](https://github.com/carimatics/lang/actions/runs/40457319826)でnative library link修正を確認後、単独の非最適化C hostでstack overflowが発生しました。次の実験ではmanual MSVC test hostに有限の2 MiB entry stackを明示し、C fixtureの段階診断を追加します。guest上限/assert条件とproduction runtime/ABI/SDKは未変更です。残る受入条件は実際のWindows全適合と実験の検証です。I08は下記で完了し、B01は追加/再見積り/消化0で3 ptを維持します。
 
@@ -484,8 +484,8 @@ C04 は `f882074`（2026-10-22 02:05 JST）で完了しました。明示的で�
 | M3-I13 | done | 0 | M3-I07,M3-I12 | G08,G09,G14 | Persist/revalidate native task/component records and bind exact linked code without code generation | `8ba2c43` |
 | M3-I14 | done | 0 | M3-I13,M3-T08 | G09,G14 | Publish/link installed task packages with exact SDK v2 and original control/cleanup | `042fc38` |
 | M3-I15 | done | 0 | M3-I13,M3-I14,M3-P02 | G08,G09,G14 | 明示binding/grantと元callback/cleanupを保つinstalled component packageを公開・リンクする | `8b89aae` |
-| M3-B01 | doing | 3 | M3-L04,M3-A04,M3-I08,M3-E01 | G14 | 両 tier-1 host で所有権/失敗/capability/資源適合試験に合格 | — |
-| M3-B02 | todo | 3 | M3-B01 | G14 | C embedding API と生成 binding を移行試験付きで安定化 | — |
+| M3-B01 | done | 0 | M3-L04,M3-A04,M3-I08,M3-E01 | G14 | 両 tier-1 host で所有権/失敗/capability/資源適合試験に合格 | 19a29c0 |
+| M3-B02 | doing | 3 | M3-B01 | G14 | C embedding API と生成 binding を移行試験付きで安定化 | — |
 | M3-X01 | done | 0 | M3-E01 | G15 | 権限を明示する trusted-native/verified-script の実行可能例を提供 | `8a3ae2e` |
 | M3-Z01 | done | 0 | M3-E01,M3-L04 | G03,G04,G05 | spawn/join/channel/取消/メモリ費用を記録し M2 workload の証拠を維持 | `c9ffd19` |
 | M3-Z02 | todo | 2 | M3-X01,M3-Z01,M3-B02 | G01,G02,G03,G04,G05,G06,G07,G08,G09,G10,G11,G12,G13,G14,G15 | 全ゲートを監査し command、証拠、制限を含む日英 capability guide を公開 | — |
@@ -564,7 +564,7 @@ T05 を `2f58084` で完了（2026-10-21 JST）: TaskProgram で source claim/lo
 
 T05 roadmap 監査: 最初の source VM fixture が実行できたため、G03/G12/G13 完了判定前に **T06 → T07 → T08** を進めます。`crates/codegen-clif/src/owned.rs` と `src/native.rs` を確認し、既存 native 経路は TaskProgram/async metadata を拒否する一方、検証済み MIR、managed task layout、scope identity、result storage が揃ったことを確認しました。T06 は元の 3 pt の compiled continuation と値/event 一致の成果を維持し、VM/MIR fallback なしに生成 code を実行する必要があります。初期 native fixture で serialized task revision や package/startup 公開を決めたことにはしません。明示 format 判断と native/owned/loan/foreign/共有 control の受入条件を維持し、次の実行 fixture 前に scheduler/IDL 基盤を追加しません。全 15 gate、全 P1 作業、channel、Send/Share、production embedding を M3 に残します。
 
-**110 + 99 − 201 = 8 pt**
+**110 + 99 − 204 = 5 pt**
 
 T06 を `8d6c283` で完了（2026-10-21 JST）: 実装前に RFC 0023 へ native 境界を記録しました。invocation/frame/claim/result 状態と scheduling/storage service を共有し、VM/native に別の resume/cleanup entry を持ちます。Cranelift が演算、分岐、失敗/取消 CFG、検査付き continuation 選択を生成し、実行時 MIR evaluator や VM 依存はありません。source fixture は VM/native ともに 42 を出力します。integration test 12 件で値/event/使用量/割り当て状態、取消、有限 record/enum と field 更新、通常 call、loop scope identity、子/同期 panic 起点、全 fuel/trace prefix、task/frame/cell/preparation 上限、各 provider 拒否を比較します。別途リンクした実行形式では join/aggregate/cancel/panic profile、再生成 object/compiler/SDK byte の一致、全 fuel prefix を検証し、JIT compile/invoke API を呼びません。private 境界 2 テストで callback 前の範囲外 PC 拒否と source 証拠付き callback panic の封じ込めを確認します。受理した storage/task はすべて解放します。全 baseline: **106 suites / 1,712 passed / 0 failed / 1 existing timing ignore**、完了 suite 時間合計 **471.21 s**。fmt、warnings-denied workspace Clippy **6.24 s**、rustdoc **26.34 s**、全 11 fuzz target の compile/lint **3.11 s** が通過しました。fuzz campaign、性能主張、より広い platform/native package 完了ではありません。T06 の 3 pt を消化し、作業追加/再見積りはありません。
 
@@ -612,7 +612,7 @@ A06 roadmap audit: `Machine::spawn`、`Frame::copy_from_frame`、`Frame::result`
 
 | Initial remaining | Net additions/re-estimates | Retired at completion | Remaining |
 | ---: | ---: | ---: | ---: |
-| 110 pt | +99 pt | −201 pt | 8 pt |
+| 110 pt | +99 pt | −204 pt | 5 pt |
 
 ## Exit audit
 

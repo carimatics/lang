@@ -6,11 +6,11 @@
 
 Updated: **2026-10-27 JST**. Entry checkpoint: `984557d`; M2 and the repository review are complete.
 
-**76 done · 1 doing · 2 todo · 8 remaining pt**
+**77 done · 1 doing · 1 todo · 5 remaining pt**
 
-**Next: M3-B01 → verify the Windows stress host and complete both-host conformance.**
+**Next: M3-B02 → stabilize C v1 with executable previous-client migration evidence.**
 
-Current B01 checkpoint: **`951a083`**, [Windows run 40462157234](https://github.com/carimatics/lang/actions/runs/40462157234), confirms exact C codec output after binary-stdout repair and passes 54/55 scoped-root tests. The remaining recursive-fault test accidentally leaves `return 41` unchanged on CRLF checkout because its injection needle contains LF. The same failure is reproduced locally by adding the LF/CRLF matrix (**0.20 s**, failing before repair), then repaired with a unique newline-independent statement injection. All original VM/JIT, preparation-work and task-caller/span assertions now pass for both line endings (**0.35 s**); the same newline-sensitive tail-panic injection is repaired and its escrow/cleanup test passes (**0.46 s**). Production runtime/generator/ABI/SDK behavior is unchanged. The previous `25a915a` snapshot passes all seven local stages (**153 suites / 2,319 passed / 0 failures / 1 existing ignore**, suite sum **866.42 s**, tests **977.41 s**), with unchanged validation digest `eaf7acd43d4c7febee2429a08fe71b41670b22323d5201536d7817b9978feee6`. Full new-source local/Windows conformance remains required; B01 stays 3 pt with no scope/estimate additions or retirement.
+B01 completion `19a29c0` (verified **2026-10-27 17:03 JST**): [Windows run 40464600289](https://github.com/carimatics/lang/actions/runs/40464600289) passes every step at the exact source: **153 suites / 2,304 passed / 0 failures / 1 existing ignore**. The macOS seven-stage baseline at the same source passes **153 suites / 2,319 passed / 0 failures / 1 existing ignore**, including all 16 fuzz-target build/lint checks (no campaign). The [conformance record](evidence/2026-10-27-m3-conformance-19a29c0.json) retains provenance, counts, platform-specific differences and the Windows log digest; the 15-test count difference is platform-specific filesystem/linker/DWARF/dynamic-image coverage, not skipped M3 component/task coverage. Actual Windows C ownership/registry/resource/callback, exact codec framing, CRLF guest fault/caller-span and escrow cleanup regressions all pass. Both-host isolated SDK evidence remains valid: changes since `8f41f44` affect only tests/docs, not production/compiler/runtime/ABI/SDK. **Completed: 1 delivery / 3 retired pt; added/re-estimated: 0 pt.** Reconcile **8 + 0 − 3 = 5 pt**, **79 rows / 77 done / 1 doing / 1 todo**, ledger **110 + 99 − 204 = 5**. B02 alone is doing at 3 pt: freeze the admitted C v1 contract and execute previous-header/generated-client migration fixtures on both hosts. Z02 retains the final all-gate audit/guide; gate completion remains **3/15, 18/96** until that audit. Earlier open checkpoints below are historical and superseded.
 
 B01 open checkpoint: last committed executable source **`d63013d`** passed the fixed-input local seven-stage baseline **2026-10-27 15:06 JST** (**153 suites / 2,319 passed / 0 failed / 1 existing ignore**; suite sum **865.63 s**, test stage **1,025.64 s**). Fmt/Clippy/tests/doc/fuzz fmt/check/Clippy pass in **1.81/1.11/1,025.64/16.88/2.06/0.23/0.22 s**, with 16 fuzz targets and no campaign. The **881-input / 773 non-Markdown** hashes are unchanged before/after: main `e5304307291987e1b5c0c01f0e4bde5f6dfa6f0bfd04ae66adb0baacd595b0bc`, validation `c1b2e7089d2fff16eca0c23f3f07b41d52eabbde0dfc01d24e145718a57ae64e`; only historical Windows CRLF differs, normalized differences/extras zero. [Windows run 40457319826](https://github.com/carimatics/lang/actions/runs/40457319826) confirms the native-library link repair, then fails with stack overflow in the standalone unoptimized C host. The next experiment gives manual MSVC test hosts an explicit finite 2 MiB entry stack and adds C fixture stage diagnostics; no guest ceiling/assertion or production runtime/ABI/SDK changes. Remaining acceptance is actual Windows full conformance plus verification of that experiment. I08 is complete below; B01 remains 3 pt with no addition/re-estimate/retirement.
 
@@ -484,8 +484,8 @@ Estimates describe remaining work, not elapsed time. Each row is an observable 1
 | M3-I13 | done | 0 | M3-I07,M3-I12 | G08,G09,G14 | Persist/revalidate native task/component records and bind exact linked code without code generation | `8ba2c43` |
 | M3-I14 | done | 0 | M3-I13,M3-T08 | G09,G14 | Publish/link installed task packages with exact SDK v2 and original control/cleanup | `042fc38` |
 | M3-I15 | done | 0 | M3-I13,M3-I14,M3-P02 | G08,G09,G14 | Publish/link installed component packages with explicit bindings/grants and original callbacks/cleanup | `8b89aae` |
-| M3-B01 | doing | 3 | M3-L04,M3-A04,M3-I08,M3-E01 | G14 | Pass ownership/failure/capability/resource conformance on both tier-1 hosts | — |
-| M3-B02 | todo | 3 | M3-B01 | G14 | Stabilize the documented C embedding API and generated bindings with migration tests | — |
+| M3-B01 | done | 0 | M3-L04,M3-A04,M3-I08,M3-E01 | G14 | Pass ownership/failure/capability/resource conformance on both tier-1 hosts | 19a29c0 |
+| M3-B02 | doing | 3 | M3-B01 | G14 | Stabilize the documented C embedding API and generated bindings with migration tests | — |
 | M3-X01 | done | 0 | M3-E01 | G15 | Ship runnable trusted-native and verified-script examples with explicit authority | `8a3ae2e` |
 | M3-Z01 | done | 0 | M3-E01,M3-L04 | G03,G04,G05 | Record spawn/join/channel/cancellation/memory costs and preserve M2 workload evidence | `c9ffd19` |
 | M3-Z02 | todo | 2 | M3-X01,M3-Z01,M3-B02 | G01,G02,G03,G04,G05,G06,G07,G08,G09,G10,G11,G12,G13,G14,G15 | Audit every gate and publish a bilingual capability guide with commands, evidence and limits | — |
@@ -564,7 +564,7 @@ T05 completed at `2f58084` (2026-10-21 JST): connected source claim/loan evidenc
 
 T05 roadmap audit: the first source VM fixture is now executable, so proceed **T06 → T07 → T08** before treating G03/G12/G13 as complete. Inspected `crates/codegen-clif/src/owned.rs` and `src/native.rs`: current native paths still refuse TaskProgram/async metadata, while verified MIR, managed task layouts, scope identities and result storage are now available. T06 retains its original 3-point compiled-continuation/value-event parity outcome; it must execute generated code without a VM/MIR fallback. An initial native fixture does not select a serialized task revision or complete package/startup publication. Preserve explicit format decisions and all native/owned/loan/foreign/shared-control acceptance; add no scheduler/IDL scaffolding before the next execution fixture. All 15 gates, all P1 work, channels, Send/Share and production embedding remain in M3.
 
-**110 + 99 − 201 = 8 pt**
+**110 + 99 − 204 = 5 pt**
 
 T06 completed at `8d6c283` (2026-10-21 JST): recorded the native boundary in RFC 0023 before implementation. Shared invocation/frame/claim/result state and scheduling/storage services retain separate VM/native resume/cleanup entries; Cranelift emits computation, branches, failure/cancellation CFGs and checked continuation selection, with no runtime MIR evaluator or VM dependency. The source fixture prints 42 through VM and native code. Twelve integration tests cover matching values/events/usage/allocation state, cancellation, finite records/enums and field updates, ordinary calls, loop scope identities, child/synchronous panic origins, every fuel/trace prefix, task/frame/cell/preparation bounds and each provider refusal. The separately linked executable covers join/aggregate/cancel/panic profiles, exact re-emitted object/compiler/SDK bytes and every fuel prefix; it calls no JIT compile/invoke API. Two private-boundary tests prove out-of-range PC refusal before callbacks and contained callback panic with source evidence. All admitted storage/tasks drain. Full baseline: **106 suites / 1,712 passed / 0 failed / 1 existing timing ignore**; summed completed-suite time **471.21 s**. fmt passes, warnings-denied workspace Clippy **6.24 s**, rustdoc **26.34 s**, all 11 fuzz-target compile/lint **3.11 s**. This is no fuzz campaign, performance claim or broader platform/native-package completion. Retire T06's 3 pt; add/re-estimate no work.
 
@@ -612,7 +612,7 @@ A06 roadmap audit: inspected `Machine::spawn`, `Frame::copy_from_frame`, `Frame:
 
 | Initial remaining | Net additions/re-estimates | Retired at completion | Remaining |
 | ---: | ---: | ---: | ---: |
-| 110 pt | +99 pt | −201 pt | 8 pt |
+| 110 pt | +99 pt | −204 pt | 5 pt |
 
 ## Exit audit
 

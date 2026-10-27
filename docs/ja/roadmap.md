@@ -12,7 +12,7 @@
 
 M2は完了済みです。18/18ゲート、過去のゲート重み113/113です。[完了ボード](milestone-2.md)に成果と見積もり収支、[機能ガイド](milestone-2-capabilities.md)に実際のsource/VM/native/C/SDK/debugの根拠と制約を記録しています。この件数はM2のもので、将来の全作業ではありません。
 
-**M3 は進行中です。** [実装Todo](milestone-3.md)は **76 done · 1 doing · 2 todo · 8 remaining pt**です。I08は`8f41f44`で完了し、両host隔離SDK run 40456240378の7 profile reportを保持しています。B01だけを3 ptのdoingにします。native path・有限8 MiB単独test host stack・C stdout binary修正はWindowsの該当検証に成功し、run 40462157234で次にCRLF依存のfault注入testが判明しました。LF/CRLF回帰で修正前失敗を再現し、一意statement注入への修正後は元control/caller assertがすべて成功しました。同型をtail cleanup fixtureでも修正し、production runtime/ABI/SDK・guest上限は未変更です。旧`25a915a`はlocal全7段階・153 suite/2,319 testに成功しました。I08の1 ptを消化、追加/再見積り0、79行、台帳 **110 + 99 − 201 = 8**、gate **3/15・18/96**です。新sourceのWindows/local全適合・B02安定化・最終Z02が引き続き必要で、push/修正/再実行は承認済みです。
+**M3は進行中です:** [delivery board](milestone-3.md)は**77 done · 1 doing · 1 todo · 5 remaining pt**です。B01は`19a29c0`のmacOS全7段階（153 suite / 2,319成功）と[Windows CI 40464600289](https://github.com/carimatics/lang/actions/runs/40464600289)の全段階（153 suite / 2,304成功）、失敗0で完了しました。両host isolated SDKの7 profileも成功しています。C test harnessのnative探索path・有限8 MiB stack・binary stdout・LF/CRLF fault注入を修正し、production runtime/ABI/SDKとguest上限は未変更です。B01の3 ptを消化し追加/再見積り0、台帳は**110 + 99 − 204 = 5**です。B02（3 pt）のC v1/生成binding安定化だけをdoingとし、Z02（2 pt）の全gate監査と最終guideを残します。gateは監査まで**3/15・18/96**です。
 
 resource所有権/loan・永続provider・元accounting/control・callback・installed native Image・完全な公開C API・明示権限plugin例・有限cost観測・実両hostのinstalled startupには実行証拠があります。B01はWindows/macOSの全ownership/failure/capability/resource適合成功を必要とし、installed startup成功だけでは満たしません。今回の修正はtest linkだけでruntime/ABI/SDK動作を維持します。B01 → B02の順を保ち、Z02はB02とX01/Z01後の最終監査/guideとします。scopeと見積りは追加しません。
 

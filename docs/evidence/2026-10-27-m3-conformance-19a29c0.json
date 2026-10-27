@@ -1,0 +1,80 @@
+{
+  "schema": 1,
+  "recorded_at": "2026-10-27T08:03:00Z",
+  "source": "19a29c0dd4aacdad3d1d4dc761299a522570dd08",
+  "purpose": "M3-B01 both-tier-1 conformance; test durations are not benchmarks",
+  "macos": {
+    "source": "19a29c0dd4aacdad3d1d4dc761299a522570dd08",
+    "verified": "2026-10-27 16:21 JST",
+    "suites": 153,
+    "passed": 2319,
+    "failed": 0,
+    "ignored": 1,
+    "suite_seconds": 864.44,
+    "tests_seconds": 894.43,
+    "stages": [
+      1.9,
+      4.66,
+      894.43,
+      15.72,
+      2.04,
+      0.21,
+      0.23
+    ],
+    "all7": true,
+    "fixedInputs": {
+      "count": 881,
+      "nonMarkdown": 773,
+      "main": "97e870e0dbff3a09f09ec0731550aa9d6cad111efed20ab67aee18733aabc606",
+      "worktree": "1b9542251c218b11c6324260b6d648693433f6d90552983828fd00872f1a3928",
+      "rawDifferences": [
+        "benchmarks/results/2026-10-17-windows-x86_64-7c37d5d.json"
+      ],
+      "normalizedDifferences": [],
+      "extraInputs": []
+    },
+    "unchangedBeforeAfter": true
+  },
+  "windows": {
+    "run": 40464600289,
+    "url": "https://github.com/carimatics/lang/actions/runs/40464600289",
+    "job": 122056886747,
+    "completed_at": "2026-10-27T07:45:35Z",
+    "conclusion": "success",
+    "all_steps_passed": true,
+    "suites": 153,
+    "passed": 2304,
+    "failed": 0,
+    "ignored": 1,
+    "suite_seconds": 1836.27,
+    "normalized_log_sha256": "a0d2ecb0e771301a5dd5d32f729355ce429a5b5036d5c8b12ccf80965fbb9e03",
+    "regressions": [
+      "native_c_host_loads_snapshots_and_repeats_generated_typed_calls_on_vm_and_jit",
+      "generated_typed_counter_c_codecs_and_call_commit_states_run_natively",
+      "guest_faults_keep_original_task_callers_after_preparation_work_exhaustion",
+      "failed_child_discards_an_escrowed_return_before_parent_owner_cleanup_failures"
+    ]
+  },
+  "platform_count_difference": {
+    "macos_only": {
+      "linker_filesystem": 5,
+      "native_compiler_dwarf": 2,
+      "owned_linked_dynamic_image": 3,
+      "database_filesystem": 3,
+      "module_symlinks": 2
+    },
+    "equivalent_platform_swaps": [
+      "process memory probe",
+      "system linker",
+      "LSP file URI and source authority"
+    ],
+    "note": "Core M3 ownership, failure, capability, resource, task, channel and service suites execute on both hosts. Dynamic-image fixtures use Darwin dlopen; Windows static-image ownership is covered by component and installed SDK tests."
+  },
+  "installed_sdk": {
+    "source": "8f41f4421609aabb9bdd6509677963d8c1d882e6",
+    "run": 40456240378,
+    "macos": "2026-10-27-m3-sdk-macos-8f41f44.json",
+    "windows": "2026-10-27-m3-sdk-windows-8f41f44.json",
+    "unchanged_production_since": true
+  }
+}
