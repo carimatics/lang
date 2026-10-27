@@ -42,6 +42,20 @@ These instructions apply to the entire repository.
 - Use the `language-design-rfc` skill for language-feature proposals and reviews.
 - Preserve user changes and keep each patch focused on the requested work.
 
+## Branch and pull request workflow
+
+Policy updated: 2026-10-28 JST.
+
+- Apply this workflow to each work unit: a single prompt or the related tasks in a Codex Goal. Record the starting branch, its remote/upstream, and existing working-tree changes before starting; preserve user changes.
+- Do not edit, stage, or commit Git-managed files on `main`, including additions intended for version control, deletions, and generated tracked files. Create a work branch before making such changes. Branches created by Codex must use a descriptive `codex/*` name.
+- Scope branches to coherent, reviewable outcomes. Keep related tasks on the same branch; do not create a branch mechanically for every prompt continuation, Goal subtask, delivery row, or commit. Multiple branches are allowed when their outcomes or dependencies justify them. For each branch, record the branch it was created from and the remote repository as its pull request base.
+- After completing a work branch, run the relevant local checks, commit and push the changes, and open a pull request against its recorded base branch. Complete this lifecycle within the requested scope without asking for routine reconfirmation; respect actual permission barriers and repository protections.
+- Before merging, confirm that all applicable pull request CI checks succeeded for the latest head commit. Pending, failed, cancelled, or unexpectedly missing checks are not success. Existing intentional path/job conditions still apply; verify why a check is omitted rather than treating an unexplained absence as a pass. A local check or successful run for an older commit does not replace this gate.
+- Diagnose and fix CI failures, push the fixes, and verify CI again. Do not skip or delete failing tests, weaken assertions or CI coverage, or add superficial hacks solely to make checks pass. Resolve the underlying defect; retry a transient infrastructure failure only with a supported diagnosis.
+- Merge through the remote pull request after CI succeeds and repository requirements are satisfied. Confirm that the pull request is merged, then fetch and update its local base branch to the remote's merged state. Synchronizing `main` with already merged remote commits is allowed; direct edits, local merge commits, and direct pushes to `main` are not part of this workflow.
+- Before declaring the work unit complete, switch back to the branch recorded at its start, fetch its remote, and verify that local and remote tips match with no ahead/behind commits and no uncommitted task changes. Use fast-forward updates where possible; never discard user changes or force-reset divergent history to manufacture synchronization.
+- If permissions, CI, conflicts, missing remote configuration, or unrelated local changes prevent completion, preserve the work and report the branch, pull request, and unresolved condition. Do not claim merge or synchronization completed. See [CONTRIBUTING.md](CONTRIBUTING.md#branch-to-merge-procedure) for the procedure and its relationship to existing rules.
+
 ## Research
 
 - Confirm the current date and timezone before web research.
