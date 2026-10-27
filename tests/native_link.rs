@@ -592,18 +592,19 @@ fn public_link_native_runs_all_profiles_without_source_or_installed_sdk_at_start
         }
         let output = link.output().unwrap();
         if !output.status.success() {
-            let changed: Vec<_> = manifest
+            let mismatches: Vec<_> = manifest
                 .files()
                 .iter()
                 .filter_map(|file| {
-                    let bytes = fs::read(sdk_root.join(file.path())).unwrap();
-                    let actual = sdk::digest(&bytes);
+                    let actual =
+                        fs::read(sdk_root.join(file.path())).map(|bytes| sdk::digest(&bytes));
                     let expected = file.hash().to_string();
-                    (actual != expected).then(|| (file.path(), expected, actual))
+                    (!actual.as_ref().is_ok_and(|digest| digest == &expected))
+                        .then(|| (file.path(), expected, actual))
                 })
                 .collect();
             panic!(
-                "link profile {name}: {}\n{}\nSDK files changed since assembly: {changed:?}",
+                "link profile {name}: {}\n{}\nSDK digest mismatches on re-read: {mismatches:?}",
                 String::from_utf8_lossy(&output.stdout),
                 String::from_utf8_lossy(&output.stderr),
             );

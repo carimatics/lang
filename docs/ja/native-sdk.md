@@ -47,6 +47,12 @@ SDK/bin/lang link-native --sdk SDK --package c-program --host c-host.rs --object
 
 Version-1/2 file表は全hash、上限付きsize、正確なtarget／build／rustc／profile／feature policyを記録します。Componentをstreamコピーして新directoryをatomic公開し、失敗時は所有staging fileだけを削除します。Compilerの実行権限を保持します。Toolがcomponentを使う前にproduction `SdkSnapshot` APIでSDKを検証します。Native code、library、生成Rust／C host、build出力は信頼済み入力であり、hashは対応／整合性を検査するだけでnative codeの真正性は証明しません。未対応／不一致artifactは対応SDKでrebuildします。Build間のRust ABI安定性、性能／size改善は約束しません。
 
+## SDK整合性エラーの調査
+
+`component SHA-256`は、SDK/programの宣言済みfileから読み取ったbyteがmanifestと一致しないことを意味します。rustcを起動する前にlinkを停止します。診断のpath・期待hash・実際のhashは失敗した検証を特定しますが、fileの変更、読み取りの不整合、hash計算の不具合のどれが原因かは、それだけでは判断できません。失敗した実行を保存し、同じrevisionで比較してから原因を判断します。
+
+`native_link` integration testは、失敗時のstartup profileを表示し、SDK fileを独立に再読込して、その時点でも残るdigest不一致を列挙します。一覧が空なら、後続の読み取りが組立時のmanifestと一致したことを意味します。元の失敗が消えるわけでも、runner側の不具合の証明になるわけでもありません。自動retryやmanifest書換えは行いません。実装参照：`tests/native_link.rs`、`src/native/manifest/snapshot.rs`、`src/native/link.rs`。2026-10-28 JST確認。
+
 ## Public component-v1 API
 
 Component C v1は[stabilized RFC 0033](rfcs/0033-component-v1-compatibility.md)に従い安定化しました（2026-10-27 JST）。公開32 entry・厳密size/version・status・所有権/失敗契約を固定し、旧header/生成clientは`9e78f2d`の実macOS/Windowsで成功しました。[移行記録](../evidence/2026-10-27-m3-migration-9e78f2d.json)が来歴と全検証を保持します。両host isolated SDK 7 profileも成功済みです。非互換C拡張には別version/namespaceを必要とし、private Rust/SDK ABIは厳密build一致と再buildを要求します。対応しない保存formatは元sourceと一致toolで再encode/compileします。
