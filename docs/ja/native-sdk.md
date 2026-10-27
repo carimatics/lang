@@ -49,6 +49,8 @@ Version-1/2 file表は全hash、上限付きsize、正確なtarget／build／rus
 
 ## Public component-v1 API
 
+Component C v1の移行方針（[RFC 0033](rfcs/0033-component-v1-compatibility.md)、2026-10-27 JST accepted）: 公開32 entry・厳密size/version・status・所有権/失敗契約を固定し、旧header/生成clientを現在の実装で実行します。B01の実両host全適合とI08のisolated SDK 7 profileは成功済みです。B02の旧client両host移行試験完了後に安定化を記録します。新しい非互換C拡張には別version/namespaceを必要とし、private Rust/SDK ABIは引き続き厳密build一致と再buildを要求します。対応しない保存formatは元sourceと一致toolで再encode/compileします。
+
 `lang_component_v1_get_api(1, sizeof(lang_component_v1_api), &api, &error)`は、全32 entryが非nullの単一の不変tableを公開します。先に厳密なerror headerを初期化します。未知のAPI versionは3、table size不一致・null output/error pointer・初期化済みerror header不正は2です。拒否時はtable outputを変更しません。返されたtableはprocess存続中利用できますが、engine・resource・grant・実行権限は付与しません。各要求の厳密size/version headerとreserved 0、生きたhandleのowner thread/lifetime規則は引き続き必要です。
 
 modeはVM 0・JIT 1・厳密SDK AOT 2です。VM/JITの`module_load`は明示source+IDLまたは再検証artifactを受理し、AOTは`module_bind_native`と下記Image factoryを必要とします。`context_resource_drop`は現在のowning receiptと元holder/tableを検査し、borrowed・stale・移動済み・使用中claimを拒否して元cleanup Sessionで退役します。割込み後もguest再入許可なしで後始末を完了できます。destructor失敗は保持可能な不変reportを返し、元の実行をpoisonします。result解放とowner退役は別です。公開queryのC試験はVM/JIT/AOTを検証していますが、安定化と実両host適合はB02/B01に残ります。これは実験段階のRFC 0027 surfaceであり、安定性保証の完了を意味しません。

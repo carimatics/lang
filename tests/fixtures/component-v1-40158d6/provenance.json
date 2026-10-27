@@ -1,0 +1,21 @@
+{
+  "source": "40158d651a391e4b4caab55caec6b8fce96adfe0",
+  "recorded": "2026-10-27",
+  "purpose": "Previous public component-v1 client migration; never regenerate during tests",
+  "reference": {
+    "path": "docs/component-abi-v1.h",
+    "sha256_lf": "afb533a1e490a542f8068ee7cb6489b101bb528c37c6eddfa0be0f0fb85a2d8a"
+  },
+  "generated": {
+    "target": "aarch64-apple-darwin",
+    "note": "Generated using the B01 build; git diff confirms generator, value header and IDLs unchanged since the recorded public source. Compile these headers as C/C++ for both supported targets; target fingerprint comments confer no authority.",
+    "embed-v1.h": {
+      "input": "tests/component_embedding_inputs.rs::IDL",
+      "sha256_lf": "6eede4d24a61a55a79dc15d3bc9f1db90445aaf0f16c53d27aa8f15a442c013d"
+    },
+    "counter-v1.h": {
+      "input": "tests/fixtures/component_counter.idl.json",
+      "sha256_lf": "d6306be968616be556b2e8500f4e03eedf00fbc9b5bdd36985145f66e3744369"
+    }
+  }
+}

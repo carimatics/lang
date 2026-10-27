@@ -80,6 +80,11 @@ fn field_types(tree: &serde_json::Value, name: &str) -> Vec<(String, String)> {
 #[test]
 fn generated_abi_matches_every_reference_field_signature_and_target_layout() {
     use g::abi::{self, Target};
+    assert_eq!(
+        include_str!("../docs/component-abi-v1.h").replace("\r\n", "\n"),
+        include_str!("fixtures/component-v1-40158d6/component-abi-v1.h").replace("\r\n", "\n"),
+        "v1 declarations must preserve the previously published C contract"
+    );
     for target in [Target::MacosAarch64, Target::WindowsX86_64Msvc] {
         let generated = abi::generate(target, Default::default()).unwrap();
         assert_eq!(generated.layouts.len(), 16);
@@ -288,15 +293,29 @@ fn frame(digest: [u8; 32], kind: u8, payload: &[u8]) -> Vec<u8> {
 
 #[test]
 fn generated_typed_counter_c_codecs_and_call_commit_states_run_natively() {
+    counter_client(false);
+}
+
+#[test]
+fn previous_v1_generated_counter_preserves_frames_and_transfer_commit_outcomes() {
+    counter_client(true);
+}
+
+fn counter_client(previous_client: bool) {
     let contract = contract(include_bytes!("fixtures/component_counter.idl.json"));
     let generated =
         g::c::generate(&contract, g::abi::Target::MacosAarch64, Default::default()).unwrap();
+    let client_header = if previous_client {
+        include_str!("fixtures/component-v1-40158d6/counter-v1.h")
+    } else {
+        &generated.header
+    };
     for target in [
         g::abi::Target::MacosAarch64,
         g::abi::Target::WindowsX86_64Msvc,
     ] {
-        clang(target.triple(), &generated.header, "c", &[]);
-        clang(target.triple(), &generated.header, "c++", &[]);
+        clang(target.triple(), client_header, "c", &[]);
+        clang(target.triple(), client_header, "c++", &[]);
     }
     let f = &generated.functions[0];
     let source = format!(
@@ -340,7 +359,7 @@ int main(void) {{
     return 0;
 }}
 "#,
-        generated.header,
+        client_header,
         args = f.arguments,
         result = f.result,
         name = f.name

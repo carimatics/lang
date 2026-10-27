@@ -388,8 +388,19 @@ fn input_refusal_retains_structured_source_and_idl_diagnostics_before_execution(
 
 #[test]
 fn native_c_host_loads_snapshots_and_repeats_generated_typed_calls_on_vm_and_jit() {
-    let directory =
-        std::env::temp_dir().join(format!("lang-component-native-host-{}", std::process::id()));
+    native_c_host(false);
+}
+
+#[test]
+fn previous_v1_c_client_runs_current_vm_jit_ownership_failures_resources_and_tasks() {
+    native_c_host(true);
+}
+
+fn native_c_host(previous_client: bool) {
+    let directory = std::env::temp_dir().join(format!(
+        "lang-component-native-host-{}-{previous_client}",
+        std::process::id()
+    ));
     std::fs::create_dir(&directory).unwrap();
     let files = NativeCodec(directory);
     let source = source_input();
@@ -400,7 +411,17 @@ fn native_c_host_loads_snapshots_and_repeats_generated_typed_calls_on_vm_and_jit
     } else {
         g::abi::Target::MacosAarch64
     };
-    let header = g::c::generate(module.contract(), target, Default::default()).unwrap();
+    let mut header = g::c::generate(module.contract(), target, Default::default()).unwrap();
+    if previous_client {
+        // Compile the historical declarations/codecs, not a regenerated substitute.
+        // Their guards also select the old ABI for every later generated header.
+        header.header = concat!(
+            include_str!("fixtures/component-v1-40158d6/component-abi-v1.h"),
+            "\n",
+            include_str!("fixtures/component-v1-40158d6/embed-v1.h")
+        )
+        .into();
+    }
     let function = &header.functions[0];
     let array = |name: &str, bytes: &[u8]| {
         format!(
