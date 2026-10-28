@@ -17,11 +17,7 @@ use std::sync::Arc;
 /// First use freezes all bounded source inputs and releases capture handles.
 /// Later analyses use retained bytes, independent of edits and directory moves.
 pub fn analyze(graph: &Graph, limits: CompileLimits) -> Result<Analysis, Diagnostic> {
-    let inputs = graph
-        .inventory
-        .get_or_init(|| inventory::capture(graph))
-        .as_ref()
-        .map_err(Clone::clone)?;
+    let inputs = graph.inputs()?;
     let mut provider = Provider {
         inventory: inputs,
         raw: BTreeMap::new(),

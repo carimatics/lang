@@ -155,6 +155,13 @@ impl Graph {
     pub fn package(&self, id: PackageId) -> Option<&Snapshot> {
         self.packages.get(id.0)
     }
+
+    pub(super) fn inputs(&self) -> Result<&super::source::inventory::Inventory, Diagnostic> {
+        self.inventory
+            .get_or_init(|| super::source::inventory::capture(self))
+            .as_ref()
+            .map_err(Clone::clone)
+    }
 }
 
 #[derive(Clone, Copy)]

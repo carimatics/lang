@@ -1,6 +1,7 @@
 //! Host-only package metadata; parsing never follows dependency paths.
 pub mod cli;
 pub mod graph;
+pub mod lock;
 pub mod manifest;
 pub mod source;
 

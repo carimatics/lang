@@ -4,11 +4,11 @@
 
 [English](../milestone-4.md)
 
-更新: 2026-10-29 JST。M4 は active。Goal 開始時は clean な `main`／`origin/main` の `af9988f`、remote `git@github.com:carimatics/lang.git`。foundation branch `codex/m4-package-toolchain` は PR #9 で merge 済み。現在の一貫した package 実行作業 branch は `codex/m4-local-package-execution`。clean な `main`／`origin/main` の `42e6045` から作成し、PR base は `carimatics/lang:main`、[draft PR #10](https://github.com/carimatics/lang/pull/10)。review 成果は graph と分離した dependency-source API（A02R／A02）とし、この API の検証／merge 後に、別の lock／CLI 成果を実装する。
+更新: 2026-10-29 JST。M4 は active。Goal 開始時は clean な `main`／`origin/main` の `af9988f`、remote `git@github.com:carimatics/lang.git`。foundation と package 実行 branch は PR #9／#10 で merge 済み。現在の一貫した lock／CLI branch は `codex/m4-package-lock-cli`。clean・同期済み `main`／`origin/main` の `260e67a` から作成し、PR base は `carimatics/lang:main`。開始時の作業ツリーは clean。
 
-**4 done · 0 doing · 34 todo · 96 remaining pt**
+**4 done · 1 doing · 33 todo · 96 remaining pt**
 
-**次: M4-A03 — PR #10 merge 後、canonical checksum、lock 公開、offline replay。**
+**次: M4-A03 — canonical checksum、lock 公開、offline replay（doing、2 pt）。** 最後の実行 checkpoint、2026-10-29 07:46 JST: 作業ツリーの lock 12/12、graph 9/9、manifest 7/7、source 13/13、consistency 6/6（計 47）と fmt が成功。canonical／独立 SHA-256 fixture、UTF-8 順、entry／test／directory binding、配置変更後の VM replay、古い／未使用 input と不正／target／compiler／resource 拒否、identity 重複、失敗時の公開保護は local で成功した。残条件は全 Clippy／test／doc、両 host CI（Windows busy-lock 公開を含む）、最終 evidence と PR lifecycle。
 
 A01 の修正済み source は `9e5b0ce`。2026-10-29 02:24 JST の local 検証で fmt、警告なし Clippy、assertion／overflow check を有効にした checked opt-level 1 の全 test（**154 suite／2,330 成功／0 失敗**）、doc が成功。manifest／CLI は 7/7、consistency は 6/6 成功し、従来の test 名／結果は未変更。最新 head `f3d0a52` の [全 CI](https://github.com/carimatics/lang/actions/runs/40736268875)（18 成功、意図した文書専用 skip）と [native debugger 実行](https://github.com/carimatics/lang/actions/runs/40736267899)（全 3 環境）が成功した。[PR #9](https://github.com/carimatics/lang/pull/9) は 02:43 JST に `42e6045` として merge。local `main` を fast-forward し、clean、ahead／behind 0/0 を確認した。
 
@@ -16,7 +16,7 @@ A02R／A02S／A02 は修正 source `b81633e` で実装・検証済み（2026-10-
 
 local 検証: source 13/13、graph 9/9、manifest／CLI 7/7、consistency 6/6。fmt、警告なしの全 Clippy、assertion／overflow check を有効にした checked opt-level 1 全 workspace test（**156 suite／2,352 成功／0 失敗**）、doc が成功した。独立 fuzz workspace も、Cargo が `4611c86` で依存 lock を再生成した後、`cargo check --manifest-path fuzz/Cargo.toml --locked --offline --bins` が成功した。
 
-head `4611c86` の [全 CI](https://github.com/carimatics/lang/actions/runs/40776313926) は期待した全 19 job が存在し、18 成功、source 変更のため文書専用 job が意図した skip。[native debugger 実行](https://github.com/carimatics/lang/actions/runs/40776313835)も全 3 環境で成功した。PR #10 は最終文書 head の CI、review 移行、merge が残り、この source 検証で代替しない。G2–G9 は未完了。
+最終 head `c0784fc` の [全 CI](https://github.com/carimatics/lang/actions/runs/40779348154) は期待した全 19 job が存在し、18 成功、source 変更のため文書専用 job が意図した skip。[native debugger 実行](https://github.com/carimatics/lang/actions/runs/40779348160)も全 3 環境で成功した。[PR #10](https://github.com/carimatics/lang/pull/10) は 07:34 JST に `260e67a` として merge。local `main` を fast-forward し、clean、ahead／behind 0/0 を確認した。fuzz fmt と警告なし locked／offline Clippy も成功。G2–G9 は未完了。
 
 A01 入力修正は Unix の nonblocking open と開いた handle の metadata を使い、FIFO／device／directory を `PKG0005`／exit 1 で拒否する。計画 point や完了 delivery は増やさず、全検証と merge は上記のとおり完了した。
 
@@ -46,7 +46,7 @@ A01 入力修正は Unix の nonblocking open と開いた handle の metadata �
 | M4-A02R | done | 0 | M4-A01 | G2,G3 | capability で制限した local dependency graph、決定的順序、循環／逸脱／version／target／resource 拒否 | `aae5242` |
 | M4-A02S | done | 0 | M4-A02R | G2,G3 | 上限付き source input を一度固定し directory handle を解放、両 host で編集／rename 後の実行を保持 | `b81633e` |
 | M4-A02 | done | 0 | M4-A02S | G2,G3 | 分離した package module root と不変 source access を統合、実際の宣言 dependency import を実行 | `b81633e` |
-| M4-A03 | todo | 2 | M4-A02 | G2,G3 | canonical checksum lock fixture を offline replay、従来 output を書き換えず変更 source を拒否 | — |
+| M4-A03 | doing | 2 | M4-A02 | G2,G3 | canonical checksum lock fixture を offline replay、従来 output を書き換えず変更 source を拒否 | — |
 | M4-A04 | todo | 3 | M4-A03 | G2,G3 | package と local dependency を作成し package build／run／test と失敗 test fixture | — |
 | M4-A05 | todo | 3 | M4-A04 | G2,G3 | workspace member 選択と、両 supported target の完全一致 target condition lock | — |
 | M4-A06 | todo | 3 | M4-A05 | G2,G3 | 配置変更した locked package から native executable を二度 build、両 host で固定 input digest 比較 | — |

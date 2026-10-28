@@ -89,6 +89,8 @@ lock 実装前の 2026-10-29 JST に binding integrity 改訂を採択: file che
 
 完全 inventory は宣言 entry／test の各 source directory と明示 entry を対象とし、未使用の `.lang` も含む。重複する source root を統合し、入れ子の dependency package root、各 package root の `target` output directory、`.git`／`.codex` metadata directory を除外する。root の output directory は package orchestration 用に予約し、`src/target` module directory は source input として残す。source file を 256 module／16 MiB 上限に計上し、source 以外も含む訪問 directory entry 合計を 4096 に制限する。保持した directory capability で決定的に巡回し、逸脱 link、物理 source identity の重複、directory cycle を拒否する。lock 検証後の compilation はこの固定 inventory だけを使い、追加 source 読取りを行わない。上限と canonical byte は project choice であり、測定済み性能の主張ではない。配置変更、古い／未使用 source、target／compiler 不一致、不正 lock、resource、atomic publication の実行 fixture は A03 の残受入作業である。
 
+schema 1 の serialization fixture は [`tests/fixtures/package-lock/schema1.json`](../../../tests/fixtures/package-lock/schema1.json) で、test 時に compiler build identity だけを置換する。manifest／source／package の SHA-256 値は独立に固定した。`tests/package_lock.rs` は、UTF-16 で逆順になる U+E000 と U+10000 path の UTF-8 順も固定する。これらの fixture は package CLI replay 導入前に canonical byte を文書化する。
+
 ソース評価順序、型、所有権／破棄、キャンセル、並行処理、定数評価、foreign capability は採択済み意味論を保持する。package loading が与えるのは host compiler の読取り権限だけで、guest runtime の権限は明示的なままとする。
 
 ## 実行モード

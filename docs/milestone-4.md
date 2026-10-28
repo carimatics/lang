@@ -4,11 +4,11 @@
 
 [日本語版](ja/milestone-4.md)
 
-Updated: 2026-10-29 JST. M4 is active. Goal start: clean `main`/`origin/main` at `af9988f`, remote `git@github.com:carimatics/lang.git`. Foundation branch `codex/m4-package-toolchain` merged through PR #9. Current coherent package-execution branch: `codex/m4-local-package-execution`, created from clean `main`/`origin/main` at `42e6045`; PR base: `carimatics/lang:main`, [draft PR #10](https://github.com/carimatics/lang/pull/10). Its review outcome is the graph plus isolated dependency-source API (A02R/A02); the separate lock/CLI outcome follows this API's verification and merge.
+Updated: 2026-10-29 JST. M4 is active. Goal start: clean `main`/`origin/main` at `af9988f`, remote `git@github.com:carimatics/lang.git`. Foundation and package-execution branches merged through PRs #9 and #10. Current coherent lock/CLI branch: `codex/m4-package-lock-cli`, created from clean synchronized `main`/`origin/main` at `260e67a`; PR base: `carimatics/lang:main`. Starting working tree: clean.
 
-**4 done · 0 doing · 34 todo · 96 remaining pt**
+**4 done · 1 doing · 33 todo · 96 remaining pt**
 
-**Next: M4-A03 — canonical checksums, lock publication and offline replay, after PR #10 merges.**
+**Next: M4-A03 — canonical checksums, lock publication and offline replay (doing, 2 pt).** Last executable checkpoint, 2026-10-29 07:46 JST: working-tree lock 12/12, graph 9/9, manifest 7/7, source 13/13 and consistency 6/6 pass (47 total), plus fmt. Canonical/independent SHA-256 fixtures, UTF-8 order, entry/test/directory bindings, relocated VM replay, stale/unused-input and malformed/target/compiler/resource refusals, duplicate identities and failure-safe publication pass locally. Remaining: full Clippy/test/doc, both-host CI (including Windows busy-lock publication), final evidence and PR lifecycle.
 
 A01's corrected source is `9e5b0ce`, verified locally 2026-10-29 02:24 JST: fmt, warning-free Clippy, checked opt-level 1 full tests (**154 suites / 2,330 passed / 0 failed**) and doc passed with assertions/overflow checks enabled. Manifest/CLI tests passed 7/7; consistency passed 6/6. All prior test identities/results remain unchanged. Latest head `f3d0a52` passed [full CI](https://github.com/carimatics/lang/actions/runs/40736268875) (18 success, expected documentation-only skip) and [native debugger execution](https://github.com/carimatics/lang/actions/runs/40736267899) (all 3 environments). [PR #9](https://github.com/carimatics/lang/pull/9) merged at 02:43 JST as `42e6045`; local `main` was fast-forwarded and verified clean with 0/0 ahead/behind.
 
@@ -16,7 +16,7 @@ A02R/A02S/A02 are implemented and verified at corrected source `b81633e`, 2026-1
 
 Local verification: source 13/13, graph 9/9, manifest/CLI 7/7 and consistency 6/6; fmt, warning-free full Clippy, checked opt-level 1 full workspace tests (**156 suites / 2,352 passed / 0 failed**) and doc passed, with assertions/overflow checks enabled. The separate fuzz workspace passes `cargo check --manifest-path fuzz/Cargo.toml --locked --offline --bins` after Cargo regenerated its dependency lock in `4611c86`.
 
-Head `4611c86` passed [full CI](https://github.com/carimatics/lang/actions/runs/40776313926): all 19 expected jobs are present, 18 succeed and the documentation-only job is intentionally skipped for this source change. [Native debugger execution](https://github.com/carimatics/lang/actions/runs/40776313835) succeeds in all 3 environments. PR #10 still needs its final documentation head's CI, review transition and merge; these source results do not replace that gate. G2–G9 remain unfinished.
+Final head `c0784fc` passed [full CI](https://github.com/carimatics/lang/actions/runs/40779348154): all 19 expected jobs are present, 18 succeed and the documentation-only job is intentionally skipped for this source change. [Native debugger execution](https://github.com/carimatics/lang/actions/runs/40779348160) succeeds in all 3 environments. [PR #10](https://github.com/carimatics/lang/pull/10) merged at 07:34 JST as `260e67a`; local `main` was fast-forwarded and verified clean, 0/0 ahead/behind. Fuzz fmt and warning-free locked/offline Clippy also pass. G2–G9 remain unfinished.
 
 The A01 input correction refuses FIFO/device/directory inputs with `PKG0005`/exit 1 using nonblocking Unix open and opened-handle metadata. It adds no planning points or completed delivery; its full validation and merge are recorded above.
 
@@ -46,7 +46,7 @@ The [roadmap](roadmap.md#milestone-4-developer-toolchain) retains the original 6
 | M4-A02R | done | 0 | M4-A01 | G2,G3 | Capability-bounded local dependency graph; deterministic order and cycle/escape/version/target/resource refusals | `aae5242` |
 | M4-A02S | done | 0 | M4-A02R | G2,G3 | Freeze bounded source inputs once, release directory handles and preserve execution after edits/renames on both hosts | `b81633e` |
 | M4-A02 | done | 0 | M4-A02S | G2,G3 | Integrate isolated package module roots and immutable source access; execute a real declared dependency import | `b81633e` |
-| M4-A03 | todo | 2 | M4-A02 | G2,G3 | Canonical checksummed lock fixture replays offline and refuses changed sources without rewriting prior output | — |
+| M4-A03 | doing | 2 | M4-A02 | G2,G3 | Canonical checksummed lock fixture replays offline and refuses changed sources without rewriting prior output | — |
 | M4-A04 | todo | 3 | M4-A03 | G2,G3 | Create a package and local dependency; package build/run/test and failed-test fixture | — |
 | M4-A05 | todo | 3 | M4-A04 | G2,G3 | Workspace member selection and exact target-condition locks on both supported targets | — |
 | M4-A06 | todo | 3 | M4-A05 | G2,G3 | Build a native executable twice from a relocated locked package; compare pinned-input digests on both hosts | — |
