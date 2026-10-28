@@ -21,6 +21,7 @@ pub mod frontend;
 pub mod linker;
 pub mod lsp;
 pub mod native;
+pub mod package;
 pub mod repl;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]

@@ -271,6 +271,38 @@ fn remaining_work_accounting(document: &str) -> [u32; 4] {
 }
 
 #[test]
+fn m4_delivery_evidence_estimates_dependencies_and_translations_agree() {
+    let english_text = include_str!("../docs/milestone-4.md");
+    let japanese_text = include_str!("../docs/ja/milestone-4.md");
+    let english = delivery_board_for(english_text, "| M4-", 9);
+    assert_eq!(english, delivery_board_for(japanese_text, "| M4-", 9));
+    let accounting = remaining_work_accounting(english_text);
+    assert_eq!(accounting, remaining_work_accounting(japanese_text));
+    assert_eq!(accounting[3], english.iter().map(|row| row.remaining).sum());
+    let done = english.iter().filter(|row| row.state == "done").count();
+    let doing = english.iter().filter(|row| row.state == "doing").count();
+    let todo = english.len() - done - doing;
+    let summary = format!(
+        "**{done} done · {doing} doing · {todo} todo · {} remaining pt**",
+        accounting[3]
+    );
+    for roadmap in [
+        include_str!("../docs/roadmap.md"),
+        include_str!("../docs/ja/roadmap.md"),
+    ] {
+        assert!(
+            roadmap.contains(&summary),
+            "active roadmap matches M4 board"
+        );
+    }
+    let gates: BTreeSet<_> = english
+        .iter()
+        .flat_map(|row| row.gates.iter().copied())
+        .collect();
+    assert_eq!(gates, (1..=9).collect(), "preserve every M4 gate");
+}
+
+#[test]
 fn m2_delivery_evidence_estimates_dependencies_and_translations_agree() {
     let english = delivery_board(include_str!("../docs/milestone-2.md"));
     let japanese = delivery_board(include_str!("../docs/ja/milestone-2.md"));

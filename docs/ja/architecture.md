@@ -131,7 +131,7 @@ root task exportのbindingはimportなし・export interface 1つ・その中の
 
 [RFC 0030](rfcs/0030-native-task-component-records.md)–[0032](rfcs/0032-installed-component-packages.md)の保存record/packageは元のcode・grant・provider・SDK identityを要求し、欠落時に探索やVM/JIT fallbackで補いません。実macOS AArch64/Windows x86-64の7 profile隔離起動と旧C client移行は[M3 guide](milestone-3-capabilities.md)と日付付き証跡にあります。
 
-package-aware CLI、navigation/completion/rename、DAP、installerは未開始のM4です。registry、WebAssembly component、追加backend、self-hosting、別frontendは後続milestoneであり、実装済みとは扱いません。async REPL、detached task、非同期foreign callback stackも現在の実行範囲外です。
+M4 は 2026-10-29 JST に開始しました。[RFC 0034](rfcs/0034-package-workspaces-and-cli-diagnostics.md)は厳密な version 付き manifest、明示 local dependency 権限、lock／offline 互換性、JSON CLI 診断を定義します。`lang package check-manifest [--message-format human|json] FILE` は依存を読まず最大 64 KiB を検証し、成功時は出力せず、エラー exit 1（usage 2）を維持します。package 対応 build／run／test、navigation／completion／rename、DAP、installer は [live board](milestone-4.md)に残ります。registry、WebAssembly component、追加 backend、self-hosting、別 frontend は後続 milestone で、実装済みではありません。async REPL、detached task、非同期 foreign callback stack も現在の実行範囲外です。
 
 ## 検証と保守
 

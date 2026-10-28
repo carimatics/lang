@@ -18,7 +18,7 @@ Public C v1 and existing generated clients follow stabilized RFC 0033. Source/na
 
 ## Work after M3
 
-M3 implementation, both-host conformance, C stabilization and the final guide are complete. M4 and later gates remain future work and have not been activated. Break the next milestone into observable 1–3-point deliveries and use its board when starting it; preserve M3's completed history and final estimate reconciliation.
+M3 implementation, both-host conformance, C stabilization and the final guide are complete. M4 is active as of 2026-10-29 JST: the [live delivery board](milestone-4.md) records **1 done · 0 doing · 36 todo · 103 remaining pt**. Its 37 observable 1–3-point deliveries cover all nine original gates, including P1 profiling. The namespace audit adds a 3 pt authorized-graph prerequisite; A01 retires 3 pt after accepting RFC 0034 and passing strict manifest/JSON inspection plus the four local baseline commands (corrected source: 154 suites / 2,330 passed). The pre-merge regular-file input correction adds no planning points. The reconciliation is **103 + 3 − 3 = 103**. M5 and later milestones remain future work. Preserve M3's completed history and final estimate reconciliation.
 
 Do not expand the completed M2 board for maintenance or reviews. Record fixes in their scoped checklist, and keep code, documentation and validation in the same change. New language/ABI/format choices still require an explicit RFC decision; experimental delegation avoids a separate owner-approval wait.
 
@@ -32,7 +32,7 @@ Tasks are listed in dependency-aware priority order within each milestone. A mil
 
 The milestone checklists below retain relative exit-gate weights: `1` is very small, `2` small, `3` medium, `5` large, and `8` very large. Their weighted completion is `completed weights / total weights × 100`, rounded to one decimal place. These coarse weights do not predict elapsed time or remaining implementation effort. Long-horizon estimates require a bottom-up review when their milestone becomes current or scope/evidence changes. For each active milestone, a separate delivery board records independently verifiable 1–3-point remaining tasks and explicit scope/estimate changes.
 
-Snapshot of exit-gate weights verified 2026-10-27 JST. Acceptance weights are separate from remaining-effort estimates; use the completed M3 delivery board above for the final effort reconciliation. The completed M2 record remains unchanged.
+Snapshot of exit-gate weights verified 2026-10-29 JST. Acceptance weights are separate from remaining-effort estimates; the live M4 board records the current reconciliation. Completed M2/M3 records remain unchanged.
 
 | Milestone | Completed gate weight | Total gate weight | Gate completion |
 | --- | ---: | ---: | ---: |
@@ -40,11 +40,11 @@ Snapshot of exit-gate weights verified 2026-10-27 JST. Acceptance weights are se
 | 1 — frontend and bytecode vertical slice (complete) | 89 pt | 89 pt | **100.0%** |
 | 2 — ownership and native AOT | 113 pt | 113 pt | 100.0% |
 | 3 — concurrency and embedding (complete) | 96 pt | 96 pt | 100.0% |
-| 4 — developer toolchain | 0 pt | 63 pt | 0.0% |
+| 4 — developer toolchain | 5 pt | 63 pt | 7.9% |
 | 5 — ecosystem and compatibility | 0 pt | 65 pt | 0.0% |
 | 6 — self-hosting | 0 pt | 74 pt | 0.0% |
 | 7 — additional frontends | 0 pt | 55 pt | 0.0% |
-| **Overall** | **507 pt** | **764 pt** | **66.4%** |
+| **Overall** | **512 pt** | **764 pt** | **67.0%** |
 
 ## Milestone 0: design baseline
 
@@ -226,13 +226,13 @@ Exit: a native host can load a user script, expose a typed API, call the script,
 
 ## Milestone 4: developer toolchain
 
-**Progress: 0 / 63 pt (0.0%).**
+**Progress: 5 / 63 pt (7.9%).**
 
-Entry dependency audit (2026-10-27 JST): M4 is not activated. Build on the existing CLI, formatter, LSP and native SDK; first decompose the manifest/diagnostic contract and one reproducible package execution fixture. The installer distributes toolchain binaries before M5's registry, so its accepted design must establish trust roots, signed release-metadata verification and atomic update/failure recovery before downloading/installing. M5's signing work covers registry package publication/provenance. This clarifies existing gate dependencies/scope without changing gate weights. Re-estimate observable deliveries from the bottom up on activation; 63 pt is not a remaining-effort forecast.
+Activation audit (2026-10-29 JST): use the [M4 board](milestone-4.md) for current tasks, executable checkpoints and the bottom-up 103 pt baseline. [RFC 0034](rfcs/0034-package-workspaces-and-cli-diagnostics.md) accepts the manifest/diagnostic and initial local package contract. First validate strict inspection, then execute an authorized local dependency, lock/offline replay and the create/build/run/test fixture before broader tooling. The installer distributes toolchain binaries before M5's registry, so its accepted design must establish trust roots, signed release-metadata verification and atomic update/failure recovery before downloading/installing. M5's signing work covers registry package publication/provenance. The original nine gates and weights remain unchanged; 63 pt is not a remaining-effort forecast.
 
-Sequencing clarification (2026-10-28 JST): the first package fixture must cover package creation, one local dependency, build/run/test and exact offline lock replay under the accepted manifest/diagnostic contract. Define package-source authority and checksum/refusal behavior before introducing dependency I/O; do not assume M5's public registry already exists. Reuse current parsing, formatting, query invalidation and native/VM source mapping for editor/debug work. Before broad tooling scaffolding, demonstrate the next user-visible fixture and its failure path. Installer verification remains a prerequisite to download/install, while registry publication and its trust policy remain M5. These are acceptance/dependency clarifications of the existing gates, not new completed work or activation of M4.
+Sequencing contract (clarified 2026-10-28 JST, retained on activation): the first package fixture must cover package creation, one local dependency, build/run/test and exact offline lock replay under the accepted manifest/diagnostic contract. Define package-source authority and checksum/refusal behavior before introducing dependency I/O; do not assume M5's public registry already exists. Reuse current parsing, formatting, query invalidation and native/VM source mapping for editor/debug work. Before broad tooling scaffolding, demonstrate the next user-visible fixture and its failure path. Installer verification remains a prerequisite to download/install, while registry publication and its trust policy remain M5. Activation does not complete these implementation gates.
 
-- [ ] **P0 — Accept versioned package/workspace manifests, target conditions, lockfile compatibility, and the machine-readable CLI diagnostic contract.** — 5 pt
+- [x] **P0 — Accept versioned package/workspace manifests, target conditions, lockfile compatibility, and the machine-readable CLI diagnostic contract.** — 5 pt
 - [ ] **P0 — Implement deterministic dependency resolution, lockfiles, checksums, and offline mode.** — 8 pt
 - [ ] **P0 — Extend the existing `lang run` frontend into package-aware build/run/test orchestration with the accepted structured diagnostic output.** — 5 pt
 - [ ] **P0 — Integrate package, fmt, lint, and doc commands into the CLI.** — 5 pt

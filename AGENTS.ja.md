@@ -24,6 +24,7 @@
   - `docs/milestone-1.md` と `docs/ja/milestone-1.md`
   - `docs/milestone-2.md` と `docs/ja/milestone-2.md`
   - `docs/milestone-3.md` と `docs/ja/milestone-3.md`
+  - `docs/milestone-4.md` と `docs/ja/milestone-4.md`
   - `docs/milestone-3-history.md` と `docs/ja/milestone-3-history.md`
   - `docs/milestone-2-capabilities.md` と `docs/ja/milestone-2-capabilities.md`
   - `docs/milestone-3-capabilities.md` と `docs/ja/milestone-3-capabilities.md`

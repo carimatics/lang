@@ -341,9 +341,17 @@ fn compile_native(
     Ok(0)
 }
 fn run() -> Result<u8, CliError> {
-    match parse(std::env::args_os().skip(1).collect())? {
+    let arguments: Vec<_> = std::env::args_os().skip(1).collect();
+    if arguments
+        .first()
+        .is_some_and(|argument| argument == "package")
+    {
+        return lang::package::cli::run(&arguments[1..], &mut io::stderr().lock()).map_err(failure);
+    }
+    match parse(arguments)? {
         Command::Help => {
             print!("{USAGE}");
+            println!("       lang package check-manifest [--message-format human|json] FILE");
             Ok(0)
         }
         Command::Lsp => lang::lsp::serve(
