@@ -18,7 +18,7 @@ M2は完了済みです。18/18ゲート、過去のゲート重み113/113です
 
 ## M3完了後の作業
 
-M3の実装・両host適合・C安定化・最終guideは完了しました。M4 は 2026-10-29 JST に active とし、[作業ボード](milestone-4.md)は **1 done · 1 doing · 35 todo · 103 remaining pt** です。観測可能な 1–3 pt の 37 delivery は P1 profiling を含む元の九つの gate を網羅します。名前空間監査で許可 graph の前提 3 pt を追加し、RFC 0034 の採択、厳密 manifest／JSON 検査、必須 local baseline 四つ（修正 source: 154 suite／2,330 成功）を満たした A01 の 3 pt を消化しました。PR #9 は全 tier-1／SDK／debugger CI を通過して merge 済みで、A02R が doing です。入力修正で計画 point は増やしません。収支は **103 + 3 − 3 = 103**。M5 以降は将来作業です。完了済み M3 の履歴と最終見積収支を保持します。
+M3の実装・両host適合・C安定化・最終guideは完了しました。M4 は 2026-10-29 JST に active とし、[作業ボード](milestone-4.md)は **2 done · 1 doing · 34 todo · 100 remaining pt** です。観測可能な 1–3 pt の 37 delivery は P1 profiling を含む元の九つの gate を網羅します。名前空間監査で許可 graph の前提 3 pt を追加し、厳密 manifest／JSON 検査の A01 と上限付き local graph の A02R で各 3 pt を消化しました。A01 の修正済み全 baseline は 154 suite／2,330 test が成功し、PR #9 は全 tier-1／SDK／debugger CI を通過して merge 済みです。A02R は `aae5242` の重点 test／lint／doc が成功し、workspace test を実行中です。一貫した branch は最終統合 baseline と CI を引き続き必要とします。A02 source 実行が doing です。入力修正で計画 point は増やしません。収支は **103 + 3 − 6 = 100**。M5 以降は将来作業です。完了済み M3 の履歴と最終見積収支を保持します。
 
 保守やレビューのために完了済みM2ボードを拡大しません。修正はscopeを限定したchecklistに記録し、code、文書、検証を同じ変更にまとめます。新たな言語／ABI／形式の選択には引き続き明示的RFC判断が必要ですが、実験段階の委任により個別owner承認待ちは不要です。
 

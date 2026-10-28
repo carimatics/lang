@@ -6,13 +6,15 @@
 
 更新: 2026-10-29 JST。M4 は active。Goal 開始時は clean な `main`／`origin/main` の `af9988f`、remote `git@github.com:carimatics/lang.git`。foundation branch `codex/m4-package-toolchain` は PR #9 で merge 済み。現在の一貫した package 実行作業 branch は `codex/m4-local-package-execution`。clean な `main`／`origin/main` の `42e6045` から作成し、PR base は `carimatics/lang:main`。
 
-**1 done · 1 doing · 35 todo · 103 remaining pt**
+**2 done · 1 doing · 34 todo · 100 remaining pt**
 
-**次: M4-A02R — capability で制限した local dependency graph を解決する。**
+**次: M4-A02 — 実際の宣言 dependency import を実行する。**
 
 A01 の修正済み source は `9e5b0ce`。2026-10-29 02:24 JST の local 検証で fmt、警告なし Clippy、assertion／overflow check を有効にした checked opt-level 1 の全 test（**154 suite／2,330 成功／0 失敗**）、doc が成功。manifest／CLI は 7/7、consistency は 6/6 成功し、従来の test 名／結果は未変更。最新 head `f3d0a52` の [全 CI](https://github.com/carimatics/lang/actions/runs/40736268875)（18 成功、意図した文書専用 skip）と [native debugger 実行](https://github.com/carimatics/lang/actions/runs/40736267899)（全 3 環境）が成功した。[PR #9](https://github.com/carimatics/lang/pull/9) は 02:43 JST に `42e6045` として merge。local `main` を fast-forward し、clean、ahead／behind 0/0 を確認した。
 
-A02R の実行 checkpoint、2026-10-29 03:17 JST 検証: 不変 manifest／entry snapshot、整列した完全一致 local edge、diamond identity 共有、循環／名前／version／target／resource 拒否、256 package 境界が成功。graph 9、manifest／CLI 7、consistency 6 test が成功し、監視付きの FIFO path 4 ケースも停止せず終了した。directory 専用 canonicalize と capability 相対 file admission で親／symlink 逸脱を拒否する。残条件は全 lint／test／doc baseline、review、source commit。次の A02 で実 dependency source 実行 fixture を示す。G2–G9 は未完了。
+A02R の source は `aae5242`。graph 9、manifest／CLI 7、consistency 6 test、fmt、警告なしの全 Clippy、doc が成功した（2026-10-29 JST）。production input の編集中に重ねた workspace 実行は native image の build-ID gate で失敗したため、成功 baseline と扱わない。`codegen-clif/build.rs` は production file を hash 化し、image reader は SDK build ID の完全一致を要求する。一貫した branch の提出／merge 前には source を固定してこれらを再検証し、最終統合 baseline と PR CI を通す必要がある。
+
+A02 checkpoint、2026-10-29 03:45 JST 検証: commit 対象の local-dependency fixture が portable wire replay／VM とプログラム全体の native JIT で 42 を返す。package-source 6、graph 9、manifest／CLI 7、consistency 6、既存 module 20 test が全成功。異なる推移依存 alias、一つの共有 nominal type、元の可視性 span、file identity 重複、FIFO／逸脱拒否、entry 編集／directory rename 後の snapshot が成功した。fmt、警告なしの全 Clippy、doc も成功。production source 固定後の native-image 5 test も全成功し、以前の build-ID 失敗は再現しない。source を固定した全 workspace 実行中。残条件は全 test 結果、review、source commit。G2–G9 は未完了。
 
 A01 入力修正は Unix の nonblocking open と開いた handle の metadata を使い、FIFO／device／directory を `PKG0005`／exit 1 で拒否する。計画 point や完了 delivery は増やさず、全検証と merge は上記のとおり完了した。
 
@@ -39,8 +41,8 @@ A01 入力修正は Unix の nonblocking open と開いた handle の metadata �
 | ID | State | pt | Needs | Gates | 観測可能な受入条件 | Evidence |
 | --- | --- | ---: | --- | --- | --- | --- |
 | M4-A01 | done | 0 | — | G1 | RFC 0034 を採択し、上限付き valid／invalid manifest を実 JSON CLI 診断で検査 | `9e5b0ce` |
-| M4-A02R | doing | 3 | M4-A01 | G2,G3 | capability で制限した local dependency graph、決定的順序、循環／逸脱／version／target／resource 拒否 | — |
-| M4-A02 | todo | 3 | M4-A02R | G2,G3 | 分離した package module root と不変 source access を統合、実際の宣言 dependency import を実行 | — |
+| M4-A02R | done | 0 | M4-A01 | G2,G3 | capability で制限した local dependency graph、決定的順序、循環／逸脱／version／target／resource 拒否 | `aae5242` |
+| M4-A02 | doing | 3 | M4-A02R | G2,G3 | 分離した package module root と不変 source access を統合、実際の宣言 dependency import を実行 | — |
 | M4-A03 | todo | 3 | M4-A02 | G2,G3 | canonical checksum lock fixture を offline replay、従来 output を書き換えず変更 source を拒否 | — |
 | M4-A04 | todo | 3 | M4-A03 | G2,G3 | package と local dependency を作成し package build／run／test と失敗 test fixture | — |
 | M4-A05 | todo | 3 | M4-A04 | G2,G3 | workspace member 選択と、両 supported target の完全一致 target condition lock | — |
@@ -82,9 +84,9 @@ A01 入力修正は Unix の nonblocking open と開いた handle の metadata �
 
 | Baseline remaining | Net added/re-estimated | Retired on completion | Remaining |
 | ---: | ---: | ---: | ---: |
-| 103 pt | +3 pt | −3 pt | 103 pt |
+| 103 pt | +3 pt | −6 pt | 100 pt |
 
-**103 + 3 − 3 = 103 pt**
+**103 + 3 − 6 = 100 pt**
 
 名前空間の前提監査、2026-10-29 JST: 既存 `ModuleGraph::root()` は常に `ModuleId(0)`。path provider だけでは依存ごとの package-root 名前空間や共有 dependency identity の安全な再利用を提供できない。元の A02 を、許可 graph（新規 A02R、3 pt）と名前空間／source 実行の統合（task list を見直した A02、残り 3 pt）へ分割する。純追加 +3 pt、全 37 delivery。A01 と A02R は前提二つとなるため、水平基盤を増やす前に A02 で次の source 実行 fixture を示す。この監査による gate 完了や延期はない。
 
@@ -98,6 +100,6 @@ A01 入力修正は Unix の nonblocking open と開いた handle の metadata �
 - [x] 最新 head の全 CI／debugger check を検証し、merge と base branch 同期を行う。
 
 - A01 完了: [RFC 0034](rfcs/0034-package-workspaces-and-cli-diagnostics.md) が最初の package／tooling profile を採択した。`lang package check-manifest` が実行可能な実験であり、重複／未知／null／型／version／path／target／件数／byte 上限／通常ファイル以外の拒否と構造化 exit 1／2 を含む。必須 local baseline 四つが成功し、修正済み source evidence は `9e5b0ce`（初回 delivery `d1f2667`）。A01 の最終 3 pt を消化し、新規前提 A02R（+3 pt）と区別する。マージ前の入力修正による見積追加はない。完了は G1 のみで、source dependency、offline lock、editor、debugger、installer gate は未完了。
-- 次の縦の slice: A02R で許可 graph を確立し、A02 で実 dependency import を実行、A03 で checksum／offline 失敗経路、A04 で create／build／run／test を公開する。新しい source 実行 fixture のない前提 delivery が二つ続いたら順序を再検討する。
+- A02R 完了: 不変の原 manifest／entry byte、整列した完全一致 local edge、diamond identity 共有、循環／名前／version／target／resource 拒否、256 package 境界が成功。監視付きの FIFO path 4 ケースも停止せず終了し、directory 専用 canonicalize と capability 相対 file admission が親／symlink 逸脱を拒否する。最終見積 3 pt を消化し、新規追加はない。次の実装は A02 の dependency source 実行で、その後 A03 checksum／offline replay、A04 create／build／run／test と続く。追加の水平前提は選択しない。
 - roadmap 監査: P1 profiling を含む元の九つの gate は、新規開発者 journey に引き続き必要。M4 を有効化したので roadmap から live board を参照する。署名 installer 検証は install／download より先に行う。registry distribution は M5 に保ち、暗黙に供給したり削除したりしない。
 - 出典: repository roadmap／architecture／RFC を 2026-10-29 JST に確認。source file に埋込み更新日はない。RFC 0034 更新日 2026-10-29。checkpoint は有限の local 証拠で、両 host／milestone 全体の主張ではない。

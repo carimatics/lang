@@ -136,6 +136,7 @@ struct SourcePath {
 pub struct Module {
     id: ModuleId,
     parent: Option<ModuleId>,
+    namespace_root: ModuleId,
     hierarchy: Vec<String>,
     source: SourceId,
     tree: Arc<SyntaxTree>,
@@ -150,6 +151,9 @@ impl Module {
     }
     pub const fn parent(&self) -> Option<ModuleId> {
         self.parent
+    }
+    pub const fn namespace_root(&self) -> ModuleId {
+        self.namespace_root
     }
     pub fn hierarchy(&self) -> &[String] {
         &self.hierarchy
@@ -228,7 +232,11 @@ impl ModuleGraph {
         path: &SourcePath,
         work: &mut Work,
     ) -> Result<Step, ResolutionError> {
-        let mut module = if path.root { self.root() } else { origin };
+        let mut module = if path.root {
+            self.modules[origin.0].namespace_root
+        } else {
+            origin
+        };
         for (index, segment) in path.segments.iter().enumerate() {
             work.charge(segment.span)?;
             let Some(id) = self.modules[module.0].find(&segment.text) else {
@@ -491,6 +499,144 @@ pub trait ModuleProvider {
         limits: ParseLimits,
     ) -> Result<ProvidedParse, ModuleLoadError>;
 }
+
+/// A host-verified package namespace. Paths are snapshot identities relative to
+/// the host authority, never ambient filesystem grants. Dependency indices refer
+/// to the same input slice; a root-level `mod` explicitly exposes each edge.
+pub struct PackageSource {
+    pub entry: PathBuf,
+    pub source_root: PathBuf,
+    pub dependencies: BTreeMap<String, usize>,
+}
+
+pub fn load_package_sources(
+    sources: &mut SourceMap,
+    packages: &[PackageSource],
+    limits: ModuleLimits,
+    provider: &mut dyn ModuleProvider,
+) -> Result<ModuleAnalysis, ModuleLoadError> {
+    let relative = |p: &Path| {
+        p.components()
+            .all(|part| matches!(part, std::path::Component::Normal(_)))
+    };
+    if packages.is_empty()
+        || packages.len() > limits.modules
+        || packages.iter().any(|p| {
+            p.entry.as_os_str().is_empty()
+                || !relative(&p.entry)
+                || !relative(&p.source_root)
+                || !p.entry.starts_with(&p.source_root)
+                || p.dependencies.values().any(|i| *i >= packages.len())
+        })
+    {
+        return Err(ModuleLoadError::InvalidConfiguration);
+    }
+    let mut loader = Loader::new(
+        sources,
+        PathBuf::new(),
+        limits,
+        packages.len(),
+        Some(provider),
+    );
+    let mut roots = Vec::new();
+    for (index, package) in packages.iter().enumerate() {
+        let file = loader
+            .provider
+            .as_mut()
+            .expect("snapshot provider")
+            .resolve(&package.entry, Some(&package.source_root))?;
+        if !file.starts_with(&package.source_root) {
+            return Err(ModuleLoadError::OutsideRoot { path: file });
+        }
+        if loader.canonical.contains_key(&file) {
+            return Err(ModuleLoadError::InvalidConfiguration);
+        }
+        let hierarchy = if index == 0 {
+            Vec::new()
+        } else {
+            // `root` cannot be a source module declaration, but remains a
+            // valid qualified MIR name segment. No artifact format changes.
+            vec!["root".into(), format!("package{index}")]
+        };
+        roots.push(loader.load_cached(file, None, hierarchy)?);
+    }
+    for (index, package) in packages.iter().enumerate() {
+        loader.package_edges.insert(
+            roots[index],
+            package
+                .dependencies
+                .iter()
+                .map(|(alias, index)| (alias.clone(), roots[*index]))
+                .collect(),
+        );
+    }
+    let mut jobs = Vec::new();
+    for root in &roots {
+        jobs.extend(loader.collect_items(*root)?);
+    }
+    while let Some(job) = jobs.pop() {
+        if let Some(child) = loader
+            .package_edges
+            .get(&job.parent)
+            .and_then(|edges| edges.get(&loader.graph.items[job.item.0].name.text))
+        {
+            loader.graph.items[job.item.0].kind = ItemKind::Module {
+                module: Some(*child),
+            };
+            continue;
+        }
+        let root = loader.graph.modules[job.parent.0].namespace_root;
+        let index = roots
+            .iter()
+            .position(|id| *id == root)
+            .expect("package root installed");
+        let prefix = loader.graph.modules[root.0].hierarchy.len();
+        let requested = packages[index]
+            .source_root
+            .join(job.hierarchy[prefix..].iter().collect::<PathBuf>())
+            .with_extension("lang");
+        let path = match loader
+            .provider
+            .as_mut()
+            .expect("snapshot provider")
+            .resolve(&requested, Some(&packages[index].source_root))
+        {
+            Ok(path) if path.starts_with(&packages[index].source_root) => path,
+            Ok(_) => {
+                loader.report_module(job.span, "module escapes package source root", None)?;
+                continue;
+            }
+            Err(error) => {
+                loader.report_module(job.span, format!("cannot load module: {error}"), None)?;
+                continue;
+            }
+        };
+        if loader.canonical.contains_key(&path) {
+            loader.report_module(job.span, "duplicate canonical module file or cycle", None)?;
+            continue;
+        }
+        let child = loader.load_cached(path, Some(job.parent), job.hierarchy)?;
+        loader.graph.items[job.item.0].kind = ItemKind::Module {
+            module: Some(child),
+        };
+        jobs.extend(loader.collect_items(child)?);
+    }
+    if !loader
+        .diagnostics
+        .iter()
+        .any(|d| d.severity == Severity::Error)
+    {
+        loader.resolve_aliases()?;
+    }
+    Ok(ModuleAnalysis {
+        graph: (!loader
+            .diagnostics
+            .iter()
+            .any(|d| d.severity == Severity::Error))
+        .then_some(loader.graph),
+        diagnostics: loader.diagnostics,
+    })
+}
 pub fn load_preparsed(
     sources: &mut SourceMap,
     root_file: &Path,
@@ -532,26 +678,7 @@ fn load_at(
     limits: ModuleLimits,
     provider: Option<&mut dyn ModuleProvider>,
 ) -> Result<ModuleAnalysis, ModuleLoadError> {
-    let mut loader = Loader {
-        sources,
-        root,
-        limits,
-        graph: ModuleGraph {
-            modules: Vec::new(),
-            items: Vec::new(),
-        },
-        canonical: BTreeMap::new(),
-        diagnostics: Vec::new(),
-        work: Work { left: limits.work },
-        bytes: 0,
-        tokens: 0,
-        nodes: 0,
-        functions: 0,
-        planned_modules: 1,
-        definitions: 0,
-        imports: 0,
-        provider,
-    };
+    let mut loader = Loader::new(sources, root, limits, 1, provider);
     if loader.provider.is_some() {
         loader.load_cached(file, None, Vec::new())?;
     } else if let Some(bytes) = root_bytes {
@@ -687,9 +814,39 @@ struct Loader<'a, 'p> {
     definitions: usize,
     imports: usize,
     provider: Option<&'p mut dyn ModuleProvider>,
+    package_edges: BTreeMap<ModuleId, BTreeMap<String, ModuleId>>,
 }
 
-impl Loader<'_, '_> {
+impl<'a, 'p> Loader<'a, 'p> {
+    fn new(
+        sources: &'a mut SourceMap,
+        root: PathBuf,
+        limits: ModuleLimits,
+        planned_modules: usize,
+        provider: Option<&'p mut dyn ModuleProvider>,
+    ) -> Self {
+        Self {
+            sources,
+            root,
+            limits,
+            graph: ModuleGraph {
+                modules: Vec::new(),
+                items: Vec::new(),
+            },
+            canonical: BTreeMap::new(),
+            diagnostics: Vec::new(),
+            work: Work { left: limits.work },
+            bytes: 0,
+            tokens: 0,
+            nodes: 0,
+            functions: 0,
+            planned_modules,
+            definitions: 0,
+            imports: 0,
+            provider,
+            package_edges: BTreeMap::new(),
+        }
+    }
     fn charge(&mut self, span: Span) -> Result<(), ModuleLoadError> {
         self.work.charge(span).map_err(|error| match error {
             ResolutionError::Limit(d) => ModuleLoadError::Limit(d),
@@ -880,6 +1037,7 @@ impl Loader<'_, '_> {
         self.graph.modules.push(Module {
             id,
             parent,
+            namespace_root: parent.map_or(id, |p| self.graph.modules[p.0].namespace_root),
             hierarchy,
             source,
             tree,
@@ -966,10 +1124,17 @@ impl Loader<'_, '_> {
                     "module count limit exceeded",
                 ),
             };
-            if *used >= maximum {
+            let dependency_module = matches!(kind, ItemKind::Module { .. })
+                && self
+                    .package_edges
+                    .get(&module)
+                    .is_some_and(|edges| edges.contains_key(&name.text));
+            if !dependency_module && *used >= maximum {
                 return Err(self.limit(span, description));
             }
-            *used += 1;
+            if !dependency_module {
+                *used += 1;
+            }
             if let Some(previous) = self.graph.modules[module.0].find(&name.text) {
                 self.report_module(
                     name.span,

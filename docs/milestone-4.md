@@ -6,13 +6,15 @@
 
 Updated: 2026-10-29 JST. M4 is active. Goal start: clean `main`/`origin/main` at `af9988f`, remote `git@github.com:carimatics/lang.git`. Foundation branch `codex/m4-package-toolchain` merged through PR #9. Current coherent package-execution branch: `codex/m4-local-package-execution`, created from clean `main`/`origin/main` at `42e6045`; PR base: `carimatics/lang:main`.
 
-**1 done · 1 doing · 35 todo · 103 remaining pt**
+**2 done · 1 doing · 34 todo · 100 remaining pt**
 
-**Next: M4-A02R — resolve a capability-bounded local dependency graph.**
+**Next: M4-A02 — execute a real declared dependency import.**
 
 A01's corrected source is `9e5b0ce`, verified locally 2026-10-29 02:24 JST: fmt, warning-free Clippy, checked opt-level 1 full tests (**154 suites / 2,330 passed / 0 failed**) and doc passed with assertions/overflow checks enabled. Manifest/CLI tests passed 7/7; consistency passed 6/6. All prior test identities/results remain unchanged. Latest head `f3d0a52` passed [full CI](https://github.com/carimatics/lang/actions/runs/40736268875) (18 success, expected documentation-only skip) and [native debugger execution](https://github.com/carimatics/lang/actions/runs/40736267899) (all 3 environments). [PR #9](https://github.com/carimatics/lang/pull/9) merged at 02:43 JST as `42e6045`; local `main` was fast-forwarded and verified clean with 0/0 ahead/behind.
 
-A02R executable checkpoint, verified 2026-10-29 03:17 JST: immutable manifest/entry snapshots, sorted exact local edges, shared diamond identity, cycle/name/version/target/resource refusals and 256-package boundary all pass. The 9 graph, 7 manifest/CLI and 6 consistency tests pass; four supervised FIFO path cases finish without blocking. Directory-only canonicalization and capability-relative file admission refuse parent/symlink escapes. Remaining acceptance: full lint/test/doc baseline, review and source commit. A02 must then supply the next real dependency source-execution fixture. G2–G9 remain unfinished.
+A02R source is `aae5242`. Its 9 graph, 7 manifest/CLI and 6 consistency tests pass; fmt, warning-free full Clippy and doc pass (2026-10-29 JST). The overlapping workspace run failed the native-image build-ID gate while production inputs were being edited; it is not a successful baseline. `codegen-clif/build.rs` hashes production files and the image reader requires exact SDK build-ID equality. The coherent branch requires a stable-source rerun of those checks, the final integrated baseline and PR CI before submission/merge.
+
+A02 checkpoint, verified 2026-10-29 03:45 JST: the checked-in local-dependency fixture returns 42 through portable wire replay/VM and whole-program native JIT. All 6 package-source, 9 graph, 7 manifest/CLI, 6 consistency and 20 existing module tests pass. Distinct transitive aliases, one shared nominal type, original privacy spans, duplicate file identities, FIFO/escape refusals and snapshots after entry edits/directory renames pass. Fmt, warning-free full Clippy and doc pass. With production sources fixed, all 5 native-image tests also pass; the earlier build-ID failure does not recur. A stable-source full workspace run is in progress. Remaining acceptance: full-test result, review and source commit. G2–G9 remain unfinished.
 
 The A01 input correction refuses FIFO/device/directory inputs with `PKG0005`/exit 1 using nonblocking Unix open and opened-handle metadata. It adds no planning points or completed delivery; its full validation and merge are recorded above.
 
@@ -39,8 +41,8 @@ The [roadmap](roadmap.md#milestone-4-developer-toolchain) retains the original 6
 | ID | State | pt | Needs | Gates | Observable acceptance | Evidence |
 | --- | --- | ---: | --- | --- | --- | --- |
 | M4-A01 | done | 0 | — | G1 | Accept RFC 0034; inspect valid/invalid bounded manifests with real JSON CLI diagnostics | `9e5b0ce` |
-| M4-A02R | doing | 3 | M4-A01 | G2,G3 | Capability-bounded local dependency graph; deterministic order and cycle/escape/version/target/resource refusals | — |
-| M4-A02 | todo | 3 | M4-A02R | G2,G3 | Integrate isolated package module roots and immutable source access; execute a real declared dependency import | — |
+| M4-A02R | done | 0 | M4-A01 | G2,G3 | Capability-bounded local dependency graph; deterministic order and cycle/escape/version/target/resource refusals | `aae5242` |
+| M4-A02 | doing | 3 | M4-A02R | G2,G3 | Integrate isolated package module roots and immutable source access; execute a real declared dependency import | — |
 | M4-A03 | todo | 3 | M4-A02 | G2,G3 | Canonical checksummed lock fixture replays offline and refuses changed sources without rewriting prior output | — |
 | M4-A04 | todo | 3 | M4-A03 | G2,G3 | Create a package and local dependency; package build/run/test and failed-test fixture | — |
 | M4-A05 | todo | 3 | M4-A04 | G2,G3 | Workspace member selection and exact target-condition locks on both supported targets | — |
@@ -82,9 +84,9 @@ Activation audit, 2026-10-29 JST: 36 observable deliveries, baseline 103 pt. The
 
 | Baseline remaining | Net added/re-estimated | Retired on completion | Remaining |
 | ---: | ---: | ---: | ---: |
-| 103 pt | +3 pt | −3 pt | 103 pt |
+| 103 pt | +3 pt | −6 pt | 100 pt |
 
-**103 + 3 − 3 = 103 pt**
+**103 + 3 − 6 = 100 pt**
 
 Namespace prerequisite audit, 2026-10-29 JST: the existing `ModuleGraph::root()` is always `ModuleId(0)`. A path provider alone cannot give each dependency its own package-root namespace or safely reuse a shared dependency identity. Split the original A02 outcome into an authorized graph (new A02R, 3 pt) and namespace/source execution integration (A02, remaining 3 pt after reviewing its task list). Net addition: +3 pt; 37 deliveries total. A01 and A02R are two prerequisites, so A02 must supply the next source execution fixture before further horizontal scaffolding. No gate is completed or deferred by this audit.
 
@@ -98,6 +100,6 @@ Pre-merge A01 input audit checklist:
 - [x] Verify the updated head's full CI/debugger checks, merge and synchronize the base branch.
 
 - A01 complete: [RFC 0034](rfcs/0034-package-workspaces-and-cli-diagnostics.md) accepts the initial package/tooling profile. `lang package check-manifest` is the executable experiment, including duplicate/unknown/null/type/version/path/target/list/byte-limit and nonregular-file refusals with structured exit 1/2. The four required local baseline commands passed; corrected source evidence is `9e5b0ce` (initial delivery `d1f2667`). Retire A01's last 3 pt separately from the new A02R prerequisite (+3 pt); the pre-merge input correction adds no estimates. G1 alone is complete; source dependency, offline lock, editor, debugger and installer gates remain open.
-- Next vertical slice: A02R establishes the authorized graph; A02 executes a real dependency import; A03 adds the checksum/offline failure path; A04 exposes create/build/run/test. Review the sequence after two prerequisites without a new source execution fixture.
+- A02R complete: immutable original manifest/entry bytes, sorted exact local edges, shared diamond identity, cycle/name/version/target/resource refusals and the 256-package boundary pass. Four supervised FIFO path cases finish without blocking; directory-only canonicalization and capability-relative file admission refuse parent/symlink escapes. Retire its last 3 pt; no new work is added. The next implementation is A02's dependency source execution, followed by A03 checksum/offline replay and A04 create/build/run/test; no additional horizontal prerequisite is selected.
 - Roadmap audit: all nine original gates, including P1 profiling, remain necessary for the stated new-developer journey. M4 is now activated; the roadmap must link this live board. Signed installer verification precedes install/download. Registry distribution stays M5; it is not silently supplied or removed here.
 - Sources: repository roadmap/architecture and RFCs inspected 2026-10-29 JST; source files have no embedded update dates. RFC 0034 updated 2026-10-29. Test checkpoint is finite local evidence, not a both-host or full milestone claim.

@@ -1,0 +1,5 @@
+{
+  "schema": 1,
+  "package": {"name": "app", "version": "0.1.0", "edition": "2026", "entry": "src/main.lang"},
+  "dependencies": {"helper": {"path": "deps/helper", "version": "0.1.0"}}
+}

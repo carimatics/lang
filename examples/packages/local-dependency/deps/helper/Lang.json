@@ -1,0 +1,4 @@
+{
+  "schema": 1,
+  "package": {"name": "helper", "version": "0.1.0", "edition": "2026", "entry": "src/lib.lang"}
+}

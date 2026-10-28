@@ -44,6 +44,9 @@ pub struct Snapshot {
     manifest_bytes: Vec<u8>,
     entry_path: PathBuf,
     entry_bytes: Vec<u8>,
+    pub(super) entry_metadata: cap_std::fs::Metadata,
+    pub(super) source_root: PathBuf,
+    pub(super) source_directory: Dir,
     dependencies: BTreeMap<String, PackageId>,
 }
 
@@ -223,49 +226,64 @@ impl Resolver<'_> {
             .map_err(|e| io(&self.display.join(path), e))
     }
 
-    fn read(&self, path: &Path, maximum: usize) -> Result<Vec<u8>, Diagnostic> {
-        let display = self.display.join(path);
-        let mut options = OpenOptions::new();
-        options.read(true);
-        #[cfg(unix)]
-        {
-            use cap_std::fs::OpenOptionsExt;
-            options.custom_flags(libc::O_NONBLOCK);
+    fn read(&self, path: &Path, maximum: usize) -> Result<Input, Diagnostic> {
+        read(&self.directory, &self.display, path, maximum)
+    }
+}
+
+pub(super) struct Input {
+    pub bytes: Vec<u8>,
+    pub metadata: cap_std::fs::Metadata,
+}
+
+pub(super) fn read(
+    directory: &Dir,
+    display_root: &Path,
+    path: &Path,
+    maximum: usize,
+) -> Result<Input, Diagnostic> {
+    let display = display_root.join(path);
+    let mut options = OpenOptions::new();
+    options.read(true);
+    #[cfg(unix)]
+    {
+        use cap_std::fs::OpenOptionsExt;
+        options.custom_flags(libc::O_NONBLOCK);
+    }
+    let file = directory
+        .open_with(path, &options)
+        .map_err(|e| io(&display, e))?;
+    let metadata = file.metadata().map_err(|e| io(&display, e))?;
+    if !metadata.is_file() {
+        return Err(io_message(&display, "package input must be a regular file"));
+    }
+    if metadata.len() > maximum as u64 {
+        return Err(limit("package input byte limit exceeded").at_path(&display));
+    }
+    let mut file = file.take((maximum as u64).saturating_add(1));
+    let mut bytes = Vec::new();
+    let mut chunk = [0; 16384];
+    loop {
+        let n = file.read(&mut chunk).map_err(|e| io(&display, e))?;
+        if n == 0 {
+            break;
         }
-        let file = self
-            .directory
-            .open_with(path, &options)
-            .map_err(|e| io(&display, e))?;
-        let metadata = file.metadata().map_err(|e| io(&display, e))?;
-        if !metadata.is_file() {
-            return Err(io_message(&display, "package input must be a regular file"));
-        }
-        if metadata.len() > maximum as u64 {
+        let length = bytes
+            .len()
+            .checked_add(n)
+            .ok_or_else(|| limit("package input capacity exceeded"))?;
+        if length > maximum {
             return Err(limit("package input byte limit exceeded").at_path(&display));
         }
-        let mut file = file.take((maximum as u64).saturating_add(1));
-        let mut bytes = Vec::new();
-        let mut chunk = [0; 16384];
-        loop {
-            let n = file.read(&mut chunk).map_err(|e| io(&display, e))?;
-            if n == 0 {
-                break;
-            }
-            let length = bytes
-                .len()
-                .checked_add(n)
-                .ok_or_else(|| limit("package input capacity exceeded"))?;
-            if length > maximum {
-                return Err(limit("package input byte limit exceeded").at_path(&display));
-            }
-            bytes
-                .try_reserve(n)
-                .map_err(|_| limit("package input allocation refused"))?;
-            bytes.extend_from_slice(&chunk[..n]);
-        }
-        Ok(bytes)
+        bytes
+            .try_reserve(n)
+            .map_err(|_| limit("package input allocation refused"))?;
+        bytes.extend_from_slice(&chunk[..n]);
     }
+    Ok(Input { bytes, metadata })
+}
 
+impl Resolver<'_> {
     fn visit(
         &mut self,
         root: PathBuf,
@@ -296,7 +314,7 @@ impl Resolver<'_> {
             return Err(limit("package count limit exceeded").at_path(&self.display.join(&root)));
         }
         let manifest_path = input_path(&root, name);
-        let manifest_bytes = self.read(&manifest_path, MAX_BYTES)?;
+        let manifest_bytes = self.read(&manifest_path, MAX_BYTES)?.bytes;
         let manifest = Manifest::parse(&manifest_bytes)
             .map_err(|e| e.at_path(&self.display.join(&manifest_path)))?;
         let package = manifest.package.as_ref().ok_or_else(|| {
@@ -307,8 +325,20 @@ impl Resolver<'_> {
         })?;
         identity(package, expected, &self.display.join(&manifest_path))?;
         let entry_path = input_path(&root, Path::new(&package.entry));
+        let source_root =
+            self.canonical_directory(entry_path.parent().expect("entry directory"))?;
+        let source_directory = self
+            .directory
+            .open_dir(source_root.join("."))
+            .map_err(|e| io(&self.display.join(&source_root), e))?;
         let remaining = self.limits.source_bytes.saturating_sub(self.source_bytes);
-        let entry_bytes = self.read(&entry_path, remaining)?;
+        let entry = read(
+            &source_directory,
+            &self.display.join(&source_root),
+            Path::new(entry_path.file_name().expect("entry filename")),
+            remaining,
+        )?;
+        let entry_bytes = entry.bytes;
         self.source_bytes = self
             .source_bytes
             .checked_add(entry_bytes.len())
@@ -333,6 +363,13 @@ impl Resolver<'_> {
             manifest_bytes,
             entry_path,
             entry_bytes,
+            entry_metadata: entry.metadata,
+            source_root: if source_root == Path::new(".") {
+                PathBuf::new()
+            } else {
+                source_root
+            },
+            source_directory,
             dependencies: BTreeMap::new(),
         });
         for (alias, dependency) in dependencies {
