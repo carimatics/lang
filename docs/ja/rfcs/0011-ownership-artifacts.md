@@ -7,7 +7,7 @@
 - Status: implemented
 - Authors: Project contributors
 - Created: 2026-10-18
-- Last updated: 2026-10-20
+- Last updated: 2026-10-28
 - Tracking issue: [実装Todo](../milestone-2.md) のM2-A01/A02/A03とN01
 - Supersedes: なし。RFC 0006のschema 1と並行してownership schema 2を追加
 - Superseded by:
@@ -44,6 +44,8 @@ Live heap／session snapshot、IRの代わりのsource埋め込み、native mach
 Copy compilationはschema 1を出力し続けます。Ownership compilationはA02／A03で本契約を実装してからschema 2を出力します。旧loaderはversion 2を明示拒否し、新general loaderはversion別verifierへ振り分けます。Schema-1専用APIは従来の狭い契約を維持できます。不正version-2 payloadをversion 1やsourceとして再試行してはいけません。移行はsourceから再buildし、headerだけを書き換える方法は無効です。
 
 A03で`lang compile [--source-root DIR] --output ARTIFACT SOURCE`と`lang run --artifact [--fuel N] [--host-calls N] [--frames N] [--cells N] ARTIFACT`を追加します。Compileは通常のscript entryを要求し、検証後にだけ出力を公開します。既存の`lang run SOURCE`はsource実行を維持し、artifactのloadは明示指定し、埋め込みpathを辿りません。Entryなしのlibrary artifactはembedding API機能に留めます。ここでcommandを規定しますが、A01では実装しません。
+
+出力保護の訂正をRFC 0001の実験段階の委任で受理（2026-10-28 JST）：compileは、間接的なmoduleとpathの別名を含む**読み込んだ全source file**のいずれかを指す出力先を、公開前に拒否します。入口fileだけを保護すると、正常なcompileでimport先のmoduleを破壊できました。判定にはfile解析loaderの正規化済みidentityを使い、artifactから渡されたdisplay pathに権限を与えません。それ以外の既存artifact出力はatomicな置換を維持します。Source入力を出力先に指定していた利用側は別の出力先を選びます。Source構文、artifactのbyte列、ABIは変更しません。敵対的なfilesystemの並行置換はこのCLI検査の保証外です。`tests/artifact_cli.rs`で入口／間接module、別名、source byteの保存、正常なartifact置換を検証します。
 
 ## Reference semantics
 
@@ -221,7 +223,7 @@ A03はBytes／Text／Vec／Map／shared／arena、provider OOM、fuel、中断�
 
 ## Open questions
 
-A01の仮定は、実装したVM profileに対してA02／A03で検証しました。Load ledgerが全独立proof stageを通じて保持され、代表的な受理済みraw tableが設定予算内に収まり、load／直接実行の結果、failure span、解放順序、fuel、復旧が一致します。明記した上限内のconformance証拠であり、一般的な性能の主張ではありません。Native／platform対応、benchmark／debugの受入は別行で未検証のままです。契約変更の前にはRFCを明示改訂します。
+実装済み形式に未解決のblockerはありません。Load全体のledger、load／直接実行、source span、cleanupはA02／A03と完了済み[M2監査](../milestone-2-capabilities.md)で検証済みです。Native／platformとbenchmark／debug gateは記録されたrevisionで完了していますが、将来の性能を保証する観測ではありません。上記2026-10-28の出力保護訂正により、読み込んだsourceと同じ出力先には別のpathが必要です。形式契約を変える前にRFCを改訂します。
 
 ## Decision
 

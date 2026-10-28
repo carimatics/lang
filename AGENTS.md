@@ -31,6 +31,7 @@ These instructions apply to the entire repository.
   - `docs/review-2026-10-17.md` and `docs/ja/review-2026-10-17.md`
   - `docs/review-2026-10-20.md` and `docs/ja/review-2026-10-20.md`
   - `docs/review-2026-10-27.md` and `docs/ja/review-2026-10-27.md`
+  - `docs/review-2026-10-28.md` and `docs/ja/review-2026-10-28.md`
   - `docs/rfcs/0000-template.md` and `docs/ja/rfcs/0000-template.md`
   - Every numbered RFC in `docs/rfcs/` and its same-named mirror in `docs/ja/rfcs/`
   - `.agents/skills/language-design-rfc/SKILL.md` and `docs/ja/codex/language-design-rfc.md`

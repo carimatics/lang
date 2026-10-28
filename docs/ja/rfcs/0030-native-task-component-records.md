@@ -7,10 +7,14 @@
 - Status: implemented
 - Authors: Codex under the owner's experimental delegation
 - Created: 2026-10-27
-- Last updated: 2026-10-27
-- Tracking issue: M3-I13; installed publication remains M3-I08
+- Last updated: 2026-10-28
+- Tracking issue: M3-I13 and installed follow-up M3-I08 (complete)
 - Supersedes: None; adds a separate RFC 0018 record revision
 - Superseded by: None
+
+## 現在の範囲
+
+2026-10-28 JST照合。Revision 2の再構築とRFC 0031／0032のinstalled follow-upは実装済みです。[M3終了監査](../milestone-3-capabilities.md)でI13／I08と両hostのtask／component startupを完了しています。以下の当初受理時の仮定は日付付き履歴です。公開C v1の安定化によってnative recordやprivate SDKがstabilizedになるわけではありません。
 
 ## Summary
 
@@ -99,7 +103,7 @@ semantic/native bytesとmetadataは非信頼データです。symbol解決・con
 
 ## Open questions
 
-installed package/SDK revision・host binding startup API・Windows実行はI08の決定/証拠へ残します。本formatは実験段階です。記録したprofileの復元は検証済みですが、performanceとinstalled/両host startupは未検証です。
+Revision 2に未解決のblockerはありません。Installed package／SDK revisionと明示的host bindingのstartupはRFC 0031／0032で決定済みで、[M3終了監査](../milestone-3-capabilities.md)に両hostのinstalled実行を記録しています。Native recordとprivate SDKは実験段階のままです。より広い性能主張には新たな計測が必要です。
 
 ## Sources
 

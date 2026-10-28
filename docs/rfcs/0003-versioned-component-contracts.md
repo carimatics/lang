@@ -7,7 +7,7 @@
 - Status: accepted
 - Authors: Project contributors
 - Created: 2026-10-16
-- Last updated: 2026-10-27
+- Last updated: 2026-10-28
 - Tracking issue:
 - Supersedes:
 - Superseded by:
@@ -298,13 +298,7 @@ A separate child process retaining 4,096 exactly locked instances has a 10,108,9
 
 ## Open questions
 
-- Should the serialized contract adopt WIT directly, embed a compatible subset, or use a project-specific encoding with a WIT adapter?
-- Which source-level range syntax should tooling lower into the normalized exact/interval representation?
-- When, if ever, should independently versioned interfaces replace package-inherited versions?
-- Which rich values should follow the initial scalar/resource subset, and which require a later schema?
-- How should capability namespaces, delegation, attenuation, and ambient host policy compose?
-- Should validated contracts retain direct function pointers, immutable registry references, or generation-checked registry handles?
-- Which sanitizer should each embedding apply, and what evidence would justify revising the accepted candidate failure-record tags or redacted/sanitized message policy before public stabilization?
+Remaining follow-ups are WIT interoperability, package-manager range spelling, independently versioned interfaces, and any future capability delegation/attenuation policy. RFC 0027 resolves the initial rich values, retained registry/code owners, concrete grants and sanitized failure representation; RFC 0033 stabilizes public C v1. The [M3 exit audit](../milestone-3-capabilities.md) supplies implementation evidence. Future additions require their own versioned decisions; they must not reopen the selected profile implicitly.
 
 Decision: **accepted on 2026-10-17** by the repository owner. Acceptance includes the candidate schema-2 contract/failure-report serialization and forward-compatibility policy specified here as the implementation baseline. It does not stabilize a public serialized format, claim WIT compatibility, or complete production package-manager I/O; those remain explicitly versioned downstream work. The open questions above are optional follow-ups and do not block the accepted baseline.
 

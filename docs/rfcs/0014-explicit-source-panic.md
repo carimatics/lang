@@ -7,7 +7,7 @@
 - Status: implemented
 - Authors: Codex, under the owner's experimental delegation
 - Created: 2026-10-19
-- Last updated: 2026-10-20
+- Last updated: 2026-10-28
 - Accepted: 2026-10-19
 - Implemented: 2026-10-19
 - Tracking issue: M2-F13
@@ -82,7 +82,7 @@ Implementation correction (2026-10-20 JST): the [combined source](../../examples
 
 ## Open questions
 
-Local source divergence, loan-valued specializations, VM/native differential failure/cleanup, schema compatibility and standalone AOT are validated. Windows execution for this snapshot and performance evidence remain tracked by M2-F07 and the benchmark tasks. The initial provisional 3-point estimate is not a time promise; implementation is not stabilization.
+Source divergence, loan-valued specializations, VM/native failure/cleanup, schema compatibility and standalone AOT are implemented. [M2's completed audit](../milestone-2-capabilities.md) records both-host execution and the separate benchmark evidence. No platform gate remains open for this scope; implementation is not stabilization.
 
 ## Sources
 

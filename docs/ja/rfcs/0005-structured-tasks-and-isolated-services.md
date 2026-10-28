@@ -7,7 +7,7 @@
 - Status: accepted
 - Authors: Project contributors
 - Created: 2026-10-16
-- Last updated: 2026-10-27
+- Last updated: 2026-10-28
 - Tracking issue:
 - Supersedes:
 - Superseded by:
@@ -246,7 +246,7 @@ Unscoped futureはspawnを簡単にしますが、childがborrowed／owned paren
 
 Accepted strict initial policyにblocking semantic questionはありません。Repository ownerは2026-10-17にacceptしました。
 
-Optional follow-upはexact surface API、detached-task requirement、mailbox backpressure、supervision／restart、static executor specialization、pinned shared-frame borrow／explicit mutation capabilityを別RFCにするかどうかです。
+最初のsource API、Send／Share、上限付きchannel／backpressure、isolated serviceはRFC 0022～0026で決定済みです。任意の将来検討はdetached task、supervision／restart、並列executor特化、select／deadline拡張、suspensionをまたぐpinned loanや新しいmutation capabilityです。初期M3 deliveryの未完了項目ではなく、新たな設計です。
 
 Decision：Repository ownerにより **2026-10-17にaccepted**。
 

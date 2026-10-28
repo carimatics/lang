@@ -7,7 +7,7 @@
 - Status：accepted
 - Authors：Project contributors
 - Created：2026-10-16
-- Last updated: 2026-10-27
+- Last updated: 2026-10-28
 - Tracking issue：
 - Supersedes：
 - Superseded by：
@@ -298,13 +298,7 @@ Exact lock済みinstanceを4,096個保持する別child processは10,108,928-byt
 
 ## 未解決事項
 
-- Serialized contractはWITを直接採用するか、compatible subsetをembedするか、WIT adapter付きproject-specific encodingを使うべきか。
-- Toolingはどのsource-level range syntaxをnormalized exact／interval representationへloweringするべきか。
-- Interfaceの独立versioningは、いつpackage-inherited versionを置き換えるべきか。
-- 初期scalar／resource subsetの次にどのrich valueを追加し、どれを後続schemaへ送るべきか。
-- Capability namespace、delegation、attenuation、ambient host policyをどうcomposeするべきか。
-- Validated contractはdirect function pointer、immutable registry reference、generation-checked registry handleのどれを保持するべきか。
-- 各embeddingはどのsanitizerを適用するべきか。またpublic stabilization前にaccepted candidate failure-record tag／redacted-sanitized message policyをrevisionするには、どのevidenceが必要か。
+残る検討事項はWIT相互運用、package managerのversion range表記、interfaceの独立version管理、将来のcapability委譲／縮小方針です。最初のrich value、registry／code ownerの保持、具体的grant、sanitized failure表現はRFC 0027で決定済みで、公開C v1はRFC 0033でstabilizedです。実装証拠は[M3終了監査](../milestone-3-capabilities.md)を参照します。将来の追加は独自のversion付き判断を必要とし、採用済みprofileを暗黙に再検討しません。
 
 Decision：Repository ownerが**2026-10-17にaccept**しました。このacceptanceは、ここで規定するcandidate schema-2 contract／failure-report serializationとforward-compatibility policyをimplementation baselineに含みます。Public serialized formatのstabilize、WIT compatibilityの主張、production package-manager I/Oの完了は含まず、これらは明示的にversion管理する後続作業です。上記の未解決事項は任意のfollow-upであり、accept済みbaselineをblockしません。
 

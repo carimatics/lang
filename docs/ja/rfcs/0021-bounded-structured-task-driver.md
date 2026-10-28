@@ -7,10 +7,14 @@
 - Status: implemented
 - Authors: Project contributors
 - Created: 2026-10-20
-- Last updated: 2026-10-25
+- Last updated: 2026-10-28
 - Tracking issue: M3-T01, M3-T02
 - Supersedes:
 - Superseded by:
+
+## 現在の範囲
+
+2026-10-28 JST照合。Kernel、source adapter、parked channel、子孫のcleanup、元taskでの同期callback scopeは実装済みで、[M3終了監査](../milestone-3-capabilities.md)に含まれます。以前は別途必要だったsource、Send／Share、channel、service、embeddingの判断はRFC 0022～0027が提供します。実行は1 invocation内のlogical taskのままです。以下の日付付き実装前提は当時のcheckpointを示し、M3の残作業ではありません。
 
 E13 current-task借用の判断（2026-10-25 JST、RFC 0001実験段階の委任で受理）: 同期native callbackは、元Schedulerのactively running taskをcheckedな排他viewとして借用します。viewは元のbrand付きTaskId・parent/origin・取消要求・usage/limitを読み、取消要求は元Schedulerの同じtaskへ委譲します。root開始・task admission・counter複製・dispatch/finish/cleanup権限は与えません。入場でinvocation/slot/active/runningを検証し、ready/waiting/cleaning/completed/foreign taskは拒否します。nested reborrowは同じtask/stateを参照し、drop/失敗/unwindで元taskを完了または再dispatchしません。既存kernel transitionは不変です。ID/取消flagのコピーや新しいrootではlifecycleを共有できず、viewの代案として採用しません。次に既存VM/native frame executionへ接続し、同期childは元logical taskに属しtaskを再admitせず、元taskを閉じずに自身のscopeだけをcleanupします。実sourceの非root task callback・取消・反復・usage不増・全owner/loan cleanupで検証するまでE13は未完了です。task exportの拒否とE02/E03/E04/L04・公開Cの条件を維持し、syntax/永続形式は変更しません。未検証の実装仮定は、既存frame driverと元task lifecycleを別task生成なしに接続できることです。
 
@@ -132,7 +136,7 @@ FIFO dispatch、通常/異常 scope 終了、入れ子、完了済み子の join
 
 ## Open questions
 
-初期 kernel の blocking question はありません。未検証の仮定: 有界の親子 metadata 保持が最初の source fixture に十分であること、設定上限内の走査費用が許容されること、adapter が spawn 前に frame/cleanup 資源を予約できること。安定化前に測定/改訂します。
+実装済みkernelとsource adapterにblockerはありません。Source構文、Send／Share、channel、service、production embeddingはRFC 0022～0027で決定済みで、[M3適合性検証](../milestone-3-capabilities.md)が予約、取消、元taskのcallback scopeを検証しています。走査／dispatchのcostはworkload依存の観測であり、並列executorやlatencyの保証ではありません。以下の判断は以前の受理時点の状態です。
 
 判断: **RFC 0001 の実験段階の委任で accepted、2026-10-20 JST**。明示 driver は RFC 0005 を保ち、検証済み guest cleanup と scheduling を分離します。個別 owner 承認待ちは不要です。source 構文は RFC 0022 で採択し、channel/Send/Share と production embedding profile は未決定です。
 

@@ -929,10 +929,20 @@ fn compile_source(file: PathBuf, root: Option<PathBuf>, output: PathBuf) -> Resu
         }
         Err(error) => return Err(failure(error)),
     };
-    if let (Ok(input), Ok(target)) = (std::fs::canonicalize(&file), std::fs::canonicalize(&output))
-        && input == target
-    {
-        return Err(failure("artifact output must differ from the source input"));
+    if let Ok(target) = std::fs::canonicalize(&output) {
+        let canonical_root = std::fs::canonicalize(&root).map_err(failure)?;
+        // These snapshots come only from analyze_file's root-checked loader,
+        // which names every source relative to its canonical root. Do not use
+        // display names from decoded artifacts or virtual inputs for file IO.
+        if analysis
+            .sources
+            .iter()
+            .any(|(_, source)| canonical_root.join(source.name()) == target)
+        {
+            return Err(failure(
+                "artifact output must differ from every source input",
+            ));
+        }
     }
     write_artifact(&output, &bytes).map_err(|e| failure(format!("{output:?}: {e}")))?;
     Ok(0)

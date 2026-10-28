@@ -7,7 +7,7 @@
 - Status: implemented
 - Authors: Codex, under the owner's experimental delegation
 - Created: 2026-10-18
-- Last updated: 2026-10-20
+- Last updated: 2026-10-28
 - Implemented: 2026-10-20
 - Tracking issue: M2-N08, M2-N01–N07, M2-G01–G03
 - Supersedes: None; elaborates RFC 0008's private native execution contract
@@ -155,7 +155,7 @@ Production tests must exercise recursive owned/loan source calls; every provider
 
 ## Open questions
 
-No blocking contract question remains for N01. Performance, production helper integration, platform linker/runtime integration and debugger reconstruction remain unverified implementation assumptions. Keep their existing rows/gates open and re-estimate from actual experiments; this acceptance does not establish their completion.
+No blocking contract question remains. Production helpers, managed-frame integration, both-host linking and the logical debugger chain are verified by the completed [M2 audit](../milestone-2-capabilities.md), including the 2026-10-20 debugger correction. Source-variable locations, logical stepping and later performance improvements remain separate work. Do not reopen completed M2 rows based on the historical acceptance assumptions below.
 
 Accepted under RFC 0001's experimental delegation on **2026-10-18 JST**. Rationale: preserves the established machine signature and managed runtime invariants, avoids an unbounded native recursion stack, has a concrete host/target-object prototype and retains full source/native/platform obligations. Explicitly revise this RFC if the production experiments contradict its assumptions.
 

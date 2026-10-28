@@ -8,7 +8,7 @@
 
 ## 完了済みM2とM3
 
-**検証済み133件 · 進行中0件 · 残り0件（暫定0 pt）。**
+M2 delivery記録: **検証済み133件 · 進行中0件 · 残り0件（暫定0 pt）。**
 
 M2は完了済みです。18/18ゲート、過去のゲート重み113/113です。[完了ボード](milestone-2.md)に成果と見積もり収支、[機能ガイド](milestone-2-capabilities.md)に実際のsource/VM/native/C/SDK/debugの根拠と制約を記録しています。この件数はM2のもので、将来の全作業ではありません。
 
@@ -21,6 +21,8 @@ M2は完了済みです。18/18ゲート、過去のゲート重み113/113です
 M3の実装・両host適合・C安定化・最終guideは完了しました。M4以降のgateは将来workであり、まだactiveにしていません。次のmilestoneを開始する際に残作業を1–3 ptの観測可能なdeliveryへ分解し、そのboardで管理します。完了済みM3の履歴と最終見積り収支は再openしません。
 
 保守やレビューのために完了済みM2ボードを拡大しません。修正はscopeを限定したchecklistに記録し、code、文書、検証を同じ変更にまとめます。新たな言語／ABI／形式の選択には引き続き明示的RFC判断が必要ですが、実験段階の委任により個別owner承認待ちは不要です。
+
+[2026-10-28のrepositoryレビュー](review-2026-10-28.md)で、古いRFC follow-upを完了済みM2／M3証拠と照合し、保守修正を別途記録しています。日付付きcheckpointに残る「Windows未検証」などの過去記述で完了済み成果を再開しません。M4～M7のgate重みは変更せず、残作業の見積もりとも扱いません。
 
 ## タスク管理
 
@@ -227,6 +229,8 @@ Exit：Native hostがuser scriptをloadし、typed APIを公開し、scriptをca
 **進捗：0 / 63 pt（0.0%）。**
 
 開始時の依存監査（2026-10-27 JST）: M4は未開始です。既存のCLI・formatter・LSP・native SDKを基盤とし、最初にmanifest/diagnostic契約と1つの再現可能なpackage実行fixtureへ分解します。installerはM5のregistryを待たずにtoolchain binaryを配布するため、信頼起点・署名付きrelease metadataの検証・失敗時のatomic更新/回復を自身の受理済み設計に含めてからdownload/installします。M5の署名作業はregistry packageの公開/provenanceを対象にします。既存exit gateの依存と範囲を明確化するもので、gate weightは不変です。開始時にはbottom-upのdelivery見積りを行い、63 ptを残工数として使いません。
+
+順序の明確化（2026-10-28 JST）: 最初のpackage fixtureで、受理済みmanifest／diagnostic契約に従うpackage作成、local dependency 1件、build／run／test、厳密なoffline lock再現を扱います。依存先へのI/Oを導入する前にpackage sourceの権限とchecksum／拒否動作を定義し、M5の公開registryが存在することを前提にしません。Editor／debug作業では既存のparse、format、query無効化、native／VM source mappingを再利用します。広範なtooling基盤を追加する前に、次の利用者向けfixtureと失敗経路を実証します。Installer検証はdownload／installの前提を維持し、registry公開とその信頼方針はM5に残します。既存gateの受入条件／依存の明確化であり、新しい完了成果やM4開始ではありません。
 
 - [ ] **P0 — Version付きpackage／workspace manifest、target condition、lockfile互換性、machine-readable CLI diagnostic契約を受理する。** — 5 pt
 - [ ] **P0 — Deterministic dependency resolution、lockfile、checksum、offline modeを実装する。** — 8 pt

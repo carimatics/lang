@@ -7,7 +7,7 @@
 - Status: implemented
 - Authors: project contributors
 - Created: 2026-10-20
-- Last updated: 2026-10-20
+- Last updated: 2026-10-28
 - Tracking issue: M2-P02
 - Supersedes: none; extends RFCs 0011/0014
 - Superseded by: none
@@ -117,7 +117,7 @@ Execute source-derived decoded C fixtures through existing explicit VM/native bi
 
 ## Open questions
 
-No blocking format question. Native distribution records, startup entry and SDK matching require their own P02 design and are not defined by these two ABI bytes.
+No blocking format question. RFCs 0018–0020 implement the separate native records, startup and exact SDK matching; RFCs 0030–0032 extend them for tasks/components. Those contracts are not encoded by this format's two ABI bytes. New profiles still require explicit version decisions.
 
 ## Sources
 

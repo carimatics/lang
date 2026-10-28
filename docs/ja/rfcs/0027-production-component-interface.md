@@ -7,7 +7,7 @@
 - Status: implemented
 - Authors: Project contributors
 - Created: 2026-10-22
-- Last updated: 2026-10-27
+- Last updated: 2026-10-28
 - Tracking issue: M3-I01 through M3-I09, M3-R01 through M3-B02
 - Supersedes:
 - Superseded by:
@@ -356,7 +356,7 @@ I02 実装 checkpoint（2026-10-22 JST）: runtime IDL module に有限な JSON/
 
 ## Open questions
 
-参照 header/report tag の review 後、blocking な意味論の質問はありません。WIT adapter・非同期 native callback・再帰 value schema・sendable external resource kind は optional follow-up で、v1 受理を暗黙に弱めません。未検証仮説は compiler/runtime 再利用 cost、生成 C の ergonomics、callback/task 統合、両 host の実行/startup です。委任受理から性能/実装結果を推論しません。
+実装済みprofileにsemantic blockerはありません。Callback／task統合、生成C client、保存／installed package、両host実行は[M3終了監査](../milestone-3-capabilities.md)で検証済みで、RFC 0033は公開C v1だけをstabilizedとします。任意の将来検討はWIT相互運用、非同期native callback、再帰value schema、Send可能な外部resourceです。公表costは限定された観測です。以下の受理／実装checkpointは履歴証拠であり、現在の作業queueではありません。
 
 Review outcome: **RFC 0001 の実験期委任に基づき2026-10-22 JST、production 実装前に accepted**。厳密な宣言文書と独立 version namespace で既存 component/resource/cleanup 機構を拡張し、旧 C/artifact profile を保ちます。shared/exclusive resource access・同期 nested callback・元 invocation 計上・明示 failure/ownership phase により、suspension loan の緩和や native VM fallback なしに production policy を決定します。既存実行 probe 2件、最終 header の各 target 112 C layout assertion と両 tier-1 target の C++20 syntax が成功しました。これは decision/互換性の証拠で、production 実行や Windows runtime の証拠ではありません。source/MIR/resource/callback 統合・完全な生成 fingerprint・serialized task/native-package rollout・cost・両 host 実行は未検証の実装条件として Todo に残します。
 

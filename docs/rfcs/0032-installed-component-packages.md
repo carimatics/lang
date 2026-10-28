@@ -7,10 +7,14 @@
 - Status: implemented
 - Authors: Codex under the owner's experimental delegation
 - Created: 2026-10-27
-- Last updated: 2026-10-27
-- Tracking issue: M3-I15 (implemented); M3-I08 retains both-host startup
+- Last updated: 2026-10-28
+- Tracking issue: M3-I15 and both-host startup M3-I08 (complete)
 - Supersedes: None; extends RFCs 0020, 0030 and 0031
 - Superseded by: None
+
+## Current scope
+
+Reconciled 2026-10-28 JST. Program/SDK version 3 components and their explicit host bindings are implemented. The [M3 exit audit](../milestone-3-capabilities.md) records seven-profile isolated macOS/Windows startup at `8f41f44` and full conformance/old-client migration at `9e78f2d`, including the public C gateway. I08 is complete. The earlier prototype and macOS-only checkpoint below remain historical evidence, not unresolved platform work.
 
 ## Summary
 
@@ -91,7 +95,7 @@ Cover every version/profile pairing, missing host, unexported/wrong entry, misma
 
 ## Open questions
 
-Windows task/component startup remains unverified. Further CLI ergonomics and SDK size reduction are not required by this first installed Rust-host profile. The admitted API and resource/callback behavior are validated above; broader performance costs remain unmeasured. Expose new prerequisites before later implementation.
+Both-host task/component startup and the public C gateway are verified in the completed [M3 audit](../milestone-3-capabilities.md). No I08 platform prerequisite remains open. Further CLI ergonomics, SDK size reduction, additional targets and broader performance measurements remain optional future work; expose new prerequisites before implementation.
 
 ## Sources
 

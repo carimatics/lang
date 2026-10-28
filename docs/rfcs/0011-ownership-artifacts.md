@@ -7,7 +7,7 @@
 - Status: implemented
 - Authors: Project contributors
 - Created: 2026-10-18
-- Last updated: 2026-10-20
+- Last updated: 2026-10-28
 - Tracking issue: M2-A01/A02/A03 and N01 in [the delivery board](../milestone-2.md)
 - Supersedes: None; adds ownership schema 2 alongside RFC 0006 schema 1
 - Superseded by:
@@ -44,6 +44,8 @@ An owning script such as [the Bytes fixture](../../examples/scripts/owned_bytes.
 Copy compilation continues to emit schema 1. Ownership compilation emits schema 2 only after A02/A03 implement this contract. An old loader rejects version 2 explicitly; a new general loader dispatches to the version's verifier. Existing schema-1-only APIs may retain that narrower contract. No loader retries an invalid version-2 payload as version 1 or as source. Rebuild from source to migrate; changing only the header is invalid.
 
 A03 adds `lang compile [--source-root DIR] --output ARTIFACT SOURCE` and `lang run --artifact [--fuel N] [--host-calls N] [--frames N] [--cells N] ARTIFACT`. Compilation requires the normal script entry and publishes output only after validation. The existing `lang run SOURCE` remains source execution; artifact loading is explicit and never follows embedded paths. Library artifacts without an entry remain an embedding API feature. These commands are specified here but are not implemented by A01.
+
+Output protection correction accepted under RFC 0001's experimental delegation (2026-10-28 JST): compilation must reject an output path resolving to **any loaded source file**, including transitive modules and path aliases, before publication. Protecting only the entry file allowed a valid compile to destroy an imported module. The file-analysis loader's canonical identities determine this check; artifact-supplied display paths convey no authority. Other existing artifact outputs retain atomic replacement. Callers targeting a source input must select a different output; source syntax, artifact bytes and ABI are unchanged. Concurrent hostile filesystem replacement is outside this CLI check's guarantee. `tests/artifact_cli.rs` covers root/transitive inputs, aliases, preserved source bytes and successful artifact replacement.
 
 ## Reference semantics
 
@@ -221,7 +223,7 @@ A03 compares direct/loaded source results and original-span failure/cleanup trac
 
 ## Open questions
 
-The A01 assumptions are verified for the implemented VM profile by A02/A03: the load ledger survives all independent proof stages, representative accepted raw tables fit the configured budgets, and loaded/direct results, failure spans, release order, fuel and recovery agree. This is conformance evidence within the stated limits, not a universal performance claim. Native/platform support and benchmark/debug acceptance remain unverified in their separate rows. Explicitly revise the RFC before changing its contract.
+No unresolved blocker for the implemented format. The load-wide ledger, loaded/direct execution, source spans and cleanup are verified by A02/A03 and the completed [M2 audit](../milestone-2-capabilities.md). Native/platform and benchmark/debug gates are complete at their recorded revisions; those observations do not guarantee future performance. The 2026-10-28 output-protection correction above requires a different destination when it aliases any loaded source. Revise the RFC before changing the format contract.
 
 ## Decision
 

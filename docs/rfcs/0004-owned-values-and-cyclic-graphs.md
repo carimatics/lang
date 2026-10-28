@@ -7,7 +7,7 @@
 - Status: accepted
 - Authors: Project contributors
 - Created: 2026-10-16
-- Last updated: 2026-10-27
+- Last updated: 2026-10-28
 - Tracking issue:
 - Supersedes:
 - Superseded by:
@@ -246,7 +246,7 @@ The policy is accepted; the examples do not accept a source grammar. Milestone 2
 
 There are no blocking semantic questions for the accepted policy. The repository owner accepted it on 2026-10-17.
 
-Optional follow-ups are the final constructor/parameter/API spellings, static acyclicity annotations that can remove checks, allocator selection, weak-upgrade ordering under the future concurrency model, and whether a separately named traced heap should be proposed later.
+Constructor/core API spellings and allocator authority are resolved by implemented RFCs 0007/0008. Optional follow-ups are static acyclicity annotations, weak-upgrade ordering for a future parallel OS-thread executor, and a separately named traced heap. Logical-task Send/Share is already covered by RFC 0024; it is not blanket host-thread safety.
 
 Decision: **accepted on 2026-10-17** by the repository owner.
 

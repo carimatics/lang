@@ -7,7 +7,7 @@
 - Status: implemented
 - Authors: Codex, under the owner's experimental delegation
 - Created: 2026-10-20
-- Last updated: 2026-10-20
+- Last updated: 2026-10-28
 - Implemented: 2026-10-20
 - Tracking issue: M2-F05–F07, M2-P02
 - Supersedes: None; extends RFC 0012 for explicitly C-aware objects
@@ -121,7 +121,7 @@ Keep existing source compile-pass/fail, C validity, schema refusal, JIT and ordi
 
 ## Open questions
 
-No blocking semantic question. Unverified implementation assumptions: Cranelift slot relocations/symbol visibility on both formats, sharing metadata/runtime lifetimes without a self-reference, complete linked thunk reuse, package bootstrap and actual target cost. Prototype these and revise this RFC explicitly before an incompatible change.
+No blocking semantic question. Both object formats, retained image/runtime lifetimes, linked thunks and SDK bootstrap are verified by the completed [M2 audit](../milestone-2-capabilities.md). Recorded costs are finite observations; new targets or incompatible bridge changes need their own evidence and explicit revision.
 
 ## Sources
 

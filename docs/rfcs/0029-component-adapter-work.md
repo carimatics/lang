@@ -7,11 +7,15 @@
 - Status: implemented
 - Authors: Project contributors
 - Created: 2026-10-24
-- Last updated: 2026-10-25
+- Last updated: 2026-10-28
 - Implemented: 2026-10-24
 - Tracking issue: M3-P02
 - Supersedes: None; elaborates RFC 0013/0027 for the component profile
 - Superseded by: None
+
+## Current scope
+
+Reconciled 2026-10-28 JST. The event catalog and original invocation counter are implemented through nested public callbacks and installed VM/native component entry. The [M3 exit audit](../milestone-3-capabilities.md) completes P02 and both-host conformance. The dated P02/E02 prerequisites below are historical; costs remain finite observations and do not establish a CPU-time bound.
 
 Accepted E02 synchronous-child decision (2026-10-25 JST, RFC 0001 experimental delegation): admit finite work for reentry-opted-in native methods only after the existing complete-unit metering predicate passes and the child borrows the same original control/accounting and ServiceWork. If checked child execution fails with ServiceWorkLimit/CounterOverflow, retain the first typed cause on original accounting; the restored parent preserves existing ABI-status validation, then checks it before interpreting an ABI-valid host status or the returned buffer. A raw host-error status cannot hide quota exhaustion or publish a result. This extends the existing invocation-terminal canonical-preparation failure rule without another counter. Cleanup remains unmetered on original allocator/owners; exhaustion alone does not poison. Require actual VM/JIT callbacks with zero/every-prefix/exact caps, repeats, original first-cause numeric fields, cleanup and fresh-parent execution. General child diagnostics/stacks, task identity, active-instance/typed transport, public C and both-host conditions remain; formats do not change.
 
@@ -107,7 +111,7 @@ Run decoded source/native-import fixtures first. Compare VM/native exact usage, 
 
 ## Open questions
 
-No blocking semantic question remains. Unverified implementation assumptions are early-counter forwarding cost, complete staging coverage, failure-context reuse and scoped Session ergonomics. Nested public callbacks, combined heap/frame/task/interruption controls, installed packages and both-host execution remain required later work.
+No blocking semantic question remains for the implemented event catalog. Original-counter forwarding, nested public callbacks, combined controls, installed packages and both-host execution are verified by the [M3 audit](../milestone-3-capabilities.md). Meter overhead and other workload costs need separate measurements; no CPU-time bound is implied. Future events must revise the accepted catalog before implementation.
 
 ## Sources
 

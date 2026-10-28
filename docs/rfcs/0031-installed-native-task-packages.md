@@ -7,10 +7,14 @@
 - Status: implemented
 - Authors: Codex under the owner's experimental delegation
 - Created: 2026-10-27
-- Last updated: 2026-10-27
-- Tracking issue: M3-I14 (implemented task outcome); M3-I08 retains component/both-host acceptance
+- Last updated: 2026-10-28
+- Tracking issue: M3-I14 and component/both-host follow-up M3-I08 (complete)
 - Supersedes: None; extends RFC 0020 with independent manifest revisions
 - Superseded by: None
+
+## Current scope
+
+Reconciled 2026-10-28 JST. Program/SDK version 2 remains the task profile; RFC 0032 separately adds version-3 components. The [M3 exit audit](../milestone-3-capabilities.md) records successful seven-profile isolated startup on macOS and Windows at `8f41f44`, followed by full conformance at `9e78f2d`. I08 is complete. The initial macOS-only checkpoint below is historical and does not describe current Windows support.
 
 ## Summary
 
@@ -100,7 +104,7 @@ Preserve version-1 vectors/profiles. Test task-under-v1, task-with-SDK-v1, unsup
 
 ## Open questions
 
-Component package/host-binding startup and SDK dependency selection require the next I08 decision. No Windows host/runner is available; both-host evidence remains unverified. The isolated fixture above verifies macOS installed task behavior; its startup measurements do not complete a performance gate.
+No unresolved platform/installation blocker for this profile. RFC 0032 resolves component package and explicit host startup; the completed [M3 audit](../milestone-3-capabilities.md) records Windows and macOS seven-profile isolation. The earlier macOS-only checkpoint is historical. Startup observations are not a general performance guarantee.
 
 ## Sources
 

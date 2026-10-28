@@ -7,7 +7,7 @@
 - Status: implemented
 - Authors: Project contributors
 - Created: 2026-10-22
-- Last updated: 2026-10-27
+- Last updated: 2026-10-28
 - Tracking issue: M3-I01 through M3-I09, M3-R01 through M3-B02
 - Supersedes:
 - Superseded by:
@@ -356,7 +356,7 @@ Use independent JSON/binary vectors and exact/one-below byte/count/depth/work/al
 
 ## Open questions
 
-No blocking semantic question after reference-header/report-tag review. Optional follow-ups include a WIT adapter, asynchronous native callbacks, recursive value schemas and sendable external resource kinds; none may silently weaken v1 admission. Unverified assumptions are compiler/runtime reuse cost, generated-C ergonomics, combined callback/task integration and both-host execution/startup behavior. No performance or implementation result is inferred from delegated acceptance.
+No blocking semantic question for the implemented profile. Combined callback/task integration, generated C clients, stored/installed packages and both-host execution are verified by the [M3 exit audit](../milestone-3-capabilities.md); RFC 0033 stabilizes only public C v1. Optional follow-ups remain WIT interoperability, asynchronous native callbacks, recursive value schemas and sendable external resources. Published costs are limited observations. The acceptance and implementation checkpoints below are historical evidence, not the current work queue.
 
 Review outcome: **accepted under RFC 0001's experimental delegation, 2026-10-22 JST, before production implementation**. The strict declaration document and independent version namespaces extend the existing component/resource/cleanup machinery while preserving old C and artifact profiles. Shared/exclusive resource access, synchronous nested callbacks, original invocation accounting and explicit failure/ownership phases resolve the production policy without relaxing suspension loans or introducing a native VM fallback. Two existing executable probes pass; the final reference header passes 112 C layout assertions per target and C++20 syntax on both tier-1 targets. These are decision/compatibility evidence, not production execution or Windows runtime evidence. Source/MIR/resource/callback integration, complete generated fingerprints, serialized task/native-package rollout, costs and both-host execution remain unverified implementation requirements on the board.
 

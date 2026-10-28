@@ -7,10 +7,14 @@
 - ステータス: implemented
 - Authors: Codex（repository ownerのreview向け）
 - 作成日: 2026-10-17
-- 最終更新日: 2026-10-17
+- 最終更新日: 2026-10-28
 - Tracking issue: `docs/roadmap.md` のMilestone 1
 - Supersedes: なし。RFC 0002を拡張
 - Superseded by: なし
+
+## 現在の範囲
+
+2026-10-28 JST照合。M1のfrontend／portable Copy profileとVM／nativeへの全loweringは実装済みです。[M2](../milestone-2-capabilities.md)がnative call／aggregateを完成させ、[M3](../milestone-3-capabilities.md)が別途規定したtask／component profileを追加します。RFC 0007、0008、0022は字句／core／foreign／task機能を拡張します。本書の初期字句一覧はM1基準であり、現在のkeyword全体ではありません。以下の過去のscalar-native制約や受理checkpointで完了済みgateを再開しません。
 
 ## 概要
 
@@ -259,7 +263,7 @@ Parser／HIR／bytecodeのfuzz target、明示depth／count／work／allocation-
 
 Decision：repository ownerは「RFC 0006 を受理します」と明示し、**2026-10-17に受理**しました。ASCII identifier、copy専用の非循環aggregate、statement match、明示VM limit、schema 1、transactional REPL stateを含む完全なMilestone 1 source／execution profileを受理したものです。このprofileにblocking design decisionは残っていません。
 
-Optional follow-up：Unicode identifier、通常のimmutable binding、import alias、型推論、expression match、generic／再帰data、豊富なhost signature、全新操作のnative supportです。実装中にprofileを黙って変更してはいけません。
+任意の将来検討はUnicode識別子、通常のimmutable binding、import alias、通常の戻り値型推論、式match、利用者定義generics／再帰value型です。有限ownership／coreと拡張foreign profileはRFC 0007／0008で追加済みです。本RFCのCopy profile全体のnative対応は[M2監査](../milestone-2-capabilities.md)で完了しており、未解決の前提ではありません。将来拡張は明示的な契約を必要とします。
 
 受理前のreview outcomeは **ready for decision** でした。現在は **implemented** で、2026-10-17に497-test fmt／Clippy／test／doc baselineとMilestone 1完了監査で検証しました。Evidenceは `b5b83b7`（portable codec）、`cb3312d`（source lowering）、`b1964e7`（scalar native conformance）、`d041598`（上限付きVM）、`bbc1f3d`（transactional REPL）、`2d3a3ff`（formatter）、`d419df9`（query database）、`402a5dc`（stdio LSP）です。Stabilizationは主張しません。
 

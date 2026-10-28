@@ -7,7 +7,7 @@
 - Status: implemented
 - Authors: Codex（所有者による実験的な委任に基づく）
 - Created: 2026-10-19
-- Last updated: 2026-10-20
+- Last updated: 2026-10-28
 - Accepted: 2026-10-19
 - Implemented: 2026-10-19
 - Tracking issue: M2-F13
@@ -82,7 +82,7 @@ generic、code型、loan、到達不能のcompile-pass/fail、入れ子式と引
 
 ## 未解決事項
 
-ローカルでソースの非復帰、loan結果の特殊化、VM／nativeの失敗・cleanup比較、schema互換性、standalone AOTを検証した。このsnapshotのWindows実行と性能根拠はM2-F07とbenchmark作業で追跡する。初期の暫定3ポイントは時間の約束ではなく、実装済みは安定化を意味しない。
+Sourceのdivergence、loan値specialization、VM／nativeの失敗／cleanup、schema互換性、standalone AOTは実装済みです。[M2完了監査](../milestone-2-capabilities.md)に両host実行と別途benchmark証拠があります。この範囲に未完了のplatform gateはありません。実装完了はstabilizationではありません。
 
 ## 情報源
 

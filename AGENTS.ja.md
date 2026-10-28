@@ -31,6 +31,7 @@
   - `docs/review-2026-10-17.md` と `docs/ja/review-2026-10-17.md`
   - `docs/review-2026-10-20.md` と `docs/ja/review-2026-10-20.md`
   - `docs/review-2026-10-27.md` と `docs/ja/review-2026-10-27.md`
+  - `docs/review-2026-10-28.md` と `docs/ja/review-2026-10-28.md`
   - `docs/rfcs/0000-template.md` と `docs/ja/rfcs/0000-template.md`
   - `docs/rfcs/` の各番号付きRFCと `docs/ja/rfcs/` の同名ミラー
   - `.agents/skills/language-design-rfc/SKILL.md` と `docs/ja/codex/language-design-rfc.md`
