@@ -7,7 +7,7 @@
 - Status: implemented
 - Authors: project contributors
 - Created: 2026-10-20
-- Last updated: 2026-10-20
+- Last updated: 2026-10-28
 - Tracking issue: M2-P05, M2-P06, M2-P07, M2-P02
 - Supersedes: none; extends RFCs 0011/0014/0015/0017
 - Superseded by: none
@@ -110,7 +110,7 @@ Freeze explicit envelope/tag/layout assignments; round-trip objects and complete
 
 ## Open questions
 
-No blocking record-format question. General runtime entry and SDK distribution may need additional decisions; revise their RFC explicitly before adding wire fields or a public startup ABI.
+No blocking record-format question. RFCs 0019/0020 implement ordinary runtime entry and SDK distribution; RFC 0030 separately specifies native task/component record revision 2. Revise the relevant contract before adding fields or changing a startup ABI; revision 1 remains closed.
 
 ## Sources
 

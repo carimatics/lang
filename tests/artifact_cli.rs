@@ -272,6 +272,47 @@ fn loaded_limits_match_source_and_initial_binary_input_is_bounded() {
 }
 
 #[test]
+fn compilation_cannot_replace_any_loaded_module_with_its_artifact() {
+    let dir = Directory::new();
+    std::fs::create_dir(dir.file("helper")).unwrap();
+    let root_text = "mod helper;fn main()->i64{return helper::answer();}";
+    let helper_text = "mod nested;pub fn answer()->i64{return nested::value();}";
+    let nested_text = "pub fn value()->i64{return 42;}";
+    let root = dir.source("main.lang", root_text);
+    let helper = dir.source("helper.lang", helper_text);
+    let nested = dir.source("helper/nested.lang", nested_text);
+    for output in [&helper, &nested, &root] {
+        let result = compile(&root, output);
+        assert_eq!(result.status.code(), Some(1), "{output:?}");
+        assert!(
+            String::from_utf8_lossy(&result.stderr)
+                .contains("artifact output must differ from every source input"),
+            "{}",
+            String::from_utf8_lossy(&result.stderr)
+        );
+        for (path, expected) in [
+            (&root, root_text),
+            (&helper, helper_text),
+            (&nested, nested_text),
+        ] {
+            assert_eq!(std::fs::read_to_string(path).unwrap(), expected);
+        }
+    }
+    #[cfg(unix)]
+    {
+        let alias = dir.file("module-alias.lbc");
+        std::os::unix::fs::symlink(&nested, &alias).unwrap();
+        assert_eq!(compile(&root, &alias).status.code(), Some(1));
+        assert!(std::fs::symlink_metadata(&alias).unwrap().is_symlink());
+        assert_eq!(std::fs::read_to_string(&nested).unwrap(), nested_text);
+    }
+    let artifact = dir.file("program.lbc");
+    ok(&compile(&root, &artifact));
+    ok(&compile(&root, &artifact));
+    same(&run_source(&root), &run_loaded(&artifact));
+}
+
+#[test]
 fn existing_owned_service_fixtures_agree_through_source_and_loaded_cli_execution() {
     let dir = Directory::new();
     let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("examples/scripts");

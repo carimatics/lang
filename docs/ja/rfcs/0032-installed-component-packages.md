@@ -7,10 +7,14 @@
 - Status: implemented
 - Authors: Codex under the owner's experimental delegation
 - Created: 2026-10-27
-- Last updated: 2026-10-27
-- Tracking issue: M3-I15 (implemented); M3-I08 retains both-host startup
+- Last updated: 2026-10-28
+- Tracking issue: M3-I15 and both-host startup M3-I08 (complete)
 - Supersedes: None; extends RFCs 0020, 0030 and 0031
 - Superseded by: None
+
+## 現在の範囲
+
+2026-10-28 JST照合。Program／SDK version 3のcomponentと明示的host bindingは実装済みです。[M3終了監査](../milestone-3-capabilities.md)に`8f41f44`でのmacOS／Windows両方の7 profile分離startupと、公開C gatewayを含む`9e78f2d`での全適合性／旧client移行を記録しています。I08は完了しています。以下の初期prototypeとmacOSのみのcheckpointは履歴証拠であり、未解決のplatform作業ではありません。
 
 ## Summary
 
@@ -91,7 +95,7 @@ package/artifact/record/manifestは有限byte/work/storage/depth上限付きの�
 
 ## Open questions
 
-Windows task/component startupは未検証です。さらなるCLI改善とSDK縮小は最初のinstalled Rust-host profileに必須ではありません。受理APIとresource/callback動作は上記で検証済みですが、広範な性能costは未計測です。新前提は後続実装前に明示します。
+両hostのtask／component startupと公開C gatewayは完了済み[M3監査](../milestone-3-capabilities.md)で検証済みです。未完了のI08 platform前提はありません。追加のCLI操作性、SDKサイズ削減、新target、より広い性能計測は任意の将来作業であり、実装前に新たな前提を明示します。
 
 ## Sources
 

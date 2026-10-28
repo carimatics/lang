@@ -7,7 +7,7 @@
 - ステータス: implemented
 - 著者: Codex、ownerの実験段階の委任に基づく
 - 作成日: 2026-10-18
-- 最終更新日: 2026-10-20
+- 最終更新日: 2026-10-28
 - Implemented: 2026-10-20
 - Tracking issue: M2-N08、M2-N01〜N07、M2-G01〜G03
 - 置き換えるRFC: なし。RFC 0008のprivate native実行契約を具体化
@@ -155,7 +155,7 @@ Call／returnには固定packet store、admission／runtime処理、1回のdispa
 
 ## 未解決事項
 
-N01を妨げる契約上の未決事項はありません。Performance、本番helper統合、platform linker／runtime統合、debuggerでの再構成は未検証の実装仮定です。既存行／gateを開いたままにして、実験に基づき再見積もりします。受理でその完了を認めません。
+契約上のblockerはありません。Production helper、managed frame統合、両hostのlink、論理debugger chainは2026-10-20のdebugger訂正を含む完了済み[M2監査](../milestone-2-capabilities.md)で検証済みです。Source変数の位置、論理step、将来の性能改善は別作業です。以下の受理時点の仮定を根拠に完了済みM2行を再開しません。
 
 RFC 0001の実験段階の委任により **2026-10-18 JSTにaccepted** とします。理由は、既存machine signatureとmanaged runtime不変条件を維持し、上限のないnative再帰stackを避け、具体的host／target object試作があり、source／native／platform全体の要件を保持するためです。本番実験が仮定と矛盾する場合は明示的に改訂します。
 

@@ -8,7 +8,7 @@ The roadmap is ordered by risk reduction. Milestones are exit criteria, not cale
 
 ## Completed M2 and M3
 
-**133 verified deliveries · 0 in progress · 0 remaining tasks (provisional 0 pt).**
+M2 delivery record: **133 verified deliveries · 0 in progress · 0 remaining tasks (provisional 0 pt).**
 
 M2 is complete: 18/18 gates, 113/113 historical gate weight. The [completed board](milestone-2.md) records its deliveries and estimate reconciliation; the [capability guide](milestone-2-capabilities.md) records actual source/VM/native/C/SDK/debug evidence and limits. These counts describe M2, not all future work.
 
@@ -21,6 +21,8 @@ Public C v1 and existing generated clients follow stabilized RFC 0033. Source/na
 M3 implementation, both-host conformance, C stabilization and the final guide are complete. M4 and later gates remain future work and have not been activated. Break the next milestone into observable 1–3-point deliveries and use its board when starting it; preserve M3's completed history and final estimate reconciliation.
 
 Do not expand the completed M2 board for maintenance or reviews. Record fixes in their scoped checklist, and keep code, documentation and validation in the same change. New language/ABI/format choices still require an explicit RFC decision; experimental delegation avoids a separate owner-approval wait.
+
+The [2026-10-28 repository review](review-2026-10-28.md) reconciles stale RFC follow-ups with completed M2/M3 evidence and records maintenance fixes separately. Historical statements such as “Windows unverified” in dated checkpoints do not reopen those completed outcomes. M4–M7 gate weights remain unchanged and are not a remaining-effort estimate.
 
 ## Task tracking
 
@@ -227,6 +229,8 @@ Exit: a native host can load a user script, expose a typed API, call the script,
 **Progress: 0 / 63 pt (0.0%).**
 
 Entry dependency audit (2026-10-27 JST): M4 is not activated. Build on the existing CLI, formatter, LSP and native SDK; first decompose the manifest/diagnostic contract and one reproducible package execution fixture. The installer distributes toolchain binaries before M5's registry, so its accepted design must establish trust roots, signed release-metadata verification and atomic update/failure recovery before downloading/installing. M5's signing work covers registry package publication/provenance. This clarifies existing gate dependencies/scope without changing gate weights. Re-estimate observable deliveries from the bottom up on activation; 63 pt is not a remaining-effort forecast.
+
+Sequencing clarification (2026-10-28 JST): the first package fixture must cover package creation, one local dependency, build/run/test and exact offline lock replay under the accepted manifest/diagnostic contract. Define package-source authority and checksum/refusal behavior before introducing dependency I/O; do not assume M5's public registry already exists. Reuse current parsing, formatting, query invalidation and native/VM source mapping for editor/debug work. Before broad tooling scaffolding, demonstrate the next user-visible fixture and its failure path. Installer verification remains a prerequisite to download/install, while registry publication and its trust policy remain M5. These are acceptance/dependency clarifications of the existing gates, not new completed work or activation of M4.
 
 - [ ] **P0 — Accept versioned package/workspace manifests, target conditions, lockfile compatibility, and the machine-readable CLI diagnostic contract.** — 5 pt
 - [ ] **P0 — Implement deterministic dependency resolution, lockfiles, checksums, and offline mode.** — 8 pt

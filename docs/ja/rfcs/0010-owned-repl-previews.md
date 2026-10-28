@@ -7,7 +7,7 @@
 - Status: implemented
 - Authors: Project contributors
 - Created: 2026-10-18
-- Last updated: 2026-10-20
+- Last updated: 2026-10-28
 - Implemented: 2026-10-20
 - Tracking issue: [実装Todo](../milestone-2.md) のM2-V14／V16／V15／V10／V17
 - Supersedes: なし。RFC 0006のREPLをRFC 0007のownership profileへ拡張
@@ -138,7 +138,7 @@ Previewでfilesystem／network／process／environment／FFIやhost-call authori
 
 ## 未解決事項
 
-現在のpayload profileに意味論上のblockerはありません。性能主張前にはformatter準備costと混在sessionのcompileをprototype／計測します。将来のindirect service形式とnative preview統合には後続の明示設計／evidenceを必要とし、従来milestone成果は緩和しません。
+実装済みprofileに未解決のsemantic blockerはありません。間接serviceのpreviewはRFC 0016で完了しています。Native REPL実行と新たなpreview形式は別設計であり、準備や混在session compileの性能を主張するには引き続き計測が必要です。
 
 ## 判断と実装状態
 

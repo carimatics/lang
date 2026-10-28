@@ -7,7 +7,7 @@
 - ステータス: implemented
 - 著者: Codex、ownerの実験段階の委任に基づく
 - 作成日: 2026-10-20
-- 最終更新日: 2026-10-20
+- 最終更新日: 2026-10-28
 - Implemented: 2026-10-20
 - Tracking issue: M2-F05–F07、M2-P02
 - 置き換えるRFC: なし。明示C対応objectについてRFC 0012を拡張
@@ -121,7 +121,7 @@ Native image・対応image resolver・runtime adapterは信頼します。使用
 
 ## 未解決事項
 
-Blockingなsemantics質問はありません。未検証の実装仮定は、両formatのCranelift slot relocation／symbol visibility、自己参照なしのmetadata／runtime寿命共有、linked thunkの完全な再利用、package bootstrap、実target costです。Prototypeで確認し、非互換変更の前にRFCを明示改訂します。
+未解決のsemantic blockerはありません。両object形式、image／runtime lifetimeの保持、linked thunk、SDK bootstrapは完了済み[M2監査](../milestone-2-capabilities.md)で検証済みです。記録されたcostは有限の観測であり、新targetや非互換bridge変更には独自の証拠と明示的な改訂が必要です。
 
 ## 情報源
 

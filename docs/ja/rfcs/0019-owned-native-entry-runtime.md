@@ -7,7 +7,7 @@
 - Status: implemented
 - Authors: project contributors
 - Created: 2026-10-20
-- Last updated: 2026-10-20
+- Last updated: 2026-10-28
 - Tracking issue: M2-P05
 - Supersedes: none; extends RFCs 0012/0013/0014/0018
 - Superseded by: none
@@ -93,7 +93,7 @@ RFC 0018のtrusted native codeとunsafe bindingを維持します。C allocator�
 
 ## Open questions
 
-意味論のblocking questionはありません。正確なRust API名と内部構成は実装に従えますが、entry形状、作用、control、wire形式、互換性の約束の変更前にRFCを改訂します。SDK／公開startup ABIは別作業です。
+未解決のsemantic blockerはありません。厳密に対応するSDKのstartup契約はRFC 0020で、installed task／component profileはRFC 0031／0032で実装済みです。内部構成は変更可能ですが、entry形状、effect、control、保存形式、互換性保証の変更には明示的なRFC改訂が必要です。
 
 ## Sources
 

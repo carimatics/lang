@@ -8,7 +8,7 @@
 
 ## Milestone 3 concurrencyとcomponent entryのcost
 
-手順更新・local検証日: **2026-10-27 JST**。[M3 runner](../../tools/m3-bench/run.py)はcleanなcommit済みtreeから固定toolchainのrelease exampleをbuildし、privateな`lang-m3-benchmark` version 1のJSON reportを新規作成します。既存のM2 sourceと過去reportは変更しません。
+手順更新・local検証日: **2026-10-28 JST**。[M3 runner](../../tools/m3-bench/run.py)はcleanなcommit済みtreeから固定toolchainのrelease exampleをbuildし、privateな`lang-m3-benchmark` version 1のJSON reportを新規作成します。既存のM2 sourceと過去reportは変更しません。
 
 ```bash
 python3 tools/m3-bench/run.py --output /tmp/m3-costs.json --samples 21
@@ -16,7 +16,7 @@ python3 tools/m3-bench/run.py --output /tmp/m3-costs.json --samples 21
 
 未使用のoutput fileを指定します。runnerはdirty source、既存output、1〜1,001範囲外のsample数、誤った結果、論理counter不一致、不完全な退役を拒否します。厳密なrevision、source/fixture hash、rustc identity、host、build/run command、生のsampleを時系列で保存します。backendごとに計時外のwarmupを3回行い、min、上側median、nearest-rank p95、maxを記録します。性能の合否閾値は設けません。
 
-証跡検証は6つのworkloadの一意性とsource/期待値/hash、VM/JITの区別、schema/profile、整数のsample/counter、raw sampleから再計算したmin/median/p95/max、warmupとcallごとの解放を確認します。`python3 -m unittest discover -s tools/m3-bench -p 'test_*.py'`は保存済みrelease結果を受理し、重複・代用・破損した証跡を拒否します。macOS/Windowsの通常CIでM2/M3 validatorを実行します。CIで性能を測定し直すテストではありません。
+証跡検証は6つのworkloadの一意性とsource/期待値/hash、VM/JITの区別、schema/profile、version 1のcounter項目の完全性、整数のsample/counter/準備時間、累積準備usage、raw sampleから再計算したmin/median/p95/max、warmupとcallごとの解放を確認します。両方で一致していても、項目の欠けたVM/JIT counterは同等性の根拠にできません。`python3 -m unittest discover -s tools/m3-bench -p 'test_*.py'`は保存済みrelease結果を受理し、重複・代用・破損した証跡を拒否します。macOS/Windowsの通常CIでM2/M3 validatorを実行します。CIで性能を測定し直すテストではありません。
 
 | Workload | 観測する動作 | 期待値 |
 | --- | --- | --- |

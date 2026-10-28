@@ -7,10 +7,14 @@
 - Status: implemented
 - Authors: Project contributors
 - Created: 2026-10-20
-- Last updated: 2026-10-25
+- Last updated: 2026-10-28
 - Tracking issue: M3-T01, M3-T02
 - Supersedes:
 - Superseded by:
+
+## Current scope
+
+Reconciled 2026-10-28 JST. The kernel, source adapters, parked channels, descendant cleanup and original-task synchronous callback scopes are implemented and included in the [M3 exit audit](../milestone-3-capabilities.md). RFCs 0022–0027 supply the formerly separate source, Send/Share, channel, service and embedding decisions. Execution remains logical tasks within one invocation. Dated implementation prerequisites below describe their checkpoint, not remaining M3 work.
 
 Accepted E13 current-task borrowing decision (2026-10-25 JST, RFC 0001 experimental delegation): synchronous native callbacks borrow the original Scheduler's actively running task through a checked exclusive view. The view reads the original branded TaskId, parent/origin, cancellation request, usage/limits, and delegates cancellation requests to that same original task. It grants no root start, task admission, copied counter, dispatch/finish or cleanup authority. Entry validates invocation/slot/active/running state; ready/waiting/cleaning/completed/foreign tasks refuse. Nested reborrows reference the same task/state; drop, error and unwind neither finish nor redispatch the original task. Existing kernel transitions remain unchanged. Reject copied IDs/cancellation flags or fresh roots because they do not share lifecycle. Next connect the existing VM/native frame execution: a synchronous child belongs to the original logical task, admits no replacement task and cleans only its own scope without closing the parent. E13 remains incomplete until actual source callbacks from a non-root task prove cancellation, repeats, unchanged admissions and complete owner/loan cleanup. Preserve task-export refusal and E02/E03/E04/L04/public-C conditions; syntax/persistent formats stay unchanged. Unverified implementation assumption: existing frame driving can connect to the original task lifecycle without another logical task.
 
@@ -132,7 +136,7 @@ Exercise FIFO dispatch, both normal and exceptional scope exit, nested descendan
 
 ## Open questions
 
-No blocking questions for the initial kernel. Unverified assumptions: retained bounded ancestry is adequate for the first source fixture; scanning costs are acceptable at configured limits; adapters can reserve frame/cleanup resources before spawn. Measure/revise these before stabilization.
+No blocking question for the implemented kernel and source adapters. RFCs 0022–0027 resolve source syntax, Send/Share, channels, services and production embedding; [M3 conformance](../milestone-3-capabilities.md) verifies reservation, cancellation and original-task callback scopes. Scanning/dispatch costs remain workload-dependent observations, not a parallel-executor or latency guarantee. The decision below records the earlier acceptance state.
 
 Decision: **accepted under RFC 0001 experimental delegation, 2026-10-20 JST**. The explicit driver preserves RFC 0005 while separating scheduling from already validated guest cleanup. No owner approval wait is required. Source syntax is accepted in RFC 0022; channels/Send/Share and the production embedding profile remain undecided.
 

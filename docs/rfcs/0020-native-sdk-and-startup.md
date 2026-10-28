@@ -7,14 +7,14 @@
 - Status: implemented
 - Authors: Codex, under the owner's experimental delegation
 - Created: 2026-10-20
-- Last updated: 2026-10-27
+- Last updated: 2026-10-28
 - Tracking issue: M2-P08, M2-P09, M2-P11, M2-P10, M2-P07, M2-P12, M2-P02
 - Supersedes: none; extends RFCs 0008/0011/0015/0017/0018/0019
 - Superseded by: none
 
 ## Current implementation status
 
-Task follow-up (2026-10-27 JST): [RFC 0031](0031-installed-native-task-packages.md) separately accepts program version 2/task and SDK version 2. This RFC's version-1 contracts/evidence remain intact; task installed startup, component packages and both-host task/component execution are tracked by M3-I14/I08/B acceptance. Do not silently add tasks to version 1.
+Follow-up reconciliation (2026-10-28 JST): [RFC 0031](0031-installed-native-task-packages.md) implements program/SDK version 2 for tasks; [RFC 0032](0032-installed-component-packages.md) implements version 3 for components. The [M3 exit audit](../milestone-3-capabilities.md) completes I14/I08/B, including both-host seven-profile isolated startup and public C gateway execution. This RFC's version-1 contracts/evidence remain intact; do not silently add tasks/components to version 1.
 
 Reconciled on 2026-10-20 JST against [M2 capabilities and evidence](../milestone-2-capabilities.md). This RFC's scope is implemented, not stabilized. Read the original plan, decision-time statements and dated checkpoints below as rollout history. The guide records current native/SDK/platform work that those checkpoints treated as separate deliveries. Its review correction explicitly resolves the discovered RFC 0012 logical-debugger evidence gap; this reconciliation changes no normative requirement or non-goal of this RFC.
 
@@ -170,7 +170,7 @@ P02 checkpoint (2026-10-20 JST): exact head `c54af31` [isolated-install run 3937
 
 ## Open questions
 
-No blocking contract question. Unverified implementation assumptions: minimal selected Rust artifact closure and platform link flags, deterministic shared build identity, exact manifest/component bounds under large programs, C-host ergonomics and broader combined-feature/platform conformance beyond the completed isolated installation. Review remaining validation within Q/B/G and revise this RFC explicitly before changing the accepted contract. An eventual C-only bootstrap is optional future work.
+No blocking contract question for the implemented SDK profiles. The [M3 exit audit](../milestone-3-capabilities.md) records seven-profile isolated startup on both tier-1 hosts, exact SDK/toolchain identity and retained code/host ownership. New manifest profiles, a C-only bootstrap and broader ergonomics/size improvements are future decisions; historical Q/B/G acceptance requirements are complete.
 
 ## Sources
 

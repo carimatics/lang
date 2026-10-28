@@ -7,10 +7,14 @@
 - Status: accepted
 - Authors: project contributors
 - Created: 2026-10-15
-- Last updated: 2026-10-17
+- Last updated: 2026-10-28
 - Tracking issue:
 - Supersedes:
 - Superseded by:
+
+## Current scope
+
+Reconciled 2026-10-28 JST. This remains the accepted charter. Milestones 0–3 are complete; the [architecture](../architecture.md) and [M3 exit audit](../milestone-3-capabilities.md) describe implemented source, VM/JIT/AOT, accounting and embedding behavior. Public component C v1 is stabilized by RFC 0033; source/native ABI and private stored/SDK formats retain their own experimental status. The original scalar experiments below are historical profiles, not limits on the later instrumented engines.
 
 ## Summary
 
@@ -208,11 +212,7 @@ This decision minimizes current implementation and maintenance risk because the 
 
 ## Open questions
 
-- What permanent project and language names should replace `lang`?
-- Which exact compatibility guarantees begin at the first public pre-1.0 release?
-- Should Windows AArch64 join Tier 1 before or after the first native backend milestone?
-- How should the accepted RFC 0003 profile interoperate with a future WebAssembly component target without claiming WIT compatibility prematurely?
-- How should production heap and live-task accounting compose across native code, source-VM frame/live-cell limits, and host callbacks? RFC 0006 already defines bounded guest recursion; cross-mode accounting remains Milestone 3 work.
+The project name, broader source/package/edition compatibility policy, additional tier-1 targets and future WebAssembly interoperability remain open. Public component C v1 has its separate stabilized RFC 0033 contract. Cross-mode heap, frame, task, callback and service-work accounting is implemented under RFCs 0013 and 0021–0029 and verified by the [M3 exit audit](../milestone-3-capabilities.md); it is no longer an unassigned M3 question.
 
 Decision: **accepted on 2026-10-17** by the repository owner after accepting RFC 0003. This acceptance ratifies the project charter, compatibility policy, evidence requirements, and resulting architecture baseline, including Cranelift as the initial JIT/AOT backend. It does not stabilize unimplemented source, ABI, package, or serialized-format details. Naming and Windows AArch64 timing remain optional follow-ups.
 

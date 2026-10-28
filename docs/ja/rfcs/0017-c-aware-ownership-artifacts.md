@@ -7,7 +7,7 @@
 - Status: implemented
 - Authors: project contributors
 - Created: 2026-10-20
-- Last updated: 2026-10-20
+- Last updated: 2026-10-28
 - Tracking issue: M2-P02
 - Supersedes: none; RFC 0011/0014 を拡張
 - Superseded by: none
@@ -117,7 +117,7 @@ Source由来の復元C fixtureを、既存の明示VM／native bindingで必要�
 
 ## 未決事項
 
-Format判断を妨げる未決事項はない。Native配布記録、startup entry、SDK一致はP02の別設計であり、このABI 2 fieldでは定義しない。
+未解決の形式上のblockerはありません。別契約のnative record、startup、厳密なSDK照合はRFC 0018～0020で実装され、RFC 0030～0032でtask／componentに拡張されています。本形式の2つのABI byteがそれらを符号化するわけではありません。新profileには引き続き明示的なversion判断が必要です。
 
 ## 情報源
 

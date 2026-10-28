@@ -7,7 +7,7 @@
 - Status: implemented
 - Authors: project contributors
 - Created: 2026-10-20
-- Last updated: 2026-10-20
+- Last updated: 2026-10-28
 - Tracking issue: M2-P05, M2-P06, M2-P07, M2-P02
 - Supersedes: none; extends RFCs 0011/0014/0015/0017
 - Superseded by: none
@@ -110,7 +110,7 @@ Envelope／tag／layoutを固定し、objectと全metadataをround-tripします
 
 ## Open questions
 
-記録形式のblocking questionはありません。汎用runtime入口とSDK配布には追加判断が必要な可能性があり、wire fieldや公開起動ABIの追加前にRFCを明示改訂します。
+未解決のrecord形式上のblockerはありません。通常runtime entryとSDK配布はRFC 0019／0020で実装済みで、native task／component record revision 2はRFC 0030が別途規定します。Field追加やstartup ABI変更の前に該当契約を改訂し、revision 1は閉じたまま維持します。
 
 ## Sources
 

@@ -7,7 +7,7 @@
 - Status: implemented
 - Authors: Project contributors
 - Created: 2026-10-18
-- Last updated: 2026-10-20
+- Last updated: 2026-10-28
 - Implemented: 2026-10-20
 - Tracking issue: M2-V14/V16/V15/V10/V17 in [the delivery board](../milestone-2.md)
 - Supersedes: None; extends the RFC 0006 REPL to the RFC 0007 ownership profile
@@ -138,7 +138,7 @@ Use actual source-derived execution and real managed buffers: empty/NUL/all-byte
 
 ## Open questions
 
-No unresolved semantic blocker for the current payload profile. Prototype/measure formatter preparation cost and mixed-session compilation before performance claims. Future indirect service formats and native preview integration require later explicit design/evidence; they do not relax existing milestone outcomes.
+No unresolved semantic blocker for the implemented profile. RFC 0016 completes indirect-service previews. Native REPL execution and any new preview format remain separate designs; preparation and mixed-session compilation costs still require measurements before performance claims.
 
 ## Decision and implementation status
 

@@ -98,6 +98,31 @@ class EvidenceTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "counters differ"):
             self.validate()
 
+    def test_matching_but_incomplete_counter_sets_cannot_claim_parity(self):
+        del self.results[1]["entry"]["counters"]["fuel"]
+        del self.results[2]["entry"]["counters"]["fuel"]
+        with self.assertRaisesRegex(ValueError, "counters"):
+            self.validate()
+        self.setUp()
+        del self.results[0]["workloads"][0]["counters"]["allocation_requests"]
+        with self.assertRaisesRegex(ValueError, "counters"):
+            self.validate()
+
+    def test_preparation_observations_are_validated_before_publication(self):
+        for value in (-1, True, 1.5, "10", 2**64):
+            for target, key in ((0, "frontend_ns"), (0, "jit_compile_ns"),
+                                (1, "admission_ns"), (2, "source_artifact_ns")):
+                with self.subTest(value=value, key=key):
+                    self.setUp()
+                    row = self.results[0]["workloads"][0] if target == 0 else self.results[target]
+                    row[key] = value
+                    with self.assertRaisesRegex(ValueError, "preparation"):
+                        self.validate()
+        self.setUp()
+        del self.results[0]["workloads"][0]["jit_preparation_usage"]["work"]
+        with self.assertRaisesRegex(ValueError, "counters"):
+            self.validate()
+
 
 if __name__ == "__main__":
     unittest.main()

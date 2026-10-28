@@ -31,7 +31,7 @@ The accepted architecture baseline is deliberately narrower than the full vision
 1. Build one language first. Offer safe high-level code and explicit low-level facilities in the same semantic model instead of starting with two languages.
 2. Share parsing, type checking, ownership analysis, and a typed mid-level IR between all execution modes.
 3. Lower the shared MIR to a portable bytecode VM for scripts and to native object code for AOT builds.
-4. Add JIT compilation only after VM semantics, debug information, and the embedding API are stable.
+4. Use the existing Cranelift JIT for development, embedding and VM/native conformance under each profile's explicit execution controls. JIT debugger registration and broader optimization remain separate work.
 5. Define a versioned interface description and canonical component ABI. Use direct internal calls when layouts are known, and generated thunks/handles at independently versioned boundaries.
 6. Keep trusted native plugins and capability-restricted script/WebAssembly plugins as separate deployment tiers.
 7. Treat self-hosting as a reproducible bootstrap milestone, not as an early implementation constraint.
@@ -50,6 +50,7 @@ The rationale and unresolved tradeoffs are documented in [the architecture basel
 - [Whole-repository review, 2026-10-17](docs/review-2026-10-17.md)
 - [Whole-repository review, 2026-10-20](docs/review-2026-10-20.md)
 - [Whole-repository review, 2026-10-27](docs/review-2026-10-27.md)
+- [Whole-repository review, 2026-10-28](docs/review-2026-10-28.md)
 - [M3 architecture history](docs/architecture-m3-history.md)
 - [M3 implementation and estimate history](docs/milestone-3-history.md)
 - [RFC process and template](docs/rfcs/0000-template.md)

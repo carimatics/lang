@@ -7,10 +7,14 @@
 - Status: implemented
 - Authors: Codex (for repository-owner review)
 - Created: 2026-10-17
-- Last updated: 2026-10-17
+- Last updated: 2026-10-28
 - Tracking issue: Milestone 1 in `docs/roadmap.md`
 - Supersedes: None; extends RFC 0002
 - Superseded by: None
+
+## Current scope
+
+Reconciled 2026-10-28 JST. The M1 frontend/portable Copy profile and its full VM/native lowering are implemented. [M2](../milestone-2-capabilities.md) completes native calls/aggregates, while [M3](../milestone-3-capabilities.md) adds separately specified task/component profiles. RFCs 0007, 0008 and 0022 extend the lexical/core/foreign/task surface; the original lexical list here describes the M1 baseline, not the complete current keyword list. Historical scalar-native limitations and acceptance checkpoints below do not reopen completed gates.
 
 ## Summary
 
@@ -259,7 +263,7 @@ Parser/HIR/bytecode fuzz targets, explicit depth/count/work/allocation-limit tes
 
 Decision: **accepted on 2026-10-17** by the repository owner, explicitly stating “RFC 0006 を受理します”. This accepts the complete Milestone 1 source/execution profile, including ASCII identifiers, copy-only acyclic aggregates, statement match, explicit VM limits, schema 1, and transactional REPL state. No blocking design decision remains for this profile.
 
-Optional follow-ups: Unicode identifiers, immutable ordinary bindings, import aliases, inferred types, expression match, generic/recursive data, richer host signatures, and native support for all new operations. None may silently change this profile during implementation.
+Optional follow-ups: Unicode identifiers, immutable ordinary bindings, import aliases, ordinary result inference, expression match and user-defined generics/recursive value types. RFCs 0007/0008 add the finite ownership/core and richer foreign profiles. Full native support for this RFC's Copy profile is complete in [M2's audit](../milestone-2-capabilities.md), not an open prerequisite. Future extensions require explicit contracts.
 
 The pre-decision review outcome was **ready for decision**. Implementation is now **implemented**, verified 2026-10-17 by the 497-test fmt/Clippy/test/doc baseline and the Milestone 1 completion audit. Evidence includes `b5b83b7` (portable codec), `cb3312d` (source lowering), `b1964e7` (scalar native conformance), `d041598` (bounded VM), `bbc1f3d` (transactional REPL), `2d3a3ff` (formatter), `d419df9` (query database), and `402a5dc` (stdio LSP). No stabilization is claimed.
 

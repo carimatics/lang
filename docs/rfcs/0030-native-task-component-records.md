@@ -7,10 +7,14 @@
 - Status: implemented
 - Authors: Codex under the owner's experimental delegation
 - Created: 2026-10-27
-- Last updated: 2026-10-27
-- Tracking issue: M3-I13; installed publication remains M3-I08
+- Last updated: 2026-10-28
+- Tracking issue: M3-I13 and installed follow-up M3-I08 (complete)
 - Supersedes: None; adds a separate RFC 0018 record revision
 - Superseded by: None
+
+## Current scope
+
+Reconciled 2026-10-28 JST. Revision 2 reconstruction and the installed follow-ups in RFCs 0031/0032 are implemented. The [M3 exit audit](../milestone-3-capabilities.md) completes I13/I08 and both-host task/component startup. The initial acceptance assumptions below remain dated history; the native record and private SDK are not stabilized by public C v1 stabilization.
 
 ## Summary
 
@@ -99,7 +103,7 @@ Freeze independent revision-2 vectors for both profiles/target descriptions and 
 
 ## Open questions
 
-Installed package/SDK revision, host-binding startup API and Windows execution remain I08 decisions/evidence. This format remains experimental. Reconstruction is verified at the recorded profile; performance and installed/both-host startup remain unverified.
+No unresolved blocker for revision 2. RFCs 0031/0032 resolve installed package/SDK revisions and explicit host-binding startup; the [M3 exit audit](../milestone-3-capabilities.md) records both-host installed execution. Native records and the private SDK remain experimental. Broader performance claims require new measurements.
 
 ## Sources
 

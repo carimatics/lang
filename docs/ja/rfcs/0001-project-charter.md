@@ -7,10 +7,14 @@
 - ステータス：accepted
 - 著者：プロジェクトコントリビューター
 - 作成日：2026-10-15
-- 最終更新日：2026-10-17
+- 最終更新日：2026-10-28
 - トラッキングIssue：
 - 置き換えるRFC：
 - 後継RFC：
+
+## 現在の範囲
+
+2026-10-28 JST照合。本書は引き続き受理済みcharterです。Milestone 0～3は完了し、[architecture](../architecture.md)と[M3終了監査](../milestone-3-capabilities.md)がsource、VM／JIT／AOT、資源計上、embeddingの実装済み動作を示します。公開component C v1はRFC 0033でstabilizedとなり、source／native ABIとprivateな保存／SDK形式はそれぞれ実験段階の状態を維持します。以下の初期scalar実験は過去のprofileであり、後の計装済みengineの制限を示すものではありません。
 
 ## 概要
 
@@ -208,11 +212,7 @@ Milestone 0はprototype／設計の範囲で完了しています。RFC 0001–0
 
 ## 未解決事項
 
-- `lang` に代わる恒久的なプロジェクト名と言語名は何か。
-- 最初の公開pre-1.0 releaseで、どの互換性保証を開始するか。
-- Windows AArch64を最初のnative backend milestoneの前と後のどちらでTier 1に加えるか。
-- WIT互換性を早計に主張せず、受理済みRFC 0003 profileを将来のWebAssembly component targetとどう相互運用させるか。
-- Production heap／live-task accountingをnative code、source VMのframe／live-cell上限、host callback全体でどう合成するか。RFC 0006は既にguest recursionの上限を定義しており、cross-mode accountingはMilestone 3に残ります。
+プロジェクト名、source／package／edition全体の互換性方針、tier-1 targetの追加、将来のWebAssembly相互運用は未解決です。公開component C v1には別途stabilizedのRFC 0033契約があります。Heap・frame・task・callback・service-workの実行方式をまたぐ計上はRFC 0013と0021～0029で実装され、[M3終了監査](../milestone-3-capabilities.md)で検証済みです。未割当のM3課題ではありません。
 
 Decision：RFC 0003のacceptance後、repository ownerが**2026-10-17にaccept**しました。このacceptanceはproject charter、compatibility policy、evidence requirement、Craneliftをinitial JIT／AOT backendとする結果的なarchitecture baselineを承認します。未実装のsource、ABI、package、serialized-format detailをstabilizeするものではありません。命名とWindows AArch64の時期は任意のfollow-upです。
 

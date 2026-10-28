@@ -7,14 +7,14 @@
 - Status: implemented
 - Authors: Codex, under the owner's experimental delegation
 - Created: 2026-10-20
-- Last updated: 2026-10-27
+- Last updated: 2026-10-28
 - Tracking issue: M2-P08, M2-P09, M2-P11, M2-P10, M2-P07, M2-P12, M2-P02
 - Supersedes: none; extends RFCs 0008/0011/0015/0017/0018/0019
 - Superseded by: none
 
 ## 現在の実装状態
 
-Task follow-up（2026-10-27 JST）: [RFC 0031](0031-installed-native-task-packages.md)はprogram version 2/taskとSDK version 2を別途受理します。本RFCのversion-1契約/証拠は維持し、task installed startup・component package・両host task/component実行はM3のI14/I08/B受入条件で追跡します。version 1へtaskを暗黙追加しません。
+Follow-up照合（2026-10-28 JST）: [RFC 0031](0031-installed-native-task-packages.md)がtask向けprogram／SDK version 2を、[RFC 0032](0032-installed-component-packages.md)がcomponent向けversion 3を実装しています。[M3終了監査](../milestone-3-capabilities.md)で、両hostの7 profile分離startupと公開C gateway実行を含めI14／I08／Bを完了しています。本RFCのversion-1契約／証拠は維持し、version 1へtask／componentを暗黙追加しません。
 
 2026-10-20 JSTに[M2 capabilityと検証根拠](../milestone-2-capabilities.md)と照合済みです。本RFCの範囲はimplementedであり、stabilizedではありません。以下の当初計画、decision時点の記述、日付付きcheckpointはrollout履歴として読みます。そこで別作業としていたnative／SDK／platformの現在状態は上記ガイドを参照してください。今回発見したRFC 0012の論理debugger検証不足は同ガイドの訂正で解消し、本RFCの非目標や規範的要求は変更しません。
 
@@ -170,7 +170,7 @@ P02 checkpoint（2026-10-20 JST）：完全一致head `c54af31` の [隔離insta
 
 ## Open questions
 
-契約上のblocking questionはありません。未検証の実装仮説は、最小Rust artifact closure／platform link flags、一貫したbuild識別、大規模programでのmanifest／component上限、C hostの使い勝手、完了した隔離installを越える複合feature／platform conformanceです。残る検証をQ／B／Gで進め、受理済み契約を変える前に本RFCを明示改訂します。将来Cだけでbootstrapすることは任意の後続作業です。
+実装済みSDK profileに契約上のblockerはありません。[M3終了監査](../milestone-3-capabilities.md)に両tier-1 hostでの7 profileの分離startup、厳密なSDK／toolchain identity、code／host所有権の保持を記録しています。新manifest profile、Cのみのbootstrap、広範な操作性／サイズ改善は将来の判断であり、過去のQ／B／G受入条件は完了しています。
 
 ## Sources
 

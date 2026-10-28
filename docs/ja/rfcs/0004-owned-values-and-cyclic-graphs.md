@@ -7,7 +7,7 @@
 - Status: accepted
 - Authors: Project contributors
 - Created: 2026-10-16
-- Last updated: 2026-10-27
+- Last updated: 2026-10-28
 - Tracking issue:
 - Supersedes:
 - Superseded by:
@@ -246,7 +246,7 @@ Policyは受理済みですが、例示はsource grammarの受理ではありま
 
 Accepted policyにblocking semantic questionはありません。Repository ownerは2026-10-17にacceptしました。
 
-Optional follow-upは、最終constructor／parameter／API spelling、checkを除去できるstatic acyclicity annotation、allocator選定、将来concurrency model下のweak-upgrade ordering、後で別名traced heapを提案するかどうかです。
+Constructor／core APIの表記とallocator権限は実装済みRFC 0007／0008で決定済みです。任意の将来検討は静的acyclicity注釈、将来のOS-thread並列executorでのweak upgrade順序、別名を持つtraced heapです。Logical taskのSend／ShareはRFC 0024で対応済みですが、host thread全般の安全性を意味しません。
 
 Decision：Repository ownerにより **2026-10-17にaccepted**。
 

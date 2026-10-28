@@ -17,6 +17,19 @@ WORKLOADS = {
     "service-state": ("tests/fixtures/task_service_state_replace.lang", 42),
     "single-task": ("inline:single-task", 42),
 }
+# Counter names are part of the version-1 observation contract. Equal partial
+# dictionaries cannot establish the recorded VM/JIT accounting comparison.
+TASK_COUNTERS = frozenset({
+    "admitted_tasks", "allocation_requests", "cumulative_managed_bytes",
+    "final_live_allocations", "final_live_bytes", "final_live_tasks", "fuel",
+    "host_calls", "peak_cells", "peak_frames", "peak_managed_allocations",
+    "peak_managed_bytes", "peak_tasks", "service_work",
+})
+COMPONENT_COUNTERS = frozenset({
+    "canonical_indices", "fuel", "host_calls", "peak_cells", "peak_frames",
+    "peak_managed_allocations", "peak_managed_bytes", "peak_tasks", "service_work",
+})
+PREPARATION_COUNTERS = frozenset({"allocation_bytes", "elements", "work"})
 
 
 def integer(value, minimum=0):
@@ -37,10 +50,10 @@ def validate_distribution(row, samples):
         raise ValueError("timing summary does not match raw samples")
 
 
-def validate_counters(counters):
-    if (not isinstance(counters, dict) or not counters
+def validate_counters(counters, fields):
+    if (not isinstance(counters, dict) or set(counters) != fields
             or not all(integer(value) for value in counters.values())):
-        raise ValueError("invalid logical counters")
+        raise ValueError("invalid or incomplete logical counters")
 
 
 def validate_results(results, samples, root):
@@ -66,7 +79,10 @@ def validate_results(results, samples, root):
                         if source == "inline:single-task" else (root / source).read_bytes())
         if row.get("sha256") != hashlib.sha256(source_bytes).hexdigest():
             raise ValueError("workload source digest mismatch")
-        validate_counters(row["counters"])
+        validate_counters(row.get("counters"), TASK_COUNTERS)
+        validate_counters(row.get("jit_preparation_usage"), PREPARATION_COUNTERS)
+        if not all(integer(row.get(key)) for key in ("frontend_ns", "jit_compile_ns")):
+            raise ValueError("invalid or missing preparation duration")
         if any(row["counters"].get(key) != 0 for key in
                ("final_live_tasks", "final_live_allocations", "final_live_bytes")):
             raise ValueError("task inventory not retired")
@@ -81,7 +97,9 @@ def validate_results(results, samples, root):
                 or not integer(row["entry"].get("live_allocations_after_each_call"))
                 or row["entry"]["live_allocations_after_each_call"] != 0):
             raise ValueError("component backend, lifecycle or warmup checks failed")
-        validate_counters(row["entry"]["counters"])
+        validate_counters(row["entry"].get("counters"), COMPONENT_COUNTERS)
+        if not all(integer(row.get(key)) for key in ("admission_ns", "source_artifact_ns")):
+            raise ValueError("invalid or missing preparation duration")
         validate_distribution(row["entry"], samples)
     if vm["entry"]["counters"] != jit["entry"]["counters"]:
         raise ValueError("component VM/JIT logical counters differ")

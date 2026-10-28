@@ -7,7 +7,7 @@
 - Status: implemented
 - Authors: project contributors
 - Created: 2026-10-20
-- Last updated: 2026-10-20
+- Last updated: 2026-10-28
 - Tracking issue: M2-P05
 - Supersedes: none; extends RFCs 0012/0013/0014/0018
 - Superseded by: none
@@ -93,7 +93,7 @@ Compare value, fuel/host calls/work, peak frames/cells, panic/spans/stack, repor
 
 ## Open questions
 
-No blocking semantic question. Exact Rust API names/internal factoring may follow implementation; revise this RFC before changing the entry shape, effects, controls, wire formats or compatibility promises. SDK/public startup ABI remains separate work.
+No blocking semantic question. RFC 0020 supplies the implemented exact-SDK startup contract and RFCs 0031/0032 supply installed task/component profiles. Internal factoring may evolve, but changes to entry shape, effects, controls, stored formats or compatibility promises require an explicit RFC revision.
 
 ## Sources
 

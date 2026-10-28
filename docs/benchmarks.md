@@ -8,7 +8,7 @@ These measurements are design evidence for the pre-alpha prototypes. They are no
 
 ## Milestone 3 concurrency and component entry costs
 
-Protocol updated and locally checked: **2026-10-27 JST**. [M3 runner](../tools/m3-bench/run.py) builds the pinned toolchain's release examples from a clean committed tree and writes a new private `lang-m3-benchmark` version-1 JSON report. Existing M2 sources and historical reports remain unchanged.
+Protocol updated and locally checked: **2026-10-28 JST**. [M3 runner](../tools/m3-bench/run.py) builds the pinned toolchain's release examples from a clean committed tree and writes a new private `lang-m3-benchmark` version-1 JSON report. Existing M2 sources and historical reports remain unchanged.
 
 ```bash
 python3 tools/m3-bench/run.py --output /tmp/m3-costs.json --samples 21
@@ -16,7 +16,7 @@ python3 tools/m3-bench/run.py --output /tmp/m3-costs.json --samples 21
 
 Use a fresh output file. The runner refuses dirty sources, an existing output, samples outside 1–1,001, incorrect results, inconsistent logical counters or incomplete retirement. It records the exact revision, source/fixture hashes, rustc identity, host, build/run commands and raw chronological samples. Each backend has three untimed warmups; summaries use min, upper median, nearest-rank p95 and max. There is no performance acceptance threshold.
 
-Evidence validation checks the six distinct workload identities and source/oracle/hash, VM/JIT identity, schema/profile, integer samples/counters, summaries recomputed from raw samples, warmups and per-call retirement. `python3 -m unittest discover -s tools/m3-bench -p 'test_*.py'` accepts the saved release capture and refuses duplicated, substituted or corrupted evidence. Routine macOS/Windows CI runs both M2/M3 validators. These are evidence checks, not new CI performance measurements.
+Evidence validation checks the six distinct workload identities and source/oracle/hash, VM/JIT identity, schema/profile, complete version-1 counter field sets, integer samples/counters/preparation durations, cumulative preparation usage, summaries recomputed from raw samples, warmups and per-call retirement. Matching partial VM/JIT counters cannot establish parity. `python3 -m unittest discover -s tools/m3-bench -p 'test_*.py'` accepts the saved release capture and refuses duplicated, substituted or corrupted evidence. Routine macOS/Windows CI runs both M2/M3 validators. These are evidence checks, not new CI performance measurements.
 
 | Workload | Observable behavior | Expected result |
 | --- | --- | --- |

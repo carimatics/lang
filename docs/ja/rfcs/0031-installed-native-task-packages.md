@@ -7,10 +7,14 @@
 - Status: implemented
 - Authors: Codex under the owner's experimental delegation
 - Created: 2026-10-27
-- Last updated: 2026-10-27
-- Tracking issue: M3-I14 (implemented task outcome); M3-I08 retains component/both-host acceptance
+- Last updated: 2026-10-28
+- Tracking issue: M3-I14 and component/both-host follow-up M3-I08 (complete)
 - Supersedes: None; extends RFC 0020 with independent manifest revisions
 - Superseded by: None
+
+## 現在の範囲
+
+2026-10-28 JST照合。Program／SDK version 2はtask profileを維持し、RFC 0032が別途version 3のcomponentを追加します。[M3終了監査](../milestone-3-capabilities.md)に`8f41f44`でのmacOS／Windows両方の7 profile分離startup成功と、その後の`9e78f2d`での全適合性検証を記録しています。I08は完了しています。以下の最初のmacOSのみのcheckpointは履歴であり、現在のWindows対応を示しません。
 
 ## Summary
 
@@ -100,7 +104,7 @@ version-1 vector/profileを維持します。v1へのtask・SDK v1でのtask・�
 
 ## Open questions
 
-component package/host binding startupとSDK dependency選択には次のI08決定が必要です。Windows host/runnerはなく、両host証拠は未検証です。macOS installed task動作は上記隔離fixtureで検証済みですが、この起動計測は性能gateを完了しません。
+このprofileに未解決のplatform／installation blockerはありません。Component packageと明示的host startupはRFC 0032で決定済みで、完了済み[M3監査](../milestone-3-capabilities.md)にWindows／macOSの7 profileの分離検証を記録しています。以前のmacOSのみのcheckpointは履歴です。Startup観測は一般的な性能保証ではありません。
 
 ## Sources
 

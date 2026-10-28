@@ -7,7 +7,7 @@
 - Status: accepted
 - Authors: Project contributors
 - Created: 2026-10-16
-- Last updated: 2026-10-27
+- Last updated: 2026-10-28
 - Tracking issue:
 - Supersedes:
 - Superseded by:
@@ -246,7 +246,7 @@ The strict isolation/cancellation policy is accepted. RFC 0021 implements the bo
 
 There are no blocking semantic questions for the accepted strict initial policy. The repository owner accepted it on 2026-10-17.
 
-Optional follow-ups include exact surface APIs, detached-task requirements, mailbox backpressure, supervision/restart, static executor specialization, and whether pinned shared-frame borrows or explicit mutation capabilities deserve separate RFCs.
+RFCs 0022–0026 resolve the initial source APIs, Send/Share, bounded channels/backpressure and isolated services. Optional follow-ups are detached tasks, supervision/restart, parallel executor specialization, select/deadline extensions, and pinned suspension loans or new mutation capabilities. These are new designs, not unfinished initial M3 deliveries.
 
 Decision: **accepted on 2026-10-17** by the repository owner.
 

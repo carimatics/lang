@@ -31,7 +31,7 @@ source構文・native language ABI・private SDK/package formatは実験段階�
 1. まず1つの言語を作ります。最初から2つの言語を作るのではなく、安全な高レベルコードと明示的な低レベル機能を同じ意味モデルで提供します。
 2. すべての実行モードで、構文解析、型検査、所有権解析、型付き中間表現を共有します。
 3. 共通MIRから、スクリプト向けのポータブルなバイトコードVMと、AOT向けのネイティブオブジェクトコードへloweringします。
-4. VMの意味論、デバッグ情報、埋め込みAPIが安定してからJITコンパイルを追加します。
+4. 既存のCranelift JITを、各profileの明示的な実行制御に従って開発・embedding・VM／native適合性検証に使います。JITのdebugger登録と広範な最適化は別作業です。
 5. バージョン付きインターフェース記述とcanonical component ABIを定義します。レイアウトが判明している場合は直接内部呼び出しを使用し、独立してバージョン管理される境界では生成されたthunk／handleを使用します。
 6. 信頼済みネイティブプラグインと、capabilityで制限されたスクリプト／WebAssemblyプラグインを別のデプロイ層として扱います。
 7. セルフホスティングは、初期実装を制約する条件ではなく、再現可能なブートストラップのマイルストーンとして扱います。
@@ -50,6 +50,7 @@ source構文・native language ABI・private SDK/package formatは実験段階�
 - [全ファイルreview、2026-10-17](docs/ja/review-2026-10-17.md)
 - [リポジトリ全体レビュー、2026-10-20](docs/ja/review-2026-10-20.md)
 - [リポジトリ全体レビュー、2026-10-27](docs/ja/review-2026-10-27.md)
+- [リポジトリ全体レビュー、2026-10-28](docs/ja/review-2026-10-28.md)
 - [M3アーキテクチャ履歴](docs/ja/architecture-m3-history.md)
 - [M3実装・見積り履歴](docs/ja/milestone-3-history.md)
 - [RFCプロセスとテンプレート](docs/ja/rfcs/0000-template.md)
