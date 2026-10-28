@@ -10,9 +10,9 @@ Updated: 2026-10-29 JST. M4 is active. Start branch: `main`, upstream `origin/ma
 
 **Next: M4-A02R — resolve a capability-bounded local dependency graph.**
 
-A01 completed in `d1f2667`, verified 2026-10-29 01:17 JST on macOS AArch64: workspace fmt, warning-free all-target/all-feature Clippy, full workspace test (**154 suites / 2,329 passed / 0 failed**) and documentation build passed. The strict manifest/real JSON CLI suite passed 6/6 with none ignored; latest-board consistency passed 6/6 and the README inspection command succeeded silently. Source/diagnostic contract G1 is accepted; dependency loading/execution and G2–G9 remain unfinished. PR CI/merge and base synchronization are still required for this foundation branch.
+A01's corrected source is `9e5b0ce`, verified 2026-10-29 02:24 JST on macOS AArch64: workspace fmt, warning-free all-target/all-feature Clippy, full checked opt-level 1 workspace test (**154 suites / 2,330 passed / 0 failed**) and documentation build passed. Debug assertions and overflow checks remained enabled in dev/test profiles. The strict manifest/real JSON CLI suite passed 7/7 with none ignored, and latest-board consistency passed 6/6. Comparing test identities/results against the initial `d1f2667` baseline found no removals or changed results; only the new nonregular-input regression was added. Source/diagnostic contract G1 is accepted; dependency loading/execution and G2–G9 remain unfinished. Latest-head PR CI/merge and base synchronization are still required for this foundation branch.
 
-Pre-merge A01 maintenance is in progress: a real FIFO input blocked inspection until the experiment's one-second timeout. The accepted RFC 0034 revision is implemented using nonblocking Unix open and metadata checks on the opened handle. Focused manifest/CLI tests passed 7/7, consistency 6/6, fmt and warning-free workspace Clippy passed. Full checked opt-level 1 validation is live in execution session 31845 (Cargo PID 23129), inspected 2026-10-29 01:55 JST at **33 suites / 509 passed / 0 failed**; debug assertions and overflow checks remain enabled for dev and test profiles. Local log: `target/m4-regular-input-test.log` (ignored). Complete test/doc, commit the correction and verify the new head's CI before merging [PR #9](https://github.com/carimatics/lang/pull/9). This is a scoped correction, with no added planning points or new completed delivery.
+Pre-merge A01 input correction is implemented and locally verified: a real FIFO previously blocked inspection until the experiment's one-second timeout; nonblocking Unix open and metadata checks now refuse it with `PKG0005`/exit 1. The accepted RFC 0034 revision and supervised regression are in `9e5b0ce`. Local generated test/doc logs are `target/m4-regular-input-{test,doc}.log` (ignored). Verify the updated head's CI before merging [PR #9](https://github.com/carimatics/lang/pull/9). This scoped correction adds no planning points or completed delivery.
 
 ## Exit gates
 
@@ -36,7 +36,7 @@ The [roadmap](roadmap.md#milestone-4-developer-toolchain) retains the original 6
 
 | ID | State | pt | Needs | Gates | Observable acceptance | Evidence |
 | --- | --- | ---: | --- | --- | --- | --- |
-| M4-A01 | done | 0 | — | G1 | Accept RFC 0034; inspect valid/invalid bounded manifests with real JSON CLI diagnostics | `d1f2667` |
+| M4-A01 | done | 0 | — | G1 | Accept RFC 0034; inspect valid/invalid bounded manifests with real JSON CLI diagnostics | `9e5b0ce` |
 | M4-A02R | todo | 3 | M4-A01 | G2,G3 | Capability-bounded local dependency graph; deterministic order and cycle/escape/version/target/resource refusals | — |
 | M4-A02 | todo | 3 | M4-A02R | G2,G3 | Integrate isolated package module roots and immutable source access; execute a real declared dependency import | — |
 | M4-A03 | todo | 3 | M4-A02 | G2,G3 | Canonical checksummed lock fixture replays offline and refuses changed sources without rewriting prior output | — |
@@ -92,9 +92,10 @@ Pre-merge A01 input audit checklist:
 
 - [x] Refuse nonregular manifest inputs without blocking and retain structured `PKG0005`/exit 1.
 - [x] Add a supervised real FIFO CLI regression and pass the 7 focused tests plus fmt/Clippy.
-- [ ] Complete full test/doc, commit and replace the current-head evidence/CI before merge.
+- [x] Complete full test/doc and commit the corrected source with updated evidence.
+- [ ] Verify the updated head's full CI/debugger checks, merge and synchronize the base branch.
 
-- A01 complete: [RFC 0034](rfcs/0034-package-workspaces-and-cli-diagnostics.md) accepts the initial package/tooling profile. `lang package check-manifest` is the executable experiment, including duplicate/unknown/null/type/version/path/target/list/byte-limit refusals and structured exit 1/2. The four required local baseline commands passed; current source evidence is `d1f2667`. Retire A01's last 3 pt separately from the new A02R prerequisite (+3 pt). G1 alone is complete; source dependency, offline lock, editor, debugger and installer gates remain open.
+- A01 complete: [RFC 0034](rfcs/0034-package-workspaces-and-cli-diagnostics.md) accepts the initial package/tooling profile. `lang package check-manifest` is the executable experiment, including duplicate/unknown/null/type/version/path/target/list/byte-limit and nonregular-file refusals with structured exit 1/2. The four required local baseline commands passed; corrected source evidence is `9e5b0ce` (initial delivery `d1f2667`). Retire A01's last 3 pt separately from the new A02R prerequisite (+3 pt); the pre-merge input correction adds no estimates. G1 alone is complete; source dependency, offline lock, editor, debugger and installer gates remain open.
 - Next vertical slice: A02R establishes the authorized graph; A02 executes a real dependency import; A03 adds the checksum/offline failure path; A04 exposes create/build/run/test. Review the sequence after two prerequisites without a new source execution fixture.
 - Roadmap audit: all nine original gates, including P1 profiling, remain necessary for the stated new-developer journey. M4 is now activated; the roadmap must link this live board. Signed installer verification precedes install/download. Registry distribution stays M5; it is not silently supplied or removed here.
 - Sources: repository roadmap/architecture and RFCs inspected 2026-10-29 JST; source files have no embedded update dates. RFC 0034 updated 2026-10-29. Test checkpoint is finite local evidence, not a both-host or full milestone claim.

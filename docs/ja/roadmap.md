@@ -18,7 +18,7 @@ M2は完了済みです。18/18ゲート、過去のゲート重み113/113です
 
 ## M3完了後の作業
 
-M3の実装・両host適合・C安定化・最終guideは完了しました。M4 は 2026-10-29 JST に active とし、[作業ボード](milestone-4.md)は **1 done · 0 doing · 36 todo · 103 remaining pt** です。観測可能な 1–3 pt の 37 delivery は P1 profiling を含む元の九つの gate を網羅します。名前空間監査で許可 graph の前提 3 pt を追加し、RFC 0034 の採択、厳密 manifest／JSON 検査、必須 local baseline 四つ（154 suite／2,329 成功）を満たした A01 の 3 pt を消化しました。収支は **103 + 3 − 3 = 103**。M5 以降は将来作業です。完了済み M3 の履歴と最終見積収支を保持します。
+M3の実装・両host適合・C安定化・最終guideは完了しました。M4 は 2026-10-29 JST に active とし、[作業ボード](milestone-4.md)は **1 done · 0 doing · 36 todo · 103 remaining pt** です。観測可能な 1–3 pt の 37 delivery は P1 profiling を含む元の九つの gate を網羅します。名前空間監査で許可 graph の前提 3 pt を追加し、RFC 0034 の採択、厳密 manifest／JSON 検査、必須 local baseline 四つ（修正 source: 154 suite／2,330 成功）を満たした A01 の 3 pt を消化しました。マージ前の通常ファイル受入修正で計画 point は増やしません。収支は **103 + 3 − 3 = 103**。M5 以降は将来作業です。完了済み M3 の履歴と最終見積収支を保持します。
 
 保守やレビューのために完了済みM2ボードを拡大しません。修正はscopeを限定したchecklistに記録し、code、文書、検証を同じ変更にまとめます。新たな言語／ABI／形式の選択には引き続き明示的RFC判断が必要ですが、実験段階の委任により個別owner承認待ちは不要です。
 
