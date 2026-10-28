@@ -18,7 +18,7 @@ M2は完了済みです。18/18ゲート、過去のゲート重み113/113です
 
 ## M3完了後の作業
 
-M3の実装・両host適合・C安定化・最終guideは完了しました。M4 は 2026-10-29 JST に active とし、[作業ボード](milestone-4.md)は **2 done · 1 doing · 35 todo · 102 remaining pt** です。観測可能な 1–3 pt の 38 delivery は P1 profiling を含む元の九つの gate を網羅します。manifest 検査と上限付き graph の A01／A02R で 6 pt を消化し、PR #9 は merge 済みです。A02 の dependency fixture は VM／native JIT で実行できましたが、Windows CI が保持 handle による rename 失敗を検出しました。不変 input と handle 解放の A02S を doing として追加（+3 pt）し、inventory を利用する A03 を 3 から 2 pt に減らします（−1 pt）。以前の名前空間前提 +3 pt と合わせ、収支は **103 + 5 − 6 = 102**。現在の branch は修正 source 検証、最新 head CI、merge が必要で、G1 以外の実装 gate は未完了です。M5 以降は将来作業です。完了済み M3 の履歴と最終見積収支を保持します。
+M3の実装・両host適合・C安定化・最終guideは完了しました。M4 は 2026-10-29 JST に active とし、[作業ボード](milestone-4.md)は **4 done · 0 doing · 34 todo · 96 remaining pt** です。観測可能な 1–3 pt の 38 delivery は P1 profiling を含む元の九つの gate を網羅します。A01／A02R／A02S／A02 の manifest 検査、上限付き graph、不変入力取得、分離 dependency 実行で 12 pt を消化しました。実 dependency fixture は VM／native JIT で 42 を返し、取得 handle を閉じた後の project rename も両 host で成功します。名前空間と snapshot の前提で 6 pt を追加し、inventory 再利用で A03 を 1 pt 減らし、収支は **103 + 5 − 12 = 96**。PR #9 は merge 済みです。PR #10 の修正 source は local 全 baseline と両 host CI に成功し、最終文書 head の CI と merge 後に A03 lock／offline replay を開始します。G1 以外の実装 gate は未完了です。M5 以降は将来作業です。完了済み M3 の履歴と最終見積収支を保持します。
 
 保守やレビューのために完了済みM2ボードを拡大しません。修正はscopeを限定したchecklistに記録し、code、文書、検証を同じ変更にまとめます。新たな言語／ABI／形式の選択には引き続き明示的RFC判断が必要ですが、実験段階の委任により個別owner承認待ちは不要です。
 
