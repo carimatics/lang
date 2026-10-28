@@ -20,6 +20,20 @@ Verify the checkout with:
 cargo test --workspace --all-targets --all-features
 ```
 
+### Personal Codex configuration
+
+Updated: 2026-10-28 JST.
+
+Codex reads `.codex/config.toml` as project configuration in a trusted checkout. This repository keeps that file **untracked and ignored**, so each contributor can store repository-specific preferences, local MCP endpoints, and individually approved tool settings without adding them to commits. Shell approvals remain in the separately ignored `.codex/rules/user.rules`.
+
+The tracked [`.codex/config.example.toml`](.codex/config.example.toml) contains shareable starting defaults. On a new checkout, copy it to `.codex/config.toml` only if no personal config exists, then customize the copy. Keep existing files intact. The example is not loaded or merged automatically; review later changes to it and apply relevant defaults to your personal config manually. Each clone or worktree needs its own local setup. The optional RustRover endpoint in the example is commented out so a new checkout does not require that local server.
+
+For a checkout from before this migration, back up `.codex/config.toml` outside the working tree **before pulling the change or switching to a branch that changes whether the file is tracked**. The migration removes the tracked copy, so an update can remove an unchanged file or stop on local modifications; switching to an older branch can overwrite an ignored copy. Restore your personal config after updating. Do not resolve a blocked update by discarding your settings. This migration preserves the initiating checkout's personal file while removing only its Git index entry; other checkouts need the backup/restore step.
+
+Verify with `git ls-files -- .codex/config.toml` (no output), `git check-ignore -v .codex/config.toml` (the `.codex/.gitignore` rule), and `git status --short` (no config modification). A new `.gitignore` entry alone does not untrack an already tracked file. Keep personal approvals out of the example and never force-add the real config. Saving a file does not prove an already running session has reloaded it; verify effective settings in a new session when needed.
+
+Source: [OpenAI Config basics](https://developers.openai.com/codex/config-basic), which documents project configuration paths, precedence, and the trusted-project requirement. Publication/update date is not provided; verified 2026-10-28 JST. Keeping the live config ignored and distributing an example is this repository's policy.
+
 ## Branch-to-merge procedure
 
 Policy updated: 2026-10-28 JST. The [repository workflow rules](AGENTS.md#branch-and-pull-request-workflow) apply to a single prompt and to the related tasks in a Codex Goal.

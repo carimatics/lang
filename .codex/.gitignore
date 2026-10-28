@@ -1,0 +1,2 @@
+# Each checkout keeps its own Codex settings and tool approvals.
+/config.toml

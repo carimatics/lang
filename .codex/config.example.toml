@@ -1,0 +1,12 @@
+# Copy to config.toml only when that file does not already exist.
+# Codex reads config.toml; this example is not loaded automatically.
+# Keep personal tool approvals and machine-specific settings in config.toml.
+approval_policy = "on-request"
+sandbox_mode = "workspace-write"
+
+[sandbox_workspace_write]
+network_access = false
+
+# Optional: enable only when using this local RustRover MCP endpoint.
+# [mcp_servers.rustrover]
+# url = "http://127.0.0.1:64522/stream"
