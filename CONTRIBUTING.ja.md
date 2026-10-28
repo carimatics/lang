@@ -20,6 +20,20 @@ mise install
 cargo test --workspace --all-targets --all-features
 ```
 
+### 個人用Codex設定
+
+更新日: 2026-10-28 JST。
+
+Codexは、信頼済みcheckoutの `.codex/config.toml` をプロジェクト設定として読み込みます。このリポジトリでは、このファイルを**Git管理対象外・ignore対象**にし、リポジトリ固有の好み、ローカルMCP接続先、個別に承認したツール設定を、commitに含めず各自で保存できます。シェルの承認は、別途ignoreされる `.codex/rules/user.rules` に保存します。
+
+Git管理する [`.codex/config.example.toml`](.codex/config.example.toml) は共有可能な初期値です。新しいcheckoutでは、個人用configが存在しない場合だけ `.codex/config.toml` へコピーし、そのコピーを調整してください。既存ファイルは保持します。例のファイルは自動で読み込まれたりマージされたりしません。例が後日更新されたら内容を確認し、必要な初期値を個人用configへ手動で反映してください。cloneやworktreeごとにローカル設定が必要です。例の任意のRustRover接続先はコメントアウトし、新しいcheckoutでそのローカルサーバーを必須にしません。
+
+移行前のcheckoutでは、**変更をpullする前、またはファイルの追跡状態が異なるブランチへswitchする前**に、`.codex/config.toml` を作業ツリー外へバックアップしてください。移行では追跡済みのコピーを削除するため、更新によって未変更のファイルが削除されたり、ローカル変更があると停止したりします。また、古いブランチへのswitchではignore対象のコピーが上書きされる場合があります。更新後に個人用configを復元してください。更新を進めるために設定を破棄してはいけません。今回の移行を実行するcheckoutでは、個人用ファイルを保持し、Git indexの項目だけを削除します。他のcheckoutではバックアップと復元が必要です。
+
+`git ls-files -- .codex/config.toml`（出力なし）、`git check-ignore -v .codex/config.toml`（`.codex/.gitignore` のルール）、`git status --short`（configの変更なし）で確認できます。すでに追跡済みのファイルは、`.gitignore` への追加だけでは管理対象外になりません。個人の承認を例に含めたり、実際のconfigを強制addしたりしてはいけません。ファイルの保存だけで実行中セッションへの再読み込みを確認できたことにはなりません。必要に応じて新しいセッションで有効な設定を確認してください。
+
+情報源: [OpenAI Config basics](https://developers.openai.com/codex/config-basic)。プロジェクト設定のパス、優先順位、信頼済みプロジェクトの要件を記載しています。公開・更新日の記載なし。確認日: 2026-10-28 JST。実際のconfigをignoreし、例を配布することは、このリポジトリの方針です。
+
 ## ブランチ作成からマージまで
 
 方針更新日: 2026-10-28 JST。[リポジトリの作業ルール](AGENTS.ja.md#ブランチとpull-requestの作業手順)は、単一のプロンプトとCodex Goalで進める一連の関連taskに適用します。

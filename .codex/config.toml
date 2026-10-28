@@ -1,8 +1,0 @@
-approval_policy = "on-request"
-sandbox_mode = "workspace-write"
-
-[sandbox_workspace_write]
-network_access = false
-
-[mcp_servers.rustrover]
-url = "http://127.0.0.1:64522/stream"
