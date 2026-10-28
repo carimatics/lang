@@ -232,6 +232,7 @@ fn package_edge_and_source_budgets_admit_exact_boundaries() {
         packages: 2,
         edges: 1,
         source_bytes: SOURCE.len() * 2,
+        ..Limits::default()
     };
     assert_eq!(
         Graph::resolve(&f.manifest(), TARGET, exact)

@@ -1,8 +1,6 @@
 //! Package namespaces backed by original immutable source snapshots.
-use super::{
-    Diagnostic,
-    graph::{self, Graph},
-};
+use super::{Diagnostic, graph::Graph};
+pub(super) mod inventory;
 use crate::frontend::{self, Analysis, CompileLimits};
 use lang_diagnostics::SourceMap;
 use lang_semantics::modules::{
@@ -16,16 +14,20 @@ use std::path::{Component, Path, PathBuf};
 use std::sync::Arc;
 
 /// Resolve only package-authorized inputs. Guest runtime grants are unchanged.
-/// The graph's entry snapshots survive later file edits; each newly reached
-/// local module is admitted once and parsed from its retained bytes.
+/// First use freezes all bounded source inputs and releases capture handles.
+/// Later analyses use retained bytes, independent of edits and directory moves.
 pub fn analyze(graph: &Graph, limits: CompileLimits) -> Result<Analysis, Diagnostic> {
+    let inputs = graph
+        .inventory
+        .get_or_init(|| inventory::capture(graph))
+        .as_ref()
+        .map_err(Clone::clone)?;
     let mut provider = Provider {
-        graph,
-        roots: BTreeMap::new(),
+        inventory: inputs,
         raw: BTreeMap::new(),
         identities: BTreeMap::new(),
+        aliases: BTreeMap::new(),
         parsed: BTreeMap::new(),
-        remaining: limits.modules.total_source_bytes,
     };
     let mut packages = Vec::new();
     for snapshot in graph.packages() {
@@ -33,18 +35,11 @@ pub fn analyze(graph: &Graph, limits: CompileLimits) -> Result<Analysis, Diagnos
             .source_root
             .join(snapshot.entry_path().file_name().expect("entry filename"));
         provider
-            .roots
-            .insert(snapshot.source_root.clone(), &snapshot.source_directory);
-        provider.remaining = provider
-            .remaining
-            .checked_sub(snapshot.entry_bytes().len())
-            .ok_or_else(|| Diagnostic::error("PKG0004", "total source byte limit exceeded"))?;
-        provider
             .insert(
                 path.clone(),
                 snapshot.entry_path().to_path_buf(),
                 snapshot.entry_bytes().to_vec(),
-                &snapshot.entry_metadata,
+                inputs.files[&path].identity,
             )
             .map_err(package_io)?;
         packages.push(PackageSource {
@@ -56,6 +51,16 @@ pub fn analyze(graph: &Graph, limits: CompileLimits) -> Result<Analysis, Diagnos
                 .map(|(name, id)| (name.clone(), id.index()))
                 .collect(),
         });
+    }
+    for (path, file) in &inputs.files {
+        provider
+            .insert(
+                path.clone(),
+                file.display.clone(),
+                file.bytes.clone(),
+                file.identity,
+            )
+            .map_err(package_io)?;
     }
     let mut sources = SourceMap::new();
     let modules = load_package_sources(&mut sources, &packages, limits.modules, &mut provider);
@@ -72,8 +77,8 @@ fn input_error(path: &Path, message: impl Into<String>) -> ModuleLoadError {
     }
 }
 
-#[derive(Clone, Copy, Eq, Ord, PartialEq, PartialOrd)]
-struct Identity(u64, u64);
+#[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
+pub(crate) struct Identity(u64, u64);
 fn identity(metadata: &cap_std::fs::Metadata, path: &Path) -> Result<Identity, ModuleLoadError> {
     #[cfg(unix)]
     {
@@ -104,12 +109,11 @@ struct Raw {
     bytes: Vec<u8>,
 }
 struct Provider<'a> {
-    graph: &'a Graph,
-    roots: BTreeMap<PathBuf, &'a cap_std::fs::Dir>,
+    inventory: &'a inventory::Inventory,
     raw: BTreeMap<PathBuf, Raw>,
     identities: BTreeMap<Identity, PathBuf>,
+    aliases: BTreeMap<PathBuf, PathBuf>,
     parsed: BTreeMap<PathBuf, ProvidedParse>,
-    remaining: usize,
 }
 impl Provider<'_> {
     fn path(&self, requested: &Path, root: Option<&Path>) -> Result<PathBuf, ModuleLoadError> {
@@ -123,40 +127,22 @@ impl Provider<'_> {
             });
         }
         let root = root.ok_or(ModuleLoadError::InvalidConfiguration)?;
-        let relative = requested
-            .strip_prefix(root)
-            .map_err(|_| ModuleLoadError::OutsideRoot {
-                path: requested.to_path_buf(),
-            })?;
-        let source_directory = self
-            .roots
-            .get(root)
-            .ok_or(ModuleLoadError::InvalidConfiguration)?;
-        let parent = relative.parent().unwrap_or(Path::new(""));
-        let directory = source_directory
-            .canonicalize(parent.join("."))
-            .map_err(|e| input_error(requested, e.to_string()))?;
-        let directory = if directory == Path::new(".") {
-            PathBuf::new()
-        } else {
-            directory
-        };
-        let path = root
-            .join(directory)
-            .join(requested.file_name().expect("normal path"));
-        Ok(path)
+        self.inventory
+            .path(requested, root)
+            .ok_or_else(|| input_error(requested, "source is not in the frozen package inventory"))
     }
     fn insert(
         &mut self,
         path: PathBuf,
         display: PathBuf,
         bytes: Vec<u8>,
-        metadata: &cap_std::fs::Metadata,
+        id: Identity,
     ) -> Result<PathBuf, ModuleLoadError> {
-        let id = identity(metadata, &path)?;
         if let Some(previous) = self.identities.get(&id) {
+            self.aliases.insert(path, previous.clone());
             return Ok(previous.clone());
         }
+        self.aliases.insert(path.clone(), path.clone());
         self.identities.insert(id, path.clone());
         self.raw.insert(path.clone(), Raw { display, bytes });
         Ok(path)
@@ -169,27 +155,10 @@ impl ModuleProvider for Provider<'_> {
         source_root: Option<&Path>,
     ) -> Result<PathBuf, ModuleLoadError> {
         let path = self.path(requested, source_root)?;
-        if self.raw.contains_key(&path) {
-            return Ok(path);
-        }
-        let input = graph::read(
-            self.roots[source_root.ok_or(ModuleLoadError::InvalidConfiguration)?],
-            &self
-                .graph
-                .authority_root()
-                .join(source_root.expect("root checked")),
-            path.strip_prefix(source_root.expect("root checked"))
-                .expect("path checked"),
-            self.remaining,
-        )
-        .map_err(|e| input_error(&path, e.to_string()))?;
-        self.remaining -= input.bytes.len();
-        self.insert(
-            path.clone(),
-            requested.to_path_buf(),
-            input.bytes,
-            &input.metadata,
-        )
+        self.aliases
+            .get(&path)
+            .cloned()
+            .ok_or_else(|| input_error(&path, "source snapshot not admitted"))
     }
     fn parsed(
         &mut self,

@@ -59,6 +59,8 @@ entry を含む directory は外側の権限を通じて開き、その package 
 
 Windows 実装修正、2026-10-29 JST: 開いた `File` の metadata に対して、公開 `cap-fs-ext::MetadataExt` の device／inode API を使う。同名の `cap-std` trait は固定した stable toolchain で Windows handle field を公開しない。host identity の管理だけを変え、新しい unsafe code、guest grant、source syntax、serialized field はない。両 host の hardlink 拒否を必要とする。128-bit ReFS identifier に対する 64-bit inode projection は拡張の文書化済み制限であり、projection の重複は拒否し、二つ目の source を別 identity として実行しない。
 
+実装前の 2026-10-29 JST に取得寿命の改訂を採択: directory capability は input 取得中だけ保持する。最初の source 準備で上限付き完全 inventory を一度取得し、受入失敗時を含めて全 filesystem handle を解放する。同じ Graph の後続解析は固定した path／byte／alias のみを使用し、file 編集、削除、project rename に依存しない。新しい filesystem 状態には新しい Graph を必要とする。取得失敗も cache 化し、可変 input を再 open しない。Windows CI で、解析後も directory handle を保持すると既存の rename 成功 fixture が拒否されることを確認した。この改訂は不変 compiler data と一時的な I/O 権限を分離し、rename 条件と元の byte／span 契約を維持する。source parse／typing は取得後に元の診断を出し、filesystem／resource 受入失敗は package 診断として先に返せる。runtime／serialized version の変更はない。
+
 dependency の省略可能な `targets` は、完全一致の target triple `aarch64-apple-darwin`、`x86_64-pc-windows-msvc` の空でないリストとする。省略時は両方を含み、重複と未知の triple はエラーとする。解決は対応する target を明示的に一つ選び、既定値は host とする。target 変更は lock replay を無効化する。非アクティブな依存 edge を除外する前に全宣言を検証する。
 
 予定するコマンドは `lang new DIR`、`lang build`、package 対応の `lang run`、`lang test`、`lang package`、`lang fmt`、`lang lint`、`lang doc`。適用可能な package コマンドは `--manifest-path`、`--target`、`--offline`、`--locked`、`--message-format human|json` を受け付ける。最初の検査操作 `lang package check-manifest FILE` は依存 I/O を許可しない。既存のファイル明示 CLI は従来の挙動を維持する。

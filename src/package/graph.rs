@@ -8,12 +8,15 @@ use cap_std::fs::{Dir, OpenOptions};
 use std::collections::BTreeMap;
 use std::io::Read;
 use std::path::{Path, PathBuf};
+use std::sync::{Mutex, OnceLock};
 
 #[derive(Clone, Copy, Debug)]
 pub struct Limits {
     pub packages: usize,
     pub edges: usize,
     pub source_bytes: usize,
+    pub source_files: usize,
+    pub directory_entries: usize,
 }
 
 impl Default for Limits {
@@ -22,6 +25,8 @@ impl Default for Limits {
             packages: 256,
             edges: 4096,
             source_bytes: 16 * 1024 * 1024,
+            source_files: 256,
+            directory_entries: 4096,
         }
     }
 }
@@ -46,7 +51,7 @@ pub struct Snapshot {
     entry_bytes: Vec<u8>,
     pub(super) entry_metadata: cap_std::fs::Metadata,
     pub(super) source_root: PathBuf,
-    pub(super) source_directory: Dir,
+    pub(super) source_directory: Mutex<Option<Dir>>,
     dependencies: BTreeMap<String, PackageId>,
 }
 
@@ -82,6 +87,9 @@ pub struct Graph {
     authority_root: PathBuf,
     target: String,
     packages: Vec<Snapshot>,
+    pub(super) directory: Mutex<Option<Dir>>,
+    pub(super) limits: Limits,
+    pub(super) inventory: OnceLock<Result<super::source::inventory::Inventory, Diagnostic>>,
 }
 
 impl Graph {
@@ -126,6 +134,9 @@ impl Graph {
             authority_root: root,
             target: target.into(),
             packages: resolver.packages,
+            directory: Mutex::new(Some(resolver.directory)),
+            limits,
+            inventory: OnceLock::new(),
         })
     }
 
@@ -369,7 +380,7 @@ impl Resolver<'_> {
             } else {
                 source_root
             },
-            source_directory,
+            source_directory: Mutex::new(Some(source_directory)),
             dependencies: BTreeMap::new(),
         });
         for (alias, dependency) in dependencies {

@@ -6,9 +6,9 @@
 
 Updated: 2026-10-29 JST. M4 is active. Goal start: clean `main`/`origin/main` at `af9988f`, remote `git@github.com:carimatics/lang.git`. Foundation branch `codex/m4-package-toolchain` merged through PR #9. Current coherent package-execution branch: `codex/m4-local-package-execution`, created from clean `main`/`origin/main` at `42e6045`; PR base: `carimatics/lang:main`, [draft PR #10](https://github.com/carimatics/lang/pull/10). Its review outcome is the graph plus isolated dependency-source API (A02R/A02); the separate lock/CLI outcome follows this API's verification and merge.
 
-**2 done · 1 doing · 34 todo · 100 remaining pt**
+**2 done · 1 doing · 35 todo · 102 remaining pt**
 
-**Next: M4-A02 — execute a real declared dependency import.**
+**Next: M4-A02S — freeze source inputs and release filesystem handles.**
 
 A01's corrected source is `9e5b0ce`, verified locally 2026-10-29 02:24 JST: fmt, warning-free Clippy, checked opt-level 1 full tests (**154 suites / 2,330 passed / 0 failed**) and doc passed with assertions/overflow checks enabled. Manifest/CLI tests passed 7/7; consistency passed 6/6. All prior test identities/results remain unchanged. Latest head `f3d0a52` passed [full CI](https://github.com/carimatics/lang/actions/runs/40736268875) (18 success, expected documentation-only skip) and [native debugger execution](https://github.com/carimatics/lang/actions/runs/40736267899) (all 3 environments). [PR #9](https://github.com/carimatics/lang/pull/9) merged at 02:43 JST as `42e6045`; local `main` was fast-forwarded and verified clean with 0/0 ahead/behind.
 
@@ -17,6 +17,10 @@ A02R source is `aae5242`. Its 9 graph, 7 manifest/CLI and 6 consistency tests pa
 A02 source checkpoint is `c48ab1a`, verified 2026-10-29 JST: the checked-in local-dependency fixture returns 42 through portable wire replay/VM and whole-program native JIT. All 6 package-source, 9 graph, 7 manifest/CLI, 6 consistency and 20 existing module tests pass. Distinct transitive aliases, one shared nominal type, original privacy spans, duplicate file identities, FIFO/escape refusals and snapshots after entry edits/directory renames pass. Fmt, warning-free full Clippy and doc pass. The stable-source full workspace run finished **156 suites / 2,345 passed / 0 failed**, and all 5 native-image tests pass; the earlier build-ID failure does not recur.
 
 PR #10's first Windows CI found that the stable `cap-std::MetadataExt` import does not expose Windows handle identity methods. The correction uses the public `cap-fs-ext` device/inode extension and adds a both-host hardlink refusal test; Cargo generated the lock update. This remains A02 scope, with no new points or gate completion. Remaining acceptance: corrected-source focused/full baseline, latest-head CI, review and branch merge. G2–G9 remain unfinished.
+
+A02S selected, 2026-10-29 05:55 JST: `08e76ae` passes the Windows dependency VM/native fixture, shared types/aliases and hardlink refusal, but its retained directory handles deny project rename while the Graph lives. Its local focused 29 tests and full Clippy pass; the full workspace run is still in progress. Remaining acceptance: a bounded immutable source inventory captured once, filesystem handles released after capture, no source rereads, and the existing rename assertion passing on both hosts. A02's integration checkpoint remains open; no delivery is completed by selecting this prerequisite.
+
+A02S executable checkpoint, 2026-10-29 JST: local source 13/13, graph 9/9, manifest 7/7 and consistency 6/6 pass, with warning-free full Clippy. First preparation captures entry/test directories once; deletion/rename, frozen old values versus a fresh Graph, cached capture failures, exact resource boundaries, aliases/cycles and nested dependency source isolation pass. The earlier `08e76ae` full workspace run finished 156 suites / 2,346 passed. Remaining: corrected-source Windows rename execution, final baseline, review and merge. No new completed delivery or retired estimate is recorded yet.
 
 The A01 input correction refuses FIFO/device/directory inputs with `PKG0005`/exit 1 using nonblocking Unix open and opened-handle metadata. It adds no planning points or completed delivery; its full validation and merge are recorded above.
 
@@ -44,8 +48,9 @@ The [roadmap](roadmap.md#milestone-4-developer-toolchain) retains the original 6
 | --- | --- | ---: | --- | --- | --- | --- |
 | M4-A01 | done | 0 | — | G1 | Accept RFC 0034; inspect valid/invalid bounded manifests with real JSON CLI diagnostics | `9e5b0ce` |
 | M4-A02R | done | 0 | M4-A01 | G2,G3 | Capability-bounded local dependency graph; deterministic order and cycle/escape/version/target/resource refusals | `aae5242` |
-| M4-A02 | doing | 3 | M4-A02R | G2,G3 | Integrate isolated package module roots and immutable source access; execute a real declared dependency import | — |
-| M4-A03 | todo | 3 | M4-A02 | G2,G3 | Canonical checksummed lock fixture replays offline and refuses changed sources without rewriting prior output | — |
+| M4-A02S | doing | 3 | M4-A02R | G2,G3 | Freeze bounded source inputs once, release directory handles and preserve execution after edits/renames on both hosts | — |
+| M4-A02 | todo | 3 | M4-A02S | G2,G3 | Integrate isolated package module roots and immutable source access; execute a real declared dependency import | — |
+| M4-A03 | todo | 2 | M4-A02 | G2,G3 | Canonical checksummed lock fixture replays offline and refuses changed sources without rewriting prior output | — |
 | M4-A04 | todo | 3 | M4-A03 | G2,G3 | Create a package and local dependency; package build/run/test and failed-test fixture | — |
 | M4-A05 | todo | 3 | M4-A04 | G2,G3 | Workspace member selection and exact target-condition locks on both supported targets | — |
 | M4-A06 | todo | 3 | M4-A05 | G2,G3 | Build a native executable twice from a relocated locked package; compare pinned-input digests on both hosts | — |
@@ -86,11 +91,13 @@ Activation audit, 2026-10-29 JST: 36 observable deliveries, baseline 103 pt. The
 
 | Baseline remaining | Net added/re-estimated | Retired on completion | Remaining |
 | ---: | ---: | ---: | ---: |
-| 103 pt | +3 pt | −6 pt | 100 pt |
+| 103 pt | +5 pt | −6 pt | 102 pt |
 
-**103 + 3 − 6 = 100 pt**
+**103 + 5 − 6 = 102 pt**
 
 Namespace prerequisite audit, 2026-10-29 JST: the existing `ModuleGraph::root()` is always `ModuleId(0)`. A path provider alone cannot give each dependency its own package-root namespace or safely reuse a shared dependency identity. Split the original A02 outcome into an authorized graph (new A02R, 3 pt) and namespace/source execution integration (A02, remaining 3 pt after reviewing its task list). Net addition: +3 pt; 37 deliveries total. A01 and A02R are two prerequisites, so A02 must supply the next source execution fixture before further horizontal scaffolding. No gate is completed or deferred by this audit.
+
+Snapshot lifecycle audit, 2026-10-29 JST: Windows CI executes the dependency fixture successfully but refuses project rename with live directory handles. The input snapshot must outlive its capture handles. Add A02S (3 pt) for a bounded inventory and handle release, retaining the positive rename test. A02 still needs frozen-provider integration and both-host validation (3 pt); move its doing state to A02S. A03 now consumes that inventory, reducing its remaining estimate from 3 to 2 pt after reviewing canonical serialization, checksum, replay and atomic publication tasks. Net addition +2 pt, cumulative +5 pt; 38 deliveries. The dependency source fixture already executes in both modes, so this correction follows executable evidence. No gate is completed or deferred.
 
 ## Delivery notes and roadmap review
 
