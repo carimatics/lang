@@ -10,7 +10,7 @@ Source syntax, native language ABI and private SDK/package formats remain experi
 
 **Milestones 0–3 have completed their exit gates.** The [M3 capability guide and complete 15-gate audit](docs/milestone-3-capabilities.md) provide commands, evidence and limits for structured tasks, bounded channels, isolated services, typed native/script plugins, the public C API and installed SDK. The [M3 board](docs/milestone-3.md) is the completed record of all 79 deliveries. The [M2 capability guide](docs/milestone-2-capabilities.md) and historical benchmark evidence remain available.
 
-Verified 2026-10-27 JST: source `9e78f2d` passes the macOS seven-stage baseline (153 suites / 2,321 passed) and [full Windows CI](https://github.com/carimatics/lang/actions/runs/40471721760) (153 suites / 2,306 passed), with zero failures. Both-host checkout-free/Cargo-free SDK startup passes all seven profiles. Future milestones remain on the roadmap; M4 has not been activated.
+Verified 2026-10-27 JST: source `9e78f2d` passes the macOS seven-stage baseline (153 suites / 2,321 passed) and [full Windows CI](https://github.com/carimatics/lang/actions/runs/40471721760) (153 suites / 2,306 passed), with zero failures. Both-host checkout-free/Cargo-free SDK startup passes all seven profiles. M4 is active as of 2026-10-29 JST; its [delivery board](docs/milestone-4.md) separates current checkpoints from the remaining toolchain gates.
 
 ## Vision
 
@@ -47,6 +47,7 @@ The rationale and unresolved tradeoffs are documented in [the architecture basel
 - [Milestone 1 capability guide](docs/milestone-1.md)
 - [Milestone 2 capability guide and complete exit audit](docs/milestone-2-capabilities.md)
 - [Milestone 3 completed delivery board](docs/milestone-3.md)
+- [Milestone 4 active delivery board](docs/milestone-4.md)
 - [Whole-repository review, 2026-10-17](docs/review-2026-10-17.md)
 - [Whole-repository review, 2026-10-20](docs/review-2026-10-20.md)
 - [Whole-repository review, 2026-10-27](docs/review-2026-10-27.md)
@@ -88,11 +89,14 @@ The rationale and unresolved tradeoffs are documented in [the architecture basel
 - [RFC 0031: Installed native task packages (implemented)](docs/rfcs/0031-installed-native-task-packages.md)
 - [RFC 0032: Installed component packages with explicit host bindings (implemented)](docs/rfcs/0032-installed-component-packages.md)
 - [RFC 0033: Component C v1 compatibility and migration (stabilized)](docs/rfcs/0033-component-v1-compatibility.md)
+- [RFC 0034: Package workspaces and CLI diagnostics (accepted)](docs/rfcs/0034-package-workspaces-and-cli-diagnostics.md)
 - [Contribution guide](CONTRIBUTING.md)
 
 ## Development
 
 Use Rust **1.99.0** with rustfmt and Clippy, pinned by `rust-toolchain.toml`. The [M2](docs/milestone-2-capabilities.md) and [M3 capability guides](docs/milestone-3-capabilities.md) record implemented behavior, exit gates and limits. `cargo run -- run examples/scripts/tasks.lang` exercises implemented source async and returns 42. The [M3 board](docs/milestone-3.md) is the completed record of all 79 deliveries.
+
+M4 starts with `cargo run -- package check-manifest --message-format json examples/packages/hello/Lang.json`. It validates the bounded RFC 0034 manifest without reading dependencies; success is silent, errors are JSON lines on stderr (exit 1; usage exit 2). Package resolution/build/run/test remains on the active board.
 
 ```bash
 cargo run -- check examples/conformance/owned_pipeline.lang

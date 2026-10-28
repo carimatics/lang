@@ -10,7 +10,7 @@ source構文・native language ABI・private SDK/package formatは実験段階�
 
 **Milestone 0–3のexit gateは完了しました。** [M3機能ガイドと全15 gate監査](docs/ja/milestone-3-capabilities.md)に、structured task・有限channel・isolated service・typed native/script plugin・公開C API・installed SDKのcommand、証拠、制約を記載しています。[M3 board](docs/ja/milestone-3.md)は全79 deliveryの完了記録です。[M2機能ガイド](docs/ja/milestone-2-capabilities.md)と過去のbenchmark証拠も保持しています。
 
-2026-10-27 JST検証: source `9e78f2d`のmacOS全7段階（153 suite / 2,321成功）と[Windows全CI](https://github.com/carimatics/lang/actions/runs/40471721760)（153 suite / 2,306成功）が失敗0で成功しました。両hostのcheckout/CargoなしSDK起動も7 profileに成功しています。将来milestoneはroadmapに残り、M4はまだ開始していません。
+2026-10-27 JST検証: source `9e78f2d`のmacOS全7段階（153 suite / 2,321成功）と[Windows全CI](https://github.com/carimatics/lang/actions/runs/40471721760)（153 suite / 2,306成功）が失敗0で成功しました。両hostのcheckout/CargoなしSDK起動も7 profileに成功しています。M4 は 2026-10-29 JST に開始し、[作業ボード](docs/ja/milestone-4.md)で現在の checkpoint と残りの toolchain gate を区別します。
 
 ## ビジョン
 
@@ -47,6 +47,7 @@ source構文・native language ABI・private SDK/package formatは実験段階�
 - [Milestone 1機能ガイド](docs/ja/milestone-1.md)
 - [Milestone 2 capability guide・全出口監査](docs/ja/milestone-2-capabilities.md)
 - [Milestone 3 完了した実装記録](docs/ja/milestone-3.md)
+- [Milestone 4 作業中の実装ボード](docs/ja/milestone-4.md)
 - [全ファイルreview、2026-10-17](docs/ja/review-2026-10-17.md)
 - [リポジトリ全体レビュー、2026-10-20](docs/ja/review-2026-10-20.md)
 - [リポジトリ全体レビュー、2026-10-27](docs/ja/review-2026-10-27.md)
@@ -88,11 +89,14 @@ source構文・native language ABI・private SDK/package formatは実験段階�
 - [RFC 0031: Installed native task package（implemented）](docs/ja/rfcs/0031-installed-native-task-packages.md)
 - [RFC 0032: 明示host binding付きinstalled component package（implemented）](docs/ja/rfcs/0032-installed-component-packages.md)
 - [RFC 0033: Component C v1の互換性と移行（stabilized）](docs/ja/rfcs/0033-component-v1-compatibility.md)
+- [RFC 0034: パッケージワークスペースと CLI 診断（accepted）](docs/ja/rfcs/0034-package-workspaces-and-cli-diagnostics.md)
 - [コントリビューションガイド](CONTRIBUTING.ja.md)
 
 ## 開発
 
 `rust-toolchain.toml`で固定したRust **1.99.0**とrustfmt/Clippyを使います。[M2機能guide](docs/ja/milestone-2-capabilities.md)と[M3機能guide](docs/ja/milestone-3-capabilities.md)に実装動作・完了条件・制約を記録しています。`cargo run -- run examples/scripts/tasks.lang`で実装済みsource asyncを実行し、42を返します。[M3 board](docs/ja/milestone-3.md)は完了した79 deliveryの記録です。
+
+M4 の最初のコマンドは `cargo run -- package check-manifest --message-format json examples/packages/hello/Lang.json`。RFC 0034 の上限付き manifest を dependency を読まずに検証します。成功時は出力なし、エラーは stderr の JSON line（exit 1、usage は exit 2）です。package resolution／build／run／test は active board に残ります。
 
 ```bash
 cargo run -- check examples/conformance/owned_pipeline.lang

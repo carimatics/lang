@@ -131,7 +131,7 @@ Root task binding checks an LCMP3 projection with no imports, one exported inter
 
 The stored records/packages of [RFCs 0030](rfcs/0030-native-task-component-records.md)–[0032](rfcs/0032-installed-component-packages.md) require original code, grants, providers and SDK identity, without discovery or VM/JIT fallback supplying missing authority. Actual macOS AArch64/Windows x86-64 seven-profile isolated startup and old-C-client migration are documented in the [M3 guide](milestone-3-capabilities.md) and dated evidence.
 
-Package-aware CLI, navigation/completion/rename, DAP and an installer belong to unactivated M4. Registry, WebAssembly components, additional backends, self-hosting and another frontend remain later milestones, not implemented capabilities. Async REPL submission, detached tasks and asynchronous foreign callback stacks also remain outside the current execution profile.
+M4 is active as of 2026-10-29 JST. [RFC 0034](rfcs/0034-package-workspaces-and-cli-diagnostics.md) defines strict versioned manifests, explicit local dependency authority, lock/offline compatibility and JSON CLI diagnostics. `lang package check-manifest [--message-format human|json] FILE` validates at most 64 KiB without reading dependencies; success is silent, errors retain exit 1 (usage 2). Package-aware build/run/test, navigation/completion/rename, DAP and the installer remain on the [live board](milestone-4.md). Registry, WebAssembly components, additional backends, self-hosting and another frontend remain later milestones, not implemented capabilities. Async REPL submission, detached tasks and asynchronous foreign callback stacks also remain outside the current execution profile.
 
 ## Validation and maintenance
 

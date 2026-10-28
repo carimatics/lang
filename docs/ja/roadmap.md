@@ -18,7 +18,7 @@ M2は完了済みです。18/18ゲート、過去のゲート重み113/113です
 
 ## M3完了後の作業
 
-M3の実装・両host適合・C安定化・最終guideは完了しました。M4以降のgateは将来workであり、まだactiveにしていません。次のmilestoneを開始する際に残作業を1–3 ptの観測可能なdeliveryへ分解し、そのboardで管理します。完了済みM3の履歴と最終見積り収支は再openしません。
+M3の実装・両host適合・C安定化・最終guideは完了しました。M4 は 2026-10-29 JST に active とし、[作業ボード](milestone-4.md)は **0 done · 1 doing · 36 todo · 106 remaining pt** です。観測可能な 1–3 pt の 37 delivery は P1 profiling を含む元の九つの gate を網羅します。最初の名前空間監査で baseline 103 pt に許可 graph の前提 3 pt を追加しました。M5 以降は将来作業です。完了済み M3 の履歴と最終見積収支を保持します。
 
 保守やレビューのために完了済みM2ボードを拡大しません。修正はscopeを限定したchecklistに記録し、code、文書、検証を同じ変更にまとめます。新たな言語／ABI／形式の選択には引き続き明示的RFC判断が必要ですが、実験段階の委任により個別owner承認待ちは不要です。
 
@@ -228,9 +228,9 @@ Exit：Native hostがuser scriptをloadし、typed APIを公開し、scriptをca
 
 **進捗：0 / 63 pt（0.0%）。**
 
-開始時の依存監査（2026-10-27 JST）: M4は未開始です。既存のCLI・formatter・LSP・native SDKを基盤とし、最初にmanifest/diagnostic契約と1つの再現可能なpackage実行fixtureへ分解します。installerはM5のregistryを待たずにtoolchain binaryを配布するため、信頼起点・署名付きrelease metadataの検証・失敗時のatomic更新/回復を自身の受理済み設計に含めてからdownload/installします。M5の署名作業はregistry packageの公開/provenanceを対象にします。既存exit gateの依存と範囲を明確化するもので、gate weightは不変です。開始時にはbottom-upのdelivery見積りを行い、63 ptを残工数として使いません。
+有効化監査（2026-10-29 JST）: 現在の task、実行 checkpoint、積上げ baseline 103 pt は [M4 board](milestone-4.md)で管理します。[RFC 0034](rfcs/0034-package-workspaces-and-cli-diagnostics.md)が manifest／diagnostic と最初の local package 契約を採択しました。厳密な検査、許可 local dependency の実行、lock／offline replay、create／build／run／test fixture の順に進めてから広範な tooling へ進みます。installer は M5 registry より先に toolchain binary を配布するため、trust root、署名 release metadata 検証、atomic update／failure recovery の採択設計を download／install 前に必要とします。M5 signing は registry package 公開／provenance を対象とします。元の九つの gate と weight を維持し、63 pt を残作業予測には使いません。
 
-順序の明確化（2026-10-28 JST）: 最初のpackage fixtureで、受理済みmanifest／diagnostic契約に従うpackage作成、local dependency 1件、build／run／test、厳密なoffline lock再現を扱います。依存先へのI/Oを導入する前にpackage sourceの権限とchecksum／拒否動作を定義し、M5の公開registryが存在することを前提にしません。Editor／debug作業では既存のparse、format、query無効化、native／VM source mappingを再利用します。広範なtooling基盤を追加する前に、次の利用者向けfixtureと失敗経路を実証します。Installer検証はdownload／installの前提を維持し、registry公開とその信頼方針はM5に残します。既存gateの受入条件／依存の明確化であり、新しい完了成果やM4開始ではありません。
+順序の契約（2026-10-28 JST に明確化、有効化時も維持）: 最初の package fixture で、採択 manifest／diagnostic 契約に従う package 作成、local dependency 1 件、build／run／test、完全一致 offline lock replay を扱います。依存 I/O 前に package source 権限と checksum／拒否動作を定義し、M5 公開 registry を仮定しません。editor／debug は既存 parse、format、query 無効化、native／VM source mapping を再利用します。広範な tooling 基盤より先に次の利用者 fixture と失敗経路を実証します。installer 検証は download／install の前提であり、registry 公開と信頼方針は M5 です。有効化だけではこれらの実装 gate は完了しません。
 
 - [ ] **P0 — Version付きpackage／workspace manifest、target condition、lockfile互換性、machine-readable CLI diagnostic契約を受理する。** — 5 pt
 - [ ] **P0 — Deterministic dependency resolution、lockfile、checksum、offline modeを実装する。** — 8 pt
