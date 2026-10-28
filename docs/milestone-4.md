@@ -4,7 +4,7 @@
 
 [日本語版](ja/milestone-4.md)
 
-Updated: 2026-10-29 JST. M4 is active. Goal start: clean `main`/`origin/main` at `af9988f`, remote `git@github.com:carimatics/lang.git`. Foundation branch `codex/m4-package-toolchain` merged through PR #9. Current coherent package-execution branch: `codex/m4-local-package-execution`, created from clean `main`/`origin/main` at `42e6045`; PR base: `carimatics/lang:main`.
+Updated: 2026-10-29 JST. M4 is active. Goal start: clean `main`/`origin/main` at `af9988f`, remote `git@github.com:carimatics/lang.git`. Foundation branch `codex/m4-package-toolchain` merged through PR #9. Current coherent package-execution branch: `codex/m4-local-package-execution`, created from clean `main`/`origin/main` at `42e6045`; PR base: `carimatics/lang:main`, [draft PR #10](https://github.com/carimatics/lang/pull/10). Its review outcome is the graph plus isolated dependency-source API (A02R/A02); the separate lock/CLI outcome follows this API's verification and merge.
 
 **2 done · 1 doing · 34 todo · 100 remaining pt**
 
@@ -14,7 +14,9 @@ A01's corrected source is `9e5b0ce`, verified locally 2026-10-29 02:24 JST: fmt,
 
 A02R source is `aae5242`. Its 9 graph, 7 manifest/CLI and 6 consistency tests pass; fmt, warning-free full Clippy and doc pass (2026-10-29 JST). The overlapping workspace run failed the native-image build-ID gate while production inputs were being edited; it is not a successful baseline. `codegen-clif/build.rs` hashes production files and the image reader requires exact SDK build-ID equality. The coherent branch requires a stable-source rerun of those checks, the final integrated baseline and PR CI before submission/merge.
 
-A02 checkpoint, verified 2026-10-29 03:45 JST: the checked-in local-dependency fixture returns 42 through portable wire replay/VM and whole-program native JIT. All 6 package-source, 9 graph, 7 manifest/CLI, 6 consistency and 20 existing module tests pass. Distinct transitive aliases, one shared nominal type, original privacy spans, duplicate file identities, FIFO/escape refusals and snapshots after entry edits/directory renames pass. Fmt, warning-free full Clippy and doc pass. With production sources fixed, all 5 native-image tests also pass; the earlier build-ID failure does not recur. A stable-source full workspace run is in progress. Remaining acceptance: full-test result, review and source commit. G2–G9 remain unfinished.
+A02 source checkpoint is `c48ab1a`, verified 2026-10-29 JST: the checked-in local-dependency fixture returns 42 through portable wire replay/VM and whole-program native JIT. All 6 package-source, 9 graph, 7 manifest/CLI, 6 consistency and 20 existing module tests pass. Distinct transitive aliases, one shared nominal type, original privacy spans, duplicate file identities, FIFO/escape refusals and snapshots after entry edits/directory renames pass. Fmt, warning-free full Clippy and doc pass. The stable-source full workspace run finished **156 suites / 2,345 passed / 0 failed**, and all 5 native-image tests pass; the earlier build-ID failure does not recur.
+
+PR #10's first Windows CI found that the stable `cap-std::MetadataExt` import does not expose Windows handle identity methods. The correction uses the public `cap-fs-ext` device/inode extension and adds a both-host hardlink refusal test; Cargo generated the lock update. This remains A02 scope, with no new points or gate completion. Remaining acceptance: corrected-source focused/full baseline, latest-head CI, review and branch merge. G2–G9 remain unfinished.
 
 The A01 input correction refuses FIFO/device/directory inputs with `PKG0005`/exit 1 using nonblocking Unix open and opened-handle metadata. It adds no planning points or completed delivery; its full validation and merge are recorded above.
 

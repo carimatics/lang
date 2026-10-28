@@ -83,14 +83,11 @@ fn identity(metadata: &cap_std::fs::Metadata, path: &Path) -> Result<Identity, M
     }
     #[cfg(windows)]
     {
-        use cap_std::fs::MetadataExt;
-        match (metadata.volume_serial_number(), metadata.file_index()) {
-            (Some(volume), Some(index)) => Ok(Identity(u64::from(volume), index)),
-            _ => Err(input_error(
-                path,
-                "opened source file has no stable identity",
-            )),
-        }
+        use cap_fs_ext::MetadataExt;
+        // graph::read obtains metadata from the opened regular File, as
+        // required by cap-fs-ext's Windows dev()/ino() contract.
+        let _ = path;
+        Ok(Identity(metadata.dev(), metadata.ino()))
     }
     #[cfg(not(any(unix, windows)))]
     {

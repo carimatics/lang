@@ -323,6 +323,30 @@ fn opened_file_identity_refuses_symlink_and_hardlink_module_duplicates_and_escap
     );
 }
 
+#[test]
+fn hardlinked_source_modules_are_refused_on_both_hosts() {
+    let f = Files::new();
+    f.package(
+        "",
+        "app",
+        json!({}),
+        "mod first; mod second; fn main()->i64{return 0;}",
+    );
+    fs::write(
+        f.0.join("src/first.lang"),
+        "pub fn value()->i64{return 42;}",
+    )
+    .unwrap();
+    fs::hard_link(f.0.join("src/first.lang"), f.0.join("src/second.lang")).unwrap();
+    let a = source::analyze(&f.graph(), CompileLimits::default()).unwrap();
+    assert!(a.result.is_err());
+    assert!(
+        a.diagnostics
+            .iter()
+            .any(|d| d.message.contains("duplicate canonical"))
+    );
+}
+
 #[cfg(unix)]
 #[test]
 fn reachable_fifo_module_is_refused_without_blocking() {

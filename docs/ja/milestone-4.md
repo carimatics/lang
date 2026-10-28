@@ -4,7 +4,7 @@
 
 [English](../milestone-4.md)
 
-更新: 2026-10-29 JST。M4 は active。Goal 開始時は clean な `main`／`origin/main` の `af9988f`、remote `git@github.com:carimatics/lang.git`。foundation branch `codex/m4-package-toolchain` は PR #9 で merge 済み。現在の一貫した package 実行作業 branch は `codex/m4-local-package-execution`。clean な `main`／`origin/main` の `42e6045` から作成し、PR base は `carimatics/lang:main`。
+更新: 2026-10-29 JST。M4 は active。Goal 開始時は clean な `main`／`origin/main` の `af9988f`、remote `git@github.com:carimatics/lang.git`。foundation branch `codex/m4-package-toolchain` は PR #9 で merge 済み。現在の一貫した package 実行作業 branch は `codex/m4-local-package-execution`。clean な `main`／`origin/main` の `42e6045` から作成し、PR base は `carimatics/lang:main`、[draft PR #10](https://github.com/carimatics/lang/pull/10)。review 成果は graph と分離した dependency-source API（A02R／A02）とし、この API の検証／merge 後に、別の lock／CLI 成果を実装する。
 
 **2 done · 1 doing · 34 todo · 100 remaining pt**
 
@@ -14,7 +14,9 @@ A01 の修正済み source は `9e5b0ce`。2026-10-29 02:24 JST の local 検証
 
 A02R の source は `aae5242`。graph 9、manifest／CLI 7、consistency 6 test、fmt、警告なしの全 Clippy、doc が成功した（2026-10-29 JST）。production input の編集中に重ねた workspace 実行は native image の build-ID gate で失敗したため、成功 baseline と扱わない。`codegen-clif/build.rs` は production file を hash 化し、image reader は SDK build ID の完全一致を要求する。一貫した branch の提出／merge 前には source を固定してこれらを再検証し、最終統合 baseline と PR CI を通す必要がある。
 
-A02 checkpoint、2026-10-29 03:45 JST 検証: commit 対象の local-dependency fixture が portable wire replay／VM とプログラム全体の native JIT で 42 を返す。package-source 6、graph 9、manifest／CLI 7、consistency 6、既存 module 20 test が全成功。異なる推移依存 alias、一つの共有 nominal type、元の可視性 span、file identity 重複、FIFO／逸脱拒否、entry 編集／directory rename 後の snapshot が成功した。fmt、警告なしの全 Clippy、doc も成功。production source 固定後の native-image 5 test も全成功し、以前の build-ID 失敗は再現しない。source を固定した全 workspace 実行中。残条件は全 test 結果、review、source commit。G2–G9 は未完了。
+A02 の source checkpoint は `c48ab1a`、2026-10-29 JST 検証: commit 対象の local-dependency fixture が portable wire replay／VM とプログラム全体の native JIT で 42 を返す。package-source 6、graph 9、manifest／CLI 7、consistency 6、既存 module 20 test が全成功。異なる推移依存 alias、一つの共有 nominal type、元の可視性 span、file identity 重複、FIFO／逸脱拒否、entry 編集／directory rename 後の snapshot が成功した。fmt、警告なしの全 Clippy、doc も成功。source を固定した全 workspace 実行は **156 suite／2,345 成功／0 失敗**で終了し、native-image 5 test も全成功。以前の build-ID 失敗は再現しない。
+
+PR #10 の最初の Windows CI は、stable の `cap-std::MetadataExt` import が Windows handle identity method を公開しないことを検出した。公開 `cap-fs-ext` の device／inode 拡張へ修正し、両 host の hardlink 拒否 test を追加する。lock 更新は Cargo が生成した。A02 の scope 内で、新規 point／gate 完了はない。残条件は修正 source の重点／全 baseline、最新 head CI、review、branch merge。G2–G9 は未完了。
 
 A01 入力修正は Unix の nonblocking open と開いた handle の metadata を使い、FIFO／device／directory を `PKG0005`／exit 1 で拒否する。計画 point や完了 delivery は増やさず、全検証と merge は上記のとおり完了した。
 

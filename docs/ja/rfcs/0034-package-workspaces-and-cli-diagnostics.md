@@ -57,6 +57,8 @@ compiler host は package root の forest と宣言 edge、および不変の pa
 
 entry を含む directory は外側の権限を通じて開き、その package の source-directory capability として保持する。entry と追加 source file はこの handle 相対で開き、source directory 外へ出る file symlink は、外側 manifest 権限内を指す場合も拒否する。directory alias は handle 取得前に外側権限内で解決できる。開いた通常ファイルの metadata で hardlink を含む source 重複を識別し、可変の最終 filename は canonicalize しない。この source 受入明確化を実装前の 2026-10-29 JST に採択する。元の表示 path／byte を保持して、RFC 0006 の狭い source-root 境界を package loader に適用する。移行する既存 package 実行形式はない。
 
+Windows 実装修正、2026-10-29 JST: 開いた `File` の metadata に対して、公開 `cap-fs-ext::MetadataExt` の device／inode API を使う。同名の `cap-std` trait は固定した stable toolchain で Windows handle field を公開しない。host identity の管理だけを変え、新しい unsafe code、guest grant、source syntax、serialized field はない。両 host の hardlink 拒否を必要とする。128-bit ReFS identifier に対する 64-bit inode projection は拡張の文書化済み制限であり、projection の重複は拒否し、二つ目の source を別 identity として実行しない。
+
 dependency の省略可能な `targets` は、完全一致の target triple `aarch64-apple-darwin`、`x86_64-pc-windows-msvc` の空でないリストとする。省略時は両方を含み、重複と未知の triple はエラーとする。解決は対応する target を明示的に一つ選び、既定値は host とする。target 変更は lock replay を無効化する。非アクティブな依存 edge を除外する前に全宣言を検証する。
 
 予定するコマンドは `lang new DIR`、`lang build`、package 対応の `lang run`、`lang test`、`lang package`、`lang fmt`、`lang lint`、`lang doc`。適用可能な package コマンドは `--manifest-path`、`--target`、`--offline`、`--locked`、`--message-format human|json` を受け付ける。最初の検査操作 `lang package check-manifest FILE` は依存 I/O を許可しない。既存のファイル明示 CLI は従来の挙動を維持する。
@@ -137,5 +139,6 @@ manifest、lock、dependency source は信頼しない。明示的 canonical 権
 
 - repository の `src/main.rs`、`src/frontend.rs`、`crates/semantics/src/modules.rs`、`Cargo.lock`、M4 roadmap。2026-10-29 JST 確認。埋込みの公開／更新日は不明。
 - repository の `src/native/manifest/snapshot.rs` の通常ファイル／nonblocking 読取りパターン。2026-10-29 JST 確認。埋込み更新日は不明。
+- [cap-fs-ext 4.0.3 MetadataExt](https://docs.rs/cap-fs-ext/4.0.3/cap_fs_ext/trait.MetadataExt.html) と[実装](https://docs.rs/cap-fs-ext/4.0.3/src/cap_fs_ext/metadata_ext.rs.html)。version 公開日 2026-10-19、別の文書更新日は不明。2026-10-29 JST 確認。公開 device／inode 拡張は Windows に対応し、Windows では開いた file から構築した metadata を必要とする。
 - [RFC 0001](0001-project-charter.md)の最終更新日は 2026-10-28、実験的委任記録は 2026-10-17 JST。[RFC 0006](0006-source-frontend-and-portable-programs.md)は source／module 契約で、最終更新日は 2026-10-28。2026-10-29 JST 確認。本 RFC は project decision を定め、新たな比較性能の主張はしない。
 - Cargo Book の [manifest format](https://doc.rust-lang.org/cargo/reference/manifest.html) と [workspaces](https://doc.rust-lang.org/cargo/reference/workspaces.html)。両方とも更新日を公表しておらず、2026-10-29 JST 確認。TOML manifest、明示的 workspace member、共有 workspace lock を説明している。本 RFC の JSON／完全一致 local profile は project choice で、Cargo の保証を推論したものではない。
