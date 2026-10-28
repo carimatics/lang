@@ -1,5 +1,6 @@
 //! Host-only package metadata; parsing never follows dependency paths.
 pub mod cli;
+pub mod graph;
 pub mod manifest;
 
 use serde::Serialize;

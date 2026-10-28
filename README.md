@@ -96,7 +96,7 @@ The rationale and unresolved tradeoffs are documented in [the architecture basel
 
 Use Rust **1.99.0** with rustfmt and Clippy, pinned by `rust-toolchain.toml`. The [M2](docs/milestone-2-capabilities.md) and [M3 capability guides](docs/milestone-3-capabilities.md) record implemented behavior, exit gates and limits. `cargo run -- run examples/scripts/tasks.lang` exercises implemented source async and returns 42. The [M3 board](docs/milestone-3.md) is the completed record of all 79 deliveries.
 
-M4 starts with `cargo run -- package check-manifest --message-format json examples/packages/hello/Lang.json`. It validates the bounded RFC 0034 manifest without reading dependencies; success is silent, errors are JSON lines on stderr (exit 1; usage exit 2). Package resolution/build/run/test remains on the active board.
+M4 starts with `cargo run -- package check-manifest --message-format json examples/packages/hello/Lang.json`. It validates the bounded RFC 0034 manifest without reading dependencies; success is silent, errors are JSON lines on stderr (exit 1; usage exit 2). The host `package::graph::Graph::resolve` API snapshots exact local dependency graphs inside the explicit manifest directory, with sorted edges and package/edge/source limits. Package source execution and build/run/test commands remain on the active board.
 
 ```bash
 cargo run -- check examples/conformance/owned_pipeline.lang
