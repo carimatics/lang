@@ -12,6 +12,8 @@
 
 A01 は `d1f2667` で完了。2026-10-29 01:17 JST、macOS AArch64 で workspace fmt、警告なしの全 target／全 feature Clippy、全 workspace test（**154 suite／2,329 成功／0 失敗**）、doc build が成功した。厳密 manifest／実 JSON CLI suite は 6/6 成功、ignored なし。最新 board consistency も 6/6 成功し、README の検査コマンドも出力なしで成功した。source／diagnostic 契約 G1 を採択し、dependency 読込み／実行と G2–G9 は未完了。この foundation branch の PR CI／merge と base 同期は引き続き必要。
 
+マージ前の A01 保守修正を実施中。実 FIFO 入力で検査が停止し、実験の 1 秒上限で終了した。採択した RFC 0034 改訂を Unix の nonblocking open と開いた handle の metadata 検査で実装した。重点 manifest／CLI test 7/7、consistency 6/6、fmt、警告なしの workspace Clippy が成功。全体の検証は assertion／overflow check を維持した dev／test opt-level 1 で実行中（実行 session 31845、Cargo PID 23129）。2026-10-29 01:55 JST 確認時点で **33 suite／509 成功／0 失敗**。local log は `target/m4-regular-input-test.log`（ignored）。全 test／doc を完了し、修正を commit、新しい head の CI を確認してから [PR #9](https://github.com/carimatics/lang/pull/9) をマージする。scope を限定した修正であり、計画 point の追加や新しい完了 delivery はない。
+
 ## 終了 gate
 
 [roadmap](roadmap.md#milestone-4developer-toolchain)の元の採択 weight 63 pt を維持する。**検証済み 1/9 gate、5/63 gate weight（7.9%）。** 設計採択は実装 gate の完了を意味しない。P0／P1 はすべて scope 内に残し、延期はない。
@@ -85,6 +87,12 @@ A01 は `d1f2667` で完了。2026-10-29 01:17 JST、macOS AArch64 で workspace
 名前空間の前提監査、2026-10-29 JST: 既存 `ModuleGraph::root()` は常に `ModuleId(0)`。path provider だけでは依存ごとの package-root 名前空間や共有 dependency identity の安全な再利用を提供できない。元の A02 を、許可 graph（新規 A02R、3 pt）と名前空間／source 実行の統合（task list を見直した A02、残り 3 pt）へ分割する。純追加 +3 pt、全 37 delivery。A01 と A02R は前提二つとなるため、水平基盤を増やす前に A02 で次の source 実行 fixture を示す。この監査による gate 完了や延期はない。
 
 ## Delivery note と roadmap review
+
+マージ前の A01 入力監査 checklist:
+
+- [x] 通常ファイル以外の manifest 入力を待機せず拒否し、構造化 `PKG0005`／exit 1 を維持する。
+- [x] 監視付きの実 FIFO CLI 回帰 test を追加し、重点 7 test と fmt／Clippy を通す。
+- [ ] 全 test／doc を完了し、commit して merge 前の現行 head 証拠／CI を更新する。
 
 - A01 完了: [RFC 0034](rfcs/0034-package-workspaces-and-cli-diagnostics.md) が最初の package／tooling profile を採択した。`lang package check-manifest` が実行可能な実験であり、重複／未知／null／型／version／path／target／件数／byte 上限の拒否と構造化 exit 1／2 を含む。必須 local baseline 四つが成功し、source evidence は `d1f2667`。A01 の最終 3 pt を消化し、新規前提 A02R（+3 pt）と区別する。完了は G1 のみで、source dependency、offline lock、editor、debugger、installer gate は未完了。
 - 次の縦の slice: A02R で許可 graph を確立し、A02 で実 dependency import を実行、A03 で checksum／offline 失敗経路、A04 で create／build／run／test を公開する。新しい source 実行 fixture のない前提 delivery が二つ続いたら順序を再検討する。

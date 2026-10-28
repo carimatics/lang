@@ -228,3 +228,51 @@ fn real_cli_emits_single_json_diagnostic_and_preserves_exit_codes() {
         "PKG0005"
     );
 }
+
+#[test]
+fn nonregular_manifest_inputs_refuse_without_waiting_for_a_writer() {
+    let files = Files::new();
+    assert_eq!(Manifest::read(&files.0).unwrap_err().code, "PKG0005");
+    #[cfg(unix)]
+    {
+        let fifo = files.0.join("Lang.json");
+        assert!(
+            Command::new("mkfifo")
+                .arg(&fifo)
+                .status()
+                .unwrap()
+                .success()
+        );
+        let mut child = Command::new(env!("CARGO_BIN_EXE_lang"))
+            .args(["package", "check-manifest", "--message-format", "json"])
+            .arg(&fifo)
+            .stdout(std::process::Stdio::piped())
+            .stderr(std::process::Stdio::piped())
+            .spawn()
+            .unwrap();
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(10);
+        loop {
+            if child.try_wait().unwrap().is_some() {
+                break;
+            }
+            if std::time::Instant::now() >= deadline {
+                child.kill().unwrap();
+                let output = child.wait_with_output().unwrap();
+                panic!("manifest inspection blocked on a FIFO: {output:?}");
+            }
+            std::thread::sleep(std::time::Duration::from_millis(10));
+        }
+        let output = child.wait_with_output().unwrap();
+        assert_eq!(output.status.code(), Some(1));
+        assert!(output.stdout.is_empty());
+        let diagnostic: Value = serde_json::from_slice(&output.stderr).unwrap();
+        assert_eq!(diagnostic["code"], "PKG0005");
+        assert_eq!(diagnostic["path"], fifo.to_string_lossy().as_ref());
+        assert!(
+            diagnostic["message"]
+                .as_str()
+                .unwrap()
+                .contains("regular file")
+        );
+    }
+}

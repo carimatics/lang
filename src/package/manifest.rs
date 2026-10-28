@@ -2,8 +2,8 @@
 use super::Diagnostic;
 use serde::{Deserialize, Deserializer, de};
 use std::collections::{BTreeMap, BTreeSet};
-use std::fs::File;
-use std::io::Read;
+use std::fs::OpenOptions;
+use std::io::{self, Read};
 use std::path::Path;
 
 pub const MAX_BYTES: usize = 64 * 1024;
@@ -142,9 +142,25 @@ impl Manifest {
     /// Reads at most the admitted byte limit plus one sentinel; no dependency IO.
     pub fn read(path: &Path) -> Result<Self, Diagnostic> {
         let read = || {
+            let mut options = OpenOptions::new();
+            options.read(true);
+            #[cfg(unix)]
+            {
+                use std::os::unix::fs::OpenOptionsExt;
+                options.custom_flags(libc::O_NONBLOCK);
+            }
             let mut bytes = Vec::new();
-            File::open(path)
-                .and_then(|f| f.take((MAX_BYTES + 1) as u64).read_to_end(&mut bytes))
+            options
+                .open(path)
+                .and_then(|file| {
+                    if !file.metadata()?.is_file() {
+                        return Err(io::Error::new(
+                            io::ErrorKind::InvalidInput,
+                            "manifest input must be a regular file",
+                        ));
+                    }
+                    file.take((MAX_BYTES + 1) as u64).read_to_end(&mut bytes)
+                })
                 .map_err(|e| Diagnostic::error("PKG0005", format!("cannot read manifest: {e}")))?;
             Self::parse(&bytes)
         };

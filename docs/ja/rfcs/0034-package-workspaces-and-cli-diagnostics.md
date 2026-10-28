@@ -59,6 +59,8 @@ dependency の省略可能な `targets` は、完全一致の target triple `aar
 
 manifest schema 1 は必須 field の欠落、未知 field、全 object 階層の重複キー、未対応 schema／edition、不正な name／version／path／condition、末尾の余剰入力を拒否する。package identity の既定値や dependency path の推測は行わない。dependencies／tests は省略時に空、workspace は省略時に存在しない。省略可能な field も存在する場合は宣言された型を必要とし、明示的 null は省略とは扱わない。manifest は 64 KiB、dependency／member／test リストはそれぞれ 128 件までとする。JSON のネストには serde_json の再帰上限を維持する。
 
+マージ前の入力受入改訂、2026-10-29 JST に実験的委任で採択: file 検査は通常ファイルだけを認め、directory、device、FIFO を `PKG0005` で拒否する。Unix は nonblocking で開いてから開いた handle の metadata を検査し、writer のない FIFO が受入検査を止めないようにする。既存 native SDK reader の実装パターンを使う。上限付き CLI 実験で従来の blocking open を再現した。stream 入力はこの profile の対象ではなく、manifest bytes／version を変えず file 受入を明確化する。増大する通常ファイルにも byte 上限と sentinel を維持する。
+
 解決は明示的な manifest から開始し、そのディレクトリを権限 root とする。明示的に選んだ包含 workspace は兄弟 member を許可できる。canonical な dependency root、entry、source file はその root 内に制限し、symlink による逸脱を拒否する。ローカル dependency identity は canonical root と宣言された name／version からなる。schema 1 では alias と依存 package 名の一致を必要とする。alias 順に edge を解決し、循環、内容が矛盾する重複 identity、完全一致 version の不一致、source 欠落を拒否する。上限は package 256、module 256、source 合計 16 MiB、edge 4096 とし、繰返し訪問も計上する。解決中に build script や dependency code は実行しない。
 
 `Lang.lock` schema 1 は選択 target、toolchain／package edition、権限 root 相対の `/` パスを使って整列した package identity、完全一致 version、整列した active edge、source／manifest の SHA-256 checksum を記録する。hash は原バイトを対象とし、辞書順のパスとバイトに長さを付ける。host の絶対パス、mtime、filesystem 列挙順を identity に含めない。各 package source root 下の全 `.lang` source を含め、生成物、入れ子の dependency root、symlink 逸脱の除外／拒否を明示する。compiler の source-root 読取りは検証した input に制限する。lock 実装は replay に使う前に canonical なバイト符号化と fixture を文書化する。
@@ -118,5 +120,6 @@ manifest、lock、dependency source は信頼しない。明示的 canonical 権
 ## 出典
 
 - repository の `src/main.rs`、`src/frontend.rs`、`crates/semantics/src/modules.rs`、`Cargo.lock`、M4 roadmap。2026-10-29 JST 確認。埋込みの公開／更新日は不明。
+- repository の `src/native/manifest/snapshot.rs` の通常ファイル／nonblocking 読取りパターン。2026-10-29 JST 確認。埋込み更新日は不明。
 - [RFC 0001](0001-project-charter.md)の最終更新日は 2026-10-28、実験的委任記録は 2026-10-17 JST。[RFC 0006](0006-source-frontend-and-portable-programs.md)は source／module 契約で、最終更新日は 2026-10-28。2026-10-29 JST 確認。本 RFC は project decision を定め、新たな比較性能の主張はしない。
 - Cargo Book の [manifest format](https://doc.rust-lang.org/cargo/reference/manifest.html) と [workspaces](https://doc.rust-lang.org/cargo/reference/workspaces.html)。両方とも更新日を公表しておらず、2026-10-29 JST 確認。TOML manifest、明示的 workspace member、共有 workspace lock を説明している。本 RFC の JSON／完全一致 local profile は project choice で、Cargo の保証を推論したものではない。
