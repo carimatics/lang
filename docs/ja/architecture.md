@@ -137,6 +137,8 @@ M4 は 2026-10-29 JST に開始しました。[RFC 0034](rfcs/0034-package-works
 
 `package::lock::Lock::capture` は同じ固定 inventory を追加 I/O なしで利用します。schema 1 は target／compiler identity、完全一致 package edge、元の manifest／source SHA-256、解決した entry／test／directory binding を固定し、長さ付き package checksum と UTF-8 辞書順を使います。inventory が重なっても全宣言の選択を保持します。`verify` は入力を 1 MiB に制限し、重複／未知 field、未対応 version を拒否して canonical byte の完全一致を要求します。`check` は明示 output-directory capability から `Lang.lock` だけを読み、書き込みません。`publish` は同 directory 内の排他的な一時 file、sync、handle close、atomic rename を使い、失敗 stage を除去します。呼出元は別の出力権限を保持し、操作全体が成功してから公開します。Graph の表示用 root を ambient に開き直したり network fallback したりしません。固定 serialization／checksum fixture と配置変更後の VM dependency replay は `tests/package_lock.rs` にあり、package CLI 統合は A04 の作業です。
 
+`lock::validate_encoding` は上限付きの構造／schema admission のみで、checksum や replay の正当性を保証しません。`package_metadata` fuzz target は filesystem access や code 実行なしで、この reader と `Manifest::parse` を検査します。実際の lock replay には引き続き、取得済み graph に対する `Lock::verify`／`check` が必要です。
+
 package build／run／test コマンド、navigation／completion／rename、DAP、installer は [live board](milestone-4.md)に残ります。registry、WebAssembly component、追加 backend、self-hosting、別 frontend は後続 milestone で、実装済みではありません。async REPL、detached task、非同期 foreign callback stack も現在の実行範囲外です。
 
 ## 検証と保守

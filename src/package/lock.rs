@@ -232,16 +232,7 @@ impl Lock {
     }
     /// Strict schema admission followed by exact canonical replay comparison.
     pub fn verify(&self, bytes: &[u8]) -> Result<(), Diagnostic> {
-        if bytes.len() > MAX_BYTES {
-            return Err(capacity());
-        }
-        let record: Record =
-            serde_json::from_slice(bytes).map_err(|e| error(format!("invalid lock: {e}")))?;
-        if record.schema != 1 {
-            return Err(
-                Diagnostic::error("PKG0002", "unsupported lock schema").at_path(Path::new(NAME))
-            );
-        }
+        validate_encoding(bytes)?;
         if bytes != self.bytes {
             return Err(error(
                 "lock does not match canonical frozen inputs, target and compiler",
@@ -288,6 +279,22 @@ impl Lock {
         }
         Err(capacity())
     }
+}
+/// Check bounded wire shape and schema only, without I/O or execution.
+/// This does not verify checksums, bindings or compiler/source identity;
+/// replay must use `Lock::verify` or `Lock::check` against captured inputs.
+pub fn validate_encoding(bytes: &[u8]) -> Result<(), Diagnostic> {
+    if bytes.len() > MAX_BYTES {
+        return Err(capacity());
+    }
+    let record: Record =
+        serde_json::from_slice(bytes).map_err(|e| error(format!("invalid lock: {e}")))?;
+    if record.schema != 1 {
+        return Err(
+            Diagnostic::error("PKG0002", "unsupported lock schema").at_path(Path::new(NAME))
+        );
+    }
+    Ok(())
 }
 fn capacity() -> Diagnostic {
     Diagnostic::error("PKG0004", "lock byte or publication capacity exceeded")
