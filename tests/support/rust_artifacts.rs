@@ -95,9 +95,20 @@ pub fn library(name: &str) -> PathBuf {
 
 /// Configure standalone test hosts from the exact Cargo graph.
 pub fn configure_host(command: &mut Command) {
-    // These unoptimized conformance hosts run outside libtest's test threads.
+    // Optimize the standalone host's generic VM/runtime code as well as the
+    // Cargo libraries. Retain both checks explicitly: rustc otherwise disables
+    // them when optimization is enabled. Guest execution ceilings are unchanged.
+    command.args([
+        "-C",
+        "opt-level=1",
+        "-C",
+        "debug-assertions=yes",
+        "-C",
+        "overflow-checks=yes",
+    ]);
+    // These conformance hosts run outside libtest's test threads.
     // Give MSVC executables an explicit, finite entry stack for compiler and
-    // nested callback probes; guest execution ceilings remain unchanged.
+    // nested callback probes.
     if cfg!(all(target_os = "windows", target_env = "msvc")) {
         command.args(["-C", "link-arg=/STACK:8388608"]);
     }

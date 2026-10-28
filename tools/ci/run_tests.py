@@ -2,13 +2,31 @@
 
 import argparse
 import json
+import os
 from pathlib import Path
 import shlex
 import subprocess
+import time
 
 
 ROOT = Path(__file__).resolve().parents[2]
 SHARDS = ("core", "native", "owned", "native-all")
+
+
+def test_environment(environment, optimized):
+    result = dict(environment)
+    if optimized:
+        # Child Cargo invocations must select the same dev graph as libtest.
+        # Unlike command-line --config, these settings are inherited by them.
+        for profile in ("DEV", "TEST"):
+            prefix = f"CARGO_PROFILE_{profile}_"
+            result.update({
+                prefix + "OPT_LEVEL": "1",
+                prefix + "DEBUG": "2",
+                prefix + "DEBUG_ASSERTIONS": "true",
+                prefix + "OVERFLOW_CHECKS": "true",
+            })
+    return result
 
 
 def shard_for(name):
@@ -51,7 +69,13 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("shard", choices=SHARDS)
     parser.add_argument("--dry-run", action="store_true")
+    parser.add_argument("--optimized", action="store_true",
+                        help="optimize dev/test code while retaining assertions and overflow checks")
     args = parser.parse_args()
+    environment = test_environment(os.environ, args.optimized)
+    if args.optimized:
+        print("Dev/test opt-level=1, debuginfo=2, debug assertions and overflow checks enabled.",
+              flush=True)
     metadata = json.loads(subprocess.check_output(
         ["cargo", "metadata", "--locked", "--no-deps", "--format-version", "1"],
         cwd=ROOT,
@@ -59,7 +83,11 @@ def main():
     for command in commands(metadata, args.shard):
         print(shlex.join(command), flush=True)
         if not args.dry_run:
-            subprocess.run(command, cwd=ROOT, check=True)
+            started = time.monotonic()
+            try:
+                subprocess.run(command, cwd=ROOT, env=environment, check=True)
+            finally:
+                print(f"{args.shard}: command elapsed {time.monotonic() - started:.2f}s", flush=True)
 
 
 if __name__ == "__main__":

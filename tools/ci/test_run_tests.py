@@ -2,7 +2,7 @@
 
 import unittest
 
-from run_tests import commands
+from run_tests import commands, test_environment
 
 
 class PartitionTests(unittest.TestCase):
@@ -50,6 +50,18 @@ class PartitionTests(unittest.TestCase):
         self.metadata["packages"][0]["targets"] = []
         with self.assertRaises(ValueError):
             commands(self.metadata, "native")
+
+    def test_optimization_is_opt_in_and_preserves_nested_cargo_checks(self):
+        original = {"PATH": "kept", "CARGO_PROFILE_TEST_DEBUG_ASSERTIONS": "false"}
+        self.assertEqual(test_environment(original, False), original)
+        optimized = test_environment(original, True)
+        self.assertEqual(original["CARGO_PROFILE_TEST_DEBUG_ASSERTIONS"], "false")
+        self.assertEqual(optimized["PATH"], "kept")
+        for profile in ("DEV", "TEST"):
+            self.assertEqual(optimized[f"CARGO_PROFILE_{profile}_OPT_LEVEL"], "1")
+            self.assertEqual(optimized[f"CARGO_PROFILE_{profile}_DEBUG"], "2")
+            for check in ("DEBUG_ASSERTIONS", "OVERFLOW_CHECKS"):
+                self.assertEqual(optimized[f"CARGO_PROFILE_{profile}_{check}"], "true")
 
 
 if __name__ == "__main__":

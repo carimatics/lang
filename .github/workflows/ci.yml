@@ -1,0 +1,73 @@
+name: CI
+
+on:
+  workflow_dispatch:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  changes:
+    name: Classify changes
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      full: ${{ steps.classify.outputs.full }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - name: Validate CI routing
+        run: python3 -m unittest discover -s tools/ci -p 'test_*.py'
+      - name: Select validation scope
+        id: classify
+        run: python3 tools/ci/classify_changes.py
+
+  documentation:
+    name: Documentation consistency
+    needs: changes
+    if: needs.changes.outputs.full == 'false'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - run: rustup show active-toolchain
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        with:
+          key: documentation-ubuntu-24.04
+      - run: cargo test --locked --test repository_consistency
+
+  macos:
+    needs: changes
+    if: needs.changes.outputs.full == 'true'
+    uses: ./.github/workflows/macos-aarch64.yml
+
+  windows:
+    needs: changes
+    if: needs.changes.outputs.full == 'true'
+    uses: ./.github/workflows/windows-x86_64.yml
+
+  native-sdk:
+    needs: changes
+    if: needs.changes.outputs.full == 'true'
+    uses: ./.github/workflows/native-sdk-install.yml
+
+  result:
+    name: CI result
+    if: always()
+    needs: [changes, documentation, macos, windows, native-sdk]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Require the selected checks to succeed
+        env:
+          CI_RESULTS: ${{ toJSON(needs) }}
+        run: python3 tools/ci/verify_results.py

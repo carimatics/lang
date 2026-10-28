@@ -1,19 +1,14 @@
 name: Windows x86-64 CI
 
 on:
+  workflow_call:
   workflow_dispatch:
-  pull_request:
-  push:
-    branches:
-      - main
-      - 'codex/m2-*'
-      - 'codex/ci-*'
 
 permissions:
   contents: read
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: ${{ github.workflow }}-windows-${{ github.ref }}
   cancel-in-progress: true
 
 env:
@@ -44,7 +39,7 @@ jobs:
       - name: Cache Rust dependencies
         uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
         with:
-          key: windows-2025-${{ matrix.shard }}
+          key: windows-2025-${{ matrix.shard }}-checked-opt1
 
       - name: Inspect native debug tools
         run: |
@@ -69,7 +64,7 @@ jobs:
         run: cargo clippy --locked --workspace --all-targets --all-features -- -D warnings
 
       - name: Run tests
-        run: python tools/ci/run_tests.py ${{ matrix.shard }}
+        run: python tools/ci/run_tests.py ${{ matrix.shard }} --optimized
 
       - name: Build documentation
         if: matrix.shard == 'core'
