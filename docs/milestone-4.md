@@ -6,19 +6,19 @@
 
 Updated: 2026-10-29 JST. M4 is active. Start branch: `main`, upstream `origin/main`, remote `git@github.com:carimatics/lang.git`; clean at `af9988f`. Work branch: `codex/m4-package-toolchain`, PR base: `carimatics/lang:main`.
 
-**0 done · 1 doing · 36 todo · 106 remaining pt**
+**1 done · 0 doing · 36 todo · 103 remaining pt**
 
-**Next: M4-A01 — accept the package contract and run strict manifest inspection.**
+**Next: M4-A02R — resolve a capability-bounded local dependency graph.**
 
-Current checkpoint inspected 2026-10-29 01:09 JST: workspace fmt and warning-free all-target/all-feature Clippy passed on macOS AArch64. The current implementation's strict manifest/real JSON CLI tests passed **6/6 with none ignored**. Full `cargo test --workspace --all-targets --all-features` remains live (Cargo PID 12333, execution session 29818), with the latest collected subtotal **116 suites / 1,695 passed / 0 failed**; native integration is complete and remaining workspace suites are running. Local generated log: `target/m4-baseline-test.log` (ignored). No dependency is read or executed yet. Remaining A01 acceptance: complete workspace test/doc, rerun consistency for the latest board audit, and code/evidence commits. No PR or commit exists yet. This checkpoint is not a completed delivery.
+A01 completed in `d1f2667`, verified 2026-10-29 01:17 JST on macOS AArch64: workspace fmt, warning-free all-target/all-feature Clippy, full workspace test (**154 suites / 2,329 passed / 0 failed**) and documentation build passed. The strict manifest/real JSON CLI suite passed 6/6 with none ignored; latest-board consistency passed 6/6 and the README inspection command succeeded silently. Source/diagnostic contract G1 is accepted; dependency loading/execution and G2–G9 remain unfinished. PR CI/merge and base synchronization are still required for this foundation branch.
 
 ## Exit gates
 
-The [roadmap](roadmap.md#milestone-4-developer-toolchain) retains the original 63 pt acceptance weights. **0/9 gates verified; 0/63 gate weight.** Accepting a design does not complete its implementation gates. Every P0 and P1 remains in scope; no work is deferred.
+The [roadmap](roadmap.md#milestone-4-developer-toolchain) retains the original 63 pt acceptance weights. **1/9 gates verified; 5/63 gate weight (7.9%).** Accepting a design does not complete its implementation gates. Every P0 and P1 remains in scope; no work is deferred.
 
 | Gate | Priority | Outcome | Weight | State |
 | --- | --- | --- | ---: | --- |
-| G1 | P0 | Accepted manifest/workspace, targets, lock compatibility and CLI diagnostics | 5 | pending |
+| G1 | P0 | Accepted manifest/workspace, targets, lock compatibility and CLI diagnostics | 5 | done |
 | G2 | P0 | Deterministic dependency resolution, checksums, locks and offline replay | 8 | pending |
 | G3 | P0 | Package-aware build/run/test and structured diagnostics | 5 | pending |
 | G4 | P0 | Package/fmt/lint/doc CLI integration | 5 | pending |
@@ -34,7 +34,7 @@ The [roadmap](roadmap.md#milestone-4-developer-toolchain) retains the original 6
 
 | ID | State | pt | Needs | Gates | Observable acceptance | Evidence |
 | --- | --- | ---: | --- | --- | --- | --- |
-| M4-A01 | doing | 3 | — | G1 | Accept RFC 0034; inspect valid/invalid bounded manifests with real JSON CLI diagnostics | — |
+| M4-A01 | done | 0 | — | G1 | Accept RFC 0034; inspect valid/invalid bounded manifests with real JSON CLI diagnostics | `d1f2667` |
 | M4-A02R | todo | 3 | M4-A01 | G2,G3 | Capability-bounded local dependency graph; deterministic order and cycle/escape/version/target/resource refusals | — |
 | M4-A02 | todo | 3 | M4-A02R | G2,G3 | Integrate isolated package module roots and immutable source access; execute a real declared dependency import | — |
 | M4-A03 | todo | 3 | M4-A02 | G2,G3 | Canonical checksummed lock fixture replays offline and refuses changed sources without rewriting prior output | — |
@@ -78,15 +78,15 @@ Activation audit, 2026-10-29 JST: 36 observable deliveries, baseline 103 pt. The
 
 | Baseline remaining | Net added/re-estimated | Retired on completion | Remaining |
 | ---: | ---: | ---: | ---: |
-| 103 pt | +3 pt | −0 pt | 106 pt |
+| 103 pt | +3 pt | −3 pt | 103 pt |
 
-**103 + 3 − 0 = 106 pt**
+**103 + 3 − 3 = 103 pt**
 
 Namespace prerequisite audit, 2026-10-29 JST: the existing `ModuleGraph::root()` is always `ModuleId(0)`. A path provider alone cannot give each dependency its own package-root namespace or safely reuse a shared dependency identity. Split the original A02 outcome into an authorized graph (new A02R, 3 pt) and namespace/source execution integration (A02, remaining 3 pt after reviewing its task list). Net addition: +3 pt; 37 deliveries total. A01 and A02R are two prerequisites, so A02 must supply the next source execution fixture before further horizontal scaffolding. No gate is completed or deferred by this audit.
 
 ## Delivery notes and roadmap review
 
-- A01 in progress: [RFC 0034](rfcs/0034-package-workspaces-and-cli-diagnostics.md) accepts only the initial package/tooling profile. Strict manifest inspection is the executable experiment. No source dependency, offline lock, editor, debugger or installer gate is claimed by this checkpoint.
-- Next vertical slice: A02 executes a real dependency import; A03 adds the checksum/offline failure path; A04 exposes create/build/run/test. Review the sequence after two prerequisites without a new source execution fixture.
+- A01 complete: [RFC 0034](rfcs/0034-package-workspaces-and-cli-diagnostics.md) accepts the initial package/tooling profile. `lang package check-manifest` is the executable experiment, including duplicate/unknown/null/type/version/path/target/list/byte-limit refusals and structured exit 1/2. The four required local baseline commands passed; current source evidence is `d1f2667`. Retire A01's last 3 pt separately from the new A02R prerequisite (+3 pt). G1 alone is complete; source dependency, offline lock, editor, debugger and installer gates remain open.
+- Next vertical slice: A02R establishes the authorized graph; A02 executes a real dependency import; A03 adds the checksum/offline failure path; A04 exposes create/build/run/test. Review the sequence after two prerequisites without a new source execution fixture.
 - Roadmap audit: all nine original gates, including P1 profiling, remain necessary for the stated new-developer journey. M4 is now activated; the roadmap must link this live board. Signed installer verification precedes install/download. Registry distribution stays M5; it is not silently supplied or removed here.
 - Sources: repository roadmap/architecture and RFCs inspected 2026-10-29 JST; source files have no embedded update dates. RFC 0034 updated 2026-10-29. Test checkpoint is finite local evidence, not a both-host or full milestone claim.
