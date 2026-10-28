@@ -98,7 +98,7 @@ fn canonical_schema_and_independent_sha256_fixture_replay_offline() {
         "<compiler_build_id>",
         &lang_codegen_clif::sdk::build_id(&TARGET.parse().unwrap()),
     );
-    assert_eq!(lock.as_bytes(), expected.as_bytes());
+    assert_eq!(std::str::from_utf8(lock.as_bytes()).unwrap(), expected);
     assert_eq!(lock.check(&f.directory()).unwrap_err().code, "PKG0007");
     assert!(!f.0.join(NAME).exists());
     lock.publish(&f.directory()).unwrap();
@@ -220,6 +220,7 @@ fn malformed_duplicate_unknown_noncanonical_and_incompatible_locks_are_refused()
         text.replace("\"kind\":", "\"unknown\": 0, \"kind\":"),
         text.trim_end().into(),
         text.replace("  ", " "),
+        text.replace('\n', "\r\n"),
         text.replace(TARGET, "x86_64-pc-windows-msvc"),
         text.replace(
             "\"compiler_version\": \"0.1.0\"",
