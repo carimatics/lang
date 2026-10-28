@@ -10,7 +10,7 @@ import time
 
 
 ROOT = Path(__file__).resolve().parents[2]
-SHARDS = ("core", "native", "owned", "native-all")
+SHARDS = ("core", "workspace", "core-1", "core-2", "native", "owned", "native-all")
 
 
 def test_environment(environment, optimized):
@@ -42,22 +42,31 @@ def shard_for(name):
 def commands(metadata, shard):
     if shard not in SHARDS:
         raise ValueError(f"unknown shard: {shard}")
+    base = ["cargo", "test", "--locked", "--all-features"]
+    workspace = base + ["--workspace", "--exclude", "lang", "--all-targets"]
+    if shard == "workspace":
+        return [workspace]
+    split_core = shard in ("core-1", "core-2")
+    target_group = "core" if split_core else shard
     package = next(p for p in metadata["packages"] if p["name"] == "lang")
     targets = sorted(
         t["name"]
         for t in package["targets"]
         if "test" in t["kind"]
-        and (shard_for(t["name"]) == shard
+        and (shard_for(t["name"]) == target_group
              or (shard == "native-all" and shard_for(t["name"]) != "core"))
     )
+    if split_core:
+        # Alternate sorted targets to distribute compilation as well as runtime.
+        # Every newly discovered target still belongs to exactly one group.
+        targets = targets[int(shard[-1]) - 1::2]
     if not targets:
         raise ValueError(f"empty shard: {shard}")
-    base = ["cargo", "test", "--locked", "--all-features"]
     result = []
     if shard == "core":
-        result.append(base + ["--workspace", "--exclude", "lang", "--all-targets"])
+        result.append(workspace)
     command = base + ["--package", "lang"]
-    if shard == "core":
+    if shard in ("core", "core-1"):
         command += ["--lib", "--bins", "--examples", "--benches"]
     for name in targets:
         command += ["--test", name]

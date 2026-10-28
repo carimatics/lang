@@ -20,7 +20,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        shard: [core, native, owned]
+        shard: [workspace, core-1, core-2, native, owned]
     runs-on: windows-2025
     timeout-minutes: 40
 
@@ -53,25 +53,25 @@ jobs:
           }
 
       - name: Check formatting
-        if: matrix.shard == 'core'
+        if: matrix.shard == 'workspace'
         run: |
           cargo fmt --all --check
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           cargo fmt --manifest-path fuzz/Cargo.toml --check
 
       - name: Lint
-        if: matrix.shard == 'core'
+        if: matrix.shard == 'workspace'
         run: cargo clippy --locked --workspace --all-targets --all-features -- -D warnings
 
       - name: Run tests
         run: python tools/ci/run_tests.py ${{ matrix.shard }} --optimized
 
       - name: Build documentation
-        if: matrix.shard == 'core'
+        if: matrix.shard == 'workspace'
         run: cargo doc --locked --workspace --no-deps
 
       - name: Validate benchmark evidence checks
-        if: matrix.shard == 'core'
+        if: matrix.shard == 'workspace'
         run: |
           python -m unittest discover -s tools/ci -p 'test_*.py'
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }

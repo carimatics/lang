@@ -19,7 +19,8 @@ class PartitionTests(unittest.TestCase):
         }]}
 
     def test_every_integration_target_runs_exactly_once(self):
-        for partition in (("core", "native", "owned"), ("core", "native-all")):
+        for partition in (("core", "native", "owned"), ("core", "native-all"),
+                          ("workspace", "core-1", "core-2", "native", "owned")):
             with self.subTest(partition=partition):
                 selected = []
                 for shard in partition:
@@ -36,6 +37,23 @@ class PartitionTests(unittest.TestCase):
         for flag in ("--lib", "--bins", "--examples", "--benches"):
             self.assertIn(flag, root)
         self.assertNotIn("--all-targets", root)
+
+    def test_windows_splits_compilation_without_duplicating_non_integration_targets(self):
+        workspace = commands(self.metadata, "workspace")
+        first = commands(self.metadata, "core-1")
+        second = commands(self.metadata, "core-2")
+        self.assertEqual(workspace, commands(self.metadata, "core")[:1])
+        self.assertEqual(len(first), 1)
+        self.assertEqual(len(second), 1)
+        for flag in ("--lib", "--bins", "--examples", "--benches"):
+            self.assertIn(flag, first[0])
+            self.assertNotIn(flag, second[0])
+        self.assertNotIn("--workspace", first[0])
+        self.assertNotIn("--workspace", second[0])
+        # Metadata order cannot change group membership or command order.
+        self.metadata["packages"][0]["targets"].reverse()
+        self.assertEqual(first, commands(self.metadata, "core-1"))
+        self.assertEqual(second, commands(self.metadata, "core-2"))
 
     def test_heavy_suites_use_separate_runners(self):
         self.assertEqual(commands(self.metadata, "owned")[0][-4:],
