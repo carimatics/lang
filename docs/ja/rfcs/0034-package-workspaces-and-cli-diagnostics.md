@@ -65,6 +65,20 @@ dependency の省略可能な `targets` は、完全一致の target triple `aar
 
 予定するコマンドは `lang new DIR`、`lang build`、package 対応の `lang run`、`lang test`、`lang package`、`lang fmt`、`lang lint`、`lang doc`。適用可能な package コマンドは `--manifest-path`、`--target`、`--offline`、`--locked`、`--message-format human|json` を受け付ける。最初の検査操作 `lang package check-manifest FILE` は依存 I/O を許可しない。既存のファイル明示 CLI は従来の挙動を維持する。
 
+### Package command の transaction profile
+
+package command 実装前の 2026-10-29 JST、実験段階の委任で採択する。package 形式は `lang new DIR [--name NAME] [--message-format human|json]` と `lang build|run|test [--manifest-path FILE] [--target TRIPLE] [--locked] [--offline] [--message-format human|json]`。manifest option がなければ `./Lang.json` だけを使い、祖先を検索しない。target の既定値は supported host triple。run／test は既存の fuel、service-work、host-call、frame、cell 上限も受け付ける。重複／未知／値なし option は usage error。既存の file 明示 `run`、`run --artifact`、`check`、`compile`、`native`、REPL、整数形式の挙動を保持する。位置引数 source または `--artifact` は従来の `run` を選び、package 専用 option と位置引数 source の混在は拒否する。source のない run は package 形式を選ぶ。
+
+`new` は明示的な schema 1 package を version `0.1.0`、edition `2026`、entry `src/main.lang`、test `tests/smoke.lang` で生成し、両 main は 0 を返す。package 名は `--name`、または manifest の名前文法をすでに満たす directory basename とする。不正 basename には明示 name を必要とし、暗黙変換しない。完成した新規 directory を排他的に公開し、空 directory も含む既存 destination を拒否する。既存 project を変更せず、dependency を推測／取得しない。scaffold file は UTF-8／LF。build／new／test の成功は出力なし。run は実行／公開成功後に i64 の結果と LF を出力し、exit 0 とする。test は 0 が成功、非 0 または runtime failure は診断付き exit 1。追加の成功 JSON record はなく、JSON mode は既定どおり stderr 診断を対象とする。
+
+build／run は選択 package entry を既存の検証済み portable artifact profile で compile し、Copy、ownership、structured task／service を含む。test は各明示 test entry を、その entry の固定 source-directory scope、同じ dependency forest、元の byte／span で compile し、source 合成や再読を行わない。test 0 件でも package graph を型検査するが、実行可能 main は要求しない。test は最初の失敗で停止する。既存 VM engine と allocator／control 契約を再利用し、別の package interpreter を作らない。native executable／link 統合は A06 に残し、この portable checkpoint で完了と主張しない。
+
+失敗時の公開保護のため、canonical lock byte の SHA-256 を generation key とする。build／run generation は `target/lang/<key>/build/` に `inputs.lock` と `main.lbc` を置き、test generation は `target/lang/<key>/test/` に `inputs.lock` と `tests/<manifest-index>.lbc` を置く。`inputs.lock` は完全一致 copy で、test 0 件でも generation は空にならない。この配置は tool の private output で、source／component ABI ではない。同じ親に完成 generation を private stage 化し、排他的に公開して従来 generation を置換しない。既存 generation は新たに検証した期待 file／byte と一致してから再利用し、cache で source／lock 検証を代替しない。lock copy を含む操作ごとの全 stage output を 64 MiB に制限し、従来の source／format 上限を維持する。
+
+output-directory 権限は source capture と別に保持する。書込み前に、物理 alias を含む受入 manifest／source input と予約 output の衝突を拒否する。locked mode は型検査前に lock を検証し、全 artifact の compile／検証と run／test 実行を終えてから generation を公開する。root `Lang.lock` を唯一の可変 commit point として最後に公開し、`--locked` は書き換えない。失敗時は従来 lock とその build／test generation を保持する。private temporary stage は除去するが、lock 公開失敗時に完成した未参照の不変 cache generation が残る場合はある。同時実行が採用した可能性があるためで、rollback で他操作の公開済み generation を削除してはならない。offline mode は許可した local I/O だけを行い、network fallback はない。
+
+理由: 固定 artifact path と lock の別々の置換では atomic な commit point を一つにできない。不変 generation と最後の lock 公開により、複数 file の rollback journal なしで従来 output を保持する。固定した可変 output path の維持、lock の先行公開、lock 検証後の可変 path からの再 compile ではこの契約を満たさない。未実装だった CLI／output 挙動の明確化であり、既存 lock／artifact schema は変更しない。両 host の排他的 directory 公開、同時再利用、test-entry／profile 統合、resource／失敗 cleanup は A04 の実行証拠が必要で、性能改善は仮定しない。
+
 ## 厳密な意味論
 
 manifest schema 1 は必須 field の欠落、未知 field、全 object 階層の重複キー、未対応 schema／edition、不正な name／version／path／condition、末尾の余剰入力を拒否する。package identity の既定値や dependency path の推測は行わない。dependencies／tests は省略時に空、workspace は省略時に存在しない。省略可能な field も存在する場合は宣言された型を必要とし、明示的 null は省略とは扱わない。manifest は 64 KiB、dependency／member／test リストはそれぞれ 128 件までとする。JSON のネストには serde_json の再帰上限を維持する。

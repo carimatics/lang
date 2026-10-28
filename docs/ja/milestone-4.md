@@ -6,9 +6,9 @@
 
 更新: 2026-10-29 JST。M4 は active。Goal 開始時は clean な `main`／`origin/main` の `af9988f`、remote `git@github.com:carimatics/lang.git`。foundation と package 実行 branch は PR #9／#10 で merge 済み。現在の一貫した lock／CLI branch は `codex/m4-package-lock-cli`。clean・同期済み `main`／`origin/main` の `260e67a` から作成し、PR base は `carimatics/lang:main`。開始時の作業ツリーは clean。
 
-**4 done · 1 doing · 33 todo · 96 remaining pt**
+**5 done · 1 doing · 33 todo · 97 remaining pt**
 
-**次: M4-A03 — canonical checksum、lock 公開、offline replay（doing、2 pt）。** 最後の実行 checkpoint、2026-10-29 08:06 JST 確認: source `dcb0885` は警告なし全 Clippy、root／fuzz fmt、全 fuzz-bin Clippy、以前の package 重点 47 件に続く lock／consistency 18 件に成功。新しい metadata fuzz target は instrumentation なしの smoke 10,000 回を完了し、coverage／sanitizer campaign は未検証。canonical／独立 SHA-256 fixture、UTF-8 順、entry／test／directory binding、配置変更後の VM replay、古い／未使用 input と不正／target／compiler／resource 拒否、identity 重複、失敗時の公開保護は local で成功した。Windows は配置変更、UTF-8 順、busy-lock cleanup を含む lock 10/11 件が成功し、golden 比較だけが checkout による CR 32 byte 追加で失敗した。fixture を Git 属性で LF に固定し、CRLF lock 拒否は厳密に維持する。残条件は全 workspace test／doc、修正 head の両 host CI、最終 evidence と [draft PR #11](https://github.com/carimatics/lang/pull/11) lifecycle。
+**次: M4-A04B — package 作成と失敗時保護 generation を使う dependency build／run（doing、3 pt）。** branch／base を記録してから、別の command checkout で実装する。最後の実行済み依存 checkpoint は A03 source `117a2ab`。2026-10-29 JST に [全 CI](https://github.com/carimatics/lang/actions/runs/40785199550)（期待した全 19 job、18 成功、文書専用の意図した skip）と [debugger 実行](https://github.com/carimatics/lang/actions/runs/40785199590)（3/3）を確認。両 host の全 fmt／Clippy／test／doc が lock API の受入を網羅し、修正 golden 比較、配置変更、UTF-8 順、Windows busy-lock cleanup が成功した。local package 重点 47 件と修正 lock／consistency 18 件、警告なし全 Clippy、root／fuzz fmt、全 fuzz-bin Clippy も成功。metadata fuzz target は instrumentation なし smoke 10,000 回を完了し、coverage／sanitizer campaign は未検証。不変 API checkout では独立した local 全 workspace 実行が続き、doc も残る。[PR #11](https://github.com/carimatics/lang/pull/11) merge 前にこれらと最終 head CI を終える。この branch 検証は継続中で、成功済みと主張しない。
 
 A01 の修正済み source は `9e5b0ce`。2026-10-29 02:24 JST の local 検証で fmt、警告なし Clippy、assertion／overflow check を有効にした checked opt-level 1 の全 test（**154 suite／2,330 成功／0 失敗**）、doc が成功。manifest／CLI は 7/7、consistency は 6/6 成功し、従来の test 名／結果は未変更。最新 head `f3d0a52` の [全 CI](https://github.com/carimatics/lang/actions/runs/40736268875)（18 成功、意図した文書専用 skip）と [native debugger 実行](https://github.com/carimatics/lang/actions/runs/40736267899)（全 3 環境）が成功した。[PR #9](https://github.com/carimatics/lang/pull/9) は 02:43 JST に `42e6045` として merge。local `main` を fast-forward し、clean、ahead／behind 0/0 を確認した。
 
@@ -46,8 +46,9 @@ A01 入力修正は Unix の nonblocking open と開いた handle の metadata �
 | M4-A02R | done | 0 | M4-A01 | G2,G3 | capability で制限した local dependency graph、決定的順序、循環／逸脱／version／target／resource 拒否 | `aae5242` |
 | M4-A02S | done | 0 | M4-A02R | G2,G3 | 上限付き source input を一度固定し directory handle を解放、両 host で編集／rename 後の実行を保持 | `b81633e` |
 | M4-A02 | done | 0 | M4-A02S | G2,G3 | 分離した package module root と不変 source access を統合、実際の宣言 dependency import を実行 | `b81633e` |
-| M4-A03 | doing | 2 | M4-A02 | G2,G3 | canonical checksum lock fixture を offline replay、従来 output を書き換えず変更 source を拒否 | — |
-| M4-A04 | todo | 3 | M4-A03 | G2,G3 | package と local dependency を作成し package build／run／test と失敗 test fixture | — |
+| M4-A03 | done | 0 | M4-A02 | G2,G3 | canonical checksum lock fixture を offline replay、従来 output を書き換えず変更 source を拒否 | `117a2ab` |
+| M4-A04B | doing | 3 | M4-A03 | G2,G3 | package／local dependency 作成、実 package build／run、locked／offline replay と失敗時保護 generation | — |
+| M4-A04 | todo | 3 | M4-A04B | G2,G3 | 宣言 test-entry scope、共有 VM profile、失敗 test／source／JSON 診断 fixture | — |
 | M4-A05 | todo | 3 | M4-A04 | G2,G3 | workspace member 選択と、両 supported target の完全一致 target condition lock | — |
 | M4-A06 | todo | 3 | M4-A05 | G2,G3 | 配置変更した locked package から native executable を二度 build、両 host で固定 input digest 比較 | — |
 | M4-B01 | todo | 3 | M4-A04 | G4 | 決定的 package source list／archive と逸脱／変更 input の拒否 | — |
@@ -87,13 +88,15 @@ A01 入力修正は Unix の nonblocking open と開いた handle の metadata �
 
 | Baseline remaining | Net added/re-estimated | Retired on completion | Remaining |
 | ---: | ---: | ---: | ---: |
-| 103 pt | +5 pt | −12 pt | 96 pt |
+| 103 pt | +8 pt | −14 pt | 97 pt |
 
-**103 + 5 − 12 = 96 pt**
+**103 + 8 − 14 = 97 pt**
 
 名前空間の前提監査、2026-10-29 JST: 既存 `ModuleGraph::root()` は常に `ModuleId(0)`。path provider だけでは依存ごとの package-root 名前空間や共有 dependency identity の安全な再利用を提供できない。元の A02 を、許可 graph（新規 A02R、3 pt）と名前空間／source 実行の統合（task list を見直した A02、残り 3 pt）へ分割する。純追加 +3 pt、全 37 delivery。A01 と A02R は前提二つとなるため、水平基盤を増やす前に A02 で次の source 実行 fixture を示す。この監査による gate 完了や延期はない。
 
 snapshot lifecycle 監査、2026-10-29 JST: Windows CI は dependency fixture の実行に成功したが、生存 directory handle により project rename を拒否した。入力 snapshot は取得 handle の寿命から独立させる必要がある。上限付き inventory と handle 解放の A02S（3 pt）を追加し、rename 成功 test を保持する。A02 は固定 provider 統合と両 host 検証が残る（3 pt）ため、doing を A02S に移す。A03 はこの inventory を利用するので、canonical serialization、checksum、replay、atomic publication の task を見直し、残見積を 3 から 2 pt に減らす。純追加 +2 pt、累計 +5 pt、全 38 delivery。dependency source fixture はすでに両 mode で実行済みであり、実行証拠に続く修正である。gate 完了や延期はない。
+
+CLI 成果監査、2026-10-29 JST、実装前: 採択した transaction profile で実行可能な成果二つが明確になった。新規 A04B（3 pt）は scaffold／既存 file 互換、全 profile の build／run、不変 generation 公開を、42 を返す実 dependency で示す。A04 は残る test-entry 選択、複数 profile の戻り値検査、構造化した失敗／span fixture を見直して 3 pt とする。公開処理や共有 engine 作業を元の見積に隠さず、元の複合 CLI 成果を縦の delivery に分割する。純追加 +3 pt、累計 +8 pt、全 39 delivery。これと別に、修正 source の両 host CI が API 成果を検証した A03 の最終 2 pt を消化する。CLI 二行は同じ一貫した command 実装 branch とし、lock wire API を review 済み依存とする。独立 local API baseline／PR lifecycle は source を固定した checkout で継続する。gate 完了や延期はない。
 
 ## Delivery note と roadmap review
 
@@ -108,5 +111,6 @@ snapshot lifecycle 監査、2026-10-29 JST: Windows CI は dependency fixture �
 - A02R 完了: 不変の原 manifest／entry byte、整列した完全一致 local edge、diamond identity 共有、循環／名前／version／target／resource 拒否、256 package 境界が成功。監視付きの FIFO path 4 ケースも停止せず終了し、directory 専用 canonicalize と capability 相対 file admission が親／symlink 逸脱を拒否する。最終見積 3 pt を消化し、新規追加はない。次の実装は A02 の dependency source 実行で、その後 A03 checksum／offline replay、A04 create／build／run／test と続く。追加の水平前提は選択しない。
 - A02S／A02 完了: `b81633e` が上限付き source inventory の固定、取得失敗 cache、handle 解放、不変 provider と分離 dependency 名前空間の統合を実装する。両 host の実行と project rename が成功した。各行の最終 3 pt（計 6 pt）を従来の追加と分けて消化し、見積追加はない。Windows が検出した未公開 identity import と保持 handle の欠陥は test を弱めず修正した。Cargo は独立 fuzz lock も同期した。初期の全実行は source 編集と重なり SDK build-ID check で失敗したが、上記の固定 source 最終 baseline は全 native-image test に成功し、その無効 checkpoint を置き換える。
 - A03 契約 review: source hash だけでは、取得済みの二つの tree 間で directory alias を付け替えた変更を検出できない。RFC 0034 は整列した directory／entry／test binding を canonical lock record と package checksum に含め、binding 変更の拒否 fixture を定めた。lock 実装や既存 lock artifact がない段階で採択した修正であり、serialization、replay、publication task を見直した A03 は 2 pt を維持する。
+- A03 API 完了: `117a2ab` が両 host の全 CI と三つの debugger 環境に成功。canonical fixture、独立 SHA-256／UTF-8 順、固定した配置変更後の dependency replay、変更／未使用／binding／compiler／target／不正／resource 拒否、物理 identity admission、失敗時保護 lock 公開を検証した。Windows が検出した fixture checkout の CRLF は明示 LF 属性で修正し、CRLF lock 拒否は厳密に保つ。A04B の +3 pt scope 監査とは別に最終 2 pt を消化する。独立した local 全 test／doc と最終文書 head の CI は branch merge 条件に残り、local 完了や PR merge はまだ主張しない。
 - roadmap 監査: P1 profiling を含む元の九つの gate は、新規開発者 journey に引き続き必要。M4 を有効化したので roadmap から live board を参照する。署名 installer 検証は install／download より先に行う。registry distribution は M5 に保ち、暗黙に供給したり削除したりしない。
 - 出典: repository roadmap／architecture／RFC を 2026-10-29 JST に確認。source file に埋込み更新日はない。RFC 0034 更新日 2026-10-29。checkpoint は有限の local 証拠で、両 host／milestone 全体の主張ではない。
