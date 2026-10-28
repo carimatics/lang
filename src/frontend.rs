@@ -106,7 +106,7 @@ pub fn analyze_virtual(
     let modules = load_virtual(&mut sources, display, bytes, root, limits.modules);
     finish(sources, modules, limits, wrapper)
 }
-fn finish(
+pub(crate) fn finish(
     sources: SourceMap,
     modules: Result<ModuleAnalysis, ModuleLoadError>,
     limits: CompileLimits,

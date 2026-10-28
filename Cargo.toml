@@ -67,6 +67,9 @@ serde.workspace = true
 sha2.workspace = true
 cap-std = "4.0"
 
+[target.'cfg(windows)'.dependencies]
+cap-fs-ext = "4.0.3"
+
 [target.'cfg(unix)'.dependencies]
 libc = "0.2"
 

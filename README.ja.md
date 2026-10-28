@@ -96,7 +96,7 @@ source構文・native language ABI・private SDK/package formatは実験段階�
 
 `rust-toolchain.toml`で固定したRust **1.99.0**とrustfmt/Clippyを使います。[M2機能guide](docs/ja/milestone-2-capabilities.md)と[M3機能guide](docs/ja/milestone-3-capabilities.md)に実装動作・完了条件・制約を記録しています。`cargo run -- run examples/scripts/tasks.lang`で実装済みsource asyncを実行し、42を返します。[M3 board](docs/ja/milestone-3.md)は完了した79 deliveryの記録です。
 
-M4 の最初のコマンドは `cargo run -- package check-manifest --message-format json examples/packages/hello/Lang.json`。RFC 0034 の上限付き manifest を dependency を読まずに検証します。成功時は出力なし、エラーは stderr の JSON line（exit 1、usage は exit 2）です。package resolution／build／run／test は active board に残ります。
+M4 の最初のコマンドは `cargo run -- package check-manifest --message-format json examples/packages/hello/Lang.json`。RFC 0034 の上限付き manifest を dependency を読まずに検証します。成功時は出力なし、エラーは stderr の JSON line（exit 1、usage は exit 2）です。host の `package::graph::Graph::resolve` API は明示 manifest の directory 内で完全一致 local dependency graph を snapshot 化し、edge を整列して package／edge／source 上限を適用します。`package::source::analyze` は分離した package root を共有 frontend へ接続し、`cargo test --test package_source` が実 local-dependency fixture を VM と native JIT で実行して両方 42 を返します。package build／run／test コマンドは active board に残ります。
 
 ```bash
 cargo run -- check examples/conformance/owned_pipeline.lang

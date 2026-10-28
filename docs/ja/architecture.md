@@ -131,7 +131,11 @@ root task exportのbindingはimportなし・export interface 1つ・その中の
 
 [RFC 0030](rfcs/0030-native-task-component-records.md)–[0032](rfcs/0032-installed-component-packages.md)の保存record/packageは元のcode・grant・provider・SDK identityを要求し、欠落時に探索やVM/JIT fallbackで補いません。実macOS AArch64/Windows x86-64の7 profile隔離起動と旧C client移行は[M3 guide](milestone-3-capabilities.md)と日付付き証跡にあります。
 
-M4 は 2026-10-29 JST に開始しました。[RFC 0034](rfcs/0034-package-workspaces-and-cli-diagnostics.md)は厳密な version 付き manifest、明示 local dependency 権限、lock／offline 互換性、JSON CLI 診断を定義します。`lang package check-manifest [--message-format human|json] FILE` は依存を読まず最大 64 KiB を検証し、成功時は出力せず、エラー exit 1（usage 2）を維持します。package 対応 build／run／test、navigation／completion／rename、DAP、installer は [live board](milestone-4.md)に残ります。registry、WebAssembly component、追加 backend、self-hosting、別 frontend は後続 milestone で、実装済みではありません。async REPL、detached task、非同期 foreign callback stack も現在の実行範囲外です。
+M4 は 2026-10-29 JST に開始しました。[RFC 0034](rfcs/0034-package-workspaces-and-cli-diagnostics.md)は厳密な version 付き manifest、明示 local dependency 権限、lock／offline 互換性、JSON CLI 診断を定義します。`lang package check-manifest [--message-format human|json] FILE` は依存を読まず最大 64 KiB を検証し、成功時は出力せず、エラー exit 1（usage 2）を維持します。host の `package::graph` API は整列した完全一致 local graph の不変 manifest／entry byte を保持し、canonical な dependency directory identity を共有して、循環、逸脱、名前／version／target 不一致、resource 超過を拒否します。capability 相対の通常ファイル読み取りは上限付きで、Unix では nonblocking。未検査 file は canonicalize しません。既定上限は 256 package、4096 active edge、16 MiB entry byte です。
+
+`package::source::analyze` が package 名前空間を共有 frontend へ供給します。root の `mod helper;` は宣言された有効な直接依存を選び、各 package の `root::` は自身の内部に留まり、共有 diamond は一つの nominal identity を保持します。最初の準備で宣言 entry／test の source directory を一度取得し、filesystem handle を解放します。後続の解析は削除／project rename 後も固定 byte、directory alias、source root ごとの所属を使います。開いた file の metadata で最終 filename を canonicalize せず source identity の重複を検出します。取得失敗も cache 化し、新しい filesystem 状態には新しい Graph を必要とします。未使用 input も含む上限は source file 256、16 MiB、directory entry 4096 です。原 source byte／span を既存 HIR／MIR／portable VM とプログラム全体の native JIT に渡し、dependency fixture は両 mode で 42 を返します。checksum 付き lock／offline replay は A03 の作業です。
+
+package build／run／test コマンド、navigation／completion／rename、DAP、installer は [live board](milestone-4.md)に残ります。registry、WebAssembly component、追加 backend、self-hosting、別 frontend は後続 milestone で、実装済みではありません。async REPL、detached task、非同期 foreign callback stack も現在の実行範囲外です。
 
 ## 検証と保守
 

@@ -4,15 +4,21 @@
 
 [日本語版](ja/milestone-4.md)
 
-Updated: 2026-10-29 JST. M4 is active. Start branch: `main`, upstream `origin/main`, remote `git@github.com:carimatics/lang.git`; clean at `af9988f`. Work branch: `codex/m4-package-toolchain`, PR base: `carimatics/lang:main`.
+Updated: 2026-10-29 JST. M4 is active. Goal start: clean `main`/`origin/main` at `af9988f`, remote `git@github.com:carimatics/lang.git`. Foundation branch `codex/m4-package-toolchain` merged through PR #9. Current coherent package-execution branch: `codex/m4-local-package-execution`, created from clean `main`/`origin/main` at `42e6045`; PR base: `carimatics/lang:main`, [draft PR #10](https://github.com/carimatics/lang/pull/10). Its review outcome is the graph plus isolated dependency-source API (A02R/A02); the separate lock/CLI outcome follows this API's verification and merge.
 
-**1 done · 0 doing · 36 todo · 103 remaining pt**
+**4 done · 0 doing · 34 todo · 96 remaining pt**
 
-**Next: M4-A02R — resolve a capability-bounded local dependency graph.**
+**Next: M4-A03 — canonical checksums, lock publication and offline replay, after PR #10 merges.**
 
-A01's corrected source is `9e5b0ce`, verified 2026-10-29 02:24 JST on macOS AArch64: workspace fmt, warning-free all-target/all-feature Clippy, full checked opt-level 1 workspace test (**154 suites / 2,330 passed / 0 failed**) and documentation build passed. Debug assertions and overflow checks remained enabled in dev/test profiles. The strict manifest/real JSON CLI suite passed 7/7 with none ignored, and latest-board consistency passed 6/6. Comparing test identities/results against the initial `d1f2667` baseline found no removals or changed results; only the new nonregular-input regression was added. Source/diagnostic contract G1 is accepted; dependency loading/execution and G2–G9 remain unfinished. Latest-head PR CI/merge and base synchronization are still required for this foundation branch.
+A01's corrected source is `9e5b0ce`, verified locally 2026-10-29 02:24 JST: fmt, warning-free Clippy, checked opt-level 1 full tests (**154 suites / 2,330 passed / 0 failed**) and doc passed with assertions/overflow checks enabled. Manifest/CLI tests passed 7/7; consistency passed 6/6. All prior test identities/results remain unchanged. Latest head `f3d0a52` passed [full CI](https://github.com/carimatics/lang/actions/runs/40736268875) (18 success, expected documentation-only skip) and [native debugger execution](https://github.com/carimatics/lang/actions/runs/40736267899) (all 3 environments). [PR #9](https://github.com/carimatics/lang/pull/9) merged at 02:43 JST as `42e6045`; local `main` was fast-forwarded and verified clean with 0/0 ahead/behind.
 
-Pre-merge A01 input correction is implemented and locally verified: a real FIFO previously blocked inspection until the experiment's one-second timeout; nonblocking Unix open and metadata checks now refuse it with `PKG0005`/exit 1. The accepted RFC 0034 revision and supervised regression are in `9e5b0ce`. Local generated test/doc logs are `target/m4-regular-input-{test,doc}.log` (ignored). Verify the updated head's CI before merging [PR #9](https://github.com/carimatics/lang/pull/9). This scoped correction adds no planning points or completed delivery.
+A02R/A02S/A02 are implemented and verified at corrected source `b81633e`, 2026-10-29 JST. The real declared dependency returns 42 through portable wire replay/VM and whole-program native JIT. Isolated roots, shared nominal types, original privacy spans, duplicate identities, nonblocking FIFO/escape refusals and frozen inputs after edit/delete/rename pass. Capture closes all directory handles on success or failure; the positive project-rename test now passes on Windows as well as macOS.
+
+Local verification: source 13/13, graph 9/9, manifest/CLI 7/7 and consistency 6/6; fmt, warning-free full Clippy, checked opt-level 1 full workspace tests (**156 suites / 2,352 passed / 0 failed**) and doc passed, with assertions/overflow checks enabled. The separate fuzz workspace passes `cargo check --manifest-path fuzz/Cargo.toml --locked --offline --bins` after Cargo regenerated its dependency lock in `4611c86`.
+
+Head `4611c86` passed [full CI](https://github.com/carimatics/lang/actions/runs/40776313926): all 19 expected jobs are present, 18 succeed and the documentation-only job is intentionally skipped for this source change. [Native debugger execution](https://github.com/carimatics/lang/actions/runs/40776313835) succeeds in all 3 environments. PR #10 still needs its final documentation head's CI, review transition and merge; these source results do not replace that gate. G2–G9 remain unfinished.
+
+The A01 input correction refuses FIFO/device/directory inputs with `PKG0005`/exit 1 using nonblocking Unix open and opened-handle metadata. It adds no planning points or completed delivery; its full validation and merge are recorded above.
 
 ## Exit gates
 
@@ -37,9 +43,10 @@ The [roadmap](roadmap.md#milestone-4-developer-toolchain) retains the original 6
 | ID | State | pt | Needs | Gates | Observable acceptance | Evidence |
 | --- | --- | ---: | --- | --- | --- | --- |
 | M4-A01 | done | 0 | — | G1 | Accept RFC 0034; inspect valid/invalid bounded manifests with real JSON CLI diagnostics | `9e5b0ce` |
-| M4-A02R | todo | 3 | M4-A01 | G2,G3 | Capability-bounded local dependency graph; deterministic order and cycle/escape/version/target/resource refusals | — |
-| M4-A02 | todo | 3 | M4-A02R | G2,G3 | Integrate isolated package module roots and immutable source access; execute a real declared dependency import | — |
-| M4-A03 | todo | 3 | M4-A02 | G2,G3 | Canonical checksummed lock fixture replays offline and refuses changed sources without rewriting prior output | — |
+| M4-A02R | done | 0 | M4-A01 | G2,G3 | Capability-bounded local dependency graph; deterministic order and cycle/escape/version/target/resource refusals | `aae5242` |
+| M4-A02S | done | 0 | M4-A02R | G2,G3 | Freeze bounded source inputs once, release directory handles and preserve execution after edits/renames on both hosts | `b81633e` |
+| M4-A02 | done | 0 | M4-A02S | G2,G3 | Integrate isolated package module roots and immutable source access; execute a real declared dependency import | `b81633e` |
+| M4-A03 | todo | 2 | M4-A02 | G2,G3 | Canonical checksummed lock fixture replays offline and refuses changed sources without rewriting prior output | — |
 | M4-A04 | todo | 3 | M4-A03 | G2,G3 | Create a package and local dependency; package build/run/test and failed-test fixture | — |
 | M4-A05 | todo | 3 | M4-A04 | G2,G3 | Workspace member selection and exact target-condition locks on both supported targets | — |
 | M4-A06 | todo | 3 | M4-A05 | G2,G3 | Build a native executable twice from a relocated locked package; compare pinned-input digests on both hosts | — |
@@ -80,11 +87,13 @@ Activation audit, 2026-10-29 JST: 36 observable deliveries, baseline 103 pt. The
 
 | Baseline remaining | Net added/re-estimated | Retired on completion | Remaining |
 | ---: | ---: | ---: | ---: |
-| 103 pt | +3 pt | −3 pt | 103 pt |
+| 103 pt | +5 pt | −12 pt | 96 pt |
 
-**103 + 3 − 3 = 103 pt**
+**103 + 5 − 12 = 96 pt**
 
 Namespace prerequisite audit, 2026-10-29 JST: the existing `ModuleGraph::root()` is always `ModuleId(0)`. A path provider alone cannot give each dependency its own package-root namespace or safely reuse a shared dependency identity. Split the original A02 outcome into an authorized graph (new A02R, 3 pt) and namespace/source execution integration (A02, remaining 3 pt after reviewing its task list). Net addition: +3 pt; 37 deliveries total. A01 and A02R are two prerequisites, so A02 must supply the next source execution fixture before further horizontal scaffolding. No gate is completed or deferred by this audit.
+
+Snapshot lifecycle audit, 2026-10-29 JST: Windows CI executes the dependency fixture successfully but refuses project rename with live directory handles. The input snapshot must outlive its capture handles. Add A02S (3 pt) for a bounded inventory and handle release, retaining the positive rename test. A02 still needs frozen-provider integration and both-host validation (3 pt); move its doing state to A02S. A03 now consumes that inventory, reducing its remaining estimate from 3 to 2 pt after reviewing canonical serialization, checksum, replay and atomic publication tasks. Net addition +2 pt, cumulative +5 pt; 38 deliveries. The dependency source fixture already executes in both modes, so this correction follows executable evidence. No gate is completed or deferred.
 
 ## Delivery notes and roadmap review
 
@@ -93,9 +102,11 @@ Pre-merge A01 input audit checklist:
 - [x] Refuse nonregular manifest inputs without blocking and retain structured `PKG0005`/exit 1.
 - [x] Add a supervised real FIFO CLI regression and pass the 7 focused tests plus fmt/Clippy.
 - [x] Complete full test/doc and commit the corrected source with updated evidence.
-- [ ] Verify the updated head's full CI/debugger checks, merge and synchronize the base branch.
+- [x] Verify the updated head's full CI/debugger checks, merge and synchronize the base branch.
 
 - A01 complete: [RFC 0034](rfcs/0034-package-workspaces-and-cli-diagnostics.md) accepts the initial package/tooling profile. `lang package check-manifest` is the executable experiment, including duplicate/unknown/null/type/version/path/target/list/byte-limit and nonregular-file refusals with structured exit 1/2. The four required local baseline commands passed; corrected source evidence is `9e5b0ce` (initial delivery `d1f2667`). Retire A01's last 3 pt separately from the new A02R prerequisite (+3 pt); the pre-merge input correction adds no estimates. G1 alone is complete; source dependency, offline lock, editor, debugger and installer gates remain open.
-- Next vertical slice: A02R establishes the authorized graph; A02 executes a real dependency import; A03 adds the checksum/offline failure path; A04 exposes create/build/run/test. Review the sequence after two prerequisites without a new source execution fixture.
+- A02R complete: immutable original manifest/entry bytes, sorted exact local edges, shared diamond identity, cycle/name/version/target/resource refusals and the 256-package boundary pass. Four supervised FIFO path cases finish without blocking; directory-only canonicalization and capability-relative file admission refuse parent/symlink escapes. Retire its last 3 pt; no new work is added. The next implementation is A02's dependency source execution, followed by A03 checksum/offline replay and A04 create/build/run/test; no additional horizontal prerequisite is selected.
+- A02S/A02 complete: `b81633e` freezes the bounded source inventory, caches capture errors, releases handles and integrates the immutable provider with isolated dependency namespaces. Both-host execution and project rename succeed. Retire each row's last 3 pt (6 pt total), separately from prior additions; add no estimates. Windows exposed the unsupported identity import and retained-handle defect; both were corrected without weakening the tests. Cargo also synchronized the separate fuzz lock. An early full run overlapped source edits and failed the SDK build-ID check; the final stable-source baseline above passes all native-image tests and supersedes that invalid checkpoint.
+- A03 contract review: source hashes alone miss a directory alias retargeted between two already inventoried trees. RFC 0034 now includes sorted directory/entry/test bindings in canonical lock records and package checksums, with a changed-binding refusal fixture. No lock implementation or existing lock artifact precedes this accepted correction; A03 remains 2 pt after reviewing serialization, replay and publication tasks.
 - Roadmap audit: all nine original gates, including P1 profiling, remain necessary for the stated new-developer journey. M4 is now activated; the roadmap must link this live board. Signed installer verification precedes install/download. Registry distribution stays M5; it is not silently supplied or removed here.
 - Sources: repository roadmap/architecture and RFCs inspected 2026-10-29 JST; source files have no embedded update dates. RFC 0034 updated 2026-10-29. Test checkpoint is finite local evidence, not a both-host or full milestone claim.

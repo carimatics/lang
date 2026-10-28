@@ -1,6 +1,8 @@
 //! Host-only package metadata; parsing never follows dependency paths.
 pub mod cli;
+pub mod graph;
 pub mod manifest;
+pub mod source;
 
 use serde::Serialize;
 use std::fmt::{Display, Formatter};

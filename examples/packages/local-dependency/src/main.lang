@@ -1,0 +1,6 @@
+mod helper;
+use helper::answer;
+
+fn main() -> i64 {
+    return answer();
+}
