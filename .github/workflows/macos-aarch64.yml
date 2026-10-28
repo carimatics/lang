@@ -1,19 +1,14 @@
 name: macOS AArch64 CI
 
 on:
+  workflow_call:
   workflow_dispatch:
-  pull_request:
-  push:
-    branches:
-      - main
-      - 'codex/q02-*'
-      - 'codex/ci-*'
 
 permissions:
   contents: read
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: ${{ github.workflow }}-macos-${{ github.ref }}
   cancel-in-progress: true
 
 env:
@@ -42,7 +37,7 @@ jobs:
       - name: Cache Rust dependencies
         uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
         with:
-          key: macos-${{ matrix.version }}-${{ matrix.shard }}
+          key: macos-${{ matrix.version }}-${{ matrix.shard }}-checked-opt1
           workspaces: |
             . -> target
             fuzz -> target
@@ -58,7 +53,7 @@ jobs:
         run: cargo clippy --locked --workspace --all-targets --all-features -- -D warnings
 
       - name: Test including AOT and repository consistency
-        run: python3 tools/ci/run_tests.py ${{ matrix.shard }}
+        run: python3 tools/ci/run_tests.py ${{ matrix.shard }} --optimized
 
       - name: Build documentation
         if: matrix.shard == 'core'
