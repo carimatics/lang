@@ -3,7 +3,7 @@ use super::{Diagnostic, manifest};
 use std::io::{self, Write};
 use std::{collections::BTreeSet, ffi::OsString, path::PathBuf};
 
-pub const USAGE: &str = "usage: lang new [--name NAME] [--message-format human|json] DIR\n       lang build [--manifest-path FILE] [--package NAME] [--target TRIPLE] [--native --sdk DIR] [--locked] [--offline] [--message-format human|json]\n       lang run [--manifest-path FILE] [--package NAME] [--target TRIPLE] [--locked] [--offline] [--message-format human|json] [--fuel N] [--service-work N] [--host-calls N] [--frames N] [--cells N]\n       lang test [--manifest-path FILE] [--package NAME] [--target TRIPLE] [--locked] [--offline] [--message-format human|json] [--fuel N] [--service-work N] [--host-calls N] [--frames N] [--cells N]\n       lang package [--list] [--manifest-path FILE] [--package NAME] [--target TRIPLE] [--locked] [--offline] [--message-format human|json]\n       lang fmt [--check] [--manifest-path FILE] [--package NAME] [--target TRIPLE] [--locked] [--offline] [--message-format human|json]\n       lang lint [--deny-warnings] [--manifest-path FILE] [--package NAME] [--target TRIPLE] [--locked] [--offline] [--message-format human|json]\n";
+pub const USAGE: &str = "usage: lang new [--name NAME] [--message-format human|json] DIR\n       lang build [--manifest-path FILE] [--package NAME] [--target TRIPLE] [--native --sdk DIR] [--locked] [--offline] [--message-format human|json]\n       lang run [--manifest-path FILE] [--package NAME] [--target TRIPLE] [--locked] [--offline] [--message-format human|json] [--fuel N] [--service-work N] [--host-calls N] [--frames N] [--cells N]\n       lang test [--manifest-path FILE] [--package NAME] [--target TRIPLE] [--locked] [--offline] [--message-format human|json] [--fuel N] [--service-work N] [--host-calls N] [--frames N] [--cells N]\n       lang package [--list] [--manifest-path FILE] [--package NAME] [--target TRIPLE] [--locked] [--offline] [--message-format human|json]\n       lang fmt [--check] [--manifest-path FILE] [--package NAME] [--target TRIPLE] [--locked] [--offline] [--message-format human|json]\n       lang lint [--deny-warnings] [--manifest-path FILE] [--package NAME] [--target TRIPLE] [--locked] [--offline] [--message-format human|json]\n       lang doc [--manifest-path FILE] [--package NAME] [--target TRIPLE] [--locked] [--offline] [--message-format human|json]\n";
 
 #[derive(Clone, Copy, Default)]
 pub struct ExecutionOptions {
@@ -28,6 +28,7 @@ pub enum Action {
     Archive,
     Format,
     Lint,
+    Doc,
 }
 pub enum Command {
     Help,
@@ -74,7 +75,13 @@ pub fn selected(args: &[OsString]) -> bool {
     if first == "package" {
         return args.get(1).is_none_or(|a| a != "check-manifest");
     }
-    if first == "new" || first == "build" || first == "test" || first == "fmt" || first == "lint" {
+    if first == "new"
+        || first == "build"
+        || first == "test"
+        || first == "fmt"
+        || first == "lint"
+        || first == "doc"
+    {
         return true;
     }
     if first != "run" {
@@ -133,11 +140,13 @@ pub fn parse(args: &[OsString]) -> Result<Command, Diagnostic> {
         Action::Format
     } else if first == "lint" {
         Action::Lint
+    } else if first == "doc" {
+        Action::Doc
     } else if new {
         Action::Build
     } else {
         return Err(usage(
-            "expected new, build, run, test, package, fmt or lint",
+            "expected new, build, run, test, package, fmt, lint or doc",
         ));
     };
     let (mut directory, mut name) = (None, None);
@@ -678,6 +687,36 @@ pub fn run(
         Ok(a) => a,
         Err(d) => return fail(stderr, format, d),
     };
+    if request.action == Action::Doc {
+        let Some((program, sources)) = checked(analysis, format, stderr)? else {
+            return Ok(1);
+        };
+        let html = match super::doc::render(&program, &sources, super::doc::Limits::default()) {
+            Ok(html) => html,
+            Err(d) => return fail(stderr, format, d),
+        };
+        if let Err(d) = prepared.output.publish(
+            &prepared.lock,
+            super::output::Generation::Doc,
+            &[super::output::File {
+                path: "index.html",
+                bytes: html.as_bytes(),
+                executable: false,
+            }],
+            request.locked,
+        ) {
+            return fail(stderr, format, d);
+        }
+        artifact(
+            stdout,
+            format,
+            &format!(
+                "target/lang/{}/doc/index.html",
+                lang_codegen_clif::sdk::digest(prepared.lock.as_bytes())
+            ),
+        )?;
+        return Ok(0);
+    }
     if request.native_sdk.is_some() {
         let Some((program, sources)) = checked(analysis, format, stderr)? else {
             return Ok(1);

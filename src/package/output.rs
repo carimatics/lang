@@ -24,6 +24,7 @@ pub(super) enum Generation<'a> {
     Build,
     Test,
     Package,
+    Doc,
     Native(&'a str),
 }
 impl Generation<'_> {
@@ -32,6 +33,7 @@ impl Generation<'_> {
             Self::Build => "build",
             Self::Test => "test",
             Self::Package => "package",
+            Self::Doc => "doc",
             Self::Native(name) => name,
         }
     }

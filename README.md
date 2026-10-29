@@ -93,9 +93,12 @@ The rationale and unresolved tradeoffs are documented in [the architecture basel
 - [RFC 0035: Deterministic source package snapshots (accepted)](docs/rfcs/0035-source-package-snapshots.md)
 - [RFC 0036: Checked package formatting (accepted)](docs/rfcs/0036-checked-package-formatting.md)
 - [RFC 0037: Package lint diagnostics (accepted)](docs/rfcs/0037-package-lint-diagnostics.md)
+- [RFC 0038: Package API documentation (accepted)](docs/rfcs/0038-package-api-documentation.md)
 - [Contribution guide](CONTRIBUTING.md)
 
 `cargo run -- lint --manifest-path target/my_app/Lang.json --deny-warnings --message-format json` checks the selected package and declared tests without executing guest code or writing lock/artifacts. `LNT0001` reports unread bindings; `_`-prefixed names suppress that rule. Existing warnings retain their codes. Omit `--deny-warnings` to keep warnings non-failing. See [RFC 0037](docs/rfcs/0037-package-lint-diagnostics.md).
+
+`cargo run -- doc --manifest-path target/my_app/Lang.json --locked --offline` publishes a detached static API reference at `target/lang/<lock-digest>/doc/index.html`. Public signatures and type links use checked identities; adjacent `///` text and original source panels are escaped. The source panels include private implementation text. Generation failures preserve the previous lock/output. See [RFC 0038](docs/rfcs/0038-package-api-documentation.md).
 
 ## Development
 

@@ -6,11 +6,11 @@
 
 更新: 2026-10-29 JST。M4 は active。Goal 開始時は clean な `main`／`origin/main` の `af9988f`、remote `git@github.com:carimatics/lang.git`。PR #9–#15 は merge 済み。native PR #15 は `a454e6d` として merge し、local／remote main tip は ahead／behind 0/0。現在の `codex/m4-package-tooling` はその同期済み main から作成し、PR base は `carimatics/lang:main`、upstream は `origin/codex/m4-package-tooling`、[PR #16](https://github.com/carimatics/lang/pull/16)。agent 所有の native checkpoint 日英編集二つを引き継ぎ、既存の user 変更はなかった。
 
-**12 done · 1 doing · 27 todo · 80 remaining pt**
+**13 done · 1 doing · 26 todo · 77 remaining pt**
 
-B03 実行 checkpoint、2026-10-29 15:55 JST、現在 worktree: 重点 110 件、source 固定の全 baseline（**163 suite／2,419 成功／0 失敗**）、fmt、警告なし全 Clippy、doc が成功した。実 CLI 6 fixture が解決済み未読 binding、元 UTF-8 span、既存 warning、dependency／test 重複除去、拒否、main 不要／無実行解析、lock／artifact bytes 保持を検証し、library 境界は一意診断 65,536 件丁度を受理して次の一件を拒否した。formatter head `5010d45` の Windows core-1 job `123305175897` で slash 固定文字列比較の test 仮定を検出したため、同じ厳密 span 条件を保持して native Path 比較へ修正し、新 lint test にも適用した。修正後の path／formatter／lint／consistency 19 件と Clippy は local で成功。残る条件は code 証拠と修正最新 head の両 host CI／PR lifecycle。B03 は 3 pt の doing に保つ。
+B04 実行 checkpoint、2026-10-29 16:07 JST、現在 worktree: library／archive／command／doc／formatter／lint／consistency の重点 121 件が成功。実 doc fixture は public root／dependency API、同名／入れ子 type link、元 Unicode comment／byte span、escape 済み source panel、配置変更／単独化、不正／古い入力／cache 拒否、filesystem 失敗時保護を検証した。独立 Python HTMLParser で一意 fragment 3 件と解決する internal link 全 5 件、active content なし、CSP を確認した。fmt、警告なし全 Clippy、source 固定の全 test（**164 suite／2,425 成功／0 失敗**）、rustdoc が成功。残る条件は code 証拠と最新 head 両 host CI／PR lifecycle。B04 は 3 pt の doing に保つ。
 
-**次: M4-B03 — 採択済み lint rule と package 解析（doing、3 pt）。** B02 source `5010d45` は重点 36 件、fmt、警告なし全 Clippy、全 baseline（162 suite／2,412 test）、doc に成功した。最終 3 pt を消化し、純追加は +11 のまま、残り 80 pt。実装前に RFC 0037 で未読 binding、既存 `SRC0019`、診断重複除去、warning 拒否、無実行／無公開契約を採択した。実 task list は既存 3 pt の範囲で、delivery／見積の追加はない。B01 head の両 host CI は成功済みで、最新 tooling head の CI／PR lifecycle は継続する。G4–G9 は未完了。
+**次: M4-B04 — 解決済み link と元 source 位置を持つ package API 文書（doing、3 pt）。** B03 source `99fabc4` は重点 110 件、全 baseline（163 suite／2,419 test）、fmt／Clippy／doc に成功し、Windows path 比較も修正した。最終 3 pt を消化し、追加 +11、消化 37、残り 77 pt。実装前に RFC 0038 で static HTML、typed-ID link、元 source panel、上限、既存 staging 公開を採択した。実 task list は既存 3 pt の範囲で、見積／delivery を追加しない。最新 head 両 host CI と tooling PR lifecycle は継続し、G4–G9 は未完了。
 
 A04 source `cf6cf5c` は fmt、全 Clippy／doc、checked opt-level 1 全 test（**158 suite／2,384 成功／0 失敗**）、重点 75 test に成功。最終 head `75a2041` は [全 CI](https://github.com/carimatics/lang/actions/runs/40810065213)（全 19 job、18 成功、意図した文書専用 skip）と [debugger 実行](https://github.com/carimatics/lang/actions/runs/40810065278)（3/3）に成功した。[PR #13](https://github.com/carimatics/lang/pull/13) は `58527c2` として merge、main を fast-forward して clean・同期済み、ahead／behind 0/0。workspace branch 作成と現在の PR／upstream は上記に記録した。既存の user 変更はなかった。
 
@@ -62,8 +62,8 @@ A01 入力修正は Unix の nonblocking open と開いた handle の metadata �
 | M4-A06 | done | 0 | M4-A05 | G2,G3 | 配置変更した locked package から native executable を二度 build、両 host で固定 input digest 比較 | `d66c764` |
 | M4-B01 | done | 0 | M4-A04 | G4 | 決定的 package source list／archive と逸脱／変更 input の拒否 | `b150762` |
 | M4-B02 | done | 0 | M4-A04 | G4 | package fmt／check が CST comment を保持し、不正／古い edit を拒否 | `5010d45` |
-| M4-B03 | doing | 3 | M4-B02 | G4 | lint rule 採択、安定 code、package lint pass／fail／JSON fixture | — |
-| M4-B04 | todo | 3 | M4-B03 | G4 | 解決済み link、source 位置、失敗時 output 保護を持つ package API doc 生成 | — |
+| M4-B03 | done | 0 | M4-B02 | G4 | lint rule 採択、安定 code、package lint pass／fail／JSON fixture | `99fabc4` |
+| M4-B04 | doing | 3 | M4-B03 | G4 | 解決済み link、source 位置、失敗時 output 保護を持つ package API doc 生成 | — |
 | M4-C01 | todo | 3 | M4-A05 | G5,G6 | editor symbol／snapshot／edit 契約を採択し、実 package dependency を navigate | — |
 | M4-C02 | todo | 3 | M4-C01 | G5 | package overlay、edit、watched-file refresh を跨ぐ definition／reference | — |
 | M4-C03 | todo | 3 | M4-C02 | G5 | scope／privacy／type に従う completion、UTF-16 と stale result test | — |
@@ -97,9 +97,9 @@ A01 入力修正は Unix の nonblocking open と開いた handle の metadata �
 
 | Baseline remaining | Net added/re-estimated | Retired on completion | Remaining |
 | ---: | ---: | ---: | ---: |
-| 103 pt | +11 pt | −34 pt | 80 pt |
+| 103 pt | +11 pt | −37 pt | 77 pt |
 
-**103 + 11 − 34 = 80 pt**
+**103 + 11 − 37 = 77 pt**
 
 名前空間の前提監査、2026-10-29 JST: 既存 `ModuleGraph::root()` は常に `ModuleId(0)`。path provider だけでは依存ごとの package-root 名前空間や共有 dependency identity の安全な再利用を提供できない。元の A02 を、許可 graph（新規 A02R、3 pt）と名前空間／source 実行の統合（task list を見直した A02、残り 3 pt）へ分割する。純追加 +3 pt、全 37 delivery。A01 と A02R は前提二つとなるため、水平基盤を増やす前に A02 で次の source 実行 fixture を示す。この監査による gate 完了や延期はない。
 
@@ -108,6 +108,8 @@ snapshot lifecycle 監査、2026-10-29 JST: Windows CI は dependency fixture �
 CLI 成果監査、2026-10-29 JST、実装前: 採択した transaction profile で実行可能な成果二つが明確になった。新規 A04B（3 pt）は scaffold／既存 file 互換、全 profile の build／run、不変 generation 公開を、42 を返す実 dependency で示す。A04 は残る test-entry 選択、複数 profile の戻り値検査、構造化した失敗／span fixture を見直して 3 pt とする。公開処理や共有 engine 作業を元の見積に隠さず、元の複合 CLI 成果を縦の delivery に分割する。純追加 +3 pt、累計 +8 pt、全 39 delivery。これと別に、修正 source の両 host CI が API 成果を検証した A03 の最終 2 pt を消化する。CLI 二行は同じ一貫した command 実装 branch とし、lock wire API を review 済み依存とする。独立 local API baseline／PR lifecycle は source を固定した checkout で継続する。gate 完了や延期はない。
 
 ## Delivery note と roadmap review
+
+B03 実行 checkpoint、2026-10-29 15:55 JST、現在 worktree: 重点 110 件、source 固定の全 baseline（**163 suite／2,419 成功／0 失敗**）、fmt、警告なし全 Clippy、doc が成功した。実 CLI 6 fixture が解決済み未読 binding、元 UTF-8 span、既存 warning、dependency／test 重複除去、拒否、main 不要／無実行解析、lock／artifact bytes 保持を検証し、library 境界は一意診断 65,536 件丁度を受理して次の一件を拒否した。formatter head `5010d45` の Windows core-1 job `123305175897` で slash 固定文字列比較の test 仮定を検出したため、同じ厳密 span 条件を保持して native Path 比較へ修正し、新 lint test にも適用した。修正後の path／formatter／lint／consistency 19 件と Clippy は local で成功。残る条件は code 証拠と修正最新 head の両 host CI／PR lifecycle。B03 は 3 pt の doing に保つ。
 
 B02 実行 checkpoint、2026-10-29 15:44 JST、現在 worktree: formatter fixture 全 7 件と archive／command／consistency 回帰 29 件が成功。comment 保持、dependency／test 整形、旧 lock 保持、古い manifest／source 拒否、read-only file、staging 失敗時 cleanup、保持 root の rename、Unix permission 保持を実行確認した。fmt、警告なし全 Clippy、source 固定の全 test（**162 suite／2,412 成功／0 失敗**）と doc が成功。初回 baseline は RFC 0037 の索引追加前に compile した README snapshot を検出したが、検証を弱めず修正後の全実行に成功した。残る条件は code 証拠と一貫した tooling branch の最新 head 両 host CI。B02 は review 済み 3 pt の doing に保つ。
 
