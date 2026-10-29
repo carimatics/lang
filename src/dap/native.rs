@@ -51,9 +51,10 @@ pub(super) struct Target {
 }
 impl Target {
     pub fn launch(args: &Value) -> Result<Self, String> {
+        let began = std::time::Instant::now();
         let checkpoint = |name: &str| {
             if std::env::var_os("LANG_DAP_TRACE").is_some() {
-                eprintln!("native DAP launch: {name}");
+                eprintln!("native DAP launch (+{:?}): {name}", began.elapsed());
             }
         };
         checkpoint("begin admission");
@@ -175,7 +176,11 @@ impl Target {
         if image.semantic() != semantic {
             return Err("native debug semantic identity mismatch".into());
         }
-        let mut connection = Connection::open(&view.authority)?;
+        // canonicalize uses internal verbatim prefixes on Windows. Pass the
+        // same local identity in ordinary tool syntax across the OS boundary.
+        let cwd = tool_path(&view.authority)?;
+        let executable = tool_path(image.executable())?;
+        let mut connection = Connection::open(&cwd)?;
         checkpoint("spawned debugger");
         connection.request(
             "initialize",
@@ -185,8 +190,8 @@ impl Target {
         checkpoint("initialized debugger");
         let launch = connection.send(
             "launch",
-            json!({"program":image.executable(),"cwd":view.authority,
-            "stopOnEntry":stop,"sourceMap":[[".",view.authority]]}),
+            json!({"program":executable,"cwd":cwd,
+            "stopOnEntry":stop,"sourceMap":[[".",cwd]]}),
         )?;
         connection.initialized()?;
         checkpoint("prepared native launch");
@@ -520,5 +525,27 @@ impl Target {
 impl Drop for Target {
     fn drop(&mut self) {
         let _ = self.disconnect();
+    }
+}
+
+fn tool_path(path: &Path) -> Result<PathBuf, String> {
+    let identity = uri::file(path).map_err(|_| "invalid native tool path")?;
+    uri::path(&identity, 8192).map_err(|_| "invalid native tool path".into())
+}
+
+#[cfg(all(test, windows))]
+mod tests {
+    #[test]
+    fn native_tools_receive_ordinary_windows_paths_with_the_same_identity() {
+        let captured = std::path::Path::new(r"\\?\D:\package dir\application.exe");
+        let tool = super::tool_path(captured).unwrap();
+        assert_eq!(
+            tool,
+            std::path::Path::new(r"D:\package dir\application.exe")
+        );
+        assert_eq!(
+            super::uri::file(captured).unwrap(),
+            super::uri::file(&tool).unwrap()
+        );
     }
 }
