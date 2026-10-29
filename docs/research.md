@@ -74,6 +74,10 @@ Use Swift as evidence for value semantics and ergonomic access rules. Use refere
 
 ## Compiler and interoperability infrastructure
 
+### GraalVM and Native Image
+
+The [2026-10-30 GraalVM study](graalvm-study.md) compares Native Image reachability, build-time initialization, Truffle specialization, build reports and reproducibility with the current MIR/Cranelift pipeline. A small Copy-program experiment confirms retention of an unused native function before linking. The review recommends scoped reachability and cost-measurement prototypes, not a backend replacement or a change to ownership semantics; it records current release/edition distinctions and source dates.
+
 ### LLVM, Cranelift, and MLIR
 
 [LLVM IR](https://llvm.org/docs/LangRef.html) remains the strongest route to mature optimization, object formats, debug information, and Windows/macOS target support. [LLVM ORC](https://llvm.org/docs/ORCv2.html) supports in-process JIT construction and host symbol integration.

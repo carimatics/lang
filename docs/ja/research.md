@@ -74,6 +74,10 @@ Swiftはvalue semanticsと人間工学的なaccess ruleの根拠として使用�
 
 ## コンパイラ・相互運用基盤
 
+### GraalVMとNative Image
+
+[2026-10-30のGraalVM調査](graalvm-study.md)では、Native Imageの到達可能性、ビルド時初期化、Truffleの特殊化、ビルドレポート、再現性を、現在のMIR／Cranelift構成と比較しています。小さなCopyプログラムの実験では、リンク前に未使用native関数が残ることを確認しました。到達可能性と費用測定の限定的な試作を推奨し、backendの置き換えや所有権意味論の変更は提案していません。現行release・editionの違いと情報源の日付も記録しています。
+
 ### LLVM、Cranelift、MLIR
 
 [LLVM IR](https://llvm.org/docs/LangRef.html)は、成熟したoptimization、object format、debug information、Windows／macOS target supportへの最有力経路です。[LLVM ORC](https://llvm.org/docs/ORCv2.html)は、in-process JITの構築とhost symbol integrationを提供します。
