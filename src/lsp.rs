@@ -1,5 +1,6 @@
 //! Small stdio LSP 3.18 profile using the shared source query database.
 //! Official source/update dates are recorded in docs/architecture.md.
+mod actions;
 mod edits;
 mod package;
 mod tokens;
@@ -132,6 +133,9 @@ pub struct Server {
     token_refresh: bool,
     edit_document_changes: bool,
     edit_transactional: bool,
+    action_literals: bool,
+    action_quickfix: bool,
+    action_format: bool,
     package: Option<package::Config>,
     package_view: Option<Result<package::View, crate::package::Diagnostic>>,
     package_epoch: u64,
@@ -150,6 +154,9 @@ impl Server {
             token_refresh: false,
             edit_document_changes: false,
             edit_transactional: false,
+            action_literals: false,
+            action_quickfix: false,
+            action_format: false,
             package: None,
             package_view: None,
             package_epoch: 0,
@@ -243,6 +250,12 @@ impl Server {
                 .unwrap_or_default();
         }
         if let Some(id) = id {
+            if self.package.is_some() && method == "textDocument/codeAction" {
+                return vec![match self.code_actions(params) {
+                    Ok(result) => response(id, result),
+                    Err(e) => response_error(id, e.code, &e.message),
+                }];
+            }
             if self.package.is_some()
                 && matches!(method, "textDocument/prepareRename" | "textDocument/rename")
             {
@@ -357,6 +370,22 @@ impl Server {
                 .and_then(Value::as_str),
             Some("transactional" | "textOnlyTransactional")
         );
+        self.action_literals = params
+            .pointer("/capabilities/textDocument/codeAction/codeActionLiteralSupport/codeActionKind/valueSet")
+            .and_then(Value::as_array).is_some_and(|values|values.iter().all(Value::is_string));
+        let action_kinds=params.pointer("/capabilities/textDocument/codeAction/codeActionLiteralSupport/codeActionKind/valueSet").and_then(Value::as_array);
+        self.action_quickfix = self.action_literals
+            && action_kinds.is_some_and(|values| {
+                values
+                    .iter()
+                    .any(|v| actions::kind_matches("quickfix", v.as_str().unwrap()))
+            });
+        self.action_format = self.action_literals
+            && action_kinds.is_some_and(|values| {
+                values
+                    .iter()
+                    .any(|v| actions::kind_matches("source.format", v.as_str().unwrap()))
+            });
         self.db = Some(db);
         self.phase = Phase::Awaiting;
         let mut result = json!({"capabilities":{"positionEncoding":"utf-16","textDocumentSync":{"openClose":true,"change":1},"documentFormattingProvider":true},"serverInfo":{"name":"lang prototype","version":env!("CARGO_PKG_VERSION")}});
@@ -367,6 +396,19 @@ impl Server {
                 json!({"triggerCharacters":[".",":"],"resolveProvider":false});
             result["capabilities"]["semanticTokensProvider"] = json!({"legend":{"tokenTypes":tokens::LEGEND,"tokenModifiers":[]},"full":true,"range":false});
             result["capabilities"]["renameProvider"] = json!({"prepareProvider":true});
+            if self.action_literals {
+                let mut kinds = Vec::new();
+                if self.action_quickfix {
+                    kinds.push("quickfix");
+                }
+                if self.action_format {
+                    kinds.push("source.format");
+                }
+                if !kinds.is_empty() {
+                    result["capabilities"]["codeActionProvider"] =
+                        json!({"codeActionKinds":kinds,"resolveProvider":false});
+                }
+            }
         }
         Ok(result)
     }

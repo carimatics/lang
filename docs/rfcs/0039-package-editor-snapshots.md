@@ -80,6 +80,8 @@ Before emission, refresh/validate relevant closed inputs and recheck open versio
 
 Initial code actions are explicit document formatting and prefixing an unread binding with `_`, only when their validated edit proof succeeds. Reuse the formatter and unread-binding rule, preserve initializer effects/ownership, and rename all proven assignment uses when needed. Do not auto-insert unsafe, change allocators, swallow failures or delete effectful initializers.
 
+C06 initially requires code-action literal support and versioned documentChanges. Use `source.format` for whole-document formatting and `quickfix` only when the requested range selects exactly one proven unread binding; multiple eligible bindings are ambiguous and offer no underscore fix. Reuse the package linter rule. Formatting reanalyzes the candidate and compares complete resolved HIR with only source-position metadata erased on both sides, plus checked type facts; names, IDs, ABI, effects and operations remain exact. Rename keeps its stricter span/name correspondence proof. These bounded initial actions never execute guest code, delete initializers or apply edits themselves.
+
 ## Execution modes
 
 Editor analysis uses frontend contracts shared by VM/native/task profiles. No bytecode execution, native linking, SDK compilation, host callback or Cargo process is needed. Runtime/concurrency/memory behavior is unchanged.

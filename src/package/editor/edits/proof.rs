@@ -41,7 +41,7 @@ pub(super) fn verify(
     let mut mapper = Mapper {
         old: &view.snapshot.analysis().sources,
         new: &next.analysis().sources,
-        plan,
+        rule: SpanRule::Rename(plan),
         work,
         source_ids,
     };
@@ -56,13 +56,91 @@ pub(super) fn verify(
 struct Mapper<'a> {
     old: &'a SourceMap,
     new: &'a SourceMap,
-    plan: &'a Plan,
+    rule: SpanRule<'a>,
     work: &'a mut usize,
     source_ids: BTreeMap<lang_diagnostics::SourceId, lang_diagnostics::SourceId>,
+}
+#[derive(Clone, Copy)]
+enum SpanRule<'a> {
+    Rename(&'a Plan),
+    Positionless(Span),
+}
+
+pub(super) fn verify_format(
+    view: &View,
+    next: &Snapshot,
+    work: &mut usize,
+) -> Result<(), Diagnostic> {
+    let old = view
+        .snapshot
+        .analysis()
+        .result
+        .as_ref()
+        .map_err(|_| invalid("checked formatting requires valid source"))?;
+    let new = next
+        .analysis()
+        .result
+        .as_ref()
+        .map_err(|_| invalid("formatting would invalidate the program"))?;
+    let mut old_files = view
+        .snapshot
+        .analysis()
+        .sources
+        .iter()
+        .map(|(_, f)| f.name())
+        .collect::<Vec<_>>();
+    let mut new_files = next
+        .analysis()
+        .sources
+        .iter()
+        .map(|(_, f)| f.name())
+        .collect::<Vec<_>>();
+    old_files.sort_unstable();
+    new_files.sort_unstable();
+    if old_files != new_files {
+        return Err(invalid("formatting changed the source set"));
+    }
+    for name in old_files {
+        spend_bytes(work, name.len())?;
+    }
+    let (id, _) = next
+        .analysis()
+        .sources
+        .iter()
+        .next()
+        .ok_or_else(|| invalid("missing formatting source"))?;
+    let anchor = next
+        .analysis()
+        .sources
+        .span(id, 0..0)
+        .map_err(|_| invalid("invalid formatting source"))?;
+    let mut before = old.source().clone();
+    let mut after = new.source().clone();
+    let mut mapper = Mapper {
+        old: &view.snapshot.analysis().sources,
+        new: &next.analysis().sources,
+        rule: SpanRule::Positionless(anchor),
+        work,
+        source_ids: BTreeMap::new(),
+    };
+    mapper.program(&mut before)?;
+    mapper.old = &next.analysis().sources;
+    mapper.program(&mut after)?;
+    if before != after || old.functions() != new.functions() {
+        return Err(invalid("formatting would change semantic facts"));
+    }
+    Ok(())
 }
 impl Mapper<'_> {
     fn span(&mut self, span: &mut Span) -> Result<(), Diagnostic> {
         spend(self.work)?;
+        let plan = match self.rule {
+            SpanRule::Positionless(anchor) => {
+                *span = anchor;
+                return Ok(());
+            }
+            SpanRule::Rename(plan) => plan,
+        };
         let file = self
             .old
             .file(span.source())
@@ -77,30 +155,29 @@ impl Mapper<'_> {
             .new
             .span(
                 id,
-                self.plan.boundary(path, range.start)?..self.plan.boundary(path, range.end)?,
+                plan.boundary(path, range.start)?..plan.boundary(path, range.end)?,
             )
             .map_err(|_| invalid("rename span correspondence failed"))?;
         Ok(())
     }
     fn name(&mut self, name: &mut Name) -> Result<(), Diagnostic> {
         spend_bytes(self.work, name.text.len())?;
+        let plan = match self.rule {
+            SpanRule::Positionless(_) => return self.span(&mut name.span),
+            SpanRule::Rename(plan) => plan,
+        };
         let file = self
             .old
             .file(name.span.source())
             .map_err(|_| invalid("missing rename name source"))?;
         let range = name.span.range();
-        if self
-            .plan
-            .files
-            .get(Path::new(file.name()))
-            .is_some_and(|edits| {
-                edits
-                    .binary_search_by_key(&(range.start, range.end), |e| (e.start, e.end))
-                    .is_ok()
-            })
-        {
-            spend_bytes(self.work, self.plan.replacement.len())?;
-            name.text.clone_from(&self.plan.replacement);
+        if plan.files.get(Path::new(file.name())).is_some_and(|edits| {
+            edits
+                .binary_search_by_key(&(range.start, range.end), |e| (e.start, e.end))
+                .is_ok()
+        }) {
+            spend_bytes(self.work, plan.replacement.len())?;
+            name.text.clone_from(&plan.replacement);
         }
         self.span(&mut name.span)
     }
@@ -109,6 +186,9 @@ impl Mapper<'_> {
     }
     fn qualified(&mut self, value: &mut String, name: &str) -> Result<(), Diagnostic> {
         spend_bytes(self.work, value.len())?;
+        if matches!(self.rule, SpanRule::Positionless(_)) {
+            return Ok(());
+        }
         let start = value.rfind("::").map_or(0, |i| i + 2);
         spend_bytes(self.work, name.len())?;
         value.truncate(start);
@@ -289,6 +369,14 @@ mod tests {
             target: lang_codegen_clif::Triple::host().to_string(),
         };
         let view = config.capture(1, &[], Limits::default()).unwrap();
+        let formatted = super::super::format_document(&view, &files.0.join("src/main.lang"), 1)
+            .unwrap()
+            .expect("minified source changes");
+        assert!(formatted.replacement.contains("return first;"));
+        assert_eq!(
+            fs::read_to_string(files.0.join("src/main.lang")).unwrap(),
+            old
+        );
         let spans = old
             .match_indices("first")
             .map(|(start, _)| ByteSpan {

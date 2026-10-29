@@ -109,6 +109,8 @@ Full semantic tokens use a fixed legend and the current binding index, with lexi
 
 Prepare/rename proposes checked source identifier edits, including across dependency files. Every edited file must be open and versioned; clients need `workspaceEdit.documentChanges`, and multi-file edits additionally require `transactional` or `textOnlyTransactional` failure handling. The server rechecks all admitted input bytes, reanalyzes replacements and verifies complete resolved-HIR/type correspondence. Collisions, import aliases, modules, external ABI declarations and stale inputs are refused; the server never writes the proposal to disk.
 
+Literal code actions reuse those input/version guards and the package linter rule. Clients must announce the supported kind families: `source.format` offers whole-document formatting after a source-position-independent HIR/type proof; `quickfix` prefixes one unambiguously selected unread binding with `_` through the rename proof. Initializers and assignment effects are retained, guest code is never executed, and ambiguous/colliding fixes produce no edit.
+
 ## Development
 
 `cargo run -- fmt --manifest-path target/my_app/Lang.json --check` reports files needing the existing CST formatter without edits. Omit `--check` to apply validated per-file source replacements, including selected dependencies/tests. Original comments/spans and permissions are retained; stale or invalid input refuses before publication. Source changes leave the old lock stale; regenerate it through an ordinary build/run. See [RFC 0036](docs/rfcs/0036-checked-package-formatting.md) for the per-file publication boundary.

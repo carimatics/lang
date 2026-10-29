@@ -80,6 +80,8 @@ prepare／rename は証明済み source item、case、field、local binding を�
 
 初期 code action は明示 document formatting と、検証 edit 証明に成功した場合だけの未読 binding への `_` prefix。formatter と未読 binding rule を再利用し、initializer の effect／ownership を保持し、必要なら証明済み代入 use も全て rename する。unsafe 挿入、allocator 変更、失敗の握り潰し、effect のある initializer 削除は自動化しない。
 
+C06 の初期 profile は code-action literal support と version 付き documentChanges を必要とする。文書全体の整形は `source.format` とし、`quickfix` は要求範囲が証明済み未読 binding を丁度一つ選択する場合だけ提供する。候補が複数なら曖昧として underscore fix を提供せず、package linter の rule を再利用する。整形候補を再解析し、双方の source 位置 metadata だけを除いた resolved HIR 全体と、検査済み型 fact を比較する。name、ID、ABI、effect、操作は厳密に保持し、rename は従来の厳密な span／name 対応証明を保つ。これらの上限付き初期 action は guest code を実行せず、initializer を削除せず、自ら edit を適用しない。
+
 ## 実行モード
 
 editor 解析は VM／native／task 共通 frontend 契約を使う。bytecode 実行、native link、SDK compile、host callback、Cargo process は不要。runtime／concurrency／memory 挙動は不変。

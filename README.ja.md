@@ -109,6 +109,8 @@ full semantic token は固定 legend と現在の binding index を使い、不�
 
 prepare／rename は dependency file を含む source 識別子の検証 edit を提案します。編集する全 file が open・version 付きであることと、client の `workspaceEdit.documentChanges`、複数 file では `transactional`／`textOnlyTransactional` の failure handling が必要です。許可済み全 input bytes の再確認、置換後の再解析、resolved HIR 全体と型の対応検証を行い、衝突、import alias、module、外部 ABI 宣言、古い input を拒否します。提案を disk に直接書き込みません。
 
+literal code action は同じ input／version guard と package linter の rule を再利用し、client が宣言した kind family に限定して提供します。`source.format` は source 位置に依存しない HIR／型の証明後に文書全体を整形し、`quickfix` は一意に選択した未読 binding を rename 証明で `_` prefix にします。initializer と代入の効果を保持し、guest code を実行せず、曖昧／衝突する fix は edit を返しません。
+
 ## 開発
 
 `cargo run -- fmt --manifest-path target/my_app/Lang.json --check` は既存 CST formatter の要変更 file を無書込みで報告します。`--check` を省くと、選択 dependency／test を含め検証済みの source を file 単位で置換します。元 comment／span と permission を保持し、stale／不正 input は公開前に拒否します。source 変更後の古い lock は stale に保ち、通常 build／run で再生成します。file 単位公開の境界は [RFC 0036](docs/ja/rfcs/0036-checked-package-formatting.md) を参照してください。

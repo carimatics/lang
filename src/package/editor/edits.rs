@@ -17,6 +17,73 @@ pub(crate) struct Plan {
     pub files: BTreeMap<PathBuf, Vec<ByteSpan>>,
     offsets: BTreeMap<PathBuf, Vec<(usize, usize)>>,
 }
+pub(crate) fn format_document(
+    view: &View,
+    path: &Path,
+    epoch: u64,
+) -> Result<Option<Plan>, Diagnostic> {
+    if epoch != view.snapshot.epoch() {
+        return Err(Diagnostic::error("PKG0007", "formatting epoch is stale"));
+    }
+    let (id, file) = view.source(path)?;
+    let graph = view
+        .snapshot
+        .modules()
+        .ok_or_else(|| invalid("checked formatting requires a module graph"))?;
+    let tree = graph
+        .modules()
+        .iter()
+        .find(|m| m.source() == id)
+        .ok_or_else(|| invalid("missing formatting syntax"))?
+        .tree();
+    let result = lang_syntax::format::format(
+        tree,
+        &view.snapshot.analysis().sources,
+        lang_syntax::format::Limits {
+            work: view.limits.work,
+            output_bytes: view.limits.compiler.modules.parse.lex.source_bytes,
+        },
+    )
+    .map_err(|_| capacity())?;
+    if result.status == lang_syntax::format::Status::PreservedInvalid || result.text == file.text()
+    {
+        return Ok(None);
+    }
+    let display = PathBuf::from(file.name());
+    let canonical = view
+        .snapshot
+        .aliases
+        .iter()
+        .find(|(_, value)| *value == &display)
+        .map(|(key, _)| key.clone())
+        .unwrap_or_else(|| display.clone());
+    let mut overlays = view.overlays.clone();
+    let version = overlays
+        .iter()
+        .find(|o| view.snapshot.display_path(&o.path) == display)
+        .map(|o| o.version)
+        .unwrap_or(0);
+    overlays.retain(|o| view.snapshot.display_path(&o.path) != display);
+    overlays.push(Overlay {
+        path: canonical,
+        version,
+        bytes: Arc::from(result.text.as_bytes()),
+    });
+    let next = Snapshot::capture(&view.graph, epoch, &overlays, view.limits)?;
+    let mut work = view.limits.work;
+    proof::verify_format(view, &next, &mut work)?;
+    Ok(Some(Plan {
+        replacement: result.text,
+        files: BTreeMap::from([(
+            display,
+            vec![ByteSpan {
+                start: 0,
+                end: file.text().len(),
+            }],
+        )]),
+        offsets: BTreeMap::new(),
+    }))
+}
 pub(crate) fn target<'a>(
     view: &'a View,
     path: &Path,

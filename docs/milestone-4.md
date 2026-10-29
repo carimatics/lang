@@ -4,13 +4,13 @@
 
 [日本語版](ja/milestone-4.md)
 
-Updated: 2026-10-29 JST. M4 is active. Goal start: clean main/origin/main `af9988f`, remote `git@github.com:carimatics/lang.git`. PRs #9–#17 are merged. Navigation PR #17 final head `bdc2547` passes CI `40852934805` (18 success, intentional documentation-only skip) and debugger `40852934802` (3/3), merged as `0293026`; local main/origin/main refs match with 0/0 ahead/behind. Current `codex/m4-editor-checked-edits` was created from the clean, upstream-synchronized `codex/m4-editor-navigation` head `bdc2547` for the coherent C05–C07 outcome. No preexisting user changes; upstream/PR not yet created. Its initially recorded base `carimatics/lang:codex/m4-editor-navigation` is now `carimatics/lang:main` because #17 merged. Preserve the current checked-edit worktree while synchronizing base refs.
+Updated: 2026-10-29 JST. M4 is active. Goal start: clean main/origin/main `af9988f`, remote `git@github.com:carimatics/lang.git`. PRs #9–#17 are merged. Navigation PR #17 final head `bdc2547` passes CI `40852934805` (18 success, intentional documentation-only skip) and debugger `40852934802` (3/3), merged as `0293026`; local main/origin/main refs match with 0/0 ahead/behind. Current `codex/m4-editor-checked-edits` was created from the clean, upstream-synchronized `codex/m4-editor-navigation` head `bdc2547` for the coherent C05–C07 outcome. No preexisting user changes; upstream is origin/codex/m4-editor-checked-edits, [PR #18](https://github.com/carimatics/lang/pull/18) targets main. Its initially recorded base `carimatics/lang:codex/m4-editor-navigation` is now `carimatics/lang:main` because #17 merged. Preserve the current checked-edit worktree while synchronizing base refs.
 
-**18 done · 1 doing · 21 todo · 62 remaining pt**
+**19 done · 1 doing · 20 todo · 59 remaining pt**
 
-C05 executable checkpoint, 2026-10-29 19:23 JST: all 46 focused checks and a separate proof test pass. Six protocol fixtures cover real multi-file versioned UTF-16 edits, parameters/assignments/fields/cases/types, loan/task profiles, collision/name/alias/ABI/client refusal, stale closed inputs/metadata, current versions and bounded output, including repeated UTF-16 mapping work. A validly typed alternative that changes a local reference is refused by the structural HIR/type correspondence proof; a correct replacement succeeds. No source/lock/artifact is written. Fmt, warning-free full Clippy, source-frozen full baseline (**166 suites / 2,454 passed / 0 failed**) and doc pass. Code evidence and latest-head CI remain. C05 stays doing at 3 pt, no estimates added. PR #17 is merged and base refs are synchronized as recorded above.
+C06 executable checkpoint, 2026-10-29 19:56 JST: all 56 focused checks, formatting and warning-free full Clippy pass. Four action fixtures cover versioned formatting with Unicode/CRLF/type identity, unread bindings with retained opaque host-call initializers/assignments and no execution, client kind-family negotiation/filtering, forged diagnostics, ambiguity/collision/stale input/closed document refusal, malformed UTF-16/ranges, invalid source and response bounds. The shared linter tests retain their original results; the format proof and rename regression execute through the complete HIR/type comparison. Source-frozen full baseline (**166 suites / 2,458 passed / 0 failed**) and doc also pass. Code evidence and latest-head CI remain. C06 stays doing at 3 pt, no estimates added. C05 source `3cd27e2` passed 166 suites / 2,454 tests and CI/debugger; PR #18 remains draft through C07.
 
-**Next: M4-C05 — prepare/rename with binding-correspondence proof and versioned edits (doing, 3 pt).** C04 source `be05690` passes 40 focused checks, fmt/Clippy/doc and the full baseline (166 suites / 2,447 tests). Retire its last 3 pt: additions +11, retired 52, remaining 62 pt. C05 reuses the snapshot for legal-name/source-symbol selection, in-memory reanalysis and binding correspondence, collision/privacy refusal, fresh-input checks and versioned transactional client edits. Begin with an executable multi-file dependency rename; aliases/modules/external declarations remain unsupported under RFC 0039. Keep its reviewed 3 pt; no delivery/estimate is added. PR #17 merged as `0293026`; the current checked-edit PR targets main.
+**Next: M4-C06 — checked formatting and unread-binding code actions (doing, 3 pt).** C05 source `3cd27e2` passes 46 focused checks plus the binding-proof test, fmt/Clippy/doc and the full baseline (166 suites / 2,454 tests). Retire its last 3 pt: additions +11, retired 55, remaining 59 pt. C06 extracts the existing unread-binding rule for reuse, validates a single unambiguous underscore-prefix fix through rename, and validates document formatting by comparing HIR/type facts after erasing source-position metadata. Negotiate literal code actions, enforce current input/version/output guards and test refusal paths. Keep its reviewed 3 pt; no delivery/estimate is added. PR #18 remains draft through C07 and latest-head CI.
 
 A04 source `cf6cf5c` passes fmt, full Clippy/doc and checked opt-level 1 full tests (**158 suites / 2,384 passed / 0 failed**), plus 75 focused tests. Final head `75a2041` passes [full CI](https://github.com/carimatics/lang/actions/runs/40810065213) (all 19 jobs: 18 success; intentional documentation-only skip) and [debugger execution](https://github.com/carimatics/lang/actions/runs/40810065278) (3/3). [PR #13](https://github.com/carimatics/lang/pull/13) merged as `58527c2`; main was fast-forwarded, clean and synchronized with 0/0 ahead/behind. Workspace branch creation and its current PR/upstream are recorded above. No preexisting user changes were present.
 
@@ -68,8 +68,8 @@ The [roadmap](roadmap.md#milestone-4-developer-toolchain) retains the original 6
 | M4-C02 | done | 0 | M4-C01 | G5 | Definition/references across package overlays, edits and watched-file refresh | `569260b` |
 | M4-C03 | done | 0 | M4-C02 | G5 | Scope/privacy/type-aware completion with UTF-16 and stale-result tests | 0612c45 |
 | M4-C04 | done | 0 | M4-C03 | G5 | Semantic tokens and refresh survive Unicode, malformed source and document lifecycle | be05690 |
-| M4-C05 | doing | 3 | M4-C02 | G6 | Prepare/rename across files with collision/privacy checks and versioned atomic edits | — |
-| M4-C06 | todo | 3 | M4-C05 | G6 | Accepted code actions produce checked fixes and reject stale/ambiguous edits | — |
+| M4-C05 | done | 0 | M4-C02 | G6 | Prepare/rename across files with collision/privacy checks and versioned atomic edits | 3cd27e2 |
+| M4-C06 | doing | 3 | M4-C05 | G6 | Accepted code actions produce checked fixes and reject stale/ambiguous edits | — |
 | M4-C07 | todo | 2 | M4-C04,M4-C06 | G5,G6 | End-to-end editor package fixture plus protocol/resource/refusal coverage | — |
 | M4-D01 | todo | 3 | M4-A06 | G7 | Accept DAP launch/control/stack/source contract and stop at a VM source breakpoint | — |
 | M4-D02 | todo | 3 | M4-D01 | G7 | VM stepping, frames, locals and evaluation with pause/authority limits | — |
@@ -97,9 +97,9 @@ Activation audit, 2026-10-29 JST: 36 observable deliveries, baseline 103 pt. The
 
 | Baseline remaining | Net added/re-estimated | Retired on completion | Remaining |
 | ---: | ---: | ---: | ---: |
-| 103 pt | +11 pt | −52 pt | 62 pt |
+| 103 pt | +11 pt | −55 pt | 59 pt |
 
-**103 + 11 − 52 = 62 pt**
+**103 + 11 − 55 = 59 pt**
 
 Namespace prerequisite audit, 2026-10-29 JST: the existing `ModuleGraph::root()` is always `ModuleId(0)`. A path provider alone cannot give each dependency its own package-root namespace or safely reuse a shared dependency identity. Split the original A02 outcome into an authorized graph (new A02R, 3 pt) and namespace/source execution integration (A02, remaining 3 pt after reviewing its task list). Net addition: +3 pt; 37 deliveries total. A01 and A02R are two prerequisites, so A02 must supply the next source execution fixture before further horizontal scaffolding. No gate is completed or deferred by this audit.
 

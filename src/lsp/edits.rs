@@ -76,6 +76,19 @@ impl Server {
         let new_name = string(params, "newName")?;
         let plan =
             edits::rename(view, &path, offset, new_name, self.package_epoch).map_err(internal)?;
+        self.proposed_edit(plan)
+    }
+    pub(super) fn proposed_edit(&self, plan: edits::Plan) -> Result<Value, Fault> {
+        if !self.edit_document_changes {
+            return Err(internal("edits require workspaceEdit.documentChanges"));
+        }
+        let view = self
+            .package_view
+            .as_ref()
+            .unwrap()
+            .as_ref()
+            .map_err(internal)?;
+        let mut mapping_work = view.limits.work;
         if plan.files.len() > 1 && !self.edit_transactional {
             return Err(internal(
                 "multi-file rename requires transactional or textOnlyTransactional client edits",
@@ -92,7 +105,7 @@ impl Server {
                 .iter()
                 .find(|(_, d)| view.source(&d.path).is_ok_and(|(id, _)| id == source_id))
                 .ok_or_else(|| {
-                    internal("every renamed file must be open with a concrete document version")
+                    internal("every edited file must be open with a concrete document version")
                 })?;
             let mut text_edits = Vec::new();
             for edit in edits {
@@ -121,7 +134,7 @@ impl Server {
         self.verify_edit_inputs()?;
         Ok(result)
     }
-    fn verify_edit_inputs(&self) -> Result<(), Fault> {
+    pub(super) fn verify_edit_inputs(&self) -> Result<(), Fault> {
         let view = self
             .package_view
             .as_ref()
@@ -159,7 +172,7 @@ fn charge_mapping(work: &mut usize, source_bytes: usize) -> Result<(), Fault> {
         .ok_or_else(|| internal("rename UTF-16 mapping work limit exceeded"))?;
     Ok(())
 }
-fn bounded(value: Value, limit: usize) -> Result<Value, Fault> {
+pub(super) fn bounded(value: Value, limit: usize) -> Result<Value, Fault> {
     if serde_json::to_vec(&value).map_err(internal)?.len() > limit {
         return Err(internal("rename response byte limit exceeded"));
     }

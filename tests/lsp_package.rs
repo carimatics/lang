@@ -711,6 +711,301 @@ fn checked_rename_bounds_repeated_utf16_mapping_before_returning_any_edit() {
     assert!(r.get("result").is_none());
     assert_eq!(fs::read_to_string(f.0.join("src/main.lang")).unwrap(), ROOT);
 }
+
+fn action_server(f: &Files, limits: Limits) -> Server {
+    let mut s = Server::new(limits);
+    let r=s.handle(request("initialize",json!({"rootUri":uri::file(&f.0).unwrap(),"capabilities":{"textDocument":{"codeAction":{"codeActionLiteralSupport":{"codeActionKind":{"valueSet":["quickfix","source"]}}}},"workspace":{"workspaceEdit":{"documentChanges":true,"failureHandling":"transactional"}}}})));
+    assert_eq!(
+        r[0]["result"]["capabilities"]["codeActionProvider"]["resolveProvider"],
+        false
+    );
+    s.handle(note("initialized", json!({})));
+    s
+}
+fn action_query(
+    s: &mut Server,
+    uri: &str,
+    source: &str,
+    bytes: std::ops::Range<usize>,
+    only: Value,
+) -> Value {
+    let point = |offset: usize| {
+        let text = &source[..offset];
+        json!({"line":text.bytes().filter(|b|*b==b'\n').count(),"character":text.rsplit('\n').next().unwrap().encode_utf16().count()})
+    };
+    s.handle(request("textDocument/codeAction",json!({"textDocument":{"uri":uri},"range":{"start":point(bytes.start),"end":point(bytes.end)},"context":{"diagnostics":[{"code":"forged-client-diagnostic"}],"only":only}}))).remove(0)
+}
+fn apply_single_document_edit(source: &str, edit: &Value, uri: &str, version: i32) -> String {
+    let changes = edit["documentChanges"].as_array().unwrap();
+    assert_eq!(changes.len(), 1);
+    assert_eq!(changes[0]["textDocument"]["uri"], uri);
+    assert_eq!(changes[0]["textDocument"]["version"], version);
+    let mut text = source.to_string();
+    for edit in changes[0]["edits"].as_array().unwrap().iter().rev() {
+        let point = |end: &str| {
+            lang_lsp::text_offset(
+                source,
+                edit["range"][end]["line"].as_u64().unwrap() as u32,
+                edit["range"][end]["character"].as_u64().unwrap() as u32,
+                source.len(),
+            )
+            .unwrap()
+        };
+        text.replace_range(
+            point("start")..point("end"),
+            edit["newText"].as_str().unwrap(),
+        );
+    }
+    text
+}
+
+#[test]
+fn code_actions_prefix_an_unread_binding_without_executing_or_removing_host_calls() {
+    let f = Files::new();
+    let root = f.uri("src/main.lang");
+    let mut s = action_server(&f, Default::default());
+    let source = "/*😀*/extern fn tick(value:i64)->i64;fn main()->i64{let mut unused:i64=tick(1);unused=tick(2);return 42;}";
+    let messages = open(&mut s, &root, source);
+    assert!(diagnostics(&messages, &root).is_empty(), "{messages:?}");
+    let start = source.find("unused").unwrap();
+    let r = action_query(&mut s, &root, source, start..start + 6, json!(["quickfix"]));
+    let actions = r["result"].as_array().unwrap_or_else(|| panic!("{r:?}"));
+    assert_eq!(actions.len(), 1, "{r:?}");
+    assert_eq!(actions[0]["kind"], "quickfix");
+    assert_eq!(actions[0]["diagnostics"][0]["code"], "LNT0001");
+    assert_eq!(
+        actions[0]["edit"]["documentChanges"][0]["edits"]
+            .as_array()
+            .unwrap()
+            .len(),
+        2
+    );
+    let fixed = apply_single_document_edit(source, &actions[0]["edit"], &root, 1);
+    assert!(fixed.contains("_unused:i64=tick(1);_unused=tick(2);"));
+    change(&mut s, &root, 2, &fixed);
+    assert_eq!(
+        action_query(&mut s, &root, &fixed, 0..fixed.len(), json!(["quickfix"]))["result"],
+        json!([])
+    );
+    assert_eq!(fs::read_to_string(f.0.join("src/main.lang")).unwrap(), ROOT);
+    assert!(!f.0.join("Lang.lock").exists());
+    assert!(!f.0.join("target").exists());
+}
+
+#[test]
+fn code_actions_format_original_unicode_source_with_checked_types_and_current_versions() {
+    let f = Files::new();
+    let root = f.uri("src/main.lang");
+    let mut s = action_server(&f, Default::default());
+    let source = "/*😀\r\nkeep*/struct Pair{value:i64}fn main()->i64{let mut pair:Pair=Pair{value:42};return pair.value;}";
+    open(&mut s, &root, source);
+    let r = action_query(&mut s, &root, source, 0..source.len(), json!(["source"]));
+    let actions = r["result"].as_array().unwrap_or_else(|| panic!("{r:?}"));
+    assert_eq!(actions.len(), 1, "{r:?}");
+    assert_eq!(actions[0]["kind"], "source.format");
+    let formatted = apply_single_document_edit(source, &actions[0]["edit"], &root, 1);
+    assert_ne!(formatted, source);
+    assert!(formatted.contains("😀"));
+    assert!(formatted.contains("keep*/"));
+    let messages = change(&mut s, &root, 7, &formatted);
+    assert!(diagnostics(&messages, &root).is_empty(), "{messages:?}");
+    assert!(change(&mut s, &root, 6, "broken").is_empty());
+    assert_eq!(
+        action_query(
+            &mut s,
+            &root,
+            &formatted,
+            0..formatted.len(),
+            json!(["source.format"])
+        )["result"],
+        json!([])
+    );
+    let r = s.handle(request(
+        "codeAction/resolve",
+        json!({"kind":"source.format"}),
+    ));
+    assert_eq!(r[0]["error"]["code"], -32601);
+    assert_eq!(fs::read_to_string(f.0.join("src/main.lang")).unwrap(), ROOT);
+}
+
+#[test]
+fn code_actions_refuse_ambiguous_colliding_stale_forged_and_unversioned_fixes() {
+    let f = Files::new();
+    let root = f.uri("src/main.lang");
+    let mut s = action_server(&f, Default::default());
+    let ambiguous = "fn main()->i64{let mut first:i64=1;let mut second:i64=2;return 42;}";
+    open(&mut s, &root, ambiguous);
+    assert_eq!(
+        action_query(
+            &mut s,
+            &root,
+            ambiguous,
+            0..ambiguous.len(),
+            json!(["quickfix"])
+        )["result"],
+        json!([])
+    );
+    let collision = "fn main()->i64{let mut unused:i64=1;let mut _unused:i64=2;return 42;}";
+    change(&mut s, &root, 2, collision);
+    let start = collision.find("unused").unwrap();
+    assert_eq!(
+        action_query(
+            &mut s,
+            &root,
+            collision,
+            start..start + 6,
+            json!(["quickfix"])
+        )["result"],
+        json!([])
+    );
+    let used = "fn main()->i64{let mut used:i64=42;return used;}";
+    change(&mut s, &root, 3, used);
+    let start = used.find("used").unwrap();
+    assert_eq!(
+        action_query(&mut s, &root, used, start..start + 4, json!(["quickfix"]))["result"],
+        json!([])
+    );
+    f.write("helper/src/main.lang", "pub fn answer()->i64{return 43;}");
+    let stale = action_query(&mut s, &root, used, 0..used.len(), json!(["source.format"]));
+    assert!(
+        stale["error"]["message"]
+            .as_str()
+            .unwrap()
+            .contains("refresh"),
+        "{stale:?}"
+    );
+    let mut unsupported = rename_server(&f, "transactional");
+    open(&mut unsupported, &root, used);
+    let r = action_query(
+        &mut unsupported,
+        &root,
+        used,
+        0..used.len(),
+        json!(["quickfix"]),
+    );
+    assert!(
+        r["error"]["message"].as_str().unwrap().contains("literal"),
+        "{r:?}"
+    );
+    let mut bounded = action_server(
+        &f,
+        Limits {
+            mapping: lang_lsp::Limits {
+                output_bytes: 64,
+                ..Limits::default().mapping
+            },
+            ..Default::default()
+        },
+    );
+    open(&mut bounded, &root, used);
+    let r = action_query(
+        &mut bounded,
+        &root,
+        used,
+        0..used.len(),
+        json!(["source.format"]),
+    );
+    assert!(
+        r["error"]["message"]
+            .as_str()
+            .unwrap()
+            .contains("byte limit"),
+        "{r:?}"
+    );
+    assert!(r.get("result").is_none());
+}
+
+#[test]
+fn code_actions_validate_capabilities_ranges_and_invalid_source_without_stale_edits() {
+    let f = Files::new();
+    let root = f.uri("src/main.lang");
+    let mut no_versions = Server::new(Default::default());
+    no_versions.handle(request("initialize",json!({"rootUri":uri::file(&f.0).unwrap(),"capabilities":{"textDocument":{"codeAction":{"codeActionLiteralSupport":{"codeActionKind":{"valueSet":["quickfix","source"]}}}}}})));
+    no_versions.handle(note("initialized", json!({})));
+    open(&mut no_versions, &root, ROOT);
+    let r = action_query(
+        &mut no_versions,
+        &root,
+        ROOT,
+        0..ROOT.len(),
+        json!(["source.format"]),
+    );
+    assert!(
+        r["error"]["message"]
+            .as_str()
+            .unwrap()
+            .contains("documentChanges"),
+        "{r:?}"
+    );
+    let mut s = action_server(&f, Default::default());
+    open(&mut s, &root, ROOT);
+    for (start, end) in [(3, 3), (10, 0)] {
+        let r=s.handle(request("textDocument/codeAction",json!({"textDocument":{"uri":root},"range":{"start":{"line":0,"character":start},"end":{"line":0,"character":end}},"context":{"diagnostics":[],"only":["source.format"]}})));
+        assert_eq!(r[0]["error"]["code"], -32602, "{r:?}");
+        assert!(r[0].get("result").is_none());
+    }
+    let r = action_query(&mut s, &root, ROOT, 0..ROOT.len(), json!("quickfix"));
+    assert_eq!(r["error"]["code"], -32602);
+    let broken = "fn main()->i64{return unknown;}";
+    change(&mut s, &root, 2, broken);
+    assert_eq!(
+        action_query(
+            &mut s,
+            &root,
+            broken,
+            0..broken.len(),
+            json!(["source.format", "quickfix"])
+        )["result"],
+        json!([])
+    );
+    s.handle(note(
+        "textDocument/didClose",
+        json!({"textDocument":{"uri":root}}),
+    ));
+    let r = action_query(&mut s, &root, ROOT, 0..ROOT.len(), json!(["source.format"]));
+    assert!(
+        r["error"]["message"]
+            .as_str()
+            .unwrap()
+            .contains("must be open"),
+        "{r:?}"
+    );
+    assert!(r.get("result").is_none());
+    let source = "fn main()->i64{let mut unused:i64=1;return 42;}";
+    for (supported, offered, unsupported) in [
+        (vec!["quickfix"], vec!["quickfix"], "source.format"),
+        (vec!["source"], vec!["source.format"], "quickfix"),
+    ] {
+        let mut limited = Server::new(Default::default());
+        let init=limited.handle(request("initialize",json!({"rootUri":uri::file(&f.0).unwrap(),"capabilities":{"textDocument":{"codeAction":{"codeActionLiteralSupport":{"codeActionKind":{"valueSet":supported}}}},"workspace":{"workspaceEdit":{"documentChanges":true}}}})));
+        assert_eq!(
+            init[0]["result"]["capabilities"]["codeActionProvider"]["codeActionKinds"],
+            json!(offered)
+        );
+        limited.handle(note("initialized", json!({})));
+        open(&mut limited, &root, source);
+        assert_eq!(
+            action_query(
+                &mut limited,
+                &root,
+                source,
+                0..source.len(),
+                json!([unsupported])
+            )["result"],
+            json!([])
+        );
+        let all = action_query(&mut limited, &root, source, 0..source.len(), json!([""]));
+        assert_eq!(
+            all["result"]
+                .as_array()
+                .unwrap_or_else(|| panic!("{all:?}"))
+                .len(),
+            1,
+            "{all:?}"
+        );
+        assert_eq!(all["result"][0]["kind"], offered[0]);
+    }
+}
 fn decoded_tokens(source: &str, result: &Value) -> Vec<(String, u64)> {
     let data = result["result"]["data"]
         .as_array()

@@ -4,13 +4,13 @@
 
 [English](../milestone-4.md)
 
-更新: 2026-10-29 JST。M4 は active。Goal 開始は clean main／origin/main `af9988f`、remote `git@github.com:carimatics/lang.git`。PR #9–#17 は merge 済み。navigation PR #17 最終 head `bdc2547` は CI `40852934805`（18 成功、意図した文書専用 skip）と debugger `40852934802`（3/3）に成功し、`0293026` として merge。local main／origin/main ref は ahead／behind 0/0 で一致する。現在の `codex/m4-editor-checked-edits` は clean・upstream 同期済み `codex/m4-editor-navigation` head `bdc2547` から、一貫した C05–C07 用に作成した。既存 user 変更はなく、upstream／PR は未作成。初期記録 base `carimatics/lang:codex/m4-editor-navigation` は #17 merge により `carimatics/lang:main` へ変更した。base ref 同期中も現在の検証 edit worktree を保持する。
+更新: 2026-10-29 JST。M4 は active。Goal 開始は clean main／origin/main `af9988f`、remote `git@github.com:carimatics/lang.git`。PR #9–#17 は merge 済み。navigation PR #17 最終 head `bdc2547` は CI `40852934805`（18 成功、意図した文書専用 skip）と debugger `40852934802`（3/3）に成功し、`0293026` として merge。local main／origin/main ref は ahead／behind 0/0 で一致する。現在の `codex/m4-editor-checked-edits` は clean・upstream 同期済み `codex/m4-editor-navigation` head `bdc2547` から、一貫した C05–C07 用に作成した。既存 user 変更はなく、upstream は origin/codex/m4-editor-checked-edits、[PR #18](https://github.com/carimatics/lang/pull/18) は main を base とする。初期記録 base `carimatics/lang:codex/m4-editor-navigation` は #17 merge により `carimatics/lang:main` へ変更した。base ref 同期中も現在の検証 edit worktree を保持する。
 
-**18 done · 1 doing · 21 todo · 62 remaining pt**
+**19 done · 1 doing · 20 todo · 59 remaining pt**
 
-C05 実行 checkpoint、2026-10-29 19:23 JST: 重点 46 件と独立した証明 test が成功。protocol 6 fixture は実複数 file の version 付き UTF-16 edit、parameter／代入／field／case／型、loan／task profile、衝突／名前／alias／ABI／client 拒否、古い閉 input／metadata、現在 version、反復 UTF-16 変換 work を含む出力上限を検証する。型が有効でも別 local を参照する提案を HIR／型構造の対応証明が拒否し、正しい置換は成功した。source／lock／artifact は書き込まない。fmt、警告なし全 Clippy、source 固定の全 baseline（**166 suite／2,454 成功／0 失敗**）と doc も成功。残る条件は code 証拠と最新 head CI。C05 は 3 pt の doing に保ち、見積追加はない。PR #17 は merge し、上記のとおり base ref を同期済み。
+C06 実行 checkpoint、2026-10-29 19:56 JST: 重点 56 件、整形、警告なし全 Clippy が成功。action 4 fixture は Unicode／CRLF／型 identity を保つ version 付き整形、opaque host-call initializer／代入を保持し実行しない未読 binding fix、client kind family の negotiate／filter、偽診断、曖昧／衝突／古 input／閉文書の拒否、不正 UTF-16／range、不正 source、応答上限を検証する。共通化した linter の既存 test 結果も維持し、整形証明と rename 回帰で HIR／型全体の比較を実行した。source 固定の全 baseline（**166 suite／2,458 成功／0 失敗**）と doc も成功した。残る条件は code 証拠と最新 head CI。C06 は 3 pt の doing に保ち、見積追加はない。C05 source `3cd27e2` は 166 suite／2,454 test と CI／debugger に成功し、PR #18 は C07 まで draft に保つ。
 
-**次: M4-C05 — binding 対応を証明し version 付き edit を返す prepare／rename（doing、3 pt）。** C04 source `be05690` は重点 40 件、fmt／Clippy／doc、全 baseline（166 suite／2,447 test）に成功。最終 3 pt を消化し、追加 +11、消化 52、残り 62 pt。C05 は snapshot を再利用し、合法名／source symbol 選択、メモリ内再解析と binding 対応、collision／privacy 拒否、input 再確認、version 付き transactional client edit を実装する。実行可能な複数 file の dependency rename から始め、RFC 0039 に従い alias／module／external 宣言は未対応とする。review 済み 3 pt を保持し、新 delivery／見積追加はない。PR #17 は `0293026` として merge し、現在の検証 edit PR は main を base とする。
+**次: M4-C06 — 検証済み整形／未読 binding code action（doing、3 pt）。** C05 source `3cd27e2` は重点 46 件と binding 証明 test、fmt／Clippy／doc、全 baseline（166 suite／2,454 test）に成功。最終 3 pt を消化し、追加 +11、消化 55、残り 59 pt。C06 は既存未読 binding rule を抽出・再利用し、一意な underscore prefix fix を rename で検証する。文書整形は source 位置 metadata を除いた HIR／型 fact の比較で検証する。literal code action を negotiate し、現在 input／version／出力 guard と拒否経路を検証する。review 済み 3 pt を保持し、新 delivery／見積追加はない。PR #18 は C07 と最新 head CI の完了まで draft に保つ。
 
 A04 source `cf6cf5c` は fmt、全 Clippy／doc、checked opt-level 1 全 test（**158 suite／2,384 成功／0 失敗**）、重点 75 test に成功。最終 head `75a2041` は [全 CI](https://github.com/carimatics/lang/actions/runs/40810065213)（全 19 job、18 成功、意図した文書専用 skip）と [debugger 実行](https://github.com/carimatics/lang/actions/runs/40810065278)（3/3）に成功した。[PR #13](https://github.com/carimatics/lang/pull/13) は `58527c2` として merge、main を fast-forward して clean・同期済み、ahead／behind 0/0。workspace branch 作成と現在の PR／upstream は上記に記録した。既存の user 変更はなかった。
 
@@ -68,8 +68,8 @@ A01 入力修正は Unix の nonblocking open と開いた handle の metadata �
 | M4-C02 | done | 0 | M4-C01 | G5 | package overlay、edit、watched-file refresh を跨ぐ definition／reference | `569260b` |
 | M4-C03 | done | 0 | M4-C02 | G5 | scope／privacy／type に従う completion、UTF-16 と stale result test | 0612c45 |
 | M4-C04 | done | 0 | M4-C03 | G5 | Unicode、不正 source、document lifecycle に耐える semantic token と refresh | be05690 |
-| M4-C05 | doing | 3 | M4-C02 | G6 | 衝突／privacy 検査と version 付き atomic edit を持つ複数 file prepare／rename | — |
-| M4-C06 | todo | 3 | M4-C05 | G6 | 採択 code action が検証済み fix を生成し stale／曖昧 edit を拒否 | — |
+| M4-C05 | done | 0 | M4-C02 | G6 | 衝突／privacy 検査と version 付き atomic edit を持つ複数 file prepare／rename | 3cd27e2 |
+| M4-C06 | doing | 3 | M4-C05 | G6 | 採択 code action が検証済み fix を生成し stale／曖昧 edit を拒否 | — |
 | M4-C07 | todo | 2 | M4-C04,M4-C06 | G5,G6 | editor package の end-to-end fixture と protocol／resource／refusal coverage | — |
 | M4-D01 | todo | 3 | M4-A06 | G7 | DAP launch／control／stack／source 契約採択、VM source breakpoint で停止 | — |
 | M4-D02 | todo | 3 | M4-D01 | G7 | pause／authority 上限付き VM stepping、frame、local、evaluation | — |
@@ -97,9 +97,9 @@ A01 入力修正は Unix の nonblocking open と開いた handle の metadata �
 
 | Baseline remaining | Net added/re-estimated | Retired on completion | Remaining |
 | ---: | ---: | ---: | ---: |
-| 103 pt | +11 pt | −52 pt | 62 pt |
+| 103 pt | +11 pt | −55 pt | 59 pt |
 
-**103 + 11 − 52 = 62 pt**
+**103 + 11 − 55 = 59 pt**
 
 名前空間の前提監査、2026-10-29 JST: 既存 `ModuleGraph::root()` は常に `ModuleId(0)`。path provider だけでは依存ごとの package-root 名前空間や共有 dependency identity の安全な再利用を提供できない。元の A02 を、許可 graph（新規 A02R、3 pt）と名前空間／source 実行の統合（task list を見直した A02、残り 3 pt）へ分割する。純追加 +3 pt、全 37 delivery。A01 と A02R は前提二つとなるため、水平基盤を増やす前に A02 で次の source 実行 fixture を示す。この監査による gate 完了や延期はない。
 
