@@ -216,6 +216,18 @@ pub fn compile_script(
         .map_err(ScriptError::Lower)
 }
 
+/// The same portable program with bounded, in-memory source-local locations.
+pub fn compile_script_debug(
+    typed: &TypedProgram,
+    sources: &SourceMap,
+    limits: CompileLimits,
+) -> Result<(Program, program_lowering::DebugInfo), ScriptError> {
+    check_script_entry(typed.source(), sources)?;
+    program_lowering::lower_debug(typed, sources, limits.mir)
+        .map(|(unit, debug)| (Program::from_verified(unit), debug))
+        .map_err(ScriptError::Lower)
+}
+
 pub fn check_script_entry(source: &r::Program, sources: &SourceMap) -> Result<(), ScriptError> {
     let main = source.functions.iter().find(|f| f.qualified_name == "main");
     if !main.is_some_and(|f| f.parameters.is_empty() && f.result.value_type == r::Type::I64) {

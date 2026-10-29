@@ -4,13 +4,13 @@
 
 [日本語版](ja/milestone-4.md)
 
-Updated: 2026-10-29 JST. M4 is active. Goal start: clean main/origin/main `af9988f`, remote `git@github.com:carimatics/lang.git`. PRs #9–#17 are merged. Navigation PR #17 final head `bdc2547` passes CI `40852934805` (18 success, intentional documentation-only skip) and debugger `40852934802` (3/3), merged as `0293026`; local main/origin/main refs match with 0/0 ahead/behind. Current `codex/m4-editor-checked-edits` was created from the clean, upstream-synchronized `codex/m4-editor-navigation` head `bdc2547` for the coherent C05–C07 outcome. No preexisting user changes; upstream is origin/codex/m4-editor-checked-edits, [PR #18](https://github.com/carimatics/lang/pull/18) targets main. Its initially recorded base `carimatics/lang:codex/m4-editor-navigation` is now `carimatics/lang:main` because #17 merged. Preserve the current checked-edit worktree while synchronizing base refs.
+Updated: 2026-10-30 JST. M4 is active. Goal start: clean main/origin/main `af9988f`, remote `git@github.com:carimatics/lang.git`. PRs #9–#18 are merged. Editor PR #18 final head `5cdc422` passes CI `40864753941` (18 success, intentional documentation-only skip) and debugger `40864753946` (3/3), merged as `0a15fb5`; local main/origin/main refs match with 0/0 ahead/behind. Current `codex/m4-debug-adapter` was created from clean, upstream-synchronized `codex/m4-editor-checked-edits` head `5cdc422` for the coherent D01–D05 outcome. No preexisting user changes; upstream `origin/codex/m4-debug-adapter`, [draft PR #19](https://github.com/carimatics/lang/pull/19) against main. D01 head `8421298` passes CI `40874260252` (18 success, intentional documentation-only skip) and debugger `40874260229` (3/3); D02 head `ced8e56` is pushed; CI `40879596677` (18 success, intentional documentation-only skip) and debugger `40879596614` (3/3) succeed. No merge is claimed. Its initially recorded base `carimatics/lang:codex/m4-editor-checked-edits` is now `carimatics/lang:main` because #18 merged. Current DAP work was preserved during base synchronization.
 
-**21 done · 1 doing · 18 todo · 54 remaining pt**
+**28 done · 1 doing · 13 todo · 39 remaining pt**
 
-C07 executable checkpoint, 2026-10-29 20:18 JST: all 57 focused checks pass. The independent bounded stdio consumer verifies wire frames, original localhost URI/UTF-16/CRLF, public navigation/completion/tokens, client-side all-or-none refusal of a stale two-file rename, accepted versioned rename/fixes/formatting, watched-metadata recovery, dependency close/reopen and outside-root refusal. The server leaves source/locks/artifacts untouched; the client then saves buffers and actual package run returns 42. Fmt, warning-free full Clippy, the source-frozen full baseline (**166 suites / 2,459 passed / 0 failed**) and doc also pass. Latest-head both-host CI remains before G5/G6 closure. C07 code evidence is `6d16e93`; D01 is now doing, no estimates added. C06 code evidence is `503912f` (166 suites / 2,458 tests, fmt/Clippy/doc); PR #18 remains draft.
+E01 last executable checkpoint: the 2026-10-30 04:14 JST standalone exact-SDK experiment compiles hello through the ordinary frontend/lower/verify path, observing 2.684 ms frontend including input and 0.212 ms lowering/verification. This is one executable observation, not a performance comparison. Remaining E01 acceptance: accepted bounded report schema, package-aware CLI phase reporting and focused validation. D05 source `cf5e27f` passes fmt/full warnings-denied Clippy/169 suites and 2,477 tests/docs/fuzz Clippy, full CI `40937041512` (18 success, intentional documentation-only skip) and native `40937041276` (3/3). Native restart and 12 independent mixed/lifecycle/malformed cases pass on both hosts; G7 is verified. PR #19 final documentation-head CI/merge remains required.
 
-**Next: M4-D01 — accept the DAP launch/control/stack/source contract and stop at a VM source breakpoint (doing, 3 pt).** C07 source `6d16e93` passes 57 focused checks, fmt/Clippy/doc and the full baseline (166 suites / 2,459 tests), including independent stdio edits and actual client-saved execution returning 42. Retire its last 2 pt: additions +11, retired 60, remaining 54 pt. All C01–C07 implementation deliveries are done; G5/G6 remain pending on PR #18 latest-head both-host CI/merge. D01 begins with the accepted-source contracts and smallest VM debugger experiment before broader adapter design; create a coherent D01–D05 branch from the recorded editor head and record its dependency/base. Keep its reviewed 3 pt; no estimates are added.
+**Next: M4-E01 — bounded compiler phase reports (doing, 3 pt).** D05 is done at `cf5e27f`; retire its last 3 pt with no additions. Additions +15, retired 79, remaining 39 pt across 42 deliveries. Rechecked E01 tasks: report/schema contract, timing the existing package/frontend/portable compilation path, actual CLI fixture and bounded reader/error tests; retain 3 pt. E02–E04, signed installation and final journeys/guide remain required.
 
 A04 source `cf6cf5c` passes fmt, full Clippy/doc and checked opt-level 1 full tests (**158 suites / 2,384 passed / 0 failed**), plus 75 focused tests. Final head `75a2041` passes [full CI](https://github.com/carimatics/lang/actions/runs/40810065213) (all 19 jobs: 18 success; intentional documentation-only skip) and [debugger execution](https://github.com/carimatics/lang/actions/runs/40810065278) (3/3). [PR #13](https://github.com/carimatics/lang/pull/13) merged as `58527c2`; main was fast-forwarded, clean and synchronized with 0/0 ahead/behind. Workspace branch creation and its current PR/upstream are recorded above. No preexisting user changes were present.
 
@@ -30,7 +30,7 @@ The A01 input correction refuses FIFO/device/directory inputs with `PKG0005`/exi
 
 ## Exit gates
 
-The [roadmap](roadmap.md#milestone-4-developer-toolchain) retains the original 63 pt acceptance weights. **4/9 gates verified; 23/63 gate weight (36.5%).** Accepting a design does not complete its implementation gates. Every P0 and P1 remains in scope; no work is deferred.
+The [roadmap](roadmap.md#milestone-4-developer-toolchain) retains the original 63 pt acceptance weights. **7/9 gates verified; 47/63 gate weight (74.6%).** Accepting a design does not complete its implementation gates. Every P0 and P1 remains in scope; no work is deferred.
 
 | Gate | Priority | Outcome | Weight | State |
 | --- | --- | --- | ---: | --- |
@@ -38,9 +38,9 @@ The [roadmap](roadmap.md#milestone-4-developer-toolchain) retains the original 6
 | G2 | P0 | Deterministic dependency resolution, checksums, locks and offline replay | 8 | done |
 | G3 | P0 | Package-aware build/run/test and structured diagnostics | 5 | done |
 | G4 | P0 | Package/fmt/lint/doc CLI integration | 5 | done |
-| G5 | P0 | LSP navigation/completion/semantic tokens | 8 | pending |
-| G6 | P0 | Safe rename and code actions | 8 | pending |
-| G7 | P0 | DAP adapter with mixed native/VM stacks | 8 | pending |
+| G5 | P0 | LSP navigation/completion/semantic tokens | 8 | done |
+| G6 | P0 | Safe rename and code actions | 8 | done |
+| G7 | P0 | DAP adapter with mixed native/VM stacks | 8 | done |
 | G8 | P1 | Compile/runtime profiles, allocation traces and rebuild explanations | 8 | pending |
 | G9 | P0 | Signed install/update/channel tool with recovery | 8 | pending |
 
@@ -71,12 +71,14 @@ The [roadmap](roadmap.md#milestone-4-developer-toolchain) retains the original 6
 | M4-C05 | done | 0 | M4-C02 | G6 | Prepare/rename across files with collision/privacy checks and versioned atomic edits | 3cd27e2 |
 | M4-C06 | done | 0 | M4-C05 | G6 | Accepted code actions produce checked fixes and reject stale/ambiguous edits | 503912f |
 | M4-C07 | done | 0 | M4-C04,M4-C06 | G5,G6 | End-to-end editor package fixture plus protocol/resource/refusal coverage | 6d16e93 |
-| M4-D01 | doing | 3 | M4-A06 | G7 | Accept DAP launch/control/stack/source contract and stop at a VM source breakpoint | — |
-| M4-D02 | todo | 3 | M4-D01 | G7 | VM stepping, frames, locals and evaluation with pause/authority limits | — |
-| M4-D03 | todo | 3 | M4-D02 | G7 | Native debugger launch and source breakpoints on both tier-1 hosts | — |
-| M4-D04 | todo | 3 | M4-D03 | G7 | Mixed native/VM stack fixture preserves call order, spans and failure cleanup | — |
-| M4-D05 | todo | 3 | M4-D04 | G7 | DAP disconnect/restart/cancel/malformed-input and both-host session evidence | — |
-| M4-E01 | todo | 3 | M4-A06 | G8 | Accept profile/trace schema and report bounded compiler phase costs | — |
+| M4-D01 | done | 0 | M4-A06 | G7 | Accept DAP launch/control/stack/source contract and stop at a VM source breakpoint | `8421298` |
+| M4-D02 | done | 0 | M4-D01 | G7 | VM stepping, frames, locals and evaluation with pause/authority limits | `ced8e56` |
+| M4-D03R | done | 0 | M4-D02 | G7 | Configure the matching Windows LLVM Python runtime and prove native DAP breakpoints | `99a20de` |
+| M4-D03 | done | 0 | M4-D03R | G7 | Native debugger launch and source breakpoints on both tier-1 hosts | `39473b1` |
+| M4-D04B | done | 0 | M4-D03 | G7 | Explicitly granted host bridge and bounded native physical stop on the original VM | `67f62fa` |
+| M4-D04 | done | 0 | M4-D04B | G7 | Mixed native/VM stack fixture preserves call order, spans and failure cleanup | `759bae0` |
+| M4-D05 | done | 0 | M4-D04 | G7 | DAP disconnect/restart/cancel/malformed-input and both-host session evidence | `cf5e27f` |
+| M4-E01 | doing | 3 | M4-A06 | G8 | Accept profile/trace schema and report bounded compiler phase costs | — |
 | M4-E02 | todo | 3 | M4-E01 | G8 | Source-attributed VM/native runtime profile with explicit sampling/measurement limits | — |
 | M4-E03 | todo | 3 | M4-E02 | G8 | Allocation/retirement traces reconcile real allocator counters and bounded buffers | — |
 | M4-E04 | todo | 3 | M4-E03 | G8 | Rebuild explanations identify changed source/dependency/target/toolchain inputs | — |
@@ -97,9 +99,9 @@ Activation audit, 2026-10-29 JST: 36 observable deliveries, baseline 103 pt. The
 
 | Baseline remaining | Net added/re-estimated | Retired on completion | Remaining |
 | ---: | ---: | ---: | ---: |
-| 103 pt | +11 pt | −60 pt | 54 pt |
+| 103 pt | +15 pt | −79 pt | 39 pt |
 
-**103 + 11 − 60 = 54 pt**
+**103 + 15 − 79 = 39 pt**
 
 Namespace prerequisite audit, 2026-10-29 JST: the existing `ModuleGraph::root()` is always `ModuleId(0)`. A path provider alone cannot give each dependency its own package-root namespace or safely reuse a shared dependency identity. Split the original A02 outcome into an authorized graph (new A02R, 3 pt) and namespace/source execution integration (A02, remaining 3 pt after reviewing its task list). Net addition: +3 pt; 37 deliveries total. A01 and A02R are two prerequisites, so A02 must supply the next source execution fixture before further horizontal scaffolding. No gate is completed or deferred by this audit.
 
@@ -145,11 +147,17 @@ Pre-merge A01 input audit checklist:
 
 ## C07 editor protocol audit
 
-Local audit, 2026-10-29 JST; remote latest-head confirmation remains required.
+Both-host closure, 2026-10-29 JST: source `6d16e93`, final head `5cdc422`, full baseline 166 suites / 2,459 tests, fmt/Clippy/doc and 57 focused checks pass. CI `40864753941` has 18 successful jobs plus the intentional documentation-only skip; debugger `40864753946` passes 3/3. PR #18 merged as `0a15fb5`; local main/origin/main refs are synchronized, 0/0. G5/G6 are done.
 
 - Authority/input lifetime: `tests/package_editor.rs` and package LSP admission fixtures cover frozen inputs, physical metadata/source aliases, original display aliases, outside roots and unadmitted overlays.
 - Semantic/protocol boundaries: package LSP fixtures cover privacy/import/scope/field identities, malformed source, original URI/version/UTF-16/CRLF, token ordering/refresh, count/output/mapping-work refusal and no partial successful response.
 - Edit safety: complete HIR/type correspondence and the separate valid-types/wrong-binding proof test supplement concrete versions, open-file/transactional client guards, collision/alias/ABI refusal, stale closed inputs and unchanged files. Formatting and unread-binding actions reuse the formatter/linter, retain initializer/assignment operations and refuse ambiguous or forged fixes.
 - Interoperability/execution: `tests/support/lsp_client.rs` independently consumes Content-Length frames and UTF-16 edits with deadlines and atomic version checks. The actual stdio package journey applies both actions and multi-file rename, closes/reopens a dependency, recovers watched metadata and runs client-saved source returning 42. Existing standalone protocol/framing fixtures remain enabled.
 
-This finite audit does not claim arbitrary-client atomicity, external-writer exclusion, performance benchmarks or fuzz coverage. G5/G6 remain pending until latest-head both-host CI and the PR lifecycle complete.
+This finite audit does not claim arbitrary-client atomicity, external-writer exclusion, performance benchmarks or fuzz coverage. The latest-head both-host CI and PR lifecycle above close G5/G6.
+
+Windows runtime prerequisite audit, 2026-10-30 JST: LLVM 20.1.8 lldb-dap.exe exists but exits with 0xc0000135; liblldb.dll imports require python310.dll. Add D03R (1 pt) for the matching x64 Python 3.10 runtime and actual Windows breakpoint fixture. Review D03’s remaining SDK snapshot/source authority/adapter integration and retain 3 pt; move doing to D03R. Net addition +1, 41 deliveries, 103 +12 −66 =49 pt. No gate closure is claimed.
+
+Windows debugger estimate audit, 2026-10-30 JST: runtime/PDB selection proves actual breakpoints/callers/steps/guest exit, but LLVM 20.1.8 adapter shutdown still fails. Prepare the official stable LLVM 23.1.4 (published 2026-10-20) separately with a fixed SHA-256, then verify its actual runtime ABI and clean exit. Review remaining tasks and re-estimate D03R from 1 to 2 pt, net addition +1. Cumulative additions +13, retired 66, 103 +13 −66 =50 pt. Keep the clean-exit assertion and existing LLVM checks.
+
+Mixed-host prerequisite audit, 2026-10-30 JST: review D04’s remaining tasks: explicit host-import grants/public binding API, an original-worker scoped wrapper, bounded physical PC capture with live VM correspondence and the first mixed DAP stop are not implemented. Add D04B (2 pt) before implementation and move doing to it. Retain D04 at 3 pt for both-host real protocol/frame/failure cleanup acceptance. Net addition +2, cumulative additions +15, retired 71, 42 deliveries, 103+15−71=47 pt. Keep D03 native success separate from G7 closure; the gate stays pending.

@@ -72,6 +72,7 @@ pub enum Error {
     },
     HostRequired,
     ObjectsRequireHost,
+    DebugProfile,
     Limit {
         resource: &'static str,
         actual: u64,
@@ -391,6 +392,43 @@ pub(crate) struct Inputs {
     pub rustc_commit: String,
 }
 pub(crate) fn link_recorded(request: &Request, limits: Limits) -> Result<Inputs, Error> {
+    match link_mode(request, limits, LinkMode::Publish)? {
+        Linked::Published(inputs) => Ok(inputs),
+        Linked::Debug(_) => unreachable!("selected publication mode"),
+    }
+}
+
+/// Keeps verified code and its debug sidecars alive for one trusted debugger.
+pub(crate) struct DebugImage {
+    package: m::ProgramSnapshot,
+    _sdk: m::SdkSnapshot,
+    executable: PathBuf,
+    _stage: Stage,
+}
+impl DebugImage {
+    pub(crate) fn executable(&self) -> &Path {
+        &self.executable
+    }
+    pub(crate) fn semantic(&self) -> &[u8] {
+        self.package.semantic()
+    }
+}
+enum LinkMode {
+    Publish,
+    Debug,
+}
+enum Linked {
+    Published(Inputs),
+    Debug(Box<DebugImage>),
+}
+
+pub(crate) fn link_debug(request: &Request, limits: Limits) -> Result<DebugImage, Error> {
+    match link_mode(request, limits, LinkMode::Debug)? {
+        Linked::Debug(image) => Ok(*image),
+        Linked::Published(_) => unreachable!("selected debug mode"),
+    }
+}
+fn link_mode(request: &Request, limits: Limits, mode: LinkMode) -> Result<Linked, Error> {
     if request.host.is_none() && !request.objects.is_empty() {
         return Err(Error::ObjectsRequireHost);
     }
@@ -418,6 +456,13 @@ pub(crate) fn link_recorded(request: &Request, limits: Limits) -> Result<Inputs,
     let package =
         m::ProgramSnapshot::open_named(&request.package, &stage.0, &sdk, limits.manifests)
             .map_err(Error::Manifest)?;
+    if matches!(mode, LinkMode::Debug)
+        && (package.manifest().profile() != Profile::Copy
+            || request.host.is_some()
+            || !request.objects.is_empty())
+    {
+        return Err(Error::DebugProfile);
+    }
     if matches!(
         package.manifest().profile(),
         Profile::C | Profile::Component
@@ -430,10 +475,13 @@ pub(crate) fn link_recorded(request: &Request, limits: Limits) -> Result<Inputs,
         "--crate-name=lang_native_startup".into(),
         "-Cpanic=unwind".into(),
     ];
+    if matches!(mode, LinkMode::Debug) {
+        arguments.extend(["-Cdebuginfo=2".into(), "-Csplit-debuginfo=packed".into()]);
+    }
     #[cfg(all(target_os = "windows", target_env = "msvc"))]
     arguments.extend(["-C".into(), "link-arg=/Brepro".into()]);
     #[cfg(target_os = "macos")]
-    {
+    if matches!(mode, LinkMode::Publish) {
         // Keep OSO debug maps while excluding this operation's private prefix.
         // Separate -Xlinker arguments preserve commas and spaces in the path.
         arguments.extend([
@@ -555,7 +603,28 @@ pub(crate) fn link_recorded(request: &Request, limits: Limits) -> Result<Inputs,
         writeln!(file, "{arg}").map_err(|e| io("rustc response write", &response, e))?;
     }
     drop(file);
-    let compiler = compiler(request.rustc.as_deref())?;
+    let selected = if matches!(mode, LinkMode::Debug) && request.rustc.is_none() {
+        let bytes = run(
+            Command::new("rustup").args([
+                "which",
+                "--toolchain",
+                sdk.manifest().rustc_release(),
+                "rustc",
+            ]),
+            ToolStage::Version,
+            limits.diagnostics,
+        )?;
+        let path = std::str::from_utf8(&bytes)
+            .map_err(|_| Error::VersionFormat)?
+            .trim();
+        if path.is_empty() || path.contains(['\r', '\n']) {
+            return Err(Error::VersionFormat);
+        }
+        Some(OsString::from(path))
+    } else {
+        request.rustc.clone()
+    };
+    let compiler = compiler(selected.as_deref())?;
     version(
         &compiler,
         package.root(),
@@ -574,7 +643,15 @@ pub(crate) fn link_recorded(request: &Request, limits: Limits) -> Result<Inputs,
         return Err(Error::MissingOutput);
     }
     bound("executable bytes", metadata.len(), limits.executable)?;
+    if matches!(mode, LinkMode::Debug) {
+        return Ok(Linked::Debug(Box::new(DebugImage {
+            package,
+            _sdk: sdk,
+            executable,
+            _stage: stage,
+        })));
+    }
     publish::rename(&executable, &request.output)
         .map_err(|e| io("exclusive executable publication", &request.output, e))?;
-    Ok(inputs)
+    Ok(Linked::Published(inputs))
 }

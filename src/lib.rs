@@ -17,6 +17,7 @@ pub mod component_conformance;
 #[doc(hidden)]
 pub mod component_embedding;
 pub mod component_resource_conformance;
+pub mod dap;
 pub mod frontend;
 pub mod linker;
 pub mod lsp;

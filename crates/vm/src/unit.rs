@@ -282,6 +282,24 @@ pub fn execute(
     bindings: &HostBindings,
     control: Control<'_>,
 ) -> Result<Outcome, Failure> {
+    let mut machine = prepare(program, function, arguments, hosts, bindings, control)?;
+    match machine.run() {
+        Ok(value) => Ok(Outcome {
+            value,
+            usage: machine.usage,
+        }),
+        Err(reason) => Err(machine.failure(reason)),
+    }
+}
+
+fn prepare<'a>(
+    program: &'a Program,
+    function: m::FunctionId,
+    arguments: &[Value],
+    hosts: &HostFunctionRegistry,
+    bindings: &HostBindings,
+    control: Control<'a>,
+) -> Result<Machine<'a>, Failure> {
     let verified = program.verified();
     let f = verified
         .unit()
@@ -341,12 +359,184 @@ pub fn execute(
     machine
         .enter(frame)
         .map_err(|reason| machine.failure(reason))?;
-    match machine.run() {
-        Ok(value) => Ok(Outcome {
-            value,
-            usage: machine.usage,
-        }),
-        Err(reason) => Err(machine.failure(reason)),
+    Ok(machine)
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct DebugPoint {
+    pub function: m::FunctionId,
+    pub block: m::BlockId,
+    pub instruction: usize,
+    pub depth: usize,
+    pub span: Option<m::Span>,
+}
+#[derive(Debug)]
+pub enum DebugEvent {
+    Paused(DebugPoint),
+    Exited(Outcome),
+}
+#[derive(Debug)]
+pub enum DebugError {
+    Finished,
+    Execution(Failure),
+}
+impl Display for DebugError {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Finished => f.write_str("debug session is finished"),
+            Self::Execution(error) => Display::fmt(error, f),
+        }
+    }
+}
+impl Error for DebugError {}
+/// A retained Copy execution, confined to its original host/observer thread.
+pub struct DebugSession<'a> {
+    program: &'a Program,
+    machine: Machine<'a>,
+    finished: bool,
+    paused: bool,
+    thread: std::marker::PhantomData<std::rc::Rc<()>>,
+}
+impl<'a> DebugSession<'a> {
+    pub fn entry(
+        program: &'a Program,
+        hosts: &'a HostFunctionRegistry,
+        bindings: &'a HostBindings,
+        control: Control<'a>,
+    ) -> Result<Self, Failure> {
+        let entry = program
+            .verified()
+            .unit()
+            .entry
+            .ok_or_else(|| preflight_failure(Reason::MissingEntry))?;
+        Self::function(program, entry, &[], hosts, bindings, control)
+    }
+    pub fn function(
+        program: &'a Program,
+        function: m::FunctionId,
+        arguments: &[Value],
+        hosts: &'a HostFunctionRegistry,
+        bindings: &'a HostBindings,
+        control: Control<'a>,
+    ) -> Result<Self, Failure> {
+        let mut machine = prepare(program, function, arguments, hosts, bindings, control)?;
+        if let Err(reason) = machine.frames[0].enable_inspection(machine.verified) {
+            return Err(machine.failure(reason));
+        }
+        Ok(Self {
+            program,
+            machine,
+            finished: false,
+            paused: false,
+            thread: std::marker::PhantomData,
+        })
+    }
+    pub fn usage(&self) -> Usage {
+        self.machine.usage
+    }
+    /// Inspection is available only at a published pause. Caller locations
+    /// refer to the suspended call, whose result has not been initialized yet.
+    pub fn frame_point(&self, frame_index: usize) -> Option<DebugPoint> {
+        if !self.paused || self.finished {
+            return None;
+        }
+        let index = self
+            .machine
+            .frames
+            .len()
+            .checked_sub(frame_index.checked_add(1)?)?;
+        let frame = &self.machine.frames[index];
+        let instruction = if frame_index == 0 {
+            frame.pc
+        } else {
+            frame.pc.checked_sub(1)?
+        };
+        let block = &self.machine.verified.unit().functions[frame.function.0 as usize].blocks
+            [frame.block.0 as usize];
+        let span = block
+            .instructions
+            .get(instruction)
+            .map_or(block.terminator.span, |i| i.span);
+        Some(DebugPoint {
+            function: frame.function,
+            block: frame.block,
+            instruction,
+            depth: index + 1,
+            span,
+        })
+    }
+    /// Copy a bounded, initialized register. Source visibility is determined
+    /// separately by proven compiler debug metadata, never register numbering.
+    pub fn inspect_register(
+        &self,
+        frame_index: usize,
+        register: m::Register,
+        cell_limit: usize,
+    ) -> Result<Option<Value>, Reason> {
+        if self.frame_point(frame_index).is_none() {
+            return Ok(None);
+        }
+        let frame = &self.machine.frames[self.machine.frames.len() - frame_index - 1];
+        if !frame
+            .initialized
+            .as_ref()
+            .and_then(|v| v.get(register.0 as usize))
+            .copied()
+            .unwrap_or(false)
+        {
+            return Ok(None);
+        }
+        let value_type = self.machine.verified.unit().functions[frame.function.0 as usize]
+            .registers[register.0 as usize];
+        let range = frame.range(register);
+        if range.len() > cell_limit {
+            return Ok(None);
+        }
+        let mut cells = Vec::new();
+        cells
+            .try_reserve_exact(range.len())
+            .map_err(|_| Reason::AllocationFailed)?;
+        cells.extend_from_slice(&frame.cells[range]);
+        Value::from_cells(self.program, value_type, cells).map(Some)
+    }
+    pub fn stack(&self) -> impl Iterator<Item = StackFrame> + '_ {
+        let mut span = self.machine.location().and_then(|p| p.span);
+        self.machine.frames.iter().rev().map(move |frame| {
+            let value = StackFrame {
+                function: frame.function,
+                span,
+            };
+            span = frame.call_site;
+            value
+        })
+    }
+    pub fn resume_until(
+        &mut self,
+        stop: impl FnMut(&DebugPoint) -> bool,
+    ) -> Result<DebugEvent, DebugError> {
+        if self.finished {
+            return Err(DebugError::Finished);
+        }
+        self.paused = false;
+        match self.machine.run_until(stop) {
+            Ok(None) => {
+                self.paused = true;
+                Ok(DebugEvent::Paused(
+                    self.machine.location().expect("paused frame"),
+                ))
+            }
+            Ok(Some(value)) => {
+                self.finished = true;
+                Ok(DebugEvent::Exited(Outcome {
+                    value,
+                    usage: self.machine.usage,
+                }))
+            }
+            Err(reason) => {
+                self.finished = true;
+                Err(DebugError::Execution(self.machine.failure(reason)))
+            }
+        }
     }
 }
 
@@ -361,6 +551,7 @@ struct Frame {
     moves: Vec<Option<m::Register>>,
     readers: Vec<usize>,
     ready: Vec<m::Register>,
+    initialized: Option<Vec<bool>>,
 }
 impl Frame {
     fn new(
@@ -400,7 +591,20 @@ impl Frame {
             moves: vector(f.registers.len(), None)?,
             readers: vector(f.registers.len(), 0)?,
             ready,
+            initialized: None,
         })
+    }
+    fn enable_inspection(&mut self, verified: &m::VerifiedUnit) -> Result<(), Reason> {
+        let function = &verified.unit().functions[self.function.0 as usize];
+        let mut initialized = vector(function.registers.len(), false)?;
+        initialized[..function.signature.parameters.len()].fill(true);
+        self.initialized = Some(initialized);
+        Ok(())
+    }
+    fn mark_initialized(&mut self, register: m::Register) {
+        if let Some(initialized) = &mut self.initialized {
+            initialized[register.0 as usize] = true;
+        }
     }
     fn range(&self, r: m::Register) -> std::ops::Range<usize> {
         self.offsets[r.0 as usize]..self.offsets[r.0 as usize + 1]
@@ -417,6 +621,9 @@ impl Frame {
             .copy_within(range, self.offsets[destination.0 as usize]);
     }
     fn jump(&mut self, target: &m::Target, parameters: &[m::Register]) {
+        for parameter in parameters {
+            self.mark_initialized(*parameter);
+        }
         // Parallel copy without aggregate temporaries. Process destinations
         // whose old contents have no remaining readers, then rotate cycles a
         // single cell at a time. Scratch is register metadata, never value cells.
@@ -550,13 +757,47 @@ impl Machine<'_> {
             .map_err(Reason::from)?;
         Ok(function(argument))
     }
+    fn location(&self) -> Option<DebugPoint> {
+        let frame = self.frames.last()?;
+        let block = &self.verified.unit().functions[frame.function.0 as usize].blocks
+            [frame.block.0 as usize];
+        let span = block
+            .instructions
+            .get(frame.pc)
+            .map_or(block.terminator.span, |i| i.span);
+        Some(DebugPoint {
+            function: frame.function,
+            block: frame.block,
+            instruction: frame.pc,
+            depth: self.frames.len(),
+            span,
+        })
+    }
     fn run(&mut self) -> Result<Value, Reason> {
+        self.run_until(|_| false)
+            .map(|value| value.expect("non-pausing execution completes"))
+    }
+    fn run_until(
+        &mut self,
+        mut stop: impl FnMut(&DebugPoint) -> bool,
+    ) -> Result<Option<Value>, Reason> {
         loop {
             let frame = self.frames.last().expect("entered frame");
             let f = &self.verified.unit().functions[frame.function.0 as usize];
             let block = &f.blocks[frame.block.0 as usize];
             let instruction = block.instructions.get(frame.pc);
             self.fault = instruction.map_or(block.terminator.span, |i| i.span);
+            let point = DebugPoint {
+                function: frame.function,
+                block: frame.block,
+                instruction: frame.pc,
+                depth: self.frames.len(),
+                span: self.fault,
+            };
+            if stop(&point) {
+                self.control.check().map_err(Reason::from)?;
+                return Ok(None);
+            }
             self.charge()?;
             if let Some(instruction) = instruction {
                 if let m::Op::Call {
@@ -572,6 +813,9 @@ impl Machine<'_> {
                         Some(*destination),
                         instruction.span,
                     )?;
+                    if self.frames.last().unwrap().initialized.is_some() {
+                        child.enable_inspection(self.verified)?;
+                    }
                     let caller = self.frames.last_mut().unwrap();
                     for (index, source) in arguments.iter().enumerate() {
                         let destination = child.range(m::Register(index as u32));
@@ -595,6 +839,7 @@ impl Machine<'_> {
                     let result = self.host_call(self.callbacks[import.0 as usize], argument)?;
                     let frame = self.frames.last_mut().unwrap();
                     frame.set_scalar(*destination, result as u64);
+                    frame.mark_initialized(*destination);
                     frame.pc += 1;
                     continue;
                 }
@@ -714,6 +959,7 @@ impl Machine<'_> {
                     }
                     m::Op::Call { .. } | m::Op::HostCall { .. } => unreachable!(),
                 }
+                frame.mark_initialized(instruction.op.destination());
                 frame.pc += 1;
             } else {
                 match &block.terminator.kind {
@@ -725,10 +971,10 @@ impl Machine<'_> {
                             frame.cells.copy_within(range, 0);
                             frame.cells.truncate(len);
                             self.live_cells = 0;
-                            return Ok(Value {
+                            return Ok(Some(Value {
                                 value_type: f.signature.result,
                                 cells: frame.cells,
-                            });
+                            }));
                         }
                         let last = self.frames.len() - 1;
                         let (parents, child) = self.frames.split_at_mut(last);
@@ -738,6 +984,7 @@ impl Machine<'_> {
                             caller.range(child.return_to.expect("guest return destination"));
                         caller.cells[destination]
                             .copy_from_slice(&child.cells[child.range(*result)]);
+                        caller.mark_initialized(child.return_to.expect("guest return destination"));
                         self.live_cells -= child.cells.len();
                         self.frames.pop();
                     }

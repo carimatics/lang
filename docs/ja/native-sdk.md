@@ -1,10 +1,10 @@
-<!-- translation-of: ../native-sdk.md; canonical-language: en; reviewed: 2026-10-27 -->
+<!-- translation-of: ../native-sdk.md; canonical-language: en; reviewed: 2026-10-30 -->
 
 # 実験段階native SDK
 
 [English](../native-sdk.md)
 
-更新日：2026-10-27 JST。SDK version 3のcopy/owned/C/task/owned-task/component/component-gateway全7 profileが、実macOS AArch64とWindows x86-64のcheckout/Cargoなしconsumerで起動しました。[M3機能ガイド](milestone-3-capabilities.md)と[移行/全検証記録](../evidence/2026-10-27-m3-migration-9e78f2d.json)に現証拠をまとめます。公開C v1はRFC 0033に従い安定化し、private SDK ABIは実験段階で厳密build一致を必要とします。以下の段階別producer checkpointは当時の履歴であり、現在の両host受入を置き換えません。
+更新日：2026-10-30 JST。SDK version 3のcopy/owned/C/task/owned-task/component/component-gateway全7 profileが、実macOS AArch64とWindows x86-64のcheckout/Cargoなしconsumerで起動しました。[M3機能ガイド](milestone-3-capabilities.md)と[移行/全検証記録](../evidence/2026-10-27-m3-migration-9e78f2d.json)に現証拠をまとめます。公開C v1はRFC 0033に従い安定化し、private SDK ABIは実験段階で厳密build一致を必要とします。以下の段階別producer checkpointは当時の履歴であり、現在の両host受入を置き換えません。
 
 Task拡張（[RFC 0031](rfcs/0031-installed-native-task-packages.md)、2026-10-27 JST）: この拡張でSDK manifest version 2を導入しました。`lang native`はtask sourceをprogram version 2/task・LANGBC schema 5・元LANGNAT-2 Task objectへ出力し、生成mainが`execute_tasks`でcaller allocator/Control/runner上限を保ちます。task packageはSDK version >=2を必要とし、SDK v1ではtool前に拒否します。旧version-1 copy/owned/C packageは対応buildのSDK v2でも動作します。初期task出力はhost targetに限り、component packageには後続受入決定が必要です。`042fc38`のclean producerからSDKを作り、producer退避後のcheckoutなし・Cargoなしconsumerで5 profileの隔離検証に成功しました（2026-10-27 03:49 JST、macOS AArch64）。起動前にsource/package/private SDKリンク入力を除去し、task/owned-taskとも42を返しました。全baselineは149 suite・2,300 test成功です。component/両host受入条件はM3進捗表で追跡し、M2の旧profileの両host証拠とは区別します。
 
@@ -63,6 +63,28 @@ SDKのRust facade `component_embedding::gateway`はmode 2、`module_bind_native`
 
 `startup/component-producer.rs OUTPUT [HEADER]`の任意第2引数は、package roleを変えず、明示host入力用の`component-api.h`と`component-client.c`を出力します。SDKにはC template `startup/component-client.c.in`とRust host `startup/component-gateway-host.rs`を同梱します。生成Cを通常のtarget compilerでobjectにして、既存`link-native --host ... --object ...`に渡します。`tools/check-native-sdk-install.py`は、既存6 profileに`component-gateway`を追加し、全package/private SDK/link入力を消してからC gatewayの42・panic・再利用・fuel拒否・owner退役・空inventoryを確認します。E16の隔離検証はM3表へ記録し、Windowsの実行証拠とは区別します。
 
+## Native DAP 実行実験
+
+M4 の native DAP 実験は、厳密に対応する SDK から debug link した Copy executable で、実 source breakpoint、caller、step、正常終了を検証します。新規 output directory を指定して `python tools/check-native-dap.py --sdk SDK --output FRESH-DIRECTORY` を実行します。macOS は Xcode の `lldb-dap`、Windows は LLVM installation の `lldb-dap.exe` を使います。macOS の debugger 起動には適切な OS／sandbox の実行許可が必要です。source `99a20de` は workflow 40907199433 で macOS 15／26 と Windows 2025 の実行に成功し、adapter 終了 0 も確認しました。`lang dap` の Copy native mode は `39473b1` で実装し、production workflow 40918693919 の全3 runnerで成功しました。
+
+runner の旧 LLVM 20.1.8 は python310.dll、別配置の LLVM 23.1.4 MSI は python3.dll を import する。CI は版付き／stable DLL 名を検出し、commit 固定の公式 [setup-python action](https://github.com/actions/setup-python/blob/ece7cb06caefa5fff74198d8649806c4678c61a1/action.yml) で、stable import には実行実績のある x64 Python 3.12 を選ぶ。LLDB_PYTHON_RUNTIME／LLDB_PYTHON_DLL は debugger child だけの PATH／PYTHONHOME を設定し、通常 job interpreter は変更しない。この living action 文書に公開／更新日の記載はなく、DLL import と action は2026-10-30 JST確認。
+
+実験 client は debugger child で `LLDB_USE_NATIVE_PDB_READER=1` を選び、DIA reader が source 情報を公開しない場合に native PDB reader を使う。選択条件は公式 [LLVM 20.1.8 実装](https://github.com/llvm/llvm-project/blob/llvmorg-20.1.8/lldb/source/Plugins/SymbolFile/PDB/SymbolFilePDB.cpp) に従う。この取得結果に公開／更新日の記載はなく、2026-10-30 JST 確認。
+
+公式 [LLDB DAP 文書](https://lldb.llvm.org/use/lldbdap.html) は tool 入手方法と起動設定を記載しています。公開／更新日の記載はなく、2026-10-29 JST 確認。
+
+production native launch は D03 の `39473b1` で実装・両host検証済み（2026-10-30 JST、workflow 40918693919、3/3）。`SDK/bin/lang dap` を起動し、initialize 後に DAP launch `{"mode":"native","root":"/absolute/package","manifestPath":"Lang.json","sdk":"/absolute/sdk"}` を送る。host import のない i64 main を持つ Copy を受理し、既存 SDK／program format を snapshot 化して厳密 rustc と意味 identity を検証し、executable／sidecar を private debug link する。line breakpoint、不変 source query、stack、step、continue、disconnect に対応し、column breakpoint と native value inspection は拒否する。capability event で native hover 評価を無効にする。物理 frame の元の順を保ち、取得済み package file だけに source location を付ける。混在stackとlifecycleはD04／D05に残し、native value／column inspectionは引き続きunavailable。
+
+## 信頼済みmixed Rust host（実験段階）
+
+埋込みRust hostは`dap::mixed::NativeHosts`へ明示`extern "C" fn(i64) -> i64` callbackを登録し、`dap::Server::with_native_hosts`を構築するか`dap::serve_stdio_with_native_hosts`を呼べる。callback codeはserver存続中保持し、割込みを協調的に処理する。通常の`lang dap` serverにhost grantはなく、source／protocolからcode登録はできない。実行fixtureは`cargo run --example mixed-dap`。initialize後、DAP launchに`{"mode":"mixed","root":"/absolute/repository/examples/packages/debug_mixed","manifestPath":"Lang.json"}`を指定し、configurationDoneを送る。
+
+登録callbackは元workerで`dap::mixed::pause()`を呼ぶ。adapterは同じVM HostCallと厳密なsource callerを保持し、上限付きnative物理PCの後にVM frameを表示する。active call scopeと完全一致PC suffixで対応付け、symbol文字列の一致やnative Rust source読込は使わない。native frameの現表示名はaddress。continueは同じcallを一度だけ再開し、disconnectは協調的pauseを割り込む。native callback停止中のvalueとnative命令stepはunavailableで、通常paused VMのinspectionは保持する。信頼済みhost bridgeであり、任意attach／loadやnative sandboxではない。D04Bのlocal bridge検証は進行中で、D04の両host protocol／failureとD05 lifecycle受入は引き続き必要。
+
 ## Sources
+
+独立 probe は、全 SDK の検証・copy と rustc link を追加する production launch 準備に180秒を許し、通常 DAP request／event の deadline は30秒を維持する。`4a6c734` のWindows traceはSDK準備／link中に旧30秒deadlineを超えたが、`39473b1`は36.5秒（SDK検証／linkが36.0秒）で準備を完了し、全実行／終了assertionが成功した。`LANG_DAP_TRACE` は起動段階と経過時間を stderr に記録する信頼済み host の診断設定で、protocol／source option ではない。breakpoint／source／step／exit と framing／resource assertion は維持する。
+
+Windows DAP CI 実験は、公式 [LLVM 23.1.4 release](https://github.com/llvm/llvm-project/releases/tag/llvmorg-23.1.4) を runner の LLVM 20 tool とは別に展開する。公開日2026-10-20、asset size／SHA-256 は2026-10-30 JST 確認。x86-64 tar archive に LLDB file がないことを実 CI inventory で確認したため、`tools/setup-native-dap.ps1` は代わりに固定した x64 MSI を検証し、既存 tool を置き換えず administrative extraction で private image を作る。実 `liblldb.dll` の Python import を調べて、その child runtime だけを選ぶ。`LLDB_DAP_EXECUTABLE` と `LLDB_PYTHON_DLL` は信頼済み実験 host の設定。既存 LLVM debugger 検証も維持する。展開した MSI は python3.dll を import し、workflow 40907199433 で Windows session の完全終了を証明し、adapter exit の厳密な assertion を引き続き維持する。
 
 対応する [project repository](https://github.com/carimatics/lang) の情報源：RFC 0020/0027/0031/0032、`src/native/component/image.rs`, `src/native/sdk_package.rs`、`src/native/link.rs`、`tools/build-native-sdk.py`、`crates/codegen-clif/src/sdk/runtime.rs`。project変更は2026-10-27 JST更新・確認。Cargo JSON fieldは公式 [Cargo Book: External tools](https://doc.rust-lang.org/cargo/reference/external-tools.html)、panic policyは [catch_unwind](https://doc.rust-lang.org/std/panic/fn.catch_unwind.html) と [Cargo profiles](https://doc.rust-lang.org/cargo/reference/profiles.html#panic) に従います。Response引数規則は公式 [rustc command-line reference](https://doc.rust-lang.org/rustc/command-line-arguments.html#path-load-command-line-flags-from-a-path) に従います。随時更新文書で更新日の記載はなく、2026-10-20 JST確認。

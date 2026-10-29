@@ -15,6 +15,9 @@ on:
       - 'tests/support/rust_artifacts.rs'
       - 'tools/build-native-sdk.py'
       - 'tools/check-native-debugger.py'
+      - 'tools/check-native-dap.py'
+      - 'tools/check-mixed-dap.py'
+      - 'tools/setup-native-dap.ps1'
       - 'tools/test_native_debugger.py'
       - 'docs/native-sdk.md'
       - 'docs/ja/native-sdk.md'
@@ -35,6 +38,9 @@ on:
       - 'tests/support/rust_artifacts.rs'
       - 'tools/build-native-sdk.py'
       - 'tools/check-native-debugger.py'
+      - 'tools/check-native-dap.py'
+      - 'tools/check-mixed-dap.py'
+      - 'tools/setup-native-dap.ps1'
       - 'tools/test_native_debugger.py'
       - 'docs/native-sdk.md'
       - 'docs/ja/native-sdk.md'
@@ -55,7 +61,7 @@ jobs:
       matrix:
         os: [macos-26, macos-15, windows-2025]
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 15
+    timeout-minutes: 20
     steps:
       - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -80,10 +86,28 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           foreach ($tool in @(
             "${env:ProgramFiles(x86)}\Windows Kits\10\Debuggers\x64\cdb.exe",
-            "$env:ProgramFiles\LLVM\bin\lldb.exe"
+            "$env:ProgramFiles\LLVM\bin\lldb.exe",
+            "$env:ProgramFiles\LLVM\bin\lldb-dap.exe"
           )) {
             Write-Host "$tool available: $(Test-Path $tool)"
           }
+
+      - name: Prepare the pinned Windows DAP distribution
+        if: runner.os == 'Windows'
+        id: lldb-distribution
+        shell: pwsh
+        run: tools/setup-native-dap.ps1 -OutputDirectory "${{ runner.temp }}/lang-lldb-dap"
+
+      # Inspect the selected DLL rather than assuming the runner's Python ABI.
+      # Keep the ordinary job interpreter unchanged.
+      - name: Select the Windows LLVM Python runtime
+        if: runner.os == 'Windows' && steps.lldb-distribution.outputs.python-version != ''
+        id: lldb-python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: ${{ steps.lldb-distribution.outputs.python-version }}
+          architecture: x64
+          update-environment: false
 
       - name: Restore the exact matching debug SDK
         id: sdk-cache
@@ -118,6 +142,23 @@ jobs:
       - name: Exercise actual native breakpoints, stepping and backtraces
         run: python tools/check-native-debugger.py --sdk "${{ runner.temp }}/lang-debug-sdk" --output "${{ runner.temp }}/lang-debug-probes"
 
+      - name: Exercise actual native DAP launch and source breakpoints
+        env:
+          LLDB_DAP_EXECUTABLE: ${{ steps.lldb-distribution.outputs.adapter }}
+          LLDB_PYTHON_RUNTIME: ${{ steps.lldb-python.outputs.python-path }}
+          LLDB_PYTHON_DLL: ${{ steps.lldb-distribution.outputs.python-dll }}
+        run: python tools/check-native-dap.py --sdk "${{ runner.temp }}/lang-debug-sdk" --output "${{ runner.temp }}/lang-native-dap-probes"
+
+      - name: Exercise production lang DAP native launch and source authority
+        env:
+          LLDB_DAP_EXECUTABLE: ${{ steps.lldb-distribution.outputs.adapter }}
+          LLDB_PYTHON_RUNTIME: ${{ steps.lldb-python.outputs.python-path }}
+          LLDB_PYTHON_DLL: ${{ steps.lldb-distribution.outputs.python-dll }}
+        run: python tools/check-native-dap.py --adapter lang --zero-based-uri --sdk "${{ runner.temp }}/lang-debug-sdk" --output "${{ runner.temp }}/lang-dap-native-probes"
+
+      - name: Exercise a live native VM mixed stack and failure cleanup
+        run: python tools/check-mixed-dap.py --sdk "${{ runner.temp }}/lang-debug-sdk" --output "${{ runner.temp }}/lang-mixed-dap-probes"
+
       - name: Upload native debugger evidence
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -127,5 +168,12 @@ jobs:
             ${{ runner.temp }}/lang-debug-probes/*.log
             ${{ runner.temp }}/lang-debug-probes/*.json
             ${{ runner.temp }}/lang-debug-probes/*.lang
+            ${{ runner.temp }}/lang-native-dap-probes/*.json
+            ${{ runner.temp }}/lang-native-dap-probes/*.lang
+            ${{ runner.temp }}/lang-dap-native-probes/*.json
+            ${{ runner.temp }}/lang-dap-native-probes/*.lang
+            ${{ runner.temp }}/lang-mixed-dap-probes/*.json
+            ${{ runner.temp }}/lang-mixed-dap-probes/*/*.json
+            ${{ runner.temp }}/lang-mixed-dap-probes/*/*.lang
           if-no-files-found: warn
           retention-days: 14

@@ -4,13 +4,13 @@
 
 [English](../milestone-4.md)
 
-更新: 2026-10-29 JST。M4 は active。Goal 開始は clean main／origin/main `af9988f`、remote `git@github.com:carimatics/lang.git`。PR #9–#17 は merge 済み。navigation PR #17 最終 head `bdc2547` は CI `40852934805`（18 成功、意図した文書専用 skip）と debugger `40852934802`（3/3）に成功し、`0293026` として merge。local main／origin/main ref は ahead／behind 0/0 で一致する。現在の `codex/m4-editor-checked-edits` は clean・upstream 同期済み `codex/m4-editor-navigation` head `bdc2547` から、一貫した C05–C07 用に作成した。既存 user 変更はなく、upstream は origin/codex/m4-editor-checked-edits、[PR #18](https://github.com/carimatics/lang/pull/18) は main を base とする。初期記録 base `carimatics/lang:codex/m4-editor-navigation` は #17 merge により `carimatics/lang:main` へ変更した。base ref 同期中も現在の検証 edit worktree を保持する。
+更新: 2026-10-30 JST。M4 は active。Goal 開始は clean main／origin/main `af9988f`、remote `git@github.com:carimatics/lang.git`。PR #9–#18 は merge 済み。editor PR #18 最終 head `5cdc422` は CI `40864753941`（18 成功、意図した文書専用 skip）と debugger `40864753946`（3/3）に成功し、`0a15fb5` として merge。local main／origin/main ref は ahead／behind 0/0 で一致する。現在の `codex/m4-debug-adapter` は clean・upstream 同期済み `codex/m4-editor-checked-edits` head `5cdc422` から、一貫した D01–D05 用に作成した。既存 user 変更はなく、upstream は `origin/codex/m4-debug-adapter`、main 宛 [draft PR #19](https://github.com/carimatics/lang/pull/19)。D01 head `8421298` は CI `40874260252`（18 成功、意図した文書専用 skip）と debugger `40874260229`（3/3）に成功し、D02 head `ced8e56` は push 済みで、CI `40879596677`（18 成功、意図した文書専用 skip）と debugger `40879596614`（3/3）に成功。merge は未実施。初期記録 base `carimatics/lang:codex/m4-editor-checked-edits` は #18 merge により `carimatics/lang:main` へ変更した。base 同期中も DAP 作業を保持した。
 
-**21 done · 1 doing · 18 todo · 54 remaining pt**
+**28 done · 1 doing · 13 todo · 39 remaining pt**
 
-C07 実行 checkpoint、2026-10-29 20:18 JST: 重点 57 件が成功。独立した上限付き stdio consumer が wire frame、元 localhost URI／UTF-16／CRLF、公開 navigation／completion／token、古い二 file rename の client 側全体拒否、version 付き rename／fix／整形の適用、監視 metadata の回復、dependency close／reopen、workspace 外拒否を検証した。server は source／lock／artifact を変更せず、その後 client が buffer を保存して実 package run が 42 を返した。fmt、警告なし全 Clippy、source 固定の全 baseline（**166 suite／2,459 成功／0 失敗**）と doc も成功。G5／G6 完了前に最新 head 両 host CI が残る。C07 code 証拠は `6d16e93` で、現在は D01 が doing。見積追加はない。C06 code 証拠は `503912f`（166 suite／2,458 test、fmt／Clippy／doc）で、PR #18 は draft に保つ。
+E01 の最終実行 checkpoint: 2026-10-30 04:14 JSTのexact-SDK単独実験で、通常frontend／lower／verify経路によりhelloをcompileし、入力を含むfrontend 2.684 ms、lower／verify 0.212 msを観測。単一の実行観測であり性能比較ではない。E01の残る受入は上限付きreport schema採択、package対応CLIのphase表示、重点検証。D05 source `cf5e27f`はfmt／全警告エラーClippy／169 suite・2,477 test／doc／fuzz Clippy、全体CI `40937041512`（18成功、意図したdoc専用skip）、native `40937041276`（3/3）に成功。native restartと独立mixed／lifecycle／不正入力12 caseが両hostで成功し、G7を検証済み。PR #19の最終文書head CI／mergeは引き続き必要。
 
-**次: M4-D01 — DAP launch／control／stack／source 契約の採択と VM source breakpoint 停止（doing、3 pt）。** C07 source `6d16e93` は重点 57 件、fmt／Clippy／doc、全 baseline（166 suite／2,459 test）に成功し、独立 stdio edit と client 保存後に 42 を返す実行も検証した。最終 2 pt を消化し、追加 +11、消化 60、残り 54 pt。C01–C07 の実装 delivery は全て done で、G5／G6 は PR #18 最新 head の両 host CI／merge 待ち。D01 は既存 source 契約と最小 VM debugger 実験から始め、広い adapter 設計の前に実行する。一貫した D01–D05 branch を記録済み editor head から作成し、依存／base を記録する。review 済み 3 pt を保持し、見積追加はない。
+**次: M4-E01 — 上限付きcompiler phase report（doing、3 pt）。** D05は`cf5e27f`で完了、追加なしで最終3 ptを消化。追加+15、消化79、42 deliveryの残り39 pt。E01残タスクをreport／schema契約、既存package／frontend／portable compile経路の計測、実CLI fixture、上限／error reader試験へ再確認し3 ptを維持。E02–E04、署名install、最終journey／guideは引き続き必要。
 
 A04 source `cf6cf5c` は fmt、全 Clippy／doc、checked opt-level 1 全 test（**158 suite／2,384 成功／0 失敗**）、重点 75 test に成功。最終 head `75a2041` は [全 CI](https://github.com/carimatics/lang/actions/runs/40810065213)（全 19 job、18 成功、意図した文書専用 skip）と [debugger 実行](https://github.com/carimatics/lang/actions/runs/40810065278)（3/3）に成功した。[PR #13](https://github.com/carimatics/lang/pull/13) は `58527c2` として merge、main を fast-forward して clean・同期済み、ahead／behind 0/0。workspace branch 作成と現在の PR／upstream は上記に記録した。既存の user 変更はなかった。
 
@@ -30,7 +30,7 @@ A01 入力修正は Unix の nonblocking open と開いた handle の metadata �
 
 ## 終了 gate
 
-[roadmap](roadmap.md#milestone-4developer-toolchain)の元の採択 weight 63 pt を維持する。**検証済み 4/9 gate、23/63 gate weight（36.5%）。** 設計採択は実装 gate の完了を意味しない。P0／P1 はすべて scope 内に残し、延期はない。
+[roadmap](roadmap.md#milestone-4developer-toolchain)の元の採択 weight 63 pt を維持する。**検証済み 7/9 gate、47/63 gate weight（74.6%）。** 設計採択は実装 gate の完了を意味しない。P0／P1 はすべて scope 内に残し、延期はない。
 
 | Gate | 優先度 | 成果 | Weight | 状態 |
 | --- | --- | --- | ---: | --- |
@@ -38,9 +38,9 @@ A01 入力修正は Unix の nonblocking open と開いた handle の metadata �
 | G2 | P0 | 決定的依存解決、checksum、lock、offline replay | 8 | done |
 | G3 | P0 | package 対応 build／run／test と構造化診断 | 5 | done |
 | G4 | P0 | package／fmt／lint／doc の CLI 統合 | 5 | done |
-| G5 | P0 | LSP navigation／completion／semantic token | 8 | pending |
-| G6 | P0 | 安全な rename と code action | 8 | pending |
-| G7 | P0 | native／VM 混在 stack を持つ DAP adapter | 8 | pending |
+| G5 | P0 | LSP navigation／completion／semantic token | 8 | done |
+| G6 | P0 | 安全な rename と code action | 8 | done |
+| G7 | P0 | native／VM 混在 stack を持つ DAP adapter | 8 | done |
 | G8 | P1 | compile／runtime profile、allocation trace、rebuild 説明 | 8 | pending |
 | G9 | P0 | 署名付き install／update／channel tool と復旧 | 8 | pending |
 
@@ -71,12 +71,14 @@ A01 入力修正は Unix の nonblocking open と開いた handle の metadata �
 | M4-C05 | done | 0 | M4-C02 | G6 | 衝突／privacy 検査と version 付き atomic edit を持つ複数 file prepare／rename | 3cd27e2 |
 | M4-C06 | done | 0 | M4-C05 | G6 | 採択 code action が検証済み fix を生成し stale／曖昧 edit を拒否 | 503912f |
 | M4-C07 | done | 0 | M4-C04,M4-C06 | G5,G6 | editor package の end-to-end fixture と protocol／resource／refusal coverage | 6d16e93 |
-| M4-D01 | doing | 3 | M4-A06 | G7 | DAP launch／control／stack／source 契約採択、VM source breakpoint で停止 | — |
-| M4-D02 | todo | 3 | M4-D01 | G7 | pause／authority 上限付き VM stepping、frame、local、evaluation | — |
-| M4-D03 | todo | 3 | M4-D02 | G7 | 両 tier-1 host で native debugger launch と source breakpoint | — |
-| M4-D04 | todo | 3 | M4-D03 | G7 | native／VM 混在 stack fixture で call 順、span、失敗 cleanup 保持 | — |
-| M4-D05 | todo | 3 | M4-D04 | G7 | DAP disconnect／restart／cancel／不正 input と両 host session 証拠 | — |
-| M4-E01 | todo | 3 | M4-A06 | G8 | profile／trace schema 採択、上限付き compiler phase cost 出力 | — |
+| M4-D01 | done | 0 | M4-A06 | G7 | DAP launch／control／stack／source 契約採択、VM source breakpoint で停止 | `8421298` |
+| M4-D02 | done | 0 | M4-D01 | G7 | pause／authority 上限付き VM stepping、frame、local、evaluation | `ced8e56` |
+| M4-D03R | done | 0 | M4-D02 | G7 | Windows LLVM の対応 Python runtime を設定し実 native DAP breakpoint を証明 | `99a20de` |
+| M4-D03 | done | 0 | M4-D03R | G7 | 両 tier-1 host で native debugger launch と source breakpoint | `39473b1` |
+| M4-D04B | done | 0 | M4-D03 | G7 | 明示grant済みhost bridgeと元VMに結合する上限付きnative物理frame停止 | `67f62fa` |
+| M4-D04 | done | 0 | M4-D04B | G7 | native／VM 混在 stack fixture で call 順、span、失敗 cleanup 保持 | `759bae0` |
+| M4-D05 | done | 0 | M4-D04 | G7 | DAP disconnect／restart／cancel／不正 input と両 host session 証拠 | `cf5e27f` |
+| M4-E01 | doing | 3 | M4-A06 | G8 | profile／trace schema 採択、上限付き compiler phase cost 出力 | — |
 | M4-E02 | todo | 3 | M4-E01 | G8 | sampling／測定限界を明示する source 対応 VM／native runtime profile | — |
 | M4-E03 | todo | 3 | M4-E02 | G8 | 実 allocator counter と整合し buffer 上限を持つ allocation／retirement trace | — |
 | M4-E04 | todo | 3 | M4-E03 | G8 | rebuild 説明が source／dependency／target／toolchain input の変更を特定 | — |
@@ -97,9 +99,9 @@ A01 入力修正は Unix の nonblocking open と開いた handle の metadata �
 
 | Baseline remaining | Net added/re-estimated | Retired on completion | Remaining |
 | ---: | ---: | ---: | ---: |
-| 103 pt | +11 pt | −60 pt | 54 pt |
+| 103 pt | +15 pt | −79 pt | 39 pt |
 
-**103 + 11 − 60 = 54 pt**
+**103 + 15 − 79 = 39 pt**
 
 名前空間の前提監査、2026-10-29 JST: 既存 `ModuleGraph::root()` は常に `ModuleId(0)`。path provider だけでは依存ごとの package-root 名前空間や共有 dependency identity の安全な再利用を提供できない。元の A02 を、許可 graph（新規 A02R、3 pt）と名前空間／source 実行の統合（task list を見直した A02、残り 3 pt）へ分割する。純追加 +3 pt、全 37 delivery。A01 と A02R は前提二つとなるため、水平基盤を増やす前に A02 で次の source 実行 fixture を示す。この監査による gate 完了や延期はない。
 
@@ -145,11 +147,17 @@ A04B 完了: `9cf5f7c` が実 package 作成／dependency build／run、locked�
 
 ## C07 editor protocol 監査
 
-local 監査、2026-10-29 JST。remote 最新 head の確認は引き続き必要。
+両 host 終了確認、2026-10-29 JST: source `6d16e93`／最終 head `5cdc422` は全 baseline 166 suite／2,459 test、fmt／Clippy／doc、重点 57 件に成功。CI `40864753941` は 18 job 成功と意図した文書専用 skip、debugger `40864753946` は 3/3 成功。PR #18 は `0a15fb5` として merge し、local main／origin/main ref は 0/0 で同期済み。G5／G6 は done。
 
 - 権限／input lifetime: `tests/package_editor.rs` と package LSP admission fixture が frozen input、metadata／source 物理共有、元表示 alias、workspace 外と未許可 overlay を検証する。
 - semantic／protocol 境界: package LSP fixture が privacy／import／scope／field identity、不正 source、元 URI／version／UTF-16／CRLF、token 順序／refresh、件数／出力／変換 work 上限と部分成功なしの拒否を検証する。
 - edit 安全性: HIR／型全体の対応と独立した「型は有効だが binding が違う」証明 test に加え、具体 version、open file／transactional client guard、衝突／alias／ABI 拒否、古い閉 input、file 不変を確認する。整形／未読 binding action は formatter／linter を再利用し、initializer／代入を保持して曖昧・偽造 fix を拒否する。
 - 相互運用／実行: `tests/support/lsp_client.rs` は deadline と atomic version 検査を持ち、Content-Length frame と UTF-16 edit を独立に処理する。実 stdio package journey が両 action と複数 file rename、dependency close／reopen、監視 metadata の回復を適用し、client 保存後の source が 42 を返す。既存 standalone protocol／framing fixture も有効に保つ。
 
-この有限の監査は任意 client の atomicity、外部 writer の排除、性能 benchmark、fuzz coverage を主張しない。G5／G6 は最新 head 両 host CI と PR lifecycle 完了まで pending に保つ。
+この有限の監査は任意 client の atomicity、外部 writer の排除、性能 benchmark、fuzz coverage を主張しない。上記の最新 head 両 host CI と PR lifecycle により G5／G6 を完了する。
+
+Windows runtime 前提監査、2026-10-30 JST: LLVM 20.1.8 lldb-dap.exe は存在するが 0xc0000135 で終了し、liblldb.dll の import は python310.dll を要求する。対応 x64 Python 3.10 runtime と実 Windows breakpoint fixture 用に D03R（1 pt）を追加。D03 の残る SDK snapshot／source 権限／adapter 統合を再確認し 3 pt を保持、doing を D03R へ移す。純追加 +1、全 41 delivery、103 +12 −66 =49 pt。gate 完了は主張しない。
+
+Windows debugger 再見積監査、2026-10-30 JST: runtime と PDB 選択は実 breakpoint／caller／step／guest 終了を証明したが、LLVM 20.1.8 の adapter 終了異常が残る。公式安定版 LLVM 23.1.4（2026-10-20 公開）を SHA-256 固定で別配置し、実 runtime ABI と正常終了を検証する。残タスクを見直し D03R を 1→2 pt、純追加 +1。累積追加 +13、消化 66、103 +13 −66 =50 pt。終了 assertion や既存 LLVM の検査は弱めない。
+
+混在host前提監査、2026-10-30 JST: D04の残タスクを再確認し、明示host import grant／public binding API、元workerのscope付きwrapper、上限付き物理PC取得と生存VM対応、最初のmixed DAP停止が未実装と判明。実装前にD04B（2 pt）を追加しdoingへ移す。D04は両hostの実protocol／frame／failure cleanup受入に3 ptを保持する。純追加+2、累積追加+15、消化71、42 delivery、103+15−71=47 pt。D03の実native成功とG7完了は分け、gateは未完了のまま。

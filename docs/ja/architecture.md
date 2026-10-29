@@ -109,7 +109,17 @@ Source function/instruction rangeはmacOS DWARF/dSYMとWindows CodeView/PDBま�
 
 Read-only revision 1のdebug descriptorで、dispatch時にallocationせずownedの生存論理frame IDとsource spanを公開します。[両hostの実機検証](https://github.com/carimatics/lang/actions/runs/39427222132)で3段のframeと親のcall siteを確認しました。旧G18根拠だけではRFC 0012のこの要件を満たしていませんでした。
 
-この根拠ではsourceを残した手動のmatching-SDK debug linkを使っています。既定の`link-native`はdebugger sidecarを公開しません。Source variable location、論理continuation step、最適化後のstep、JIT debugger登録、VM/native混在stack、DAPは別作業です。
+この根拠ではsourceを残した手動のmatching-SDK debug linkを使っています。既定の`link-native`はdebugger sidecarを公開しません。Source variable location、論理continuation step、最適化後のstep、JIT debugger登録、VM/native混在stackは別作業です。
+
+[RFC 0040](rfcs/0040-bounded-debug-adapter-sessions.md) は上限付き stdio framing と許可済み不変 package snapshot を使う `lang dap` を追加します。Copy VM debugger は通常 interpreter を所有 worker に保持し、instruction の効果・課金前で停止して、元 control と caller span を保ちます。初期 source breakpoint、stack／source query、entry stop、continue、disconnect を実装し、Copy native launchは実装・両host検証済みで、混在stackはM4の進行中作業です。launch で host import は許可しません。
+
+VM adapter は source step-in／over／out と、上限付き read-only scope／variable／identifier・field・scalar 評価にも対応します。通常 lowering は検証 MIR や portable bytes を変更せず、target 非依存の local／register 環境を追加取得できます。初期化済み register の追跡は保持 debug frame だけで行い、caller は停止した call 点から検査します。query は元 worker で処理し、再開時に frame／variable reference を無効化します。実 native／混在 debug は引き続き必要です。
+
+native DAP backend は同じ package admission を使い、検証した private SDK／program／code／debug sidecar の owner を debugger 終了まで保持します。実 native package の意味 bytes と受理 program を比較し、検査済み source line breakpoint と実行 control だけを転送して、未受理の物理 frame source location を省きます。source 応答は取得済み bytes を保持します。native value inspectionはunavailableです。source 39473b1のproduction native DAPは両hostで成功し、source 759bae0はnative-debug CIの3環境で生存中の物理／論理frame対応とfailure cleanupを証明します。
+
+信頼済みRust embeddingが混在native importを明示登録し、既定CLIはgrantしません。協調native pauseは元VMとcallbackを同じworkerに保持し、上限付き完全物理PC suffixを照合して、native prefixと元VM callerの順に表示します。Restartは旧targetを解放して明示launch入力を再captureします。異なるtarget reference blockで旧thread／source／frame／variable IDによる置換targetへのアクセスを防ぎます。Terminate／disconnectは元interruption／shutdown経路を使い、terminatedは一度だけ通知します。DAP cancelは完了済み／未知の要求の取消に応答し、実行を停止しません。同期準備中はqueueされた取消を処理できません。任意の信頼済みcallbackは協調的です。有限上限とlifecycle契約はRFC 0040を参照してください。
+
+実験段階のembedded mixed bridgeは明示的な信頼済みRust host bindingを必要とし、default CLIはimportを許可しません。元VMのHostCallで内部停止し、source frameを保持して同じworkerで登録callbackへ入ります。scope付き物理baselineと生存PCの完全一致suffixで、symbol名から推測せずnative prefixを確立します。協調的pauseから渡すのはowned物理／source frame dataだけで、借用中Machineはthreadを渡りません。callback return、割込み、scope退役で観測を失効させます。native pauseのvalue／stepはunavailableとし、元VMのcontrol・結果・effectを実行契約に保ちます。D04B bridge検証とD04の両host／failure根拠は進行中です。
 
 [M2 source/Rust/C測定](benchmarks.md)は名前付きの不変revisionに結び付き、大きな性能差を示しています。測定完了の根拠であり、native同等性能や速度保証ではありません。今後の最適化判断にはこのworkloadを使い、過去のscalar microbenchmarkでsource programの費用を代用しません。
 
@@ -151,7 +161,7 @@ M4 は 2026-10-29 JST に開始しました。[RFC 0034](rfcs/0034-package-works
 
 `package::source::analyze_test` は固定 binding inventory から宣言 test を選択します。その root は選択 package の直接 edge と、同 package を指す `_package` を持ち、元 package-root 名前空間、nominal identity、可視性、source span を保持します。別 test root は module 上限に算入し、package entry 自体が test なら同じ root を再利用します。`lang test` は選択 package の test だけを manifest 順に、同じ検証済み artifact／VM 経路と entry ごとに初期化する control で実行します。test 0 件でも main を要求せず graph を型検査します。最初の source／runtime／非 0 失敗では旧 lock／build／test output を保持します。保持 artifact と完全一致 lock copy は 64 MiB に制限し、`target/lang/<lock-sha256>/test/{inputs.lock,tests/<manifest-index>.lbc}` を公開します。test は package／test root 間の公開 nominal type、private UTF-8 span、入力削除／project 移動後の固定解析、isolated service を含む全 VM profile、test ごとの fuel、test 0 件の library、batch-output 拒否を検証します。test 名前空間による artifact／lock schema 変更はありません。
 
-workspace 選択、再現可能 native executable、package／archive／fmt／lint／doc tooling は実装し、両 host で検証済みです。package editor navigation は [live board](milestone-4.md) で進行中で、editor protocol 全体の監査、DAP、profiling、署名 installer は引き続き必要です。registry、WebAssembly component、追加 backend、self-hosting、別 frontend は後続 milestone で、実装済みではありません。async REPL、detached task、非同期 foreign callback stack も現在の実行範囲外です。
+workspace 選択、再現可能 native executable、package／archive／fmt／lint／doc tooling、package editor navigation／検証 edit は実装し、独立 editor protocol 監査を含め両 host で検証済みです。DAP は [live board](milestone-4.md) で進行中で、native／混在 debug 全体、profiling、署名 installer は引き続き必要です。registry、WebAssembly component、追加 backend、self-hosting、別 frontend は後続 milestone で、実装済みではありません。async REPL、detached task、非同期 foreign callback stack も現在の実行範囲外です。
 
 ## 検証と保守
 

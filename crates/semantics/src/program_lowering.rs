@@ -13,6 +13,9 @@ use lang_hir::{
 };
 use lang_mir::unit as m;
 
+mod debug;
+pub use debug::{DebugBinding, DebugFunction, DebugInfo, DebugLocal, DebugLocation};
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum LowerError {
     Source(SourceError),
@@ -106,6 +109,7 @@ struct Context<'a> {
     registers: usize,
     blocks: usize,
     instructions: usize,
+    debug: Option<DebugInfo>,
 }
 impl Context<'_> {
     fn span(&mut self, span: Span) -> Result<Option<m::Span>> {
@@ -152,6 +156,27 @@ fn lower_unit(
     limits: m::Limits,
     select_entry: bool,
 ) -> Result<m::VerifiedUnit> {
+    lower_unit_debug(program, sources, limits, select_entry, false).map(|(unit, _)| unit)
+}
+
+/// Capture source bindings at proven lowering locations without changing MIR
+/// or any serialized artifact. Metadata uses the same compiler budget and an
+/// additional bounded debug index; ordinary lowering does not capture it.
+pub fn lower_debug(
+    program: &TypedProgram,
+    sources: &SourceMap,
+    limits: m::Limits,
+) -> Result<(m::VerifiedUnit, DebugInfo)> {
+    lower_unit_debug(program, sources, limits, true, true)
+}
+
+fn lower_unit_debug(
+    program: &TypedProgram,
+    sources: &SourceMap,
+    limits: m::Limits,
+    select_entry: bool,
+    capture: bool,
+) -> Result<(m::VerifiedUnit, DebugInfo)> {
     let input = program.source();
     if let Some(span) = input
         .imports
@@ -176,6 +201,7 @@ fn lower_unit(
         registers: 0,
         blocks: 0,
         instructions: 0,
+        debug: capture.then(DebugInfo::default),
     };
     cap(
         input.definitions.len(),
@@ -286,7 +312,8 @@ fn lower_unit(
         unit.functions
             .push(Lowerer::run(&mut c, function, &program.functions()[i])?);
     }
-    Ok(unit.verify_with_budget(&mut c.budget)?)
+    let unit = unit.verify_with_budget(&mut c.budget)?;
+    Ok((unit, c.debug.unwrap_or_default()))
 }
 
 type Environment = Vec<Option<m::Register>>;
@@ -306,6 +333,7 @@ struct Lowerer<'a, 'b> {
     facts: &'a FunctionFacts,
     registers: Vec<m::Type>,
     blocks: Vec<Block>,
+    debug: Option<DebugFunction>,
 }
 impl<'a> Lowerer<'a, '_> {
     fn run(
@@ -313,12 +341,14 @@ impl<'a> Lowerer<'a, '_> {
         function: &'a r::Function,
         facts: &'a FunctionFacts,
     ) -> Result<m::Function> {
+        let debug = DebugFunction::capture(c, function)?;
         let mut l = Lowerer {
             context: c,
             function,
             facts,
             registers: Vec::new(),
             blocks: Vec::new(),
+            debug,
         };
         l.context.budget.charge(function.locals.len())?;
         let mut environment = l.context.budget.vector(function.locals.len())?;
@@ -334,6 +364,13 @@ impl<'a> Lowerer<'a, '_> {
             .is_some()
         {
             return Err(LowerError::MissingReturn);
+        }
+        if let Some(debug) = l.debug.take() {
+            push(
+                &mut l.context.budget,
+                &mut l.context.debug.as_mut().unwrap().functions,
+                debug,
+            )?;
         }
         let mut blocks = l.context.budget.vector(l.blocks.len())?;
         for b in l.blocks {
@@ -382,6 +419,10 @@ impl<'a> Lowerer<'a, '_> {
         )?;
         let block = m::BlockId(id(self.blocks.len())?);
         push(&mut self.context.budget, &mut self.blocks, Block::default())?;
+        if let Some(debug) = &mut self.debug {
+            self.context.debug.as_mut().unwrap().charge_block()?;
+            push(&mut self.context.budget, &mut debug.blocks, Vec::new())?;
+        }
         self.context.blocks += 1;
         Ok(block)
     }
@@ -432,6 +473,7 @@ impl<'a> Lowerer<'a, '_> {
         exit: &Exit,
         depth: usize,
     ) -> Result<m::Register> {
+        self.remember(exit)?;
         self.depth(depth)?;
         let source = &self.function.expressions[expression.0];
         let span = source.span;
@@ -593,6 +635,7 @@ impl<'a> Lowerer<'a, '_> {
             let Some(mut exit) = current else {
                 break;
             };
+            self.remember(&exit)?;
             self.context.budget.charge(1)?;
             current = match &statement.kind {
                 r::StatementKind::PlaceAssign { .. }

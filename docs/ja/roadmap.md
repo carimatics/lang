@@ -18,9 +18,9 @@ M2は完了済みです。18/18ゲート、過去のゲート重み113/113です
 
 ## M3完了後の作業
 
-M3 は完了済みです。M4 の [作業ボード](milestone-4.md) は 40 delivery、**21 done · 1 doing · 18 todo · 54 remaining pt**。G1–G4 を検証済みです。tooling source `4f62c78`／最終 head `76c7c9a` は全 baseline（164 suite／2,425 test）、全 CI 19 job（18 成功、意図した文書専用 skip）、debugger 3/3 と両 host の archive／fmt／lint／doc fixture に成功し、PR #16 は `49a0fe8` として merge、main は clean・同期済みです。C01 source `cd37106` が許可 snapshot／navigation を完了し、全 baseline（165 suite／2,429 test）が成功。C02 source `569260b` が package LSP definition／references／refresh を接続し、166 suite／2,440 test に成功。C03 source `0612c45` が completion を追加し、166 suite／2,445 test に成功。C04 source `be05690` が semantic token／refresh を追加し、166 suite／2,447 test に成功。C05 source `3cd27e2` が検証 rename を追加し、166 suite／2,454 test に成功。C06 source `503912f` が検証 code action を追加し、166 suite／2,458 test に成功。C07 source `6d16e93` が local protocol 監査を完了し、166 suite／2,459 test と独立した保存 source の 42 実行に成功。editor delivery は全 done で G5／G6 は最終 head CI／merge 待ち。D01 DAP は 3 pt で doing。PR #17 は CI 19 job（18 成功、意図した skip）と debugger 3/3 の後 `0293026` として merge し、現在 PR #18 は main を base とする。追加 +11、消化 60、**103 + 11 − 60 = 54**。editor、DAP、profiling、installer の残 gate は全て維持し、完了済み M2／M3 を再開せず、M5 は将来作業です。
+M3は完了済みです。M4の[作業ボード](milestone-4.md)は42 delivery、**28 done · 1 doing · 13 todo · 39 remaining pt**です。G1–G7を検証済みです。DAP source `cf5e27f`が保持VMのstep／inspection、native source debug、実mixed native／VM pause、restart／terminationのID分離を実装し、完全local baseline、全体CI `40937041512`、native-debug `40937041276`の3環境に成功しました。E01 compiler phase profilingがdoingで、runtime／allocation profiling（G8）、署名install（G9）、最終journey／機能guideは引き続き必要です。
 
-PR #9–#15 は merge 済みです。native PR #15 は `a454e6d` として merge、local main を fast-forward し origin/main と ahead／behind 0/0 を確認しました。現在の `codex/m4-package-tooling` はその main から作成し、agent 所有の checkpoint 文書編集二つを引き継ぎました。PR base は `carimatics/lang:main`、upstream は `origin/codex/m4-package-tooling`、[PR #16](https://github.com/carimatics/lang/pull/16) です。現在の証拠と残る条件は board に記録しています。
+PR #9–#18 は merge 済みです。local main／origin/main ref は `0a15fb5` で一致し、ahead／behind 0/0。現在の `codex/m4-debug-adapter` は clean・upstream 同期済み `codex/m4-editor-checked-edits` head `5cdc422` から作成し、既存 user 変更はありません。記録 PR base は #18 merge 後に `carimatics/lang:main` へ移行しました。upstream は `origin/codex/m4-debug-adapter`、[draft PR #19](https://github.com/carimatics/lang/pull/19) の D01 両 host CI／debugger は成功し、現在の証拠と残る条件は board に記録しています。
 
 保守やレビューのために完了済みM2ボードを拡大しません。修正はscopeを限定したchecklistに記録し、code、文書、検証を同じ変更にまとめます。新たな言語／ABI／形式の選択には引き続き明示的RFC判断が必要ですが、実験段階の委任により個別owner承認待ちは不要です。
 
@@ -42,11 +42,11 @@ PR #9–#15 は merge 済みです。native PR #15 は `a454e6d` として merge
 | 1 — frontendとbytecodeのvertical slice（完了） | 89 pt | 89 pt | **100.0%** |
 | 2 — ownershipとnative AOT | 113 pt | 113 pt | 100.0% |
 | 3 — concurrencyとembedding（完了） | 96 pt | 96 pt | 100.0% |
-| 4 — developer toolchain | 23 pt | 63 pt | 36.5% |
+| 4 — developer toolchain | 47 pt | 63 pt | 74.6% |
 | 5 — ecosystemとcompatibility | 0 pt | 65 pt | 0.0% |
 | 6 — セルフホスティング | 0 pt | 74 pt | 0.0% |
 | 7 — 追加frontend | 0 pt | 55 pt | 0.0% |
-| **全体** | **530 pt** | **764 pt** | **69.4%** |
+| **全体** | **554 pt** | **764 pt** | **72.5%** |
 
 ## Milestone 0：設計baseline
 
@@ -228,7 +228,7 @@ Exit：Native hostがuser scriptをloadし、typed APIを公開し、scriptをca
 
 ## Milestone 4：developer toolchain
 
-**進捗：23 / 63 pt（36.5%）。**
+**進捗：47 / 63 pt（74.6%）。**
 
 有効化監査（2026-10-29 JST）: 現在の task、実行 checkpoint、積上げ baseline 103 pt は [M4 board](milestone-4.md)で管理します。[RFC 0034](rfcs/0034-package-workspaces-and-cli-diagnostics.md)が manifest／diagnostic と最初の local package 契約を採択しました。厳密な検査、許可 local dependency の実行、lock／offline replay、create／build／run／test fixture の順に進めてから広範な tooling へ進みます。installer は M5 registry より先に toolchain binary を配布するため、trust root、署名 release metadata 検証、atomic update／failure recovery の採択設計を download／install 前に必要とします。M5 signing は registry package 公開／provenance を対象とします。元の九つの gate と weight を維持し、63 pt を残作業予測には使いません。
 
@@ -238,9 +238,9 @@ Exit：Native hostがuser scriptをloadし、typed APIを公開し、scriptをca
 - [x] **P0 — Deterministic dependency resolution、lockfile、checksum、offline modeを実装する。** — 8 pt
 - [x] **P0 — 既存の`lang run` frontendをpackage対応build／run／test orchestrationへ拡張し、受理済みstructured diagnostic出力を提供する。** — 5 pt
 - [x] **P0 — Package、fmt、lint、doc commandをCLIへ統合する。** — 5 pt
-- [ ] **P0 — LSP navigation、completion、semantic tokenを実装する。** — 8 pt
-- [ ] **P0 — 安全なrename／code actionを実装する。** — 8 pt
-- [ ] **P0 — Mixed native／VM stackを持つDAP adapterを実装する。** — 8 pt
+- [x] **P0 — LSP navigation、completion、semantic tokenを実装する。** — 8 pt
+- [x] **P0 — 安全なrename／code actionを実装する。** — 8 pt
+- [x] **P0 — Mixed native／VM stackを持つDAP adapterを実装する。** — 8 pt
 - [ ] **P1 — Compile-time／runtime profiling、allocation trace、rebuild explanationを追加する。** — 8 pt
 - [ ] **P0 — `rustup` と同じ役割を持つinstall／update／channel toolを構築する。** — 8 pt
 

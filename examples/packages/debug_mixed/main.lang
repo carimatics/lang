@@ -1,0 +1,9 @@
+extern fn native_bridge(n:i64)->i64;
+
+fn child(n:i64)->i64 {
+    return native_bridge(n)+1;
+}
+
+fn main()->i64 {
+    return child(40);
+}
