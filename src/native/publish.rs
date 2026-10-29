@@ -1,7 +1,7 @@
 //! Atomic no-replace directory publication on the two tier-1 build hosts.
 use std::{io, path::Path};
 #[cfg(target_os = "macos")]
-pub(super) fn rename(from: &Path, to: &Path) -> io::Result<()> {
+pub(crate) fn rename(from: &Path, to: &Path) -> io::Result<()> {
     use std::{ffi::CString, os::unix::ffi::OsStrExt};
     unsafe extern "C" {
         fn renamex_np(
@@ -22,7 +22,7 @@ pub(super) fn rename(from: &Path, to: &Path) -> io::Result<()> {
     }
 }
 #[cfg(target_os = "windows")]
-pub(super) fn rename(from: &Path, to: &Path) -> io::Result<()> {
+pub(crate) fn rename(from: &Path, to: &Path) -> io::Result<()> {
     use std::os::windows::ffi::OsStrExt;
     let path = |p: &Path| -> io::Result<Vec<u16>> {
         let mut s: Vec<_> = p.as_os_str().encode_wide().collect();
@@ -49,6 +49,6 @@ pub(super) fn rename(from: &Path, to: &Path) -> io::Result<()> {
     }
 }
 #[cfg(not(any(target_os = "macos", target_os = "windows")))]
-pub(super) fn rename(_: &Path, _: &Path) -> io::Result<()> {
+pub(crate) fn rename(_: &Path, _: &Path) -> io::Result<()> {
     Err(io::ErrorKind::Unsupported.into())
 }

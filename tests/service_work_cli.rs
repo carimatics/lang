@@ -209,12 +209,11 @@ fn option_validation_and_zero_work_copy_programs_keep_cli_exit_contracts() {
     }
     let help = cli(["--help".into()], None);
     assert!(help.status.success());
+    let help = String::from_utf8(help.stdout).unwrap();
+    assert!(help.contains("lang run [--manifest-path FILE]"));
     assert_eq!(
-        String::from_utf8(help.stdout)
-            .unwrap()
-            .matches("[--service-work N]")
-            .count(),
-        3
+        help.matches("[--service-work N]").count(),
+        4 // Legacy run/native/REPL and package run.
     );
 }
 

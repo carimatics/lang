@@ -553,7 +553,6 @@ fn cli_never_binds_declared_host_imports_implicitly() {
 fn invalid_usage_exits_two_and_help_succeeds() {
     for args in [
         vec![],
-        vec!["run"],
         vec!["run", "--unknown"],
         vec!["run", "--fuel", "bad", "file.lang"],
         vec!["run", "--fuel", "1", "--fuel", "2", "file.lang"],
@@ -565,6 +564,19 @@ fn invalid_usage_exits_two_and_help_succeeds() {
         assert!(stderr(&output).contains("usage:"));
         assert!(output.stdout.is_empty());
     }
+    // RFC 0034 gives a source-less run package semantics. Missing Lang.json
+    // is an input failure, while every malformed explicit-file form above
+    // remains a usage error.
+    let files = Files::new("fn main()->i64{return 0;}");
+    let output = Command::new(env!("CARGO_BIN_EXE_lang"))
+        .arg("run")
+        .current_dir(&files.0)
+        .output()
+        .unwrap();
+    assert_eq!(output.status.code(), Some(1));
+    assert!(output.stdout.is_empty());
+    assert!(stderr(&output).contains("PKG0005"));
+    assert!(!stderr(&output).contains("usage:"));
     let output = cli([OsString::from("--help")]);
     assert_eq!(output.status.code(), Some(0));
     assert!(output.stdout.starts_with(b"usage:"));
