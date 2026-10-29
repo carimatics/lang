@@ -4,13 +4,13 @@
 
 [English](../milestone-4.md)
 
-更新: 2026-10-29 JST。M4 は active。Goal 開始は clean main／origin/main `af9988f`、remote `git@github.com:carimatics/lang.git`。PR #9–#17 は merge 済み。navigation PR #17 最終 head `bdc2547` は CI `40852934805`（18 成功、意図した文書専用 skip）と debugger `40852934802`（3/3）に成功し、`0293026` として merge。local main／origin/main ref は ahead／behind 0/0 で一致する。現在の `codex/m4-editor-checked-edits` は clean・upstream 同期済み `codex/m4-editor-navigation` head `bdc2547` から、一貫した C05–C07 用に作成した。既存 user 変更はなく、upstream は origin/codex/m4-editor-checked-edits、[PR #18](https://github.com/carimatics/lang/pull/18) は main を base とする。初期記録 base `carimatics/lang:codex/m4-editor-navigation` は #17 merge により `carimatics/lang:main` へ変更した。base ref 同期中も現在の検証 edit worktree を保持する。
+更新: 2026-10-29 JST。M4 は active。Goal 開始は clean main／origin/main `af9988f`、remote `git@github.com:carimatics/lang.git`。PR #9–#18 は merge 済み。editor PR #18 最終 head `5cdc422` は CI `40864753941`（18 成功、意図した文書専用 skip）と debugger `40864753946`（3/3）に成功し、`0a15fb5` として merge。local main／origin/main ref は ahead／behind 0/0 で一致する。現在の `codex/m4-debug-adapter` は clean・upstream 同期済み `codex/m4-editor-checked-edits` head `5cdc422` から、一貫した D01–D05 用に作成した。既存 user 変更はなく、upstream／PR は未作成。初期記録 base `carimatics/lang:codex/m4-editor-checked-edits` は #18 merge により `carimatics/lang:main` へ変更した。base 同期中も DAP 作業を保持した。
 
 **21 done · 1 doing · 18 todo · 54 remaining pt**
 
-C07 実行 checkpoint、2026-10-29 20:18 JST: 重点 57 件が成功。独立した上限付き stdio consumer が wire frame、元 localhost URI／UTF-16／CRLF、公開 navigation／completion／token、古い二 file rename の client 側全体拒否、version 付き rename／fix／整形の適用、監視 metadata の回復、dependency close／reopen、workspace 外拒否を検証した。server は source／lock／artifact を変更せず、その後 client が buffer を保存して実 package run が 42 を返した。fmt、警告なし全 Clippy、source 固定の全 baseline（**166 suite／2,459 成功／0 失敗**）と doc も成功。G5／G6 完了前に最新 head 両 host CI が残る。C07 code 証拠は `6d16e93` で、現在は D01 が doing。見積追加はない。C06 code 証拠は `503912f`（166 suite／2,458 test、fmt／Clippy／doc）で、PR #18 は draft に保つ。
+D01 実行 checkpoint、2026-10-29 21:32 JST: 最終候補は fmt、警告なし全 Clippy、checked opt-level 1 全 baseline（167 suite／2,464 成功／0 失敗）、doc に成功。debugger 5 test は独立 stdio configuration／entry stop、実 package source breakpoint、入れ子の元 caller、disk 変更後の固定 UTF-16／CRLF source、累積 usage／元 callback 一回、interruption 優先を検証する。不正／過大 breakpoint 置換でも元設定を保持し、逸脱 manifest、未許可 source、native mode、未許可 import を拒否する。local URI identity は disk 再読込なしで localhost／Windows disk prefix に対応し、launch は worker 準備を待つ。残る条件は code commit／evidence と両 host CI。code checkpoint 記録までは D01 を 3 pt doing に保つ。見積追加はなく G7 は pending。
 
-**次: M4-D01 — DAP launch／control／stack／source 契約の採択と VM source breakpoint 停止（doing、3 pt）。** C07 source `6d16e93` は重点 57 件、fmt／Clippy／doc、全 baseline（166 suite／2,459 test）に成功し、独立 stdio edit と client 保存後に 42 を返す実行も検証した。最終 2 pt を消化し、追加 +11、消化 60、残り 54 pt。C01–C07 の実装 delivery は全て done で、G5／G6 は PR #18 最新 head の両 host CI／merge 待ち。D01 は既存 source 契約と最小 VM debugger 実験から始め、広い adapter 設計の前に実行する。一貫した D01–D05 branch を記録済み editor head から作成し、依存／base を記録する。review 済み 3 pt を保持し、見積追加はない。
+**次: M4-D01 — DAP launch／control／stack／source 契約の採択と VM source breakpoint 停止（doing、3 pt）。** C07 source `6d16e93` は重点 57 件、fmt／Clippy／doc、全 baseline（166 suite／2,459 test）に成功し、独立 stdio edit と client 保存後に 42 を返す実行も検証した。最終 2 pt を消化し、追加 +11、消化 60、残り 54 pt。C01–C07 の実装 delivery は全て done で、editor 最終 head `5cdc422` が両 host CI／debugger に成功し、PR #18 は `0a15fb5` として merge したため G5／G6 は検証済み。D01 は既存 source 契約と最小 VM debugger 実験から始め、広い adapter 設計の前に実行する。一貫した D01–D05 branch と main への base 遷移は上記に記録した。review 済み 3 pt を保持し、見積追加はない。
 
 A04 source `cf6cf5c` は fmt、全 Clippy／doc、checked opt-level 1 全 test（**158 suite／2,384 成功／0 失敗**）、重点 75 test に成功。最終 head `75a2041` は [全 CI](https://github.com/carimatics/lang/actions/runs/40810065213)（全 19 job、18 成功、意図した文書専用 skip）と [debugger 実行](https://github.com/carimatics/lang/actions/runs/40810065278)（3/3）に成功した。[PR #13](https://github.com/carimatics/lang/pull/13) は `58527c2` として merge、main を fast-forward して clean・同期済み、ahead／behind 0/0。workspace branch 作成と現在の PR／upstream は上記に記録した。既存の user 変更はなかった。
 
@@ -30,7 +30,7 @@ A01 入力修正は Unix の nonblocking open と開いた handle の metadata �
 
 ## 終了 gate
 
-[roadmap](roadmap.md#milestone-4developer-toolchain)の元の採択 weight 63 pt を維持する。**検証済み 4/9 gate、23/63 gate weight（36.5%）。** 設計採択は実装 gate の完了を意味しない。P0／P1 はすべて scope 内に残し、延期はない。
+[roadmap](roadmap.md#milestone-4developer-toolchain)の元の採択 weight 63 pt を維持する。**検証済み 6/9 gate、39/63 gate weight（61.9%）。** 設計採択は実装 gate の完了を意味しない。P0／P1 はすべて scope 内に残し、延期はない。
 
 | Gate | 優先度 | 成果 | Weight | 状態 |
 | --- | --- | --- | ---: | --- |
@@ -38,8 +38,8 @@ A01 入力修正は Unix の nonblocking open と開いた handle の metadata �
 | G2 | P0 | 決定的依存解決、checksum、lock、offline replay | 8 | done |
 | G3 | P0 | package 対応 build／run／test と構造化診断 | 5 | done |
 | G4 | P0 | package／fmt／lint／doc の CLI 統合 | 5 | done |
-| G5 | P0 | LSP navigation／completion／semantic token | 8 | pending |
-| G6 | P0 | 安全な rename と code action | 8 | pending |
+| G5 | P0 | LSP navigation／completion／semantic token | 8 | done |
+| G6 | P0 | 安全な rename と code action | 8 | done |
 | G7 | P0 | native／VM 混在 stack を持つ DAP adapter | 8 | pending |
 | G8 | P1 | compile／runtime profile、allocation trace、rebuild 説明 | 8 | pending |
 | G9 | P0 | 署名付き install／update／channel tool と復旧 | 8 | pending |
@@ -145,11 +145,11 @@ A04B 完了: `9cf5f7c` が実 package 作成／dependency build／run、locked�
 
 ## C07 editor protocol 監査
 
-local 監査、2026-10-29 JST。remote 最新 head の確認は引き続き必要。
+両 host 終了確認、2026-10-29 JST: source `6d16e93`／最終 head `5cdc422` は全 baseline 166 suite／2,459 test、fmt／Clippy／doc、重点 57 件に成功。CI `40864753941` は 18 job 成功と意図した文書専用 skip、debugger `40864753946` は 3/3 成功。PR #18 は `0a15fb5` として merge し、local main／origin/main ref は 0/0 で同期済み。G5／G6 は done。
 
 - 権限／input lifetime: `tests/package_editor.rs` と package LSP admission fixture が frozen input、metadata／source 物理共有、元表示 alias、workspace 外と未許可 overlay を検証する。
 - semantic／protocol 境界: package LSP fixture が privacy／import／scope／field identity、不正 source、元 URI／version／UTF-16／CRLF、token 順序／refresh、件数／出力／変換 work 上限と部分成功なしの拒否を検証する。
 - edit 安全性: HIR／型全体の対応と独立した「型は有効だが binding が違う」証明 test に加え、具体 version、open file／transactional client guard、衝突／alias／ABI 拒否、古い閉 input、file 不変を確認する。整形／未読 binding action は formatter／linter を再利用し、initializer／代入を保持して曖昧・偽造 fix を拒否する。
 - 相互運用／実行: `tests/support/lsp_client.rs` は deadline と atomic version 検査を持ち、Content-Length frame と UTF-16 edit を独立に処理する。実 stdio package journey が両 action と複数 file rename、dependency close／reopen、監視 metadata の回復を適用し、client 保存後の source が 42 を返す。既存 standalone protocol／framing fixture も有効に保つ。
 
-この有限の監査は任意 client の atomicity、外部 writer の排除、性能 benchmark、fuzz coverage を主張しない。G5／G6 は最新 head 両 host CI と PR lifecycle 完了まで pending に保つ。
+この有限の監査は任意 client の atomicity、外部 writer の排除、性能 benchmark、fuzz coverage を主張しない。上記の最新 head 両 host CI と PR lifecycle により G5／G6 を完了する。

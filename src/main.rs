@@ -12,7 +12,7 @@ use std::process::ExitCode;
 
 use lang::package::command::ExecutionOptions;
 
-const USAGE: &str = "usage: lang check [--source-root DIR] FILE\n       lang compile [--source-root DIR] --output ARTIFACT SOURCE\n       lang native [--source-root DIR] [--target TRIPLE] --output DIR SOURCE\n       lang link-native --sdk SDK --package DIR [--host HOST.rs [--object HOST.o ...]] --output EXE\n       lang run [--source-root DIR] [--fuel N] [--service-work N] [--host-calls N] [--frames N] [--cells N] FILE\n       lang run --artifact [--fuel N] [--service-work N] [--host-calls N] [--frames N] [--cells N] ARTIFACT\n       lang repl [--source-root DIR] [--fuel N] [--service-work N] [--host-calls N] [--frames N] [--cells N]\n       lang lsp\n       lang <left> <right>\n\nArtifact schemas: Copy/ownership/C 1-4; tasks/channels/services 5. Component artifacts require explicit host bindings.\n";
+const USAGE: &str = "usage: lang check [--source-root DIR] FILE\n       lang compile [--source-root DIR] --output ARTIFACT SOURCE\n       lang native [--source-root DIR] [--target TRIPLE] --output DIR SOURCE\n       lang link-native --sdk SDK --package DIR [--host HOST.rs [--object HOST.o ...]] --output EXE\n       lang run [--source-root DIR] [--fuel N] [--service-work N] [--host-calls N] [--frames N] [--cells N] FILE\n       lang run --artifact [--fuel N] [--service-work N] [--host-calls N] [--frames N] [--cells N] ARTIFACT\n       lang repl [--source-root DIR] [--fuel N] [--service-work N] [--host-calls N] [--frames N] [--cells N]\n       lang lsp\n       lang dap\n       lang <left> <right>\n\nArtifact schemas: Copy/ownership/C 1-4; tasks/channels/services 5. Component artifacts require explicit host bindings.\n";
 enum Command {
     Check {
         file: PathBuf,
@@ -44,6 +44,7 @@ enum Command {
         limits: ExecutionOptions,
     },
     Lsp,
+    Dap,
     Prototype(i64, i64),
     Help,
 }
@@ -82,6 +83,14 @@ fn parse(arguments: Vec<OsString>) -> Result<Command, CliError> {
     };
     if first == "--help" || first == "-h" {
         return Ok(Command::Help);
+    }
+    if first == "dap" {
+        if arguments.len() != 1 {
+            return Err(usage(
+                "dap accepts no arguments; launch supplies the package root",
+            ));
+        }
+        return Ok(Command::Dap);
     }
     if first == "lsp" {
         if arguments.len() != 1 {
@@ -355,6 +364,7 @@ fn run() -> Result<u8, CliError> {
             print!("{}", lang::package::command::USAGE);
             Ok(0)
         }
+        Command::Dap => lang::dap::serve_stdio().map_err(failure),
         Command::Lsp => lang::lsp::serve(
             &mut io::stdin().lock(),
             &mut io::stdout().lock(),

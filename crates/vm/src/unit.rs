@@ -282,6 +282,24 @@ pub fn execute(
     bindings: &HostBindings,
     control: Control<'_>,
 ) -> Result<Outcome, Failure> {
+    let mut machine = prepare(program, function, arguments, hosts, bindings, control)?;
+    match machine.run() {
+        Ok(value) => Ok(Outcome {
+            value,
+            usage: machine.usage,
+        }),
+        Err(reason) => Err(machine.failure(reason)),
+    }
+}
+
+fn prepare<'a>(
+    program: &'a Program,
+    function: m::FunctionId,
+    arguments: &[Value],
+    hosts: &HostFunctionRegistry,
+    bindings: &HostBindings,
+    control: Control<'a>,
+) -> Result<Machine<'a>, Failure> {
     let verified = program.verified();
     let f = verified
         .unit()
@@ -341,12 +359,107 @@ pub fn execute(
     machine
         .enter(frame)
         .map_err(|reason| machine.failure(reason))?;
-    match machine.run() {
-        Ok(value) => Ok(Outcome {
-            value,
-            usage: machine.usage,
-        }),
-        Err(reason) => Err(machine.failure(reason)),
+    Ok(machine)
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct DebugPoint {
+    pub function: m::FunctionId,
+    pub block: m::BlockId,
+    pub instruction: usize,
+    pub depth: usize,
+    pub span: Option<m::Span>,
+}
+#[derive(Debug)]
+pub enum DebugEvent {
+    Paused(DebugPoint),
+    Exited(Outcome),
+}
+#[derive(Debug)]
+pub enum DebugError {
+    Finished,
+    Execution(Failure),
+}
+impl Display for DebugError {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Finished => f.write_str("debug session is finished"),
+            Self::Execution(error) => Display::fmt(error, f),
+        }
+    }
+}
+impl Error for DebugError {}
+/// A retained Copy execution, confined to its original host/observer thread.
+pub struct DebugSession<'a> {
+    machine: Machine<'a>,
+    finished: bool,
+    thread: std::marker::PhantomData<std::rc::Rc<()>>,
+}
+impl<'a> DebugSession<'a> {
+    pub fn entry(
+        program: &'a Program,
+        hosts: &'a HostFunctionRegistry,
+        bindings: &'a HostBindings,
+        control: Control<'a>,
+    ) -> Result<Self, Failure> {
+        let entry = program
+            .verified()
+            .unit()
+            .entry
+            .ok_or_else(|| preflight_failure(Reason::MissingEntry))?;
+        Self::function(program, entry, &[], hosts, bindings, control)
+    }
+    pub fn function(
+        program: &'a Program,
+        function: m::FunctionId,
+        arguments: &[Value],
+        hosts: &'a HostFunctionRegistry,
+        bindings: &'a HostBindings,
+        control: Control<'a>,
+    ) -> Result<Self, Failure> {
+        Ok(Self {
+            machine: prepare(program, function, arguments, hosts, bindings, control)?,
+            finished: false,
+            thread: std::marker::PhantomData,
+        })
+    }
+    pub fn usage(&self) -> Usage {
+        self.machine.usage
+    }
+    pub fn stack(&self) -> impl Iterator<Item = StackFrame> + '_ {
+        let mut span = self.machine.location().and_then(|p| p.span);
+        self.machine.frames.iter().rev().map(move |frame| {
+            let value = StackFrame {
+                function: frame.function,
+                span,
+            };
+            span = frame.call_site;
+            value
+        })
+    }
+    pub fn resume_until(
+        &mut self,
+        stop: impl FnMut(&DebugPoint) -> bool,
+    ) -> Result<DebugEvent, DebugError> {
+        if self.finished {
+            return Err(DebugError::Finished);
+        }
+        match self.machine.run_until(stop) {
+            Ok(None) => Ok(DebugEvent::Paused(
+                self.machine.location().expect("paused frame"),
+            )),
+            Ok(Some(value)) => {
+                self.finished = true;
+                Ok(DebugEvent::Exited(Outcome {
+                    value,
+                    usage: self.machine.usage,
+                }))
+            }
+            Err(reason) => {
+                self.finished = true;
+                Err(DebugError::Execution(self.machine.failure(reason)))
+            }
+        }
     }
 }
 
@@ -550,13 +663,47 @@ impl Machine<'_> {
             .map_err(Reason::from)?;
         Ok(function(argument))
     }
+    fn location(&self) -> Option<DebugPoint> {
+        let frame = self.frames.last()?;
+        let block = &self.verified.unit().functions[frame.function.0 as usize].blocks
+            [frame.block.0 as usize];
+        let span = block
+            .instructions
+            .get(frame.pc)
+            .map_or(block.terminator.span, |i| i.span);
+        Some(DebugPoint {
+            function: frame.function,
+            block: frame.block,
+            instruction: frame.pc,
+            depth: self.frames.len(),
+            span,
+        })
+    }
     fn run(&mut self) -> Result<Value, Reason> {
+        self.run_until(|_| false)
+            .map(|value| value.expect("non-pausing execution completes"))
+    }
+    fn run_until(
+        &mut self,
+        mut stop: impl FnMut(&DebugPoint) -> bool,
+    ) -> Result<Option<Value>, Reason> {
         loop {
             let frame = self.frames.last().expect("entered frame");
             let f = &self.verified.unit().functions[frame.function.0 as usize];
             let block = &f.blocks[frame.block.0 as usize];
             let instruction = block.instructions.get(frame.pc);
             self.fault = instruction.map_or(block.terminator.span, |i| i.span);
+            let point = DebugPoint {
+                function: frame.function,
+                block: frame.block,
+                instruction: frame.pc,
+                depth: self.frames.len(),
+                span: self.fault,
+            };
+            if stop(&point) {
+                self.control.check().map_err(Reason::from)?;
+                return Ok(None);
+            }
             self.charge()?;
             if let Some(instruction) = instruction {
                 if let m::Op::Call {
@@ -725,10 +872,10 @@ impl Machine<'_> {
                             frame.cells.copy_within(range, 0);
                             frame.cells.truncate(len);
                             self.live_cells = 0;
-                            return Ok(Value {
+                            return Ok(Some(Value {
                                 value_type: f.signature.result,
                                 cells: frame.cells,
-                            });
+                            }));
                         }
                         let last = self.frames.len() - 1;
                         let (parents, child) = self.frames.split_at_mut(last);

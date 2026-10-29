@@ -18,9 +18,9 @@ Public C v1 and existing generated clients follow stabilized RFC 0033. Source/na
 
 ## Work after M3
 
-M3 is complete. M4’s [live board](milestone-4.md) records **21 done · 1 doing · 18 todo · 54 remaining pt** across 40 deliveries. G1–G4 are verified. Tooling source `4f62c78` / final head `76c7c9a` passes the full baseline (164 suites / 2,425 tests), all 19 CI jobs (18 success, intentional documentation-only skip), debugger 3/3 and both-host archive/fmt/lint/doc fixtures. PR #16 merged as `49a0fe8`; main is clean and synchronized. C01 source `cd37106` completes admitted snapshot/navigation with a passing 165-suite / 2,429-test baseline. C02 source `569260b` connects package LSP definition/references/refresh and passes 166 suites / 2,440 tests; C03 source `0612c45` adds completion and passes 166 suites / 2,445 tests; C04 source `be05690` adds semantic tokens/refresh and passes 166 suites / 2,447 tests; C05 source `3cd27e2` adds checked rename and passes 166 suites / 2,454 tests; C06 source `503912f` adds checked code actions and passes 166 suites / 2,458 tests; C07 source `6d16e93` completes the local protocol audit with 166 suites / 2,459 tests and independent saved-source run returning 42; all editor deliveries are done while G5/G6 await final-head CI/merge. D01 DAP is doing at 3 pt. PR #17 merged as `0293026` after 19 CI jobs (18 success, intentional skip) and debugger 3/3; current PR #18 targets main. Additions +11, retired 60: **103 + 11 − 60 = 54**. All remaining editor, DAP, profiling and installer gates stay required; preserve completed M2/M3 history and future M5 scope.
+M3 is complete. M4’s [live board](milestone-4.md) records **21 done · 1 doing · 18 todo · 54 remaining pt** across 40 deliveries. G1–G6 are verified, including editor final head `5cdc422` with both-host CI/debugger success and merged PR #18 (`0a15fb5`). D01 is validating retained VM source-breakpoint/stack/source execution through `lang dap`. Complete native/mixed debugging (G7), profiling (G8), signed installation (G9) and the final journeys/capability guide remain required.
 
-PRs #9–#15 are merged. Native PR #15 merged as `a454e6d`; local main was fast-forwarded and matches origin/main with 0/0 ahead/behind. Current `codex/m4-package-tooling` came from that main with two agent-owned checkpoint document edits; PR base `carimatics/lang:main`, upstream `origin/codex/m4-package-tooling`, [PR #16](https://github.com/carimatics/lang/pull/16). The board records current evidence and remaining conditions.
+PRs #9–#18 are merged. Local main/origin/main refs match `0a15fb5` with 0/0 ahead/behind. Current `codex/m4-debug-adapter` was created from clean, upstream-synchronized `codex/m4-editor-checked-edits` head `5cdc422`; no preexisting user changes. Its recorded PR base transitioned to `carimatics/lang:main` after #18 merged. Upstream/PR are not yet created; the board records current evidence and remaining conditions.
 
 Do not expand the completed M2 board for maintenance or reviews. Record fixes in their scoped checklist, and keep code, documentation and validation in the same change. New language/ABI/format choices still require an explicit RFC decision; experimental delegation avoids a separate owner-approval wait.
 
@@ -42,11 +42,11 @@ Snapshot of exit-gate weights verified 2026-10-29 JST. Acceptance weights are se
 | 1 — frontend and bytecode vertical slice (complete) | 89 pt | 89 pt | **100.0%** |
 | 2 — ownership and native AOT | 113 pt | 113 pt | 100.0% |
 | 3 — concurrency and embedding (complete) | 96 pt | 96 pt | 100.0% |
-| 4 — developer toolchain | 23 pt | 63 pt | 36.5% |
+| 4 — developer toolchain | 39 pt | 63 pt | 61.9% |
 | 5 — ecosystem and compatibility | 0 pt | 65 pt | 0.0% |
 | 6 — self-hosting | 0 pt | 74 pt | 0.0% |
 | 7 — additional frontends | 0 pt | 55 pt | 0.0% |
-| **Overall** | **530 pt** | **764 pt** | **69.4%** |
+| **Overall** | **546 pt** | **764 pt** | **71.5%** |
 
 ## Milestone 0: design baseline
 
@@ -228,7 +228,7 @@ Exit: a native host can load a user script, expose a typed API, call the script,
 
 ## Milestone 4: developer toolchain
 
-**Progress: 23 / 63 pt (36.5%).**
+**Progress: 39 / 63 pt (61.9%).**
 
 Activation audit (2026-10-29 JST): use the [M4 board](milestone-4.md) for current tasks, executable checkpoints and the bottom-up 103 pt baseline. [RFC 0034](rfcs/0034-package-workspaces-and-cli-diagnostics.md) accepts the manifest/diagnostic and initial local package contract. First validate strict inspection, then execute an authorized local dependency, lock/offline replay and the create/build/run/test fixture before broader tooling. The installer distributes toolchain binaries before M5's registry, so its accepted design must establish trust roots, signed release-metadata verification and atomic update/failure recovery before downloading/installing. M5's signing work covers registry package publication/provenance. The original nine gates and weights remain unchanged; 63 pt is not a remaining-effort forecast.
 
@@ -238,8 +238,8 @@ Sequencing contract (clarified 2026-10-28 JST, retained on activation): the firs
 - [x] **P0 — Implement deterministic dependency resolution, lockfiles, checksums, and offline mode.** — 8 pt
 - [x] **P0 — Extend the existing `lang run` frontend into package-aware build/run/test orchestration with the accepted structured diagnostic output.** — 5 pt
 - [x] **P0 — Integrate package, fmt, lint, and doc commands into the CLI.** — 5 pt
-- [ ] **P0 — Implement LSP navigation, completion, and semantic tokens.** — 8 pt
-- [ ] **P0 — Implement safe rename and code actions.** — 8 pt
+- [x] **P0 — Implement LSP navigation, completion, and semantic tokens.** — 8 pt
+- [x] **P0 — Implement safe rename and code actions.** — 8 pt
 - [ ] **P0 — Implement a DAP adapter with mixed native/VM stacks.** — 8 pt
 - [ ] **P1 — Add compile-time/runtime profiling, allocation traces, and rebuild explanations.** — 8 pt
 - [ ] **P0 — Build an install/update/channel tool comparable in role to `rustup`.** — 8 pt

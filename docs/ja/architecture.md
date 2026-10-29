@@ -109,7 +109,9 @@ Source function/instruction rangeはmacOS DWARF/dSYMとWindows CodeView/PDBま�
 
 Read-only revision 1のdebug descriptorで、dispatch時にallocationせずownedの生存論理frame IDとsource spanを公開します。[両hostの実機検証](https://github.com/carimatics/lang/actions/runs/39427222132)で3段のframeと親のcall siteを確認しました。旧G18根拠だけではRFC 0012のこの要件を満たしていませんでした。
 
-この根拠ではsourceを残した手動のmatching-SDK debug linkを使っています。既定の`link-native`はdebugger sidecarを公開しません。Source variable location、論理continuation step、最適化後のstep、JIT debugger登録、VM/native混在stack、DAPは別作業です。
+この根拠ではsourceを残した手動のmatching-SDK debug linkを使っています。既定の`link-native`はdebugger sidecarを公開しません。Source variable location、論理continuation step、最適化後のstep、JIT debugger登録、VM/native混在stackは別作業です。
+
+[RFC 0040](rfcs/0040-bounded-debug-adapter-sessions.md) は上限付き stdio framing と許可済み不変 package snapshot を使う `lang dap` を追加します。Copy VM debugger は通常 interpreter を所有 worker に保持し、instruction の効果・課金前で停止して、元 control と caller span を保ちます。初期 source breakpoint、stack／source query、entry stop、continue、disconnect を実装し、inspection／step、native launch、混在 stack は M4 の進行中作業です。launch で host import は許可しません。
 
 [M2 source/Rust/C測定](benchmarks.md)は名前付きの不変revisionに結び付き、大きな性能差を示しています。測定完了の根拠であり、native同等性能や速度保証ではありません。今後の最適化判断にはこのworkloadを使い、過去のscalar microbenchmarkでsource programの費用を代用しません。
 
@@ -151,7 +153,7 @@ M4 は 2026-10-29 JST に開始しました。[RFC 0034](rfcs/0034-package-works
 
 `package::source::analyze_test` は固定 binding inventory から宣言 test を選択します。その root は選択 package の直接 edge と、同 package を指す `_package` を持ち、元 package-root 名前空間、nominal identity、可視性、source span を保持します。別 test root は module 上限に算入し、package entry 自体が test なら同じ root を再利用します。`lang test` は選択 package の test だけを manifest 順に、同じ検証済み artifact／VM 経路と entry ごとに初期化する control で実行します。test 0 件でも main を要求せず graph を型検査します。最初の source／runtime／非 0 失敗では旧 lock／build／test output を保持します。保持 artifact と完全一致 lock copy は 64 MiB に制限し、`target/lang/<lock-sha256>/test/{inputs.lock,tests/<manifest-index>.lbc}` を公開します。test は package／test root 間の公開 nominal type、private UTF-8 span、入力削除／project 移動後の固定解析、isolated service を含む全 VM profile、test ごとの fuel、test 0 件の library、batch-output 拒否を検証します。test 名前空間による artifact／lock schema 変更はありません。
 
-workspace 選択、再現可能 native executable、package／archive／fmt／lint／doc tooling は実装し、両 host で検証済みです。package editor navigation は [live board](milestone-4.md) で進行中で、editor protocol 全体の監査、DAP、profiling、署名 installer は引き続き必要です。registry、WebAssembly component、追加 backend、self-hosting、別 frontend は後続 milestone で、実装済みではありません。async REPL、detached task、非同期 foreign callback stack も現在の実行範囲外です。
+workspace 選択、再現可能 native executable、package／archive／fmt／lint／doc tooling、package editor navigation／検証 edit は実装し、独立 editor protocol 監査を含め両 host で検証済みです。DAP は [live board](milestone-4.md) で進行中で、native／混在 debug 全体、profiling、署名 installer は引き続き必要です。registry、WebAssembly component、追加 backend、self-hosting、別 frontend は後続 milestone で、実装済みではありません。async REPL、detached task、非同期 foreign callback stack も現在の実行範囲外です。
 
 ## 検証と保守
 
