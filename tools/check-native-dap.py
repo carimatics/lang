@@ -191,7 +191,10 @@ finally:
             send("disconnect", {"terminateDebuggee": True})
         except (BrokenPipeError, OSError):
             pass
-    process.stdin.close()
+    try:
+        process.stdin.close()
+    except OSError:
+        pass
     try:
         process.wait(timeout=5)
     except subprocess.TimeoutExpired:
@@ -199,6 +202,17 @@ finally:
         process.wait(timeout=5)
     reader.join(timeout=5)
     stderr_reader.join(timeout=5)
+    print(json.dumps({"adapter_exit_code": process.returncode,
+                      "adapter_exit_hex": hex(process.returncode & 0xffffffff)}), flush=True)
     if errors:
         print(json.dumps({"adapter_stderr": errors.decode(errors="replace")[:4096]}), flush=True)
+    if WINDOWS and process.returncode:
+        inspector = adapter.parent / "llvm-readobj.exe"
+        for binary in [adapter, adapter.parent / "liblldb.dll"]:
+            if inspector.is_file() and binary.is_file():
+                imports = subprocess.run([str(inspector), "--coff-imports", str(binary)],
+                                         capture_output=True, text=True, timeout=20)
+                print(json.dumps({"binary": str(binary), "imports": [line.strip()
+                    for line in imports.stdout.splitlines() if line.strip().startswith("Name:")],
+                    "inspect_status": imports.returncode}), flush=True)
 
