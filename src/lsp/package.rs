@@ -235,7 +235,7 @@ impl Server {
             })
             .collect()
     }
-    fn ensure_package(&mut self) {
+    pub(super) fn ensure_package(&mut self) {
         if self.package_view.is_some() {
             return;
         }

@@ -1,6 +1,7 @@
 //! Small stdio LSP 3.18 profile using the shared source query database.
 //! Official source/update dates are recorded in docs/architecture.md.
 mod package;
+mod tokens;
 pub mod uri;
 pub mod wire;
 use lang_diagnostics::{Diagnostic as SourceDiagnostic, SourceId, Span};
@@ -127,6 +128,7 @@ pub struct Server {
     related: bool,
     versions: bool,
     watch: bool,
+    token_refresh: bool,
     package: Option<package::Config>,
     package_view: Option<Result<package::View, crate::package::Diagnostic>>,
     package_epoch: u64,
@@ -142,6 +144,7 @@ impl Server {
             related: false,
             versions: false,
             watch: false,
+            token_refresh: false,
             package: None,
             package_view: None,
             package_epoch: 0,
@@ -235,6 +238,12 @@ impl Server {
                 .unwrap_or_default();
         }
         if let Some(id) = id {
+            if self.package.is_some() && method == "textDocument/semanticTokens/full" {
+                return vec![match self.semantic_tokens(params) {
+                    Ok(result) => response(id, result),
+                    Err(e) => response_error(id, e.code, &e.message),
+                }];
+            }
             if self.package.is_some() && method == "textDocument/completion" {
                 return vec![match self.completion(params) {
                     Ok(result) => response(id, result),
@@ -319,6 +328,10 @@ impl Server {
             .pointer("/capabilities/workspace/didChangeWatchedFiles/dynamicRegistration")
             .and_then(Value::as_bool)
             .unwrap_or(false);
+        self.token_refresh = params
+            .pointer("/capabilities/workspace/semanticTokens/refreshSupport")
+            .and_then(Value::as_bool)
+            .unwrap_or(false);
         self.db = Some(db);
         self.phase = Phase::Awaiting;
         let mut result = json!({"capabilities":{"positionEncoding":"utf-16","textDocumentSync":{"openClose":true,"change":1},"documentFormattingProvider":true},"serverInfo":{"name":"lang prototype","version":env!("CARGO_PKG_VERSION")}});
@@ -327,6 +340,7 @@ impl Server {
             result["capabilities"]["referencesProvider"] = json!(true);
             result["capabilities"]["completionProvider"] =
                 json!({"triggerCharacters":[".",":"],"resolveProvider":false});
+            result["capabilities"]["semanticTokensProvider"] = json!({"legend":{"tokenTypes":tokens::LEGEND,"tokenModifiers":[]},"full":true,"range":false});
         }
         Ok(result)
     }
@@ -475,7 +489,11 @@ impl Server {
             };
             self.package_epoch = epoch;
             self.package_view = None;
-            return self.package_publications();
+            let mut messages = self.package_publications();
+            if self.token_refresh {
+                messages.push(json!({"jsonrpc":"2.0","id":format!("lang-tokens-{epoch}"),"method":"workspace/semanticTokens/refresh"}));
+            }
+            return messages;
         }
         let paths: Vec<_> = self.documents.values().map(|d| d.path.clone()).collect();
         let mut roots = Vec::new();

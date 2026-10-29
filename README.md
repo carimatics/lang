@@ -105,6 +105,8 @@ The rationale and unresolved tradeoffs are documented in [the architecture basel
 
 Package completion returns public module/import/enum names, scoped bindings and fields recovered from declared receiver types. Incomplete identifiers use a bounded in-memory normal-parser/binder probe; returned text edits retain original UTF-16 ranges and carry epoch/version data. Unsupported receiver expressions produce no guessed fields.
 
+Full semantic tokens use a fixed legend and the current binding index, with lexical fallback for malformed source. Tokens split at CR/LF, use non-overlapping UTF-16 delta encoding and carry an epoch result ID. Clients advertising semantic-token refresh support receive refresh requests after source/overlay/watch invalidation; range and delta requests are unsupported.
+
 ## Development
 
 `cargo run -- fmt --manifest-path target/my_app/Lang.json --check` reports files needing the existing CST formatter without edits. Omit `--check` to apply validated per-file source replacements, including selected dependencies/tests. Original comments/spans and permissions are retained; stale or invalid input refuses before publication. Source changes leave the old lock stale; regenerate it through an ordinary build/run. See [RFC 0036](docs/rfcs/0036-checked-package-formatting.md) for the per-file publication boundary.

@@ -312,6 +312,175 @@ fn completion_candidate_limit_refuses_the_entire_response() {
     assert!(r.get("result").is_none());
 }
 
+fn token_query(s: &mut Server, uri: &str) -> Value {
+    s.handle(request(
+        "textDocument/semanticTokens/full",
+        json!({"textDocument":{"uri":uri}}),
+    ))
+    .remove(0)
+}
+fn decoded_tokens(source: &str, result: &Value) -> Vec<(String, u64)> {
+    let data = result["result"]["data"]
+        .as_array()
+        .unwrap_or_else(|| panic!("{result:?}"));
+    assert_eq!(data.len() % 5, 0);
+    let (mut line, mut start, mut previous_end) = (0u32, 0u32, 0u32);
+    let mut out = Vec::new();
+    for token in data.as_chunks::<5>().0 {
+        let delta_line = token[0].as_u64().unwrap() as u32;
+        line += delta_line;
+        if delta_line != 0 {
+            start = 0;
+            previous_end = 0;
+        }
+        start += token[1].as_u64().unwrap() as u32;
+        assert!(start >= previous_end, "overlap: {result:?}");
+        let len = token[2].as_u64().unwrap() as u32;
+        assert!(len > 0);
+        let a = lang_lsp::text_offset(source, line, start, source.len()).unwrap();
+        let b = lang_lsp::text_offset(source, line, start + len, source.len()).unwrap();
+        assert!(!source[a..b].contains(['\r', '\n']));
+        assert_eq!(source[a..b].encode_utf16().count(), len as usize);
+        assert_eq!(token[4], 0);
+        out.push((source[a..b].to_string(), token[3].as_u64().unwrap()));
+        previous_end = start + len;
+    }
+    out
+}
+
+#[test]
+fn semantic_tokens_preserve_utf16_crlf_and_proven_symbol_kinds() {
+    let f = Files::new();
+    let root = f.uri("src/main.lang");
+    let source = "/*😀\r\nsecond*/\r\nstruct Pair{value:i64}\r\nfn id(parameter:i64)->i64{let mut local:i64=parameter;return local;}\r\nfn main()->i64{let mut pair:Pair=Pair{value:42};return id(pair.value);}\r\n";
+    let mut s = f.ready(Default::default(), json!({}));
+    let messages = open(&mut s, &root, source);
+    assert!(diagnostics(&messages, &root).is_empty(), "{messages:?}");
+    assert!(
+        !messages
+            .iter()
+            .any(|m| m["method"] == "workspace/semanticTokens/refresh")
+    );
+    let r = token_query(&mut s, &root);
+    let tokens = decoded_tokens(source, &r);
+    for (text, kind, count) in [
+        ("/*😀", 8, 1),
+        ("second*/", 8, 1),
+        ("Pair", 1, 3),
+        ("value", 6, 3),
+        ("id", 3, 2),
+        ("parameter", 4, 2),
+        ("local", 5, 2),
+        ("42", 10, 1),
+    ] {
+        assert_eq!(
+            tokens
+                .iter()
+                .filter(|(t, k)| t == text && *k == kind)
+                .count(),
+            count,
+            "{text}: {tokens:?}"
+        );
+    }
+    let broken = "/*😀\r\ninvalid*/\r\nfn main( { unknown+42;";
+    change(&mut s, &root, 2, broken);
+    let current = token_query(&mut s, &root);
+    assert_ne!(current["result"]["resultId"], r["result"]["resultId"]);
+    let fallback = decoded_tokens(broken, &current);
+    assert!(fallback.iter().any(|(t, k)| t == "fn" && *k == 7));
+    assert!(!fallback.iter().any(|(t, _)| t == "main" || t == "unknown"));
+    assert!(fallback.iter().any(|(t, k)| t == "42" && *k == 10));
+    assert!(change(&mut s, &root, 1, source).is_empty());
+    assert_eq!(token_query(&mut s, &root), current);
+    let bare_cr = source.replace("\r\n", "\r");
+    change(&mut s, &root, 3, &bare_cr);
+    assert_eq!(
+        decoded_tokens(&bare_cr, &token_query(&mut s, &root)),
+        tokens
+    );
+    s.handle(note(
+        "textDocument/didClose",
+        json!({"textDocument":{"uri":root}}),
+    ));
+    let disk = token_query(&mut s, &root);
+    assert_ne!(disk["result"]["resultId"], current["result"]["resultId"]);
+    assert!(!decoded_tokens(ROOT, &disk).is_empty());
+}
+
+#[test]
+fn semantic_tokens_negotiate_full_only_refresh_and_refuse_output_overflow() {
+    let f = Files::new();
+    let root = f.uri("src/main.lang");
+    let mut s = Server::new(Default::default());
+    let init=s.handle(request("initialize",json!({"rootUri":uri::file(&f.0).unwrap(),"capabilities":{"workspace":{"semanticTokens":{"refreshSupport":true}}}})));
+    let capability = &init[0]["result"]["capabilities"]["semanticTokensProvider"];
+    assert_eq!(capability["full"], true);
+    assert_eq!(capability["range"], false);
+    assert_eq!(
+        capability["legend"]["tokenTypes"],
+        json!([
+            "namespace",
+            "type",
+            "enumMember",
+            "function",
+            "parameter",
+            "variable",
+            "property",
+            "keyword",
+            "comment",
+            "string",
+            "number",
+            "operator"
+        ])
+    );
+    assert_eq!(capability["legend"]["tokenModifiers"], json!([]));
+    s.handle(note("initialized", json!({})));
+    let opened = open(&mut s, &root, ROOT);
+    let refresh = opened
+        .iter()
+        .find(|m| m["method"] == "workspace/semanticTokens/refresh")
+        .unwrap();
+    assert!(
+        s.handle(json!({"jsonrpc":"2.0","id":refresh["id"],"result":null}))
+            .is_empty()
+    );
+    let before = token_query(&mut s, &root);
+    f.write("helper/src/main.lang", "pub fn answer()->i64{return 43;}");
+    let watched = watch(&mut s, &f.uri("helper/src/main.lang"));
+    let next = watched
+        .iter()
+        .find(|m| m["method"] == "workspace/semanticTokens/refresh")
+        .unwrap();
+    assert_ne!(next["id"], refresh["id"]);
+    assert_ne!(
+        token_query(&mut s, &root)["result"]["resultId"],
+        before["result"]["resultId"]
+    );
+    for method in [
+        "textDocument/semanticTokens/range",
+        "textDocument/semanticTokens/full/delta",
+    ] {
+        let r = s.handle(request(method, json!({"textDocument":{"uri":root}})));
+        assert_eq!(r[0]["error"]["code"], -32601);
+    }
+    let mut bounded = f.ready(
+        Limits {
+            mapping: lang_lsp::Limits {
+                output_bytes: 64,
+                ..Limits::default().mapping
+            },
+            ..Default::default()
+        },
+        json!({}),
+    );
+    open(&mut bounded, &root, ROOT);
+    let r = token_query(&mut bounded, &root);
+    assert_eq!(r["error"]["code"], -32603, "{r:?}");
+    assert!(r.get("result").is_none());
+    assert!(!f.0.join("Lang.lock").exists());
+    assert!(!f.0.join("target").exists());
+}
+
 #[test]
 fn real_package_definition_references_and_overlay_lifecycle_keep_original_utf16_locations() {
     let f = Files::new();
@@ -563,6 +732,16 @@ fn actual_stdio_package_navigation_returns_only_valid_framed_protocol() {
         json!({"textDocument":{"uri":root},"position":position()}),
     );
     definition["id"] = json!(2);
+    let mut completion = request(
+        "textDocument/completion",
+        json!({"textDocument":{"uri":root},"position":position()}),
+    );
+    completion["id"] = json!(4);
+    let mut tokens = request(
+        "textDocument/semanticTokens/full",
+        json!({"textDocument":{"uri":root}}),
+    );
+    tokens["id"] = json!(5);
     let mut shutdown = request("shutdown", Value::Null);
     shutdown["id"] = json!(3);
     let input = [
@@ -573,6 +752,8 @@ fn actual_stdio_package_navigation_returns_only_valid_framed_protocol() {
             json!({"textDocument":{"uri":root,"languageId":"lang","version":1,"text":ROOT}}),
         ),
         definition,
+        completion,
+        tokens,
         shutdown,
         note("exit", Value::Null),
     ];
@@ -605,6 +786,11 @@ fn actual_stdio_package_navigation_returns_only_valid_framed_protocol() {
         helper
     );
     assert!(replies.iter().all(|r| r["jsonrpc"] == "2.0"));
+    assert_eq!(
+        replies.iter().find(|r| r["id"] == 4).unwrap()["result"]["items"][0]["label"],
+        "answer"
+    );
+    assert!(!decoded_tokens(ROOT, replies.iter().find(|r| r["id"] == 5).unwrap()).is_empty());
 }
 #[test]
 fn explicit_package_selection_reports_a_missing_manifest_and_recovers_after_creation() {

@@ -6,11 +6,11 @@
 
 Updated: 2026-10-29 JST. M4 is active. Goal start: clean main/origin/main `af9988f`, remote `git@github.com:carimatics/lang.git`. PRs #9–#16 are merged. Tooling PR #16 merged as `49a0fe8`; main was fast-forwarded, clean and synchronized with 0/0 ahead/behind. Current `codex/m4-editor-navigation` was created from that main; PR base `carimatics/lang:main`. Upstream is origin/codex/m4-editor-navigation, [PR #17](https://github.com/carimatics/lang/pull/17); no preexisting working-tree/user changes were present. C01–C04 form the coherent navigation/references/completion/token outcome.
 
-**16 done · 1 doing · 23 todo · 68 remaining pt**
+**17 done · 1 doing · 22 todo · 65 remaining pt**
 
-C03 executable checkpoint, 2026-10-29 18:35 JST: all 25 focused checks, fmt, warning-free full Clippy, source-frozen full baseline (**166 suites / 2,445 passed / 0 failed**) and doc pass. Five completion fixtures cover public/empty namespaces, resolved imports/enum cases, type context, declared record fields, lexical scopes, applying original UTF-16 edits, stale versions and count/output refusal without a partial prefix. The temporary normal-parser/binder overlay performs no I/O and publishes no probe facts. Unsupported receivers produce no guessed fields. Remaining: code evidence and latest-head CI/PR lifecycle. C03 remains doing at its reviewed 3 pt; no estimates are added. C02 head `569260b` passed CI `40845584529` (18 successful jobs, intentional documentation-only skip) and debugger `40845584137` (3/3).
+C04 executable checkpoint, 2026-10-29 18:48 JST: all 40 focused checks, fmt and warning-free full Clippy pass. Full semantic tokens preserve proven function/type/parameter/local/field identities, UTF-16, CRLF/bare-CR and multiline comments; malformed syntax uses lexical fallback. Open/change/close/watch invalidates result IDs, ignores old versions and requests refresh only for supporting clients. Actual stdio executes navigation/completion/tokens; range/delta and output overflow refuse without partial success. Source-frozen full baseline (**166 suites / 2,447 passed / 0 failed**) and doc also pass. Code evidence and latest-head CI/PR lifecycle remain. C04 stays doing at 3 pt with no added estimates. C03 source `0612c45` passed 166 suites / 2,445 tests and fmt/Clippy/doc.
 
-**Next: M4-C03 — scope/privacy/type-aware completion with UTF-16/stale checks (doing, 3 pt).** C02 source `569260b` passes 57 focused checks, inverse UTF-16 unit, full baseline (166 suites / 2,440 tests), fmt/Clippy/doc. The authority-message refusal regression was fixed and the complete baseline rerun. Retire its last 3 pt: additions +11, retired 46, remaining 68 pt. C03 covers a normal parser/binder experiment for incomplete input, constrained scope/type candidates and bounded text-edit/protocol fixtures within the existing 3 pt; no delivery/estimate is added. Latest-head CI and the editor branch’s PR lifecycle continue.
+**Next: M4-C04 — full semantic tokens and refresh across Unicode/malformed-source lifecycles (doing, 3 pt).** C03 source `0612c45` passes 25 focused checks, fmt/Clippy/doc and the full baseline (166 suites / 2,445 tests). Retire its last 3 pt: additions +11, retired 49, remaining 65 pt. C04 adds the fixed legend, normal binding classification with lexical fallback, sorted non-overlapping UTF-16 delta encoding, capability-gated refresh and refusal/lifecycle fixtures within its reviewed 3 pt; no estimates are added. Latest-head CI and PR #17 lifecycle continue.
 
 A04 source `cf6cf5c` passes fmt, full Clippy/doc and checked opt-level 1 full tests (**158 suites / 2,384 passed / 0 failed**), plus 75 focused tests. Final head `75a2041` passes [full CI](https://github.com/carimatics/lang/actions/runs/40810065213) (all 19 jobs: 18 success; intentional documentation-only skip) and [debugger execution](https://github.com/carimatics/lang/actions/runs/40810065278) (3/3). [PR #13](https://github.com/carimatics/lang/pull/13) merged as `58527c2`; main was fast-forwarded, clean and synchronized with 0/0 ahead/behind. Workspace branch creation and its current PR/upstream are recorded above. No preexisting user changes were present.
 
@@ -66,8 +66,8 @@ The [roadmap](roadmap.md#milestone-4-developer-toolchain) retains the original 6
 | M4-B04 | done | 0 | M4-B03 | G4 | Generate package API documentation with resolved links, source locations and failure-safe output | `4f62c78` |
 | M4-C01 | done | 0 | M4-A05 | G5,G6 | Accept editor symbol/snapshot/edit contract and navigate a real package dependency | `cd37106` |
 | M4-C02 | done | 0 | M4-C01 | G5 | Definition/references across package overlays, edits and watched-file refresh | `569260b` |
-| M4-C03 | doing | 3 | M4-C02 | G5 | Scope/privacy/type-aware completion with UTF-16 and stale-result tests | — |
-| M4-C04 | todo | 3 | M4-C03 | G5 | Semantic tokens and refresh survive Unicode, malformed source and document lifecycle | — |
+| M4-C03 | done | 0 | M4-C02 | G5 | Scope/privacy/type-aware completion with UTF-16 and stale-result tests | 0612c45 |
+| M4-C04 | doing | 3 | M4-C03 | G5 | Semantic tokens and refresh survive Unicode, malformed source and document lifecycle | — |
 | M4-C05 | todo | 3 | M4-C02 | G6 | Prepare/rename across files with collision/privacy checks and versioned atomic edits | — |
 | M4-C06 | todo | 3 | M4-C05 | G6 | Accepted code actions produce checked fixes and reject stale/ambiguous edits | — |
 | M4-C07 | todo | 2 | M4-C04,M4-C06 | G5,G6 | End-to-end editor package fixture plus protocol/resource/refusal coverage | — |
@@ -97,9 +97,9 @@ Activation audit, 2026-10-29 JST: 36 observable deliveries, baseline 103 pt. The
 
 | Baseline remaining | Net added/re-estimated | Retired on completion | Remaining |
 | ---: | ---: | ---: | ---: |
-| 103 pt | +11 pt | −46 pt | 68 pt |
+| 103 pt | +11 pt | −49 pt | 65 pt |
 
-**103 + 11 − 46 = 68 pt**
+**103 + 11 − 49 = 65 pt**
 
 Namespace prerequisite audit, 2026-10-29 JST: the existing `ModuleGraph::root()` is always `ModuleId(0)`. A path provider alone cannot give each dependency its own package-root namespace or safely reuse a shared dependency identity. Split the original A02 outcome into an authorized graph (new A02R, 3 pt) and namespace/source execution integration (A02, remaining 3 pt after reviewing its task list). Net addition: +3 pt; 37 deliveries total. A01 and A02R are two prerequisites, so A02 must supply the next source execution fixture before further horizontal scaffolding. No gate is completed or deferred by this audit.
 
