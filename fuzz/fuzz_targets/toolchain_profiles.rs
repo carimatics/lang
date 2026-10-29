@@ -1,5 +1,5 @@
 #![no_main]
-use lang::profile::{self, allocation, runtime};
+use lang::profile::{self, allocation, rebuild, runtime};
 use libfuzzer_sys::fuzz_target;
 
 fuzz_target!(|bytes: &[u8]| {
@@ -21,5 +21,10 @@ fuzz_target!(|bytes: &[u8]| {
         && let Ok(encoded) = report.encode()
     {
         assert_eq!(allocation::Report::decode(&encoded).unwrap(), report);
+    }
+    if let Ok(report) = rebuild::Report::decode(bytes)
+        && let Ok(encoded) = report.encode()
+    {
+        assert_eq!(rebuild::Report::decode(&encoded).unwrap(), report);
     }
 });

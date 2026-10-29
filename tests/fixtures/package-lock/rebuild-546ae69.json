@@ -1,0 +1,61 @@
+{
+  "schema": 1,
+  "target": "aarch64-apple-darwin",
+  "compiler_version": "0.1.0",
+  "compiler_build_id": "c0a5aa511ebf0ba07e31255619c12cd634ba93ec46bf5d89ced36e0344032dba",
+  "packages": [
+    {
+      "root": ".",
+      "name": "app",
+      "version": "0.1.0",
+      "edition": "2026",
+      "manifest_path": "Lang.json",
+      "manifest_sha256": "b2b02d1aed20bc58d3da344e2d3f70c2f0622fe7dd514a29227ca58328abd7b6",
+      "sources": [
+        {
+          "path": "src/main.lang",
+          "sha256": "200cda94aa6d9091f1ad40df7bfc31601c21e27b67aad41f79dc32afe0e5c59a"
+        }
+      ],
+      "dependencies": [
+        {
+          "alias": "helper",
+          "root": "deps/helper"
+        }
+      ],
+      "bindings": [
+        {
+          "kind": "entry",
+          "scope": "src",
+          "path": "src/main.lang",
+          "target": "src/main.lang"
+        }
+      ],
+      "checksum": "fefa27b58a92c476d60a7c2249dfccbb5f61d5293f132feb6b2cdf6755f24773"
+    },
+    {
+      "root": "deps/helper",
+      "name": "helper",
+      "version": "0.1.0",
+      "edition": "2026",
+      "manifest_path": "deps/helper/Lang.json",
+      "manifest_sha256": "ebbc6ffbc8de21200750f9367155bf1d1ed8700d4502652edd6a2185fbb9dbe5",
+      "sources": [
+        {
+          "path": "deps/helper/src/lib.lang",
+          "sha256": "71c20675219d43b2e94e05a1e072e209742c6e1e3e87c1e9a9ed3940134051d1"
+        }
+      ],
+      "dependencies": [],
+      "bindings": [
+        {
+          "kind": "entry",
+          "scope": "deps/helper/src",
+          "path": "deps/helper/src/lib.lang",
+          "target": "deps/helper/src/lib.lang"
+        }
+      ],
+      "checksum": "176374d46cb726fc7586c9683c0bc615eeb3f2b301dc7f7c1fed00a29af31939"
+    }
+  ]
+}

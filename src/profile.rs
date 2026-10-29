@@ -1,5 +1,6 @@
 //! Bounded observations of the ordinary package compiler (RFC 0041).
 pub mod allocation;
+pub mod rebuild;
 pub mod runtime;
 use crate::package::{
     Diagnostic,
@@ -17,7 +18,7 @@ use std::{
     time::Instant,
 };
 
-pub const USAGE: &str = "       lang profile compile [--manifest-path FILE] [--package NAME] [--target TRIPLE] [--message-format human|json]\n       lang profile run [--manifest-path FILE] [--package NAME] [--engine vm|native] [--sample-every N] [--observations N] [--fuel N] [--frames N] [--cells N] [--service-work N] [--message-format human|json]\n       lang profile allocations [--manifest-path FILE] [--package NAME] [--engine vm|native] [--events N] [--fuel N] [--frames N] [--cells N] [--service-work N] [--message-format human|json]\n";
+pub const USAGE: &str = "       lang profile compile [--manifest-path FILE] [--package NAME] [--target TRIPLE] [--message-format human|json]\n       lang profile run [--manifest-path FILE] [--package NAME] [--engine vm|native] [--sample-every N] [--observations N] [--fuel N] [--frames N] [--cells N] [--service-work N] [--message-format human|json]\n       lang profile allocations [--manifest-path FILE] [--package NAME] [--engine vm|native] [--events N] [--fuel N] [--frames N] [--cells N] [--service-work N] [--message-format human|json]\n       lang profile rebuild [--manifest-path FILE] [--package NAME] [--target TRIPLE] [--previous-lock FILE] [--native-sdk DIR --previous-native DIR] [--message-format human|json]\n";
 pub const MAX_REPORT_BYTES: usize = 4 * 1024 * 1024;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -201,6 +202,9 @@ fn parse(args: &[OsString]) -> Result<Request, Diagnostic> {
 }
 
 pub fn run(args: &[OsString], stdout: &mut impl Write, stderr: &mut impl Write) -> io::Result<u8> {
+    if args.first().is_some_and(|arg| arg == "rebuild") {
+        return rebuild::run(args, stdout, stderr);
+    }
     if args.first().is_some_and(|arg| arg == "allocations") {
         return allocation::run(args, stdout, stderr);
     }

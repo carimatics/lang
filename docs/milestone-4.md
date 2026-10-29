@@ -6,13 +6,13 @@
 
 Updated: 2026-10-30 JST. M4 is active. Goal start: clean main/origin/main `af9988f`, remote `git@github.com:carimatics/lang.git`. PRs #9–#18 are merged. Editor PR #18 final head `5cdc422` passes CI `40864753941` (18 success, intentional documentation-only skip) and debugger `40864753946` (3/3), merged as `0a15fb5`; local main/origin/main refs match with 0/0 ahead/behind. Debugger branch `codex/m4-debug-adapter` was created from clean, upstream-synchronized `codex/m4-editor-checked-edits` head `5cdc422` for the coherent D01–D05 outcome. No preexisting user changes; upstream `origin/codex/m4-debug-adapter`, [draft PR #19](https://github.com/carimatics/lang/pull/19) against main. D01 head `8421298` passes CI `40874260252` (18 success, intentional documentation-only skip) and debugger `40874260229` (3/3); D02 head `ced8e56` is pushed; CI `40879596677` (18 success, intentional documentation-only skip) and debugger `40879596614` (3/3) succeed. No merge is claimed. Its initially recorded base `carimatics/lang:codex/m4-editor-checked-edits` is now `carimatics/lang:main` because #18 merged. Current DAP work was preserved during base synchronization.
 
-**31 done · 1 doing · 11 todo · 33 remaining pt**
+**32 done · 1 doing · 10 todo · 30 remaining pt**
 
 Current checkout: `codex/m4-profiling`, created from clean synchronized debugger branch `10aae50`; no preexisting user changes. Upstream `origin/codex/m4-profiling`, [draft PR #24](https://github.com/carimatics/lang/pull/24), scope E01–E04. After #19 merged as `14a92df`, its recorded base moved from `carimatics/lang:codex/m4-debug-adapter` to `carimatics/lang:main`. Local main/origin/main match `14a92df`, 0/0; independent documentation PRs #20–#23 (`be9f77c` ancestor) are preserved.
 
-E03 last executable checkpoint, 2026-10-30 06:34 JST: 22 focused allocation CLI/strict-reader/help/consistency tests, fmt, full Clippy and fuzz Clippy pass. Actual VM/native reports agree on result 42, fuel 23, all 122 events, 61 allocations/retirements, cumulative/peak 7,442 bytes and final live zero. Fixtures cover original guest diagnostics, complete failed reports, refusal of partial overflow output, zero/resize/OOM/live prefixes, tampered counters/generations/requests and the 4 MiB limit. Remaining E03 acceptance: complete local baseline, latest-head both-host CI and code evidence. Prerequisite E03R `b715b7a` passes full CI `40955893106` (18 success, intentional docs-only skip), native `40955893087` (3/3) and its complete local baseline. G8 is open.
+E04 last executable checkpoint, 2026-10-30 07:14 JST: the source-frozen working tree passes fmt, full warning-free Clippy, 171 suites / 2,500 tests, doc, fuzz fmt/Clippy and 10,000 uninstrumented smoke runs seeded with all four actual report kinds. Focused validation passes 19 portable/workspace tests and two real native package tests. Source/dependency/target changes, the retained compiler-546ae69 lock, workspace selection/inactive membership, verified SDK-header changes, SDK/rustc/receipt refusals, strict report reconciliation and unchanged old outputs execute successfully. Remaining E04 acceptance: code evidence and latest-head both-host CI. G8 is open.
 
-**Next: M4-E03 — allocation report, CLI and reader (doing, 3 pt).** Retire E03R’s last 2 pt without adding work. Re-audit E03’s existing 3 pt as report production, checked per-event/final-counter replay, CLI preservation of original guest failures, and success/failure/capacity/tamper fixtures. Across 43 deliveries: additions +17, retired 87, remaining 33 pt.
+**Next: M4-E04 — rebuild explanations (doing, 3 pt).** Retire E03’s last 3 pt without adding work. Re-audit the remaining 3 pt as actual lock differences, native receipt/SDK/rustc reconciliation, report reader/CLI, and source/dependency/target/toolchain/refusal fixtures. Across 43 deliveries: additions +17, retired 90, remaining 30 pt.
 
 A04 source `cf6cf5c` passes fmt, full Clippy/doc and checked opt-level 1 full tests (**158 suites / 2,384 passed / 0 failed**), plus 75 focused tests. Final head `75a2041` passes [full CI](https://github.com/carimatics/lang/actions/runs/40810065213) (all 19 jobs: 18 success; intentional documentation-only skip) and [debugger execution](https://github.com/carimatics/lang/actions/runs/40810065278) (3/3). [PR #13](https://github.com/carimatics/lang/pull/13) merged as `58527c2`; main was fast-forwarded, clean and synchronized with 0/0 ahead/behind. Workspace branch creation and its current PR/upstream are recorded above. No preexisting user changes were present.
 
@@ -83,8 +83,8 @@ The [roadmap](roadmap.md#milestone-4-developer-toolchain) retains the original 6
 | M4-E01 | done | 0 | M4-A06 | G8 | Accept profile/trace schema and report bounded compiler phase costs | `e2f0c1d` |
 | M4-E02 | done | 0 | M4-E01 | G8 | Source-attributed VM/native runtime profile with explicit sampling/measurement limits | `7baee25` |
 | M4-E03R | done | 0 | M4-E02 | G8 | Observe original logical zero-byte/OOM/resize/retirement boundaries in a complete bounded counter trace | `b715b7a` |
-| M4-E03 | doing | 3 | M4-E03R | G8 | Allocation/retirement traces reconcile real allocator counters and bounded buffers | — |
-| M4-E04 | todo | 3 | M4-E03 | G8 | Rebuild explanations identify changed source/dependency/target/toolchain inputs | — |
+| M4-E03 | done | 0 | M4-E03R | G8 | Allocation/retirement traces reconcile real allocator counters and bounded buffers | `546ae69` |
+| M4-E04 | doing | 3 | M4-E03 | G8 | Rebuild explanations identify changed source/dependency/target/toolchain inputs | — |
 | M4-F01 | todo | 3 | M4-A01 | G9 | Accept installer trust roots, signed metadata, channel/version selection and atomic recovery design | — |
 | M4-F02 | todo | 3 | M4-F01 | G9 | Verify signatures, expiry/rollback/target/digests before any install; tamper refusals | — |
 | M4-F03 | todo | 3 | M4-F02 | G9 | Install verified tools in an isolated root; failed/interrupted installs preserve active version | — |
@@ -102,9 +102,9 @@ Activation audit, 2026-10-29 JST: 36 observable deliveries, baseline 103 pt. The
 
 | Baseline remaining | Net added/re-estimated | Retired on completion | Remaining |
 | ---: | ---: | ---: | ---: |
-| 103 pt | +17 pt | −87 pt | 33 pt |
+| 103 pt | +17 pt | −90 pt | 30 pt |
 
-**103 + 17 − 87 = 33 pt**
+**103 + 17 − 90 = 30 pt**
 
 Namespace prerequisite audit, 2026-10-29 JST: the existing `ModuleGraph::root()` is always `ModuleId(0)`. A path provider alone cannot give each dependency its own package-root namespace or safely reuse a shared dependency identity. Split the original A02 outcome into an authorized graph (new A02R, 3 pt) and namespace/source execution integration (A02, remaining 3 pt after reviewing its task list). Net addition: +3 pt; 37 deliveries total. A01 and A02R are two prerequisites, so A02 must supply the next source execution fixture before further horizontal scaffolding. No gate is completed or deferred by this audit.
 

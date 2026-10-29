@@ -48,6 +48,107 @@ fn refused(output: Output, code: &str) {
     assert_eq!(diagnostic["code"], code);
 }
 
+fn verify_native_rebuild_inputs(
+    root: &std::path::Path,
+    sdk: &std::path::Path,
+    generation: &std::path::Path,
+) {
+    use lang::profile::rebuild::{Category, Report, Scope};
+    let command = || {
+        let mut c = Command::new(env!("CARGO_BIN_EXE_lang"));
+        c.current_dir(root)
+            .args(["profile", "rebuild", "--package", "app", "--native-sdk"])
+            .arg(sdk)
+            .arg("--previous-native")
+            .arg(generation)
+            .args(["--message-format", "json"]);
+        c
+    };
+    let receipt = fs::read(generation.join("build.json")).unwrap();
+    let lock = fs::read(root.join("Lang.lock")).unwrap();
+    let sdk_bytes = fs::read(sdk.join("sdk.json")).unwrap();
+    let report = Report::decode(&success(command().output().unwrap()).stdout).unwrap();
+    assert_eq!(report.scope, Scope::Native);
+    assert!(!report.inputs_changed);
+    assert_eq!(report.before.as_ref().unwrap(), &report.current);
+
+    let dependency = root.join("helper/src/main.lang");
+    let original_source = fs::read(&dependency).unwrap();
+    fs::write(&dependency, "pub fn answer()->i64{return 43;}").unwrap();
+    let report = Report::decode(&success(command().output().unwrap()).stdout).unwrap();
+    assert!(
+        report
+            .changes
+            .iter()
+            .any(|c| c.category == Category::Source && c.key[0] == "helper")
+    );
+    fs::write(&dependency, original_source).unwrap();
+
+    // A real changed SDK header, with its correct manifest digest, remains an
+    // admitted input even though the original program/receipt are unchanged.
+    let mut changed_sdk: Value = serde_json::from_slice(&sdk_bytes).unwrap();
+    let header = changed_sdk["files"]
+        .as_array_mut()
+        .unwrap()
+        .iter_mut()
+        .find(|f| f["role"] == "header")
+        .expect("SDK C header");
+    let header_path = sdk.join(header["path"].as_str().unwrap());
+    let original_header = fs::read(&header_path).unwrap();
+    let mut changed_header = original_header.clone();
+    changed_header.extend_from_slice(b"\n/* rebuild input observation fixture */\n");
+    fs::write(&header_path, &changed_header).unwrap();
+    let output = command().output().unwrap();
+    assert_eq!(output.status.code(), Some(1));
+    assert!(
+        output.stdout.is_empty(),
+        "unverified SDK bytes must not become input facts"
+    );
+    header["bytes"] = serde_json::json!(changed_header.len());
+    header["sha256"] = serde_json::json!(lang_codegen_clif::sdk::digest(&changed_header));
+    fs::write(
+        sdk.join("sdk.json"),
+        serde_json::to_vec_pretty(&changed_sdk).unwrap(),
+    )
+    .unwrap();
+    let report = Report::decode(&success(command().output().unwrap()).stdout).unwrap();
+    assert!(
+        report
+            .changes
+            .iter()
+            .any(|c| c.category == Category::Sdk && c.key == ["manifest_sha256"])
+    );
+    assert!(
+        report
+            .changes
+            .iter()
+            .any(|c| c.category == Category::Sdk && c.key.first().is_some_and(|k| k == "file"))
+    );
+    fs::write(&header_path, original_header).unwrap();
+    fs::write(sdk.join("sdk.json"), &sdk_bytes).unwrap();
+
+    let output = command()
+        .env("RUSTC", root.join("absent-rustc"))
+        .output()
+        .unwrap();
+    assert_eq!(output.status.code(), Some(1));
+    assert!(output.stdout.is_empty());
+    let mut bad: Value = serde_json::from_slice(&receipt).unwrap();
+    bad["lock_sha256"] = serde_json::json!("0".repeat(64));
+    fs::write(
+        generation.join("build.json"),
+        serde_json::to_vec(&bad).unwrap(),
+    )
+    .unwrap();
+    let output = command().output().unwrap();
+    assert_eq!(output.status.code(), Some(1));
+    assert!(output.stdout.is_empty());
+    fs::write(generation.join("build.json"), &receipt).unwrap();
+    assert_eq!(fs::read(root.join("Lang.lock")).unwrap(), lock);
+    assert_eq!(fs::read(generation.join("build.json")).unwrap(), receipt);
+    assert_eq!(fs::read(sdk.join("sdk.json")).unwrap(), sdk_bytes);
+}
+
 #[test]
 fn relocated_locked_sibling_program_produces_identical_native_executables() {
     let files = Files::new();
@@ -257,6 +358,8 @@ fn relocated_locked_sibling_program_produces_identical_native_executables() {
     let executable = root.join(&cli_relative);
     let old_lock = fs::read(root.join("Lang.lock")).unwrap();
     let old_executable = fs::read(&executable).unwrap();
+    verify_native_rebuild_inputs(&root, &sdk, executable.parent().unwrap());
+    assert_eq!(fs::read(&executable).unwrap(), old_executable);
     let run = || {
         let mut command = Command::new(env!("CARGO_BIN_EXE_lang"));
         command

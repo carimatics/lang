@@ -92,6 +92,22 @@ encode／decodeは4 MiB上限を保持し、未知／重複field、未対応enum
 
 RFC 0001の実験委任でこのreport詳細を採択する。E03Rの実境界testは観測機構を示し、strict replayと実CLIの成功／失敗／容量fixtureはE03の3-point実装scopeに残る。完全な失敗実行と不完全な観測を区別する設計である。E03Rの完全baseline／両host受入とE03実装は未完了で、この設計判断でdeliveryやG8を完了しない。
 
+### Rebuild explanation elaboration (2026-10-30 JST)
+
+実build実験`target/m4-e04-input-probe-evidence.json`はsource `546ae69`が生成した不変4世代を保持する。選択sourceの変更はそのpackageのsource hash／checksumだけを変え、helper sourceの変更は依存packageのsource hash／checksumだけを変えた。Windows targetの選択はtargetとcompiler_build_idの両方を変える。build IDはtargetを含むため、その変化だけでcompiler実行ファイルの更新を証明したと説明してはならない。既存native世代はadmitしたSDKと検証済みrustc release／commitを記録する`build.json`と`sdk-input.json`も保持する。
+
+`lang profile rebuild [--manifest-path FILE] [--package NAME] [--target TRIPLE] [--previous-lock FILE] [--native-sdk DIR --previous-native DIR] [--message-format human|json]`を追加する。現在Graphとcanonical Lockは通常の不変inventoryから取得し、guest実行、source typing、link、build／lock公開は不要である。portable比較は選択authority rootの既存Lang.lockを既定とし、既定fileがなければ過去入力なし、明示fileがなければerrorとする。native比較は両native optionを要求しprevious-lockと排他とする。過去世代のinputs.lock、build.json、sdk-input.jsonを読み、現在指定されたSDKを既存の独立snapshot検証で取得する。通常のrustc選択と上限付きverbose-version検査を再利用してidentityを記録する。native比較はhost target限定。SDKのprivate stagingは一時的で削除し、source／output世代は変更しない。
+
+schema-1 `rebuild` reportはpackage／native比較scope、任意の過去入力snapshot、現在入力snapshot、それらのcanonical入力identity、決定的な順序付き変更一覧を持つ。snapshotは上限付きcanonical lock recordを保持し、native scopeでは上限付きSDK metadataとrustc release／commitも持つ。過去native receiptのdigestはそのlock／SDKの正確なbytesと一致しなければならない。executable／package digestは出力の証拠であり、独立したsource入力として提示しない。過去入力は信頼しない観測であり、認証済みartifactや旧code実行の許可ではない。
+
+既存lock schema 1／2と1 MiB上限を使い、未知／重複field、非canonical encodingを拒否し、比較前に有限のpackage／workspace／source／dependency／binding件数、正規化相対path、digest、identityを検証する。SDK metadataは既存schema／compatibility検査と追加のreport入力1 MiB上限を維持する。各snapshotから最大65,536件の上限付き入力factを、安定した型付きcategoryとpackage／workspace相対keyで導出する。categoryはtarget、compiler identity／version、manifest／package metadata、source path／hash、宣言dependency edge、alias／binding、workspace member／selection、集約checksum、native SDK／rustc入力を区別する。追加と削除も含める。依存sourceの変更はそのpackage rootを保持し、絶対pathから依存役割を推測したり、recordにない旧selectionを再構築したりしない。
+
+wire fieldは`schema`、`kind`、`scope`、`before`、`current`、`inputs_changed`、`changes`とする。snapshotは`lock_sha256`、正確なcanonical UTF-8文字列`lock`、任意の`native` metadataを持つ。native metadataは`sdk_manifest_sha256`、正確なUTF-8文字列`sdk_manifest`、`rustc_release`、`rustc_commit`を持つ。digestは埋め込んだ正確なbytesを対象とする。changeは`category`、構造化文字列配列`key`、任意の`before`／`after`値を持ち、配列keyでpath区切りの曖昧さを避ける。過去入力の欠如や削除値はnullとする。
+
+strict readerは同じfactと順序付きbefore／after差分を独立に導出し、変更の欠落／追加／並替／偽造、不正snapshot identity、overflowを拒否する。reportは入出力4 MiB上限を維持し、証拠を切り捨てず過大結果を拒否する。過去portable recordなしは明示し、現在入力の追加として表す。入力一致は観測した入力の一致だけを意味する。通常buildは世代再利用前にもcompile／出力verifyを行うため、cache hit、build成功、compiler work不要、artifact真正性、admitしたrecord外の物理file同一性を保証しない。target由来の変化を含め、compiler identityの変化はそのように説明する。
+
+RFC 0001の実験委任で採択する。通常build実験はpackage入力境界を示し、native SDK／rustc admissionはversion文字列だけを信じず既存build検査を再利用する。E04は既存3-point scopeのまま、上限付きsnapshot比較、CLI／report reader、実source／dependency／target／toolchain／native入力fixture、完全／両host検証を行う。実装で欠けた前提が見つかれば再auditする。この採択でE04やG8を完了しない。
+
 ## ABI and compatibility
 
 reportは新しいschema-1 host artifactである。既存source／edition／MIR／bytecode／package／lock／SDK／C／component形式は変更しない。未知の将来report kindをreaderは拒否する。非互換compile report変更には新schemaを必要とし、既存programの移行は不要である。
@@ -125,7 +141,7 @@ E01でcompile report／readerと実package CLI fixtureを実装する。E02で�
 
 ## Open questions
 
-2026-10-30 JST、RFC 0001の実験委任で採択する。E01／E02／E03Rは完全local baselineと両host CIで検証済み（E03R source `b715b7a`、全体／native run `40955893106`／`40955893087`）。E03の元VM／native allocation reportとstrict replayはCLI／reader／help／整合性の重点22 testと全Clippyにlocal成功し、完全baselineと両host受入は未完了である。E04 rebuild説明の契約と証拠は引き続き必要。単発timingを性能比較に使わない。
+2026-10-30 JST、RFC 0001の実験委任で採択する。E01／E02／E03R／E03は完全local baselineと両host CIで検証済み。E03 source `546ae69`は170 suite／2,494 test、全体CI `40958978887`、native CI `40958978855`の3環境に成功した。E04契約は通常build実験に基づき採択済みだが、実装と検証は未完了。単発timingを性能比較に使わない。
 
 ## Sources
 

@@ -391,6 +391,45 @@ pub(crate) struct Inputs {
     pub rustc_release: String,
     pub rustc_commit: String,
 }
+
+/// Observe the same admitted SDK and selected rustc identity as a native build,
+/// without compiling a startup, linking a program or publishing an output.
+pub(crate) fn inspect_sdk(
+    source: &Path,
+    selected: Option<&OsStr>,
+    limits: Limits,
+) -> Result<Inputs, Error> {
+    use std::sync::atomic::{AtomicU64, Ordering};
+    static NEXT: AtomicU64 = AtomicU64::new(0);
+    let output = std::env::temp_dir().join(format!(
+        "lang-rebuild-input-{}-{}",
+        std::process::id(),
+        NEXT.fetch_add(1, Ordering::Relaxed),
+    ));
+    let mut stage = Stage::new(&output).map_err(Error::Native)?;
+    stage.0 = fs::canonicalize(&stage.0).map_err(|e| io("staging root", &stage.0, e))?;
+    let sdk =
+        m::SdkSnapshot::open_named(source, &stage.0, limits.manifests).map_err(Error::Manifest)?;
+    let host = lang_codegen_clif::Triple::host().to_string();
+    if sdk.manifest().target().text() != host {
+        return Err(Error::Target {
+            sdk: sdk.manifest().target().text().into(),
+            host,
+        });
+    }
+    version(
+        &compiler(selected)?,
+        sdk.root(),
+        sdk.manifest(),
+        limits.diagnostics,
+    )?;
+    Ok(Inputs {
+        sdk_manifest: sdk.manifest_bytes().to_vec(),
+        rustc_release: sdk.manifest().rustc_release().into(),
+        rustc_commit: sdk.manifest().rustc_commit().into(),
+    })
+}
+
 pub(crate) fn link_recorded(request: &Request, limits: Limits) -> Result<Inputs, Error> {
     match link_mode(request, limits, LinkMode::Publish)? {
         Linked::Published(inputs) => Ok(inputs),
