@@ -52,6 +52,7 @@ The rationale and unresolved tradeoffs are documented in [the architecture basel
 - [Whole-repository review, 2026-10-20](docs/review-2026-10-20.md)
 - [Whole-repository review, 2026-10-27](docs/review-2026-10-27.md)
 - [Whole-repository review, 2026-10-28](docs/review-2026-10-28.md)
+- [Specification improvement study: Goose, memory domains, and GraalVM](docs/spec-improvement-study.md)
 - [M3 architecture history](docs/architecture-m3-history.md)
 - [M3 implementation and estimate history](docs/milestone-3-history.md)
 - [RFC process and template](docs/rfcs/0000-template.md)

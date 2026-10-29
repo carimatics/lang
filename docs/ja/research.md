@@ -76,6 +76,8 @@ Swiftはvalue semanticsと人間工学的なaccess ruleの根拠として使用�
 
 ### GraalVMとNative Image
 
+[仕様改善調査](spec-improvement-study.md)は、Gooseの配置・構築、メモリドメインの安全契約、GraalVMの知見を統合し、単独で読める判断基準・過去のprobe・再現可能なlang fixtureにまとめています。現行意味論を維持し、提言と受理済み・実装済みの作業を区別しています。
+
 [2026-10-30のGraalVM調査](graalvm-study.md)では、Native Imageの到達可能性、ビルド時初期化、Truffleの特殊化、ビルドレポート、再現性を、現在のMIR／Cranelift構成と比較しています。小さなCopyプログラムの実験では、リンク前に未使用native関数が残ることを確認しました。到達可能性と費用測定の限定的な試作を推奨し、backendの置き換えや所有権意味論の変更は提案していません。現行release・editionの違いと情報源の日付も記録しています。
 
 ### LLVM、Cranelift、MLIR

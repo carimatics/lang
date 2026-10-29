@@ -76,6 +76,8 @@ Use Swift as evidence for value semantics and ergonomic access rules. Use refere
 
 ### GraalVM and Native Image
 
+The [specification improvement study](spec-improvement-study.md) synthesizes Goose's storage/construction ideas, memory-domain safety contracts, and the GraalVM findings into independently readable decision criteria, historical probes, and reproducible lang fixtures. It preserves current semantics and separates recommendations from accepted or implemented work.
+
 The [2026-10-30 GraalVM study](graalvm-study.md) compares Native Image reachability, build-time initialization, Truffle specialization, build reports and reproducibility with the current MIR/Cranelift pipeline. A small Copy-program experiment confirms retention of an unused native function before linking. The review recommends scoped reachability and cost-measurement prototypes, not a backend replacement or a change to ownership semantics; it records current release/edition distinctions and source dates.
 
 ### LLVM, Cranelift, and MLIR
