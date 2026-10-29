@@ -8,6 +8,8 @@
 
 **9 done · 1 doing · 30 todo · 88 remaining pt**
 
+A06 Windows 修正、2026-10-29 JST: head `fd11166` の [Windows native job](https://github.com/carimatics/lang/actions/runs/40820496903/job/123271717757) で実 native fixture が失敗。移動後 locked replay は `build.json` の変更を検出し、output を保持して拒否した。RFC 0020 で修正前に MSVC `/Brepro` の明示指定を採択し、cache replay 前に native package file／直接 link digest を比較して PE timestamp を記録する。timestamp／linker metadata は修正後の Windows test 成功まで仮説。重点 local 検査／全 baseline と最新 head CI を再実行する。A06 は review 済み 3 pt の doing に保ち、delivery 完了や新見積を主張しない。
+
 A06 実行 checkpoint、2026-10-29 13:52 JST、source `2fffe10`: fmt、警告なし全 Clippy、全 test（**160 suite／2,400 成功／0 失敗**）、doc と重点 51 件に成功。配置変更した二度の native build は executable 全体の digest が一致し、42 を返す。実 native CLI receipt、locked／offline replay、SDK／program／source 削除後の起動、stale／SDK／rustc 拒否、Unix 実行 permission の cache 検査が成功した。配置変更前後の元 package input も一致し、startup path と Mach-O OSO path に RFC 0020 の修正を要した。残る条件は実 Windows 再現性、最新 head CI と branch merge。この checkpoint では A06 や追加 exit gate を完了としない。
 
 **次: M4-A06 — 配置変更した locked package から再現可能 native executable を生成（doing、3 pt）。** A05W source `183d393` は local fmt、警告なし全 Clippy、全 test（**159 suite／2,396 成功／0 失敗**）、doc に成功。A05 source `fc032f5` は両 target の有効／無効 graph と移動後 build／run／test replay・拒否 fixture を追加し、workspace 14/14、consistency 6/6、全 Clippy に成功した（2026-10-29 13:21 JST 確認）。両 host の最新 head CI は branch merge 条件として残る。A06 の受入条件は既存 native target／SDK／link 検査を使い、配置変更後に二度生成して両 host で固定 input の executable digest を比較すること。code 前に native command／transaction 契約を review する。追加 exit gate は未完了。

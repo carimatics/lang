@@ -69,6 +69,10 @@ M4-A06 linker 修正前の 2026-10-29 JST、実験段階の委任で採択する
 
 vendor 出典: [Apple ld64 manual の `-oso_prefix`](https://github.com/apple-oss-distributions/ld64/blob/main/doc/man/man1/ld-classic.1) は、同一 build を支援するため OSO debug-map symbol から prefix を除くと説明する。文書更新日は非公開で、file の最新 repository commit は 2025-04-30、確認日は 2026-10-29 JST。local probe は Apple ld 27037.1／LLVM 21.0.0 を使い、実 executable の比較を受入検証とする。
 
+Windows 修正は実装前の 2026-10-29 JST、実験段階の委任で採択する。`fd11166` の CI は native fixture を実行したが、再生成 build receipt が異なり、移動後の locked replay を拒否した。全 byte の executable assertion と cache 拒否を維持し、MSVC の再現可能 link mode `/Brepro` を指定する。CLI cache 再利用前に元 native package file と直接 link executable digest を比較し、直接 link 不一致では PE timestamp を記録する。timestamp／linker metadata は実 Windows 証拠が成功するまで仮説であり、receipt error だけで単独原因と断定しない。既存 A06 の再現性要件であり、delivery や point 見積を追加しない。
+
+Microsoft の [MSVC 14.52 release-candidate note](https://devblogs.microsoft.com/cppblog/msvc-build-tools-version-14-52-release-candidate-now-available/) は `/Brepro` と PE 再現性の修正を説明する（公開 2026-10-15、更新日不明、確認 2026-10-29 JST）。[Windows timestamp の説明](https://devblogs.microsoft.com/oldnewthing/20180103-00/?p=97705) は再現可能 binary で timestamp を内容 hash に置き換えるとする（公開 2018-01-03、更新 2019-03-13、確認 2026-10-29 JST）。preview toolchain を必須にせず、CI がその修正を含むと仮定しない。
+
 絶対 path を保持する場合と比べ、相対 tool 引数は観測済みの非決定 input を除く。別の compiler path が必要なら path remap が代案となる。完成 binary の変更は input の欠陥を隠し、全 byte の再現性を示せない。対応 SDK と固定した Rust／native linker input を保ち、executable 全体の digest と実 startup を検証する。Windows の再現性と残る platform linker input は実 host test の成功まで未検証。native 信頼、source 意味論、artifact／manifest revision、ABI は維持し、再 build で新しい compiler identity を採用する。
 
 ## Reference semantics

@@ -119,6 +119,17 @@ fn relocated_locked_sibling_program_produces_identical_native_executables() {
         )
         .unwrap();
         let package_root = files.0.join(format!("package-{index}"));
+        if index == 1 {
+            for file in package.files() {
+                let previous = fs::read(files.0.join("package-0").join(file.path)).unwrap();
+                assert_eq!(
+                    lang_codegen_clif::sdk::digest(&file.bytes),
+                    lang_codegen_clif::sdk::digest(&previous),
+                    "native package input {} changed after relocation",
+                    file.path
+                );
+            }
+        }
         package.publish(&package_root).unwrap();
         let executable = files.0.join(format!(
             "application-{index}{}",
@@ -144,8 +155,28 @@ fn relocated_locked_sibling_program_produces_identical_native_executables() {
         );
         assert_eq!(output.stdout, b"42\n");
         digests.push(lang_codegen_clif::sdk::digest(
-            &fs::read(executable).unwrap(),
+            &fs::read(&executable).unwrap(),
         ));
+        if index == 1 {
+            #[cfg(windows)]
+            {
+                let stamp = |bytes: &[u8]| {
+                    let offset = u32::from_le_bytes(bytes[0x3c..0x40].try_into().unwrap()) as usize;
+                    u32::from_le_bytes(bytes[offset + 8..offset + 12].try_into().unwrap())
+                };
+                let first = fs::read(files.0.join("application-0.exe")).unwrap();
+                let second = fs::read(&executable).unwrap();
+                eprintln!(
+                    "native PE timestamps: {:#x} / {:#x}",
+                    stamp(&first),
+                    stamp(&second)
+                );
+            }
+            assert_eq!(
+                digests[0], digests[1],
+                "direct native link differs after relocation"
+            );
+        }
         let mut command = Command::new(env!("CARGO_BIN_EXE_lang"));
         command
             .current_dir(files.0.join(root))

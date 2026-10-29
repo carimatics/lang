@@ -430,6 +430,8 @@ pub(crate) fn link_recorded(request: &Request, limits: Limits) -> Result<Inputs,
         "--crate-name=lang_native_startup".into(),
         "-Cpanic=unwind".into(),
     ];
+    #[cfg(all(target_os = "windows", target_env = "msvc"))]
+    arguments.extend(["-C".into(), "link-arg=/Brepro".into()]);
     #[cfg(target_os = "macos")]
     {
         // Keep OSO debug maps while excluding this operation's private prefix.
