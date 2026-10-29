@@ -65,7 +65,7 @@ SDKのRust facade `component_embedding::gateway`はmode 2、`module_bind_native`
 
 ## Native DAP 実行実験
 
-M4 の native DAP 実験は、厳密に対応する SDK から debug link した Copy executable で、実 source breakpoint、caller、step、正常終了を検証します。新規 output directory を指定して `python tools/check-native-dap.py --sdk SDK --output FRESH-DIRECTORY` を実行します。macOS は Xcode の `lldb-dap`、Windows は LLVM installation の `lldb-dap.exe` を使います。macOS の debugger 起動には適切な OS／sandbox の実行許可が必要です。source `99a20de` は workflow 40907199433 で macOS 15／26 と Windows 2025 の実行に成功し、adapter 終了 0 も確認しました。`lang dap` の native mode は実装中です。
+M4 の native DAP 実験は、厳密に対応する SDK から debug link した Copy executable で、実 source breakpoint、caller、step、正常終了を検証します。新規 output directory を指定して `python tools/check-native-dap.py --sdk SDK --output FRESH-DIRECTORY` を実行します。macOS は Xcode の `lldb-dap`、Windows は LLVM installation の `lldb-dap.exe` を使います。macOS の debugger 起動には適切な OS／sandbox の実行許可が必要です。source `99a20de` は workflow 40907199433 で macOS 15／26 と Windows 2025 の実行に成功し、adapter 終了 0 も確認しました。`lang dap` の Copy native mode は `39473b1` で実装し、production workflow 40918693919 の全3 runnerで成功しました。
 
 runner の旧 LLVM 20.1.8 は python310.dll、別配置の LLVM 23.1.4 MSI は python3.dll を import する。CI は版付き／stable DLL 名を検出し、commit 固定の公式 [setup-python action](https://github.com/actions/setup-python/blob/ece7cb06caefa5fff74198d8649806c4678c61a1/action.yml) で、stable import には実行実績のある x64 Python 3.12 を選ぶ。LLDB_PYTHON_RUNTIME／LLDB_PYTHON_DLL は debugger child だけの PATH／PYTHONHOME を設定し、通常 job interpreter は変更しない。この living action 文書に公開／更新日の記載はなく、DLL import と action は2026-10-30 JST確認。
 
@@ -73,11 +73,11 @@ runner の旧 LLVM 20.1.8 は python310.dll、別配置の LLVM 23.1.4 MSI は p
 
 公式 [LLDB DAP 文書](https://lldb.llvm.org/use/lldbdap.html) は tool 入手方法と起動設定を記載しています。公開／更新日の記載はなく、2026-10-29 JST 確認。
 
-production native launch は D03 で検証中（2026-10-30 JST）。`SDK/bin/lang dap` を起動し、initialize 後に DAP launch `{"mode":"native","root":"/absolute/package","manifestPath":"Lang.json","sdk":"/absolute/sdk"}` を送る。host import のない i64 main を持つ Copy を受理し、既存 SDK／program format を snapshot 化して厳密 rustc と意味 identity を検証し、executable／sidecar を private debug link する。line breakpoint、不変 source query、stack、step、continue、disconnect に対応し、column breakpoint と native value inspection は拒否する。capability event で native hover 評価を無効にする。物理 frame の元の順を保ち、取得済み package file だけに source location を付ける。D03 production 経路自体の両 host 証拠が引き続き必要であり、vendor 実験だけでは完了しない。
+production native launch は D03 の `39473b1` で実装・両host検証済み（2026-10-30 JST、workflow 40918693919、3/3）。`SDK/bin/lang dap` を起動し、initialize 後に DAP launch `{"mode":"native","root":"/absolute/package","manifestPath":"Lang.json","sdk":"/absolute/sdk"}` を送る。host import のない i64 main を持つ Copy を受理し、既存 SDK／program format を snapshot 化して厳密 rustc と意味 identity を検証し、executable／sidecar を private debug link する。line breakpoint、不変 source query、stack、step、continue、disconnect に対応し、column breakpoint と native value inspection は拒否する。capability event で native hover 評価を無効にする。物理 frame の元の順を保ち、取得済み package file だけに source location を付ける。混在stackとlifecycleはD04／D05に残し、native value／column inspectionは引き続きunavailable。
 
 ## Sources
 
-独立 probe は、全 SDK の検証・copy と rustc link を追加する production launch 準備に180秒を許し、通常 DAP request／event の deadline は30秒を維持する。`4a6c734` の Windows trace は source compile を約9 msで完了したが、旧client deadline の30秒を超えて SDK 準備／link 中だった。`LANG_DAP_TRACE` は起動段階と経過時間を stderr に記録する信頼済み host の診断設定で、protocol／source option ではない。breakpoint／source／step／exit と framing／resource assertion は維持する。
+独立 probe は、全 SDK の検証・copy と rustc link を追加する production launch 準備に180秒を許し、通常 DAP request／event の deadline は30秒を維持する。`4a6c734` のWindows traceはSDK準備／link中に旧30秒deadlineを超えたが、`39473b1`は36.5秒（SDK検証／linkが36.0秒）で準備を完了し、全実行／終了assertionが成功した。`LANG_DAP_TRACE` は起動段階と経過時間を stderr に記録する信頼済み host の診断設定で、protocol／source option ではない。breakpoint／source／step／exit と framing／resource assertion は維持する。
 
 Windows DAP CI 実験は、公式 [LLVM 23.1.4 release](https://github.com/llvm/llvm-project/releases/tag/llvmorg-23.1.4) を runner の LLVM 20 tool とは別に展開する。公開日2026-10-20、asset size／SHA-256 は2026-10-30 JST 確認。x86-64 tar archive に LLDB file がないことを実 CI inventory で確認したため、`tools/setup-native-dap.ps1` は代わりに固定した x64 MSI を検証し、既存 tool を置き換えず administrative extraction で private image を作る。実 `liblldb.dll` の Python import を調べて、その child runtime だけを選ぶ。`LLDB_DAP_EXECUTABLE` と `LLDB_PYTHON_DLL` は信頼済み実験 host の設定。既存 LLVM debugger 検証も維持する。展開した MSI は python3.dll を import し、workflow 40907199433 で Windows session の完全終了を証明し、adapter exit の厳密な assertion を引き続き維持する。
 

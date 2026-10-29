@@ -84,9 +84,9 @@ tool は信頼済み host 設定だけで選ぶ。`LLDB_DAP_EXECUTABLE` で Wind
 
 初期 native breakpoint は source line を選択し、既定以外の column 要求は拒否する。native stack の column は未検証 metadata を主張せず、negotiate した基数で unavailable とする。公開前に source／line identity が取得済み入力と一致することを検査する。元 debugger の frame 順を保持し、許可範囲外の物理 frame は source location を省く。
 
-macOS の Xcode lldb-dap と Windows の固定 LLVM 23.1.4 MSI で実 source breakpoint／caller／step／正常終了が成功した（D03R source 99a20de、workflow 40907199433、3/3）。production native launch 自体の両 host 実行検証後に広告する。adapter は許可 source breakpoint／thread／stack／step／continue／disconnect だけを転送し、shell／debugger command・任意 attach・memory write を受け付けない。source 応答は常に取得済み bytes を使い、物理 native frame の許可範囲外 source location は公開しない。初期 native scope／variable／evaluate は unavailable とし、native launch 時の capability 更新で hover 評価を無効にする。
+macOS の Xcode lldb-dap と Windows の固定 LLVM 23.1.4 MSI で実 source breakpoint／caller／step／正常終了が成功した（D03R source 99a20de、workflow 40907199433、3/3）。production native launchもsource 39473b1の両host workflow 40918693919（3/3）で成功した。adapter は許可 source breakpoint／thread／stack／step／continue／disconnect だけを転送し、shell／debugger command・任意 attach・memory write を受け付けない。source 応答は常に取得済み bytes を使い、物理 native frame の許可範囲外 source location は公開しない。初期 native scope／variable／evaluate は unavailable とし、native launch 時の capability 更新で hover 評価を無効にする。
 
-この具体化は RFC 0001 の実験委任で採択する。既存の検証 snapshot と SDK／ABI 境界を再利用し、私有 debug file の寿命を明確にするためである。production native launch と実混在 stack の対応は引き続き未検証条件であり、D03／D04 の gate 根拠に含める。公式 LLVM release は2026-10-20公開、MSI size／hash と実 CI 実行は2026-10-30 JST確認。
+この具体化は RFC 0001 の実験委任で採択する。既存の検証 snapshot と SDK／ABI 境界を再利用し、私有 debug file の寿命を明確にするためである。D03のproduction native launchは検証済みで、実混在stackの対応はD04の要件に残す。公式 LLVM release は2026-10-20公開、MSI size／hash と実 CI 実行は2026-10-30 JST確認。
 
 ## ABI and compatibility
 
