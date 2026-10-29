@@ -431,6 +431,50 @@ fn output_directory_links_cannot_redirect_publication_into_sources() {
     assert!(!f.0.join("app/Lang.lock").exists());
 }
 
+#[cfg(unix)]
+#[test]
+fn publication_uses_the_retained_directory_after_its_display_path_is_replaced() {
+    let f = Files::new();
+    f.app();
+    let original = f.0.join("app");
+    let moved = f.0.join("moved");
+    let args = [
+        "run".into(),
+        "--manifest-path".into(),
+        original.join("Lang.json").into_os_string(),
+    ];
+    let (mut stdout, mut stderr) = (Vec::new(), Vec::new());
+    let code = lang::package::command::run(&args, &mut stdout, &mut stderr, |program, _| {
+        assert!(matches!(program, lang::artifact::Program::Copy(_)));
+        fs::rename(&original, &moved).unwrap();
+        fs::create_dir(&original).unwrap();
+        fs::write(original.join("sentinel"), b"keep this directory").unwrap();
+        Ok(42)
+    })
+    .unwrap();
+    assert_eq!(code, 0);
+    assert_eq!(stdout, b"42\n");
+    assert!(stderr.is_empty());
+    assert_eq!(fs::read_dir(&original).unwrap().count(), 1);
+    assert_eq!(
+        fs::read(original.join("sentinel")).unwrap(),
+        b"keep this directory"
+    );
+    let lock = fs::read(moved.join("Lang.lock")).unwrap();
+    let generation = moved
+        .join("target/lang")
+        .join(lang_codegen_clif::sdk::digest(&lock))
+        .join("build");
+    assert_eq!(fs::read(generation.join("inputs.lock")).unwrap(), lock);
+    assert!(
+        lang::artifact::decode(
+            &fs::read(generation.join("main.lbc")).unwrap(),
+            Default::default()
+        )
+        .is_ok()
+    );
+}
+
 #[test]
 fn concurrent_builds_adopt_one_complete_generation_and_leave_no_private_stages() {
     let f = Files::new();
