@@ -88,6 +88,18 @@ macOS の Xcode lldb-dap と Windows の固定 LLVM 23.1.4 MSI で実 source bre
 
 この具体化は RFC 0001 の実験委任で採択する。既存の検証 snapshot と SDK／ABI 境界を再利用し、私有 debug file の寿命を明確にするためである。D03のproduction native launchは検証済みで、実混在stackの対応はD04の要件に残す。公式 LLVM release は2026-10-20公開、MSI size／hash と実 CI 実行は2026-10-30 JST確認。
 
+### 信頼済み混在hostの具体化（2026-10-30 JST）
+
+embedded DAP serverへ加算的な信頼済みRust host設定を公開し、明示import名を既存`extern "C" fn(i64) -> i64` bindingへ対応付ける。設定済みserverは`mode: mixed`を受理できるが、通常CLI／default serverは引き続きimportを許可しない。source／protocol入力でcallback登録、native library読込、Rust code選択はできない。初期mixed対応は元Copy VM invocation内の協調的なnative Rust callbackを観測し、任意native instruction step、最適化済みvariable回復、広いowned／task profileは別capabilityとする。
+
+検証済みHostCallの直前で保持VMを内部停止し、元source frameを取得して同じMachineを明示grant済みcallbackへ再開する。既存interpreterはcallbackが戻るまでこのHostCall PCを保持する。scope付きhost wrapperは実callbackに入る前に上限付き物理baselineを取得する。host専用pause hookが生存物理PCを取得し、baselineと完全一致する共通suffixを求める。active owner-thread scope／target epochでinvocation identityを、PC対応で物理境界を確立する。symbol名から境界を推測したり、別invocationのtraceを結合してはならない。native物理prefixの後に元logical VM frameを公開し、package許可範囲外のnative Rust source locationは省く。物理captureは完全な最大256 frame、表示合計も最大256 frameとし、曖昧／打切り対応は部分成功stackなしで拒否する。
+
+callbackと元Machineは所有workerに保持し、channelを渡るのは上限付きowned frame／command dataだけとする。pause referenceはresumeで、scope付きcall receiptはcallback return／termination／failureで失効し、RAIIで元thread-local対応を復元する。初期callback codeはembedded serverの存続中保持し、unloadは未対応とする。continueは同じnative callをreplay／counter resetなしで再開する。disconnect／cancelは元interruption flagで協調的host pauseを解除し、任意の信頼済みcallback codeを強制中断できるとはしない。callbackがMachineを借用中のnative／mixed pauseではvalue inspectionをunavailableとし、通常のpaused VM inspectionは変えない。capture／symbol labelは既存index／work／reference／output上限に含める。symbol labelは観測だけで、なければaddressを表示し、symbol文字列からsource／実行権限を与えない。
+
+実行実験`target/m4-d04-combined-probe.log`（2026-10-30 JST確認）は、境界上のnative物理PC6件、元`child -> main` span、物理suffix10 frameの完全一致、結果42、host effect1回を観測した。再開／通常実行のusageはいずれもfuel7、host call1、peak frame2、live cell6。macOSのprototype根拠であり、production DAP／Windows受入ではない。[backtrace 0.3.77](https://github.com/rust-lang/backtrace-rs/releases/tag/backtrace-v0.3.77)のsafe trace／PC APIを使い、独自unsafe platform unwindを避ける。公開日2026-10-27。[Frame／trace実装](https://github.com/rust-lang/backtrace-rs/blob/backtrace-v0.3.77/src/backtrace/mod.rs)に公開／更新日の埋込みはなく、2026-10-30 JST確認。portable／source／C ABI schemaは変更しない。
+
+RFC 0001の実験委任で採択する。元host grant、Machineのcontrol順、source spanを再利用し、明示的な生存scope来歴と有限な観測を保つ。物理capture／symbol化はこのtooling経路のhost workとbinary依存を増やし、性能改善は主張しない。WindowsのPC対応、上限付きembedded server統合、古いreceipt、failure cleanupは未検証受入条件。grant済みhost bridgeと最初のmixed DAP stopをD04B（2 pt）として公開し、D04（3 pt）は両hostの実protocol／frame／failure受入、D05はlifecycle監査に保持する。
+
 ## ABI and compatibility
 
 加算的・実験的 Rust／session と DAP API のみ。source、MIR 意味、portable schema、package／lock metadata、edition、公開 C／component ABI、native SDK 検証を変えない。frontend API に backend／process 型を露出しない。source-local sidecar は semantic／MIR identity と明示 host 上限を使う。後で永続 format を変える際は、先に版／移行を含む改訂を review する。既存一括 run API は結果、usage、failure 優先順を厳密に保ち、artifact 移行は不要。

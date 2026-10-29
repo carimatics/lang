@@ -6,11 +6,11 @@
 
 更新: 2026-10-30 JST。M4 は active。Goal 開始は clean main／origin/main `af9988f`、remote `git@github.com:carimatics/lang.git`。PR #9–#18 は merge 済み。editor PR #18 最終 head `5cdc422` は CI `40864753941`（18 成功、意図した文書専用 skip）と debugger `40864753946`（3/3）に成功し、`0a15fb5` として merge。local main／origin/main ref は ahead／behind 0/0 で一致する。現在の `codex/m4-debug-adapter` は clean・upstream 同期済み `codex/m4-editor-checked-edits` head `5cdc422` から、一貫した D01–D05 用に作成した。既存 user 変更はなく、upstream は `origin/codex/m4-debug-adapter`、main 宛 [draft PR #19](https://github.com/carimatics/lang/pull/19)。D01 head `8421298` は CI `40874260252`（18 成功、意図した文書専用 skip）と debugger `40874260229`（3/3）に成功し、D02 head `ced8e56` は push 済みで、CI `40879596677`（18 成功、意図した文書専用 skip）と debugger `40879596614`（3/3）に成功。merge は未実施。初期記録 base `carimatics/lang:codex/m4-editor-checked-edits` は #18 merge により `carimatics/lang:main` へ変更した。base 同期中も DAP 作業を保持した。
 
-**25 done · 1 doing · 15 todo · 45 remaining pt**
+**25 done · 1 doing · 16 todo · 47 remaining pt**
 
-D04 の最終実行 checkpoint、2026-10-30 02:15 JST: D03 source `39473b1` の production native DAP は workflow 40918693919 の macOS 15／26 と Windows 2025 全3 jobに成功。Windows の準備は36.5秒（SDK検証／linkが36.0秒）で、URI／0始まり座標でも元guest2行目／caller5行目／step／不変source／拒否後BP保持／guest終了0／adapter終了0を証明した。最終local Rust baseline はfmt／警告エラーClippy／167 suite・2,469 test／docが成功。最新の通常CIは実行中で、引き続きPR merge条件とする。D04の残る条件は一つの実native／VM混在invocation、元の生存frame順／source span、両hostのfailure cleanup。G7は未完了。
+D04B の最終実行 checkpoint、2026-10-30 02:31 JST: target/m4-d04-combined-probe.log の一つの保持invocationで、native物理PC6件、元VM child→main span、共通物理suffix10 frameの完全一致を観測。結果42／effect1回で、通常実行とfuel7・host call1・peak frame2・live cell6が一致した。symbol文字列や別実行の結合は使わない。残るD04B条件は明示Rust host grant、owner-thread停止scope、上限付き物理frameと元VMを公開する最初のmixed DAP stop。D04の両host protocol／failure受入、D05 lifecycle、最新head CIは引き続き必要。
 
-**次: M4-D04 — 元spanとcleanupを保つ一つの実native／VM混在stack（doing、3 pt）。** D03は`39473b1`で完了、追加なしで最終3 ptを消化。追加+13、消化71、41 deliveryの残り45 pt。D05 lifecycle監査と最新headの通常CIは引き続き必要。
+**次: M4-D04B — 明示grant済みnative host bridgeと上限付きmixed DAP stop（doing、2 pt）。** 同じinvocationの実PC／source prototypeから前提を実装前に公開。追加+15、消化71、42 deliveryの残り47 pt。D04は両hostのprotocol／frame／failure受入に3 ptを保持し、D05 lifecycleと最新head CIも引き続き必要。
 
 A04 source `cf6cf5c` は fmt、全 Clippy／doc、checked opt-level 1 全 test（**158 suite／2,384 成功／0 失敗**）、重点 75 test に成功。最終 head `75a2041` は [全 CI](https://github.com/carimatics/lang/actions/runs/40810065213)（全 19 job、18 成功、意図した文書専用 skip）と [debugger 実行](https://github.com/carimatics/lang/actions/runs/40810065278)（3/3）に成功した。[PR #13](https://github.com/carimatics/lang/pull/13) は `58527c2` として merge、main を fast-forward して clean・同期済み、ahead／behind 0/0。workspace branch 作成と現在の PR／upstream は上記に記録した。既存の user 変更はなかった。
 
@@ -75,7 +75,8 @@ A01 入力修正は Unix の nonblocking open と開いた handle の metadata �
 | M4-D02 | done | 0 | M4-D01 | G7 | pause／authority 上限付き VM stepping、frame、local、evaluation | `ced8e56` |
 | M4-D03R | done | 0 | M4-D02 | G7 | Windows LLVM の対応 Python runtime を設定し実 native DAP breakpoint を証明 | `99a20de` |
 | M4-D03 | done | 0 | M4-D03R | G7 | 両 tier-1 host で native debugger launch と source breakpoint | `39473b1` |
-| M4-D04 | doing | 3 | M4-D03 | G7 | native／VM 混在 stack fixture で call 順、span、失敗 cleanup 保持 | — |
+| M4-D04B | doing | 2 | M4-D03 | G7 | 明示grant済みhost bridgeと元VMに結合する上限付きnative物理frame停止 | — |
+| M4-D04 | todo | 3 | M4-D04B | G7 | native／VM 混在 stack fixture で call 順、span、失敗 cleanup 保持 | — |
 | M4-D05 | todo | 3 | M4-D04 | G7 | DAP disconnect／restart／cancel／不正 input と両 host session 証拠 | — |
 | M4-E01 | todo | 3 | M4-A06 | G8 | profile／trace schema 採択、上限付き compiler phase cost 出力 | — |
 | M4-E02 | todo | 3 | M4-E01 | G8 | sampling／測定限界を明示する source 対応 VM／native runtime profile | — |
@@ -98,9 +99,9 @@ A01 入力修正は Unix の nonblocking open と開いた handle の metadata �
 
 | Baseline remaining | Net added/re-estimated | Retired on completion | Remaining |
 | ---: | ---: | ---: | ---: |
-| 103 pt | +13 pt | −71 pt | 45 pt |
+| 103 pt | +15 pt | −71 pt | 47 pt |
 
-**103 + 13 − 71 = 45 pt**
+**103 + 15 − 71 = 47 pt**
 
 名前空間の前提監査、2026-10-29 JST: 既存 `ModuleGraph::root()` は常に `ModuleId(0)`。path provider だけでは依存ごとの package-root 名前空間や共有 dependency identity の安全な再利用を提供できない。元の A02 を、許可 graph（新規 A02R、3 pt）と名前空間／source 実行の統合（task list を見直した A02、残り 3 pt）へ分割する。純追加 +3 pt、全 37 delivery。A01 と A02R は前提二つとなるため、水平基盤を増やす前に A02 で次の source 実行 fixture を示す。この監査による gate 完了や延期はない。
 
@@ -158,3 +159,5 @@ A04B 完了: `9cf5f7c` が実 package 作成／dependency build／run、locked�
 Windows runtime 前提監査、2026-10-30 JST: LLVM 20.1.8 lldb-dap.exe は存在するが 0xc0000135 で終了し、liblldb.dll の import は python310.dll を要求する。対応 x64 Python 3.10 runtime と実 Windows breakpoint fixture 用に D03R（1 pt）を追加。D03 の残る SDK snapshot／source 権限／adapter 統合を再確認し 3 pt を保持、doing を D03R へ移す。純追加 +1、全 41 delivery、103 +12 −66 =49 pt。gate 完了は主張しない。
 
 Windows debugger 再見積監査、2026-10-30 JST: runtime と PDB 選択は実 breakpoint／caller／step／guest 終了を証明したが、LLVM 20.1.8 の adapter 終了異常が残る。公式安定版 LLVM 23.1.4（2026-10-20 公開）を SHA-256 固定で別配置し、実 runtime ABI と正常終了を検証する。残タスクを見直し D03R を 1→2 pt、純追加 +1。累積追加 +13、消化 66、103 +13 −66 =50 pt。終了 assertion や既存 LLVM の検査は弱めない。
+
+混在host前提監査、2026-10-30 JST: D04の残タスクを再確認し、明示host import grant／public binding API、元workerのscope付きwrapper、上限付き物理PC取得と生存VM対応、最初のmixed DAP停止が未実装と判明。実装前にD04B（2 pt）を追加しdoingへ移す。D04は両hostの実protocol／frame／failure cleanup受入に3 ptを保持する。純追加+2、累積追加+15、消化71、42 delivery、103+15−71=47 pt。D03の実native成功とG7完了は分け、gateは未完了のまま。
