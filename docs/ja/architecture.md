@@ -117,7 +117,9 @@ Read-only revision 1のdebug descriptorで、dispatch時にallocationせずowned
 
 CLI は check、source/artifact 実行、portable compile、native package/link、transactional REPL、同期 LSP prototype を備えます。format は共通 CST API と LSP document formatting から利用できます。[RFC 0010](rfcs/0010-owned-repl-previews.md) と [RFC 0016](rfcs/0016-indirect-repl-previews.md) が有界 result preview を定めます。output 公開前に result を retire し、session は source 定義を保持しても mutable guest owner を保持しません。
 
-Query graph は推移的 consumer を無効化し、編集、close／reopen、新しい処理の開始後に古い結果の公開を拒否します。LSP は source analysis、不変 overlay、UTF-16 mapping を再利用し、上限付き framing／output で lifecycle、full synchronization、診断、format、監視 module の refresh を実装しています。package profile は dependency item、case、parameter、local、record field の definition／references を追加します。[RFC 0039](rfcs/0039-package-editor-snapshots.md) が許可 input／overlay epoch、元 URI／span 対応、応答上限、検証 edit の前提を定義します。completion、semantic token、rename、code action、DAP は active delivery として残ります。
+Query graph は推移的 consumer を無効化し、編集、close／reopen、新しい処理の開始後に古い結果の公開を拒否します。LSP は source analysis、不変 overlay、UTF-16 mapping を再利用し、上限付き framing／output で lifecycle、full synchronization、診断、format、監視 module の refresh を実装しています。package profile は dependency item、case、parameter、local、record field の definition／references を追加します。[RFC 0039](rfcs/0039-package-editor-snapshots.md) が許可 input／overlay epoch、元 URI／span 対応、応答上限、検証 edit の前提を定義します。semantic token、rename、code action、DAP は active delivery として残ります。
+
+package completion は上限付きで決定的な module／import／case 名、lexical binding、宣言型 record field を追加し、不完全な修飾名／member slot は一時的な通常 parser／binder overlay で扱います。probe 診断／位置は公開せず、edit は元 UTF-16 範囲と epoch／version data を使います。曖昧／未解決／未対応 receiver 式の field は推測しません。
 
 ## Concurrency、component、将来のtoolchain
 

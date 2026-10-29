@@ -62,6 +62,81 @@ pub(super) fn configuration(root: Option<&Path>, params: &Value) -> Result<Optio
     }))
 }
 impl Server {
+    pub(super) fn completion(&mut self, params: &Value) -> Result<Value, Fault> {
+        let name = string(field(params, "textDocument")?, "uri")?;
+        let path = uri::path(name, self.limits.uri_bytes)
+            .map_err(|_| invalid("document must use a local file URI"))?;
+        let path = self
+            .db
+            .as_ref()
+            .unwrap()
+            .document_path(&path)
+            .map_err(database_error)?;
+        let position = field(params, "position")?;
+        let coordinate = |key: &str| -> Result<u32, Fault> {
+            field(position, key)?
+                .as_u64()
+                .filter(|n| *n <= i32::MAX as u64)
+                .map(|n| n as u32)
+                .ok_or_else(|| invalid("invalid UTF-16 position"))
+        };
+        let line = coordinate("line")?;
+        let character = coordinate("character")?;
+        self.ensure_package();
+        let view = self
+            .package_view
+            .as_ref()
+            .unwrap()
+            .as_ref()
+            .map_err(internal)?;
+        let (id, file) = view.source(&path).map_err(internal)?;
+        let offset = lang_lsp::text_offset(
+            file.text(),
+            line,
+            character,
+            self.limits.mapping.source_bytes,
+        )
+        .map_err(|_| invalid("position has no valid source boundary"))?;
+        let list = editor::completion::complete(view, &path, offset, self.package_epoch)
+            .map_err(internal)?;
+        let sources = &view.snapshot.analysis().sources;
+        let span = sources
+            .span(id, list.replace.span.start..list.replace.span.end)
+            .map_err(internal)?;
+        let edit_range = super::range(
+            lang_lsp::map_range(span, sources, self.limits.mapping.source_bytes)
+                .map_err(internal)?,
+        );
+        let version = view
+            .snapshot
+            .versions()
+            .get(view.relative(&path).map_err(internal)?)
+            .copied();
+        let mut items = Vec::new();
+        let mut bytes = 40usize;
+        if bytes > self.limits.mapping.output_bytes {
+            return Err(internal("completion response byte limit exceeded"));
+        }
+        for candidate in list.candidates {
+            use editor::SymbolKind as K;
+            let kind = match candidate.kind {
+                K::Function | K::Host => 3,
+                K::Record => 22,
+                K::Enum => 13,
+                K::EnumCase => 20,
+                K::Module | K::Import => 9,
+                K::Parameter | K::Variable => 6,
+                K::Field => 5,
+            };
+            let value = json!({"label":candidate.name,"kind":kind,"detail":candidate.detail,"textEdit":{"range":edit_range,"newText":candidate.name},"data":{"epoch":self.package_epoch,"version":version}});
+            bytes = bytes
+                .checked_add(serde_json::to_vec(&value).map_err(internal)?.len() + 1)
+                .filter(|n| *n <= self.limits.mapping.output_bytes)
+                .ok_or_else(|| internal("completion response byte limit exceeded"))?;
+            items.push(value);
+        }
+        Ok(json!({"isIncomplete":false,"items":items}))
+    }
     pub(super) fn package_publications(&mut self) -> Vec<Value> {
         self.ensure_package();
         let mut groups: BTreeMap<String, Vec<Value>> = self

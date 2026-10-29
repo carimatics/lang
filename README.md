@@ -103,6 +103,8 @@ The rationale and unresolved tradeoffs are documented in [the architecture basel
 
 `cargo run -- lsp` uses package definition/references when its explicit workspace contains `Lang.json`. Initialize options `manifestPath`, `package` and `target` select the package; open source overlays and watched changes update one admitted epoch. Navigation retains original UTF-16 locations for dependency items, cases, parameters, locals and fields. Save/refresh dirty manifests before semantic navigation. See [RFC 0039](docs/rfcs/0039-package-editor-snapshots.md) for source authority and edit prerequisites.
 
+Package completion returns public module/import/enum names, scoped bindings and fields recovered from declared receiver types. Incomplete identifiers use a bounded in-memory normal-parser/binder probe; returned text edits retain original UTF-16 ranges and carry epoch/version data. Unsupported receiver expressions produce no guessed fields.
+
 ## Development
 
 `cargo run -- fmt --manifest-path target/my_app/Lang.json --check` reports files needing the existing CST formatter without edits. Omit `--check` to apply validated per-file source replacements, including selected dependencies/tests. Original comments/spans and permissions are retained; stale or invalid input refuses before publication. Source changes leave the old lock stale; regenerate it through an ordinary build/run. See [RFC 0036](docs/rfcs/0036-checked-package-formatting.md) for the per-file publication boundary.

@@ -235,6 +235,12 @@ impl Server {
                 .unwrap_or_default();
         }
         if let Some(id) = id {
+            if self.package.is_some() && method == "textDocument/completion" {
+                return vec![match self.completion(params) {
+                    Ok(result) => response(id, result),
+                    Err(e) => response_error(id, e.code, &e.message),
+                }];
+            }
             if self.package.is_some()
                 && matches!(
                     method,
@@ -319,6 +325,8 @@ impl Server {
         if self.package.is_some() {
             result["capabilities"]["definitionProvider"] = json!(true);
             result["capabilities"]["referencesProvider"] = json!(true);
+            result["capabilities"]["completionProvider"] =
+                json!({"triggerCharacters":[".",":"],"resolveProvider":false});
         }
         Ok(result)
     }

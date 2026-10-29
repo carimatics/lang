@@ -20,6 +20,9 @@ pub(crate) struct OpenDocument {
 pub(crate) struct View {
     pub authority: PathBuf,
     pub snapshot: Snapshot,
+    pub graph: Graph,
+    pub overlays: Vec<Overlay>,
+    pub limits: Limits,
 }
 impl Config {
     pub fn capture(
@@ -80,6 +83,9 @@ impl Config {
         Ok(View {
             authority,
             snapshot,
+            graph,
+            overlays,
+            limits,
         })
     }
 }

@@ -91,6 +91,227 @@ fn watch(s: &mut Server, uri: &str) -> Vec<Value> {
     ))
 }
 
+fn complete(s: &mut Server, uri: &str, source: &str, offset: usize) -> Value {
+    let before = &source[..offset];
+    let line = before.bytes().filter(|b| *b == b'\n').count();
+    let character = before.rsplit('\n').next().unwrap().encode_utf16().count();
+    s.handle(request(
+        "textDocument/completion",
+        json!({"textDocument":{"uri":uri},"position":{"line":line,"character":character}}),
+    ))
+    .remove(0)
+}
+
+#[test]
+fn completion_uses_public_module_names_and_current_overlay_utf16_replacement() {
+    let f = Files::new();
+    f.write(
+        "helper/src/main.lang",
+        "pub fn answer()->i64{return 42;}fn hidden()->i64{return 0;}",
+    );
+    let root = f.uri("src/main.lang");
+    let mut s = f.ready(Default::default(), json!({}));
+    let source = "/*😀*/mod helper;fn main()->i64{return helper::ans;}";
+    open(&mut s, &root, source);
+    let offset = source.find("ans;").unwrap() + 3;
+    let result = complete(&mut s, &root, source, offset);
+    let items = result["result"]["items"]
+        .as_array()
+        .unwrap_or_else(|| panic!("{result:?}"));
+    assert_eq!(items.len(), 1, "{result:?}");
+    assert_eq!(items[0]["label"], "answer");
+    assert_eq!(items[0]["kind"], 3);
+    assert_eq!(items[0]["data"]["version"], 1);
+    assert_eq!(
+        items[0]["textEdit"]["range"]["start"]["character"],
+        source[..offset - 3].encode_utf16().count()
+    );
+    assert_eq!(
+        items[0]["textEdit"]["range"]["end"]["character"],
+        source[..offset].encode_utf16().count()
+    );
+    let empty = source.replace("::ans", "::");
+    change(&mut s, &root, 2, &empty);
+    let all = complete(&mut s, &root, &empty, empty.find("::;").unwrap() + 2);
+    let names: Vec<_> = all["result"]["items"]
+        .as_array()
+        .unwrap_or_else(|| panic!("{all:?}"))
+        .iter()
+        .map(|i| i["label"].as_str().unwrap())
+        .collect();
+    assert!(names.contains(&"answer"), "{all:?}");
+    assert!(!names.contains(&"hidden"), "{all:?}");
+    let edit = &items[0]["textEdit"];
+    let boundary = |key: &str| {
+        lang_lsp::text_offset(
+            source,
+            edit["range"][key]["line"].as_u64().unwrap() as u32,
+            edit["range"][key]["character"].as_u64().unwrap() as u32,
+            Limits::default().mapping.source_bytes,
+        )
+        .unwrap()
+    };
+    let mut fixed = source.to_string();
+    fixed.replace_range(
+        boundary("start")..boundary("end"),
+        edit["newText"].as_str().unwrap(),
+    );
+    fixed = fixed.replace("::answer;", "::answer();");
+    assert!(diagnostics(&change(&mut s, &root, 3, &fixed), &root).is_empty());
+    assert_eq!(fs::read_to_string(f.0.join("src/main.lang")).unwrap(), ROOT);
+    assert!(!f.0.join("Lang.lock").exists());
+    assert!(!f.0.join("target").exists());
+}
+
+#[test]
+fn completion_recovers_declared_record_fields_and_lexical_bindings() {
+    let f = Files::new();
+    let root = f.uri("src/main.lang");
+    let mut s = f.ready(Default::default(), json!({}));
+    let source = "struct Pair{value:i64,other:i64}fn main()->i64{let mut pair:Pair=Pair{value:42,other:0};return pair.;}";
+    open(&mut s, &root, source);
+    let r = complete(&mut s, &root, source, source.find(".;").unwrap() + 1);
+    let items = r["result"]["items"]
+        .as_array()
+        .unwrap_or_else(|| panic!("{r:?}"));
+    let names: Vec<_> = items.iter().map(|i| i["label"].as_str().unwrap()).collect();
+    assert_eq!(names, ["other", "value"], "{r:?}");
+    assert!(items.iter().all(|i| i["kind"] == 5));
+    let source = "fn choose(parameter:i64)->i64{let mut previous:i64=parameter;if true{let mut nested:i64=1;}return pre;}fn main()->i64{return choose(42);}";
+    change(&mut s, &root, 2, source);
+    let r = complete(&mut s, &root, source, source.find("pre;").unwrap() + 3);
+    assert_eq!(r["result"]["items"][0]["label"], "previous", "{r:?}");
+    let source = source.replace("return pre;", "return ;");
+    change(&mut s, &root, 3, &source);
+    let r = complete(&mut s, &root, &source, source.find("return ;").unwrap() + 7);
+    let names: Vec<_> = r["result"]["items"]
+        .as_array()
+        .unwrap_or_else(|| panic!("{r:?}"))
+        .iter()
+        .map(|i| i["label"].as_str().unwrap())
+        .collect();
+    assert!(names.contains(&"parameter"), "{r:?}");
+    assert!(names.contains(&"previous"), "{r:?}");
+    assert!(!names.contains(&"nested"), "{r:?}");
+}
+
+#[test]
+fn completion_uses_resolved_imports_enum_cases_and_type_context() {
+    let f = Files::new();
+    f.write(
+        "helper/src/main.lang",
+        "pub fn answer()->i64{return 42;}pub enum Choice{Yes,No}pub struct Pair{value:i64}",
+    );
+    let root = f.uri("src/main.lang");
+    let mut s = f.ready(Default::default(), json!({}));
+    for (version, source, needle, expected) in [
+        (
+            1,
+            "mod helper;use helper::answer;fn main()->i64{return ans;}",
+            "ans;",
+            vec!["answer"],
+        ),
+        (
+            2,
+            "mod helper;fn main()->i64{let mut c:helper::Choice=helper::Choice::;return 42;}",
+            "::;",
+            vec!["No", "Yes"],
+        ),
+        (
+            3,
+            "mod helper;fn main()->i64{let mut c:helper::=0;return 42;}",
+            "::=",
+            vec!["Choice", "Pair"],
+        ),
+    ] {
+        if version == 1 {
+            open(&mut s, &root, source);
+        } else {
+            change(&mut s, &root, version, source);
+        }
+        let offset = source.find(needle).unwrap()
+            + if needle.starts_with("::") {
+                2
+            } else {
+                needle.len() - 1
+            };
+        let r = complete(&mut s, &root, source, offset);
+        let names: Vec<_> = r["result"]["items"]
+            .as_array()
+            .unwrap_or_else(|| panic!("{r:?}"))
+            .iter()
+            .map(|i| i["label"].as_str().unwrap())
+            .collect();
+        assert_eq!(names, expected, "source={source}: {r:?}");
+    }
+}
+
+#[test]
+fn completion_refuses_unsupported_context_stale_text_and_bounded_output() {
+    let f = Files::new();
+    let root = f.uri("src/main.lang");
+    let mut s = f.ready(Default::default(), json!({}));
+    let source = "/*😀 helper:: */fn main()->i64{return 42;}";
+    open(&mut s, &root, source);
+    let r = complete(&mut s, &root, source, source.find("::").unwrap() + 2);
+    assert_eq!(r["result"]["items"], json!([]));
+    for source in [
+        "fn main()->i64{return unknown.;}",
+        "struct Pair{value:i64,value:i64}fn main()->i64{let mut p:Pair=Pair{value:42};return p.;}",
+    ] {
+        let version = if source.contains("unknown") { 2 } else { 3 };
+        change(&mut s, &root, version, source);
+        let r = complete(&mut s, &root, source, source.find(".;").unwrap() + 1);
+        assert_eq!(r["result"]["items"], json!([]), "{r:?}");
+    }
+    let current = "mod helper;fn main()->i64{return helper::ans;}";
+    change(&mut s, &root, 4, current);
+    assert!(change(&mut s, &root, 3, "broken").is_empty());
+    let r = complete(&mut s, &root, current, current.find("ans;").unwrap() + 3);
+    assert_eq!(r["result"]["items"][0]["data"]["version"], 4, "{r:?}");
+    let mut bounded = f.ready(
+        Limits {
+            mapping: lang_lsp::Limits {
+                output_bytes: 32,
+                ..Limits::default().mapping
+            },
+            ..Default::default()
+        },
+        json!({}),
+    );
+    open(&mut bounded, &root, current);
+    let r = complete(
+        &mut bounded,
+        &root,
+        current,
+        current.find("ans;").unwrap() + 3,
+    );
+    assert_eq!(r["error"]["code"], -32603, "{r:?}");
+    assert!(r.get("result").is_none());
+    change(&mut s, &root, 5, source);
+    let r = s.handle(request(
+        "textDocument/completion",
+        json!({"textDocument":{"uri":root},"position":{"line":0,"character":3}}),
+    ));
+    assert_eq!(r[0]["error"]["code"], -32602);
+}
+
+#[test]
+fn completion_candidate_limit_refuses_the_entire_response() {
+    let f = Files::new();
+    let helper = (0..257)
+        .map(|i| format!("pub fn candidate{i}()->i64{{return 42;}}"))
+        .collect::<String>();
+    f.write("helper/src/main.lang", &helper);
+    let root = f.uri("src/main.lang");
+    let mut s = f.ready(Default::default(), json!({}));
+    let source = "mod helper;fn main()->i64{return helper::;}";
+    open(&mut s, &root, source);
+    let r = complete(&mut s, &root, source, source.find("::;").unwrap() + 2);
+    assert_eq!(r["error"]["code"], -32603, "{r:?}");
+    assert!(r.get("result").is_none());
+}
+
 #[test]
 fn real_package_definition_references_and_overlay_lifecycle_keep_original_utf16_locations() {
     let f = Files::new();

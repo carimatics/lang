@@ -68,6 +68,8 @@ definition は宣言名 span へ移動し、references は任意で宣言も含�
 
 semantic token legend は namespace、type、enum member、function、parameter、variable、property、keyword、comment、string、number、operator に固定する。複数行 token は CR／LF を除いて行境界で分割し、整列・非重複の UTF-16 length と検証済み delta 符号を出力する。初期は全文 token で、未対応 delta／range capability を広告しない。構文 error 時は semantic identity を捏造せず lexical 分類を使える。
 
+C03 は一時 source overlay 内で現在 identifier slot だけを上限付き private marker に置換できる。同じ許可 epoch に対して通常 parser／module／binding pipeline を使い、probe 診断、source 位置、実行 output は公開しない。module 候補は既存 resolver／privacy 規則を再利用する。後の body 型検査が marker を拒否しても、通常解決した receiver の宣言型 annotation や function result から field 候補を得られるが、これは宣言／名前の対応を証明するもので program 有効性の証明ではない。曖昧／未解決／未対応 receiver の field は推測しない。複写 name、候補数、work、符号化 edit を制限し、返却 edit は元文書の range／version epoch を使う。disk 書込みや古い成功 fact は使わない。
+
 ### 検証付き edit 提案
 
 prepare／rename は証明済み source item、case、field、local binding を扱い、名前は keyword 以外の合法 identifier とする。未解決／core／外部宣言、重なる edit、衝突、未対応 alias／module／file rename は拒否する。正確な宣言／use 集合への置換を作り、memory 内複写に適用し、再解析して byte offset 対応付けの下で binding の対応を比較する。意図した symbol の名前だけを変え、他の binding、type／privacy／ownership／effect fact の意味を保持する。型検査成功だけでは意図しない capture がないことを証明できない。
