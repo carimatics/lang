@@ -6,13 +6,13 @@
 
 更新: 2026-10-30 JST。M4 は active。Goal 開始は clean main／origin/main `af9988f`、remote `git@github.com:carimatics/lang.git`。PR #9–#18 は merge 済み。editor PR #18 最終 head `5cdc422` は CI `40864753941`（18 成功、意図した文書専用 skip）と debugger `40864753946`（3/3）に成功し、`0a15fb5` として merge。local main／origin/main ref は ahead／behind 0/0 で一致する。debugger branch `codex/m4-debug-adapter` は clean・upstream 同期済み `codex/m4-editor-checked-edits` head `5cdc422` から、一貫した D01–D05 用に作成した。既存 user 変更はなく、upstream は `origin/codex/m4-debug-adapter`、main 宛 [draft PR #19](https://github.com/carimatics/lang/pull/19)。D01 head `8421298` は CI `40874260252`（18 成功、意図した文書専用 skip）と debugger `40874260229`（3/3）に成功し、D02 head `ced8e56` は push 済みで、CI `40879596677`（18 成功、意図した文書専用 skip）と debugger `40879596614`（3/3）に成功。merge は未実施。初期記録 base `carimatics/lang:codex/m4-editor-checked-edits` は #18 merge により `carimatics/lang:main` へ変更した。base 同期中も DAP 作業を保持した。
 
-**28 done · 1 doing · 13 todo · 39 remaining pt**
+**29 done · 1 doing · 12 todo · 36 remaining pt**
 
-現在のprofiling checkoutは`codex/m4-profiling`で、clean・同期済みdebugger branch `10aae50`から作成し、既存user変更はない。記録したremote PR baseは`carimatics/lang:codex/m4-debug-adapter`で、#19 merge後に`carimatics/lang:main`へ移す。E01–E04を一貫したscopeとする。local main／origin/mainには別の文書PR #20–#23の`be9f77c`もあり、これらの変更を保持する。
+現在のcheckoutは`codex/m4-profiling`。clean・同期済みdebugger branch `10aae50`から作成し、既存user変更はない。upstreamは`origin/codex/m4-profiling`、[draft PR #24](https://github.com/carimatics/lang/pull/24)のscopeはE01–E04。#19が`14a92df`でmergeしたため記録baseを`carimatics/lang:codex/m4-debug-adapter`から`carimatics/lang:main`へ移した。local main／origin/mainは`14a92df`で0/0。別文書PR #20–#23の祖先`be9f77c`も保持した。
 
-E01 の最終実行 checkpoint、2026-10-30 04:38 JST: 作業treeのRFC 0041／厳格compile report reader／`lang profile compile`が実package／workspace／不正report 3試験とconsistency 6試験に成功。実宣言依存CLIはsource 2件・artifact 695 bytesを返し、入力ID／artifact長が通常compileに一致し、失敗時も既存lock／buildを保持。最終fmt、全警告エラーClippy、workspace docは成功し、全workspace testを実行中。E01の残る受入は最終baselineとcode commitで、両host profile証拠はG8に保持。D05 source `cf5e27f`は全local検査／2,477 test、全体CI `40937041512`、native `40937041276`（3/3）に成功し、PR #19最終文書head `10aae50`の最新全体CI／mergeを待つ。
+E02 の最終実行 checkpoint、2026-10-30 04:46 JST: E01 source `e2f0c1d`はfmt／全警告エラーClippy／170 suite・2,480 test／doc／fuzz Clippyに成功。実package／workspace／不正report 3試験、consistency 6試験も成功し、通常入力digestと695-byte artifactに一致して既存lock／buildを保持した。E01は完了。残るE02受入は元charge pointの上限付き観測、明示profile／計測制限の実VM／native source帰属、CLI、結果／usage同値fixture。PR #24の両host CIは実行中でG8は未完了。
 
-**次: M4-E01 — 上限付きcompiler phase report（doing、3 pt）。** D05は`cf5e27f`で完了、追加なしで最終3 ptを消化。追加+15、消化79、42 deliveryの残り39 pt。E01残タスクをreport／schema契約、既存package／frontend／portable compile経路の計測、実CLI fixture、上限／error reader試験へ再確認し3 ptを維持。E02–E04、署名install、最終journey／guideは引き続き必要。
+**次: M4-E02 — sourceに帰属するruntime観測（doing、3 pt）。** E01は`e2f0c1d`で完了し、追加なしで最終3 ptを消化。追加+15、消化82、42 deliveryの残り36 pt。scope監査で元charge pointへの任意の上限付きobserver、実VM／nativeの帰属report、重点同値／上限試験へ分解し3 ptを維持。runtime／trace契約は実行証拠に基づき実装前に具体化する。
 
 A04 source `cf6cf5c` は fmt、全 Clippy／doc、checked opt-level 1 全 test（**158 suite／2,384 成功／0 失敗**）、重点 75 test に成功。最終 head `75a2041` は [全 CI](https://github.com/carimatics/lang/actions/runs/40810065213)（全 19 job、18 成功、意図した文書専用 skip）と [debugger 実行](https://github.com/carimatics/lang/actions/runs/40810065278)（3/3）に成功した。[PR #13](https://github.com/carimatics/lang/pull/13) は `58527c2` として merge、main を fast-forward して clean・同期済み、ahead／behind 0/0。workspace branch 作成と現在の PR／upstream は上記に記録した。既存の user 変更はなかった。
 
@@ -80,8 +80,8 @@ A01 入力修正は Unix の nonblocking open と開いた handle の metadata �
 | M4-D04B | done | 0 | M4-D03 | G7 | 明示grant済みhost bridgeと元VMに結合する上限付きnative物理frame停止 | `67f62fa` |
 | M4-D04 | done | 0 | M4-D04B | G7 | native／VM 混在 stack fixture で call 順、span、失敗 cleanup 保持 | `759bae0` |
 | M4-D05 | done | 0 | M4-D04 | G7 | DAP disconnect／restart／cancel／不正 input と両 host session 証拠 | `cf5e27f` |
-| M4-E01 | doing | 3 | M4-A06 | G8 | profile／trace schema 採択、上限付き compiler phase cost 出力 | — |
-| M4-E02 | todo | 3 | M4-E01 | G8 | sampling／測定限界を明示する source 対応 VM／native runtime profile | — |
+| M4-E01 | done | 0 | M4-A06 | G8 | profile／trace schema 採択、上限付き compiler phase cost 出力 | `e2f0c1d` |
+| M4-E02 | doing | 3 | M4-E01 | G8 | sampling／測定限界を明示する source 対応 VM／native runtime profile | — |
 | M4-E03 | todo | 3 | M4-E02 | G8 | 実 allocator counter と整合し buffer 上限を持つ allocation／retirement trace | — |
 | M4-E04 | todo | 3 | M4-E03 | G8 | rebuild 説明が source／dependency／target／toolchain input の変更を特定 | — |
 | M4-F01 | todo | 3 | M4-A01 | G9 | installer trust root、署名 metadata、channel／version 選択、atomic 復旧設計採択 | — |
@@ -101,9 +101,9 @@ A01 入力修正は Unix の nonblocking open と開いた handle の metadata �
 
 | Baseline remaining | Net added/re-estimated | Retired on completion | Remaining |
 | ---: | ---: | ---: | ---: |
-| 103 pt | +15 pt | −79 pt | 39 pt |
+| 103 pt | +15 pt | −82 pt | 36 pt |
 
-**103 + 15 − 79 = 39 pt**
+**103 + 15 − 82 = 36 pt**
 
 名前空間の前提監査、2026-10-29 JST: 既存 `ModuleGraph::root()` は常に `ModuleId(0)`。path provider だけでは依存ごとの package-root 名前空間や共有 dependency identity の安全な再利用を提供できない。元の A02 を、許可 graph（新規 A02R、3 pt）と名前空間／source 実行の統合（task list を見直した A02、残り 3 pt）へ分割する。純追加 +3 pt、全 37 delivery。A01 と A02R は前提二つとなるため、水平基盤を増やす前に A02 で次の source 実行 fixture を示す。この監査による gate 完了や延期はない。
 
