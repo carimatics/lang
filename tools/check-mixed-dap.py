@@ -82,6 +82,7 @@ class Client:
         self.responses = {}
         self.sequence = 0
         self.last = -1
+        self.terminals = 0
         self.errors = bytearray()
         self.reader = threading.Thread(target=self.read, daemon=True)
         self.stderr = threading.Thread(target=self.read_errors, daemon=True)
@@ -133,6 +134,7 @@ class Client:
             self.responses[value["request_seq"]] = value
         elif value["type"] == "event":
             assert len(self.events) < 128
+            self.terminals += int(value["event"] == "terminated")
             self.events.append(value)
         else:
             raise RuntimeError(f"unsupported reverse request: {value}")
@@ -158,12 +160,26 @@ class Client:
                     return self.events.pop(i)
             self.receive(deadline)
 
-    def finish(self):
-        self.request("disconnect", {})
+    def finish(self, eof=False):
+        if eof:
+            self.process.stdin.close()
+        else:
+            self.request("disconnect", {})
         self.process.wait(timeout=10)
-        assert self.process.returncode == 0
+        assert self.process.returncode == (1 if eof else 0)
         self.reader.join(timeout=5)
         self.stderr.join(timeout=5)
+        assert not self.reader.is_alive() and not self.stderr.is_alive()
+        while not self.messages.empty():
+            value = self.messages.get_nowait()
+            if isinstance(value, RuntimeError) and str(value) == "adapter EOF":
+                continue
+            if isinstance(value, BaseException):
+                raise value
+            assert value["seq"] > self.last and value["type"] == "event" and value["event"] == "terminated", value
+            self.last = value["seq"]
+            self.terminals += 1
+        assert self.terminals == (0 if eof else 1), self.terminals
         assert not self.errors, self.errors.decode(errors="replace")
 
     def cleanup(self):
@@ -182,7 +198,7 @@ def source_path(frame):
 
 
 evidence = []
-for case in ["continue", "disconnect", "capture-limit"]:
+for case in ["continue", "disconnect", "capture-limit", "restart", "terminate", "eof"]:
     directory = ROOT / case
     directory.mkdir()
     source = (REPO / "examples/packages/debug_mixed/main.lang").read_text(encoding="utf-8")
@@ -217,7 +233,37 @@ for case in ["continue", "disconnect", "capture-limit"]:
             assert page["stackFrames"] == vm
             client.request("scopes", {"frameId": vm[0]["id"]}, success=False)
             client.request("stepIn", {"threadId": 1}, success=False)
-        if case == "continue":
+        if case == "restart":
+            # The first callback is cancelled, then a fresh captured execution
+            # enters the callback once more. An ordinal effect detects replay.
+            old_thread = 1
+            old_source = vm[0]["source"]["sourceReference"]
+            old_frame = vm[0]["id"]
+            (directory / "main.lang").write_text(source, encoding="utf-8")
+            client.request("cancel", {"requestId":1})
+            client.request("restart", {})
+            client.event("capabilities")
+            client.event("initialized")
+            client.request("source", {"sourceReference":old_source}, success=False)
+            client.request("scopes", {"frameId":old_frame}, success=False)
+            client.request("stackTrace", {"threadId":old_thread}, success=False)
+            client.request("configurationDone", {})
+            thread = client.event("stopped")["body"]["threadId"]
+            assert thread != old_thread
+            fresh = client.request("stackTrace", {"threadId":thread})["stackFrames"]
+            assert [f["name"] for f in fresh if "source" in f] == ["child", "main"], fresh
+            assert all(f["id"] != old_frame for f in fresh)
+            client.request("continue", {"threadId":thread})
+            output = client.event("output")
+            assert output["body"]["output"] == "43\n" and output["body"]["data"]["fuel"] == 7, output
+            assert client.event("exited")["body"]["exitCode"] == 0
+            client.event("terminated")
+        elif case == "terminate":
+            client.request("cancel", {"requestId":1,"progressId":"completed"})
+            assert client.request("stackTrace", {"threadId":1})["stackFrames"] == frames
+            client.request("terminate", {})
+            client.event("terminated")
+        elif case == "continue":
             client.request("continue", {"threadId": 1})
             output = client.event("output")
             assert output["body"]["output"] == "42\n" and output["body"]["data"]["fuel"] == 7, output
@@ -229,12 +275,39 @@ for case in ["continue", "disconnect", "capture-limit"]:
             assert client.event("exited")["body"]["exitCode"] == 1
             client.event("terminated")
             assert all(e["event"] != "stopped" for e in client.events), client.events
-        client.finish()
+        client.finish(eof=case == "eof")
         owners = json.loads(report.read_text(encoding="utf-8"))
-        assert owners == {"entered": 1, "returned": int(case == "continue"), "dropped": 1, "outside": True}, owners
-        evidence.append({"case": case, "frames": frames, "owners": owners, "adapter_exit": 0})
+        count = 2 if case == "restart" else 1
+        assert owners == {"entered": count, "returned": int(case in ["continue", "restart"]), "dropped": count, "outside": True}, owners
+        evidence.append({"case": case, "frames": frames, "owners": owners, "adapter_exit": int(case == "eof")})
         print(json.dumps({"checkpoint": "mixed-dap-case", "case": case, "frames": len(frames), "owners": owners}), flush=True)
     finally:
         client.cleanup()
+
+for name, data in [
+    ("oversized-body", b"Content-Length: 4194305\r\n\r\n"),
+    ("oversized-header", b"x"*8193),
+    ("duplicate-length", b"Content-Length: 1\r\nContent-Length: 1\r\n\r\n0"),
+    ("truncated-body", b"Content-Length: 100\r\n\r\n{}"),
+]:
+    report = ROOT / f"{name}-owners.json"
+    process = subprocess.run([str(EXE), str(report)], input=data, capture_output=True, timeout=10)
+    assert process.returncode == 1 and not process.stdout and 0 < len(process.stderr) < 8192, (name, process)
+    owners = json.loads(report.read_text(encoding="utf-8"))
+    assert owners == {"entered":0,"returned":0,"dropped":0,"outside":True}, owners
+    evidence.append({"case":name,"owners":owners,"adapter_exit":1})
+
+for name, data in [("invalid-json", b"{"), ("invalid-utf8-json", b"\xff")]:
+    report = ROOT / f"{name}-owners.json"
+    framed = f"Content-Length: {len(data)}\r\n\r\n".encode()+data
+    process = subprocess.run([str(EXE), str(report)], input=framed, capture_output=True, timeout=10)
+    assert process.returncode == 1 and not process.stderr, (name, process)
+    header, payload = process.stdout.split(b"\r\n\r\n", 1)
+    assert header.lower() == f"content-length: {len(payload)}".encode()
+    response = json.loads(payload)
+    assert response["type"] == "response" and response["success"] is False and response["request_seq"] == 0, response
+    owners = json.loads(report.read_text(encoding="utf-8"))
+    assert owners == {"entered":0,"returned":0,"dropped":0,"outside":True}, owners
+    evidence.append({"case":name,"owners":owners,"adapter_exit":1})
 (ROOT / "mixed-dap-report.json").write_text(json.dumps({"version": 1, "os": platform.system(),
     "architecture": platform.machine(), "sdk_build_id": manifest["build_id"], "cases": evidence}, indent=2)+"\n", encoding="utf-8")

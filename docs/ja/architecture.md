@@ -115,7 +115,9 @@ Read-only revision 1のdebug descriptorで、dispatch時にallocationせずowned
 
 VM adapter は source step-in／over／out と、上限付き read-only scope／variable／identifier・field・scalar 評価にも対応します。通常 lowering は検証 MIR や portable bytes を変更せず、target 非依存の local／register 環境を追加取得できます。初期化済み register の追跡は保持 debug frame だけで行い、caller は停止した call 点から検査します。query は元 worker で処理し、再開時に frame／variable reference を無効化します。実 native／混在 debug は引き続き必要です。
 
-native DAP backend は同じ package admission を使い、検証した private SDK／program／code／debug sidecar の owner を debugger 終了まで保持します。実 native package の意味 bytes と受理 program を比較し、検査済み source line breakpoint と実行 control だけを転送して、未受理の物理 frame source location を省きます。source 応答は取得済み bytes を保持します。native value inspectionはunavailableです。source 39473b1のproduction native DAPは両hostで成功し、実混在stackの対応はD04の進行中要件に残します。
+native DAP backend は同じ package admission を使い、検証した private SDK／program／code／debug sidecar の owner を debugger 終了まで保持します。実 native package の意味 bytes と受理 program を比較し、検査済み source line breakpoint と実行 control だけを転送して、未受理の物理 frame source location を省きます。source 応答は取得済み bytes を保持します。native value inspectionはunavailableです。source 39473b1のproduction native DAPは両hostで成功し、source 759bae0はnative-debug CIの3環境で生存中の物理／論理frame対応とfailure cleanupを証明します。
+
+信頼済みRust embeddingが混在native importを明示登録し、既定CLIはgrantしません。協調native pauseは元VMとcallbackを同じworkerに保持し、上限付き完全物理PC suffixを照合して、native prefixと元VM callerの順に表示します。Restartは旧targetを解放して明示launch入力を再captureします。異なるtarget reference blockで旧thread／source／frame／variable IDによる置換targetへのアクセスを防ぎます。Terminate／disconnectは元interruption／shutdown経路を使い、terminatedは一度だけ通知します。DAP cancelは完了済み／未知の要求の取消に応答し、実行を停止しません。同期準備中はqueueされた取消を処理できません。任意の信頼済みcallbackは協調的です。有限上限とlifecycle契約はRFC 0040を参照してください。
 
 実験段階のembedded mixed bridgeは明示的な信頼済みRust host bindingを必要とし、default CLIはimportを許可しません。元VMのHostCallで内部停止し、source frameを保持して同じworkerで登録callbackへ入ります。scope付き物理baselineと生存PCの完全一致suffixで、symbol名から推測せずnative prefixを確立します。協調的pauseから渡すのはowned物理／source frame dataだけで、借用中Machineはthreadを渡りません。callback return、割込み、scope退役で観測を失効させます。native pauseのvalue／stepはunavailableとし、元VMのcontrol・結果・effectを実行契約に保ちます。D04B bridge検証とD04の両host／failure根拠は進行中です。
 

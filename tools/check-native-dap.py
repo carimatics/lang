@@ -244,6 +244,28 @@ try:
     assert len(guest_frames) >= 2 and guest_frames[0]["line"] == CHILD_LINE and guest_frames[1]["line"] == CALLER_LINE, guest_frames
     if args.adapter == "lang":
         assert all("source" not in f or source_path(f) == SOURCE for f in frames), frames
+        # Restart while the real native process is paused. Old source/thread
+        # identities cannot address its replacement; the private image owner
+        # must survive through debugger shutdown and be released before capture.
+        old_thread = stopped["body"]["threadId"]
+        old_source = guest_frames[0]["source"]["sourceReference"]
+        SOURCE.write_text(original_source, encoding="utf-8")
+        restart = send("restart", {})
+        event("initialized", timeout=180)
+        response(restart)
+        assert event("capabilities")["body"]["capabilities"]["supportsEvaluateForHovers"] is False
+        refused("source", {"sourceReference":old_source})
+        refused("stackTrace", {"threadId":old_thread})
+        breakpoints = request("setBreakpoints", {"source":{"path":breakpoint_path},"breakpoints":[{"line":CHILD_LINE}]})
+        request("configurationDone", {})
+        stopped = event("stopped")
+        assert stopped["body"]["threadId"] != old_thread
+        stack = request("stackTrace", {"threadId":stopped["body"]["threadId"],"levels":32})
+        frames = stack["stackFrames"]
+        guest_frames = [f for f in frames if source_path(f) == SOURCE]
+        assert len(guest_frames) >= 2 and guest_frames[0]["line"] == CHILD_LINE and guest_frames[1]["line"] == CALLER_LINE, guest_frames
+        assert all("source" not in f or source_path(f) == SOURCE for f in frames), frames
+        print(json.dumps({"checkpoint":"native-dap-restarted","old_thread":old_thread,"new_thread":stopped["body"]["threadId"]}),flush=True)
     print(json.dumps({"checkpoint": "native-dap-breakpoint", "stopped": stopped["body"],
         "breakpoints": breakpoints, "frames": frames[:8]}), flush=True)
     request("next", {"threadId": stopped["body"]["threadId"]})

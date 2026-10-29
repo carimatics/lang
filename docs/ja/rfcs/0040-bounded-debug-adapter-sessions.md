@@ -98,7 +98,17 @@ callbackと元Machineは所有workerに保持し、channelを渡るのは上限�
 
 実行実験`target/m4-d04-combined-probe.log`（2026-10-30 JST確認）は、境界上のnative物理PC6件、元`child -> main` span、物理suffix10 frameの完全一致、結果42、host effect1回を観測した。再開／通常実行のusageはいずれもfuel7、host call1、peak frame2、live cell6。macOSのprototype根拠であり、production DAP／Windows受入ではない。[backtrace 0.3.77](https://github.com/rust-lang/backtrace-rs/releases/tag/backtrace-v0.3.77)のsafe trace／PC APIを使い、独自unsafe platform unwindを避ける。公開日2026-10-27。[Frame／trace実装](https://github.com/rust-lang/backtrace-rs/blob/backtrace-v0.3.77/src/backtrace/mod.rs)に公開／更新日の埋込みはなく、2026-10-30 JST確認。portable／source／C ABI schemaは変更しない。
 
-RFC 0001の実験委任で採択する。元host grant、Machineのcontrol順、source spanを再利用し、明示的な生存scope来歴と有限な観測を保つ。物理capture／symbol化はこのtooling経路のhost workとbinary依存を増やし、性能改善は主張しない。WindowsのPC対応、上限付きembedded server統合、古いreceipt、failure cleanupは未検証受入条件。grant済みhost bridgeと最初のmixed DAP stopをD04B（2 pt）として公開し、D04（3 pt）は両hostの実protocol／frame／failure受入、D05はlifecycle監査に保持する。
+RFC 0001の実験委任で採択する。元host grant、Machineのcontrol順、source spanを再利用し、明示的な生存scope来歴と有限な観測を保つ。物理capture／symbol化はこのtooling経路のhost workとbinary依存を増やし、性能改善は主張しない。WindowsのPC対応、上限付きembedded server統合、古いreceipt、failure cleanupは未検証受入条件。grant済みhost bridgeと最初のmixed DAP stopをD04B（2 pt）として公開し、D04（3 pt）は両hostの実protocol／frame／failure受入、D05はlifecycle監査に保持する。 D04Bは67f62faで実装し、D04は759bae0のnative-debug CI 3環境（40933947573）で検証済み。残る要件はD05のtarget lifecycle／epoch検証。
+
+### Lifecycle の具体化（2026-10-30 JST）
+
+Restartは元targetを解放／joinしてから新しいlaunchをcaptureし、新breakpoint設定用のinitializedを通知する。置換launch引数がなければ最後の明示launch設定を再利用し、root／tool権限を暗黙に拡張しない。失敗時に新targetを実行状態で残さない。Terminateは元のinterruption／shutdown経路で現targetを解放し、adapterはrestart用に維持する。任意の信頼済みnative callbackは上記のとおり協調的である。通常終了後のdisconnectも含め、targetごとのterminatedは一度だけ通知する。
+
+失敗も含む各launch試行に、正のDAP int32内の互いに重ならない65,536-reference blockを予約する。endpointで許可thread／source／frame／variable IDを変換し、旧target IDは置換targetへのアクセス前に拒否する。target内部quotaは変更しない。identity／message sequenceの枯渇をwraparound前に拒否し、adapter寿命内でIDを再利用したりcounterをresetしたりしない。Restartは新captureによる実行であり、旧Machineの再開ではない。
+
+公式cancel要求は未完了の要求やprogress sequenceに関するもので、debuggee停止ではない。この同期endpointはcancel処理時に未完了要求を持たず、progress sequenceも通知しないため、有限IDを検証し、実行を中断しないbest-effort no-opとして応答する。実行取消はterminate／disconnectが担う。準備処理は同期的で、queueされた要求から取り消せない。この制限を明示し、完了済みlaunchへのcancelを実行停止と呼ばない。
+
+RFC 0001の実験期委任で採択する。既存target所有権と有限quotaを保ち、restart時の旧参照aliasを防ぐ。`759bae0`のD04独立clientはWindows／macOS workflow `40933947573`に成功した。D05 lifecycle／不正inputの証拠は未検証。公式DAP schemaは2026-10-30 JSTに再確認し、埋込更新日は非公開。保存schema／source semantics／C ABIは変更しない。
 
 ## ABI and compatibility
 

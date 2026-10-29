@@ -6,11 +6,11 @@
 
 更新: 2026-10-30 JST。M4 は active。Goal 開始は clean main／origin/main `af9988f`、remote `git@github.com:carimatics/lang.git`。PR #9–#18 は merge 済み。editor PR #18 最終 head `5cdc422` は CI `40864753941`（18 成功、意図した文書専用 skip）と debugger `40864753946`（3/3）に成功し、`0a15fb5` として merge。local main／origin/main ref は ahead／behind 0/0 で一致する。現在の `codex/m4-debug-adapter` は clean・upstream 同期済み `codex/m4-editor-checked-edits` head `5cdc422` から、一貫した D01–D05 用に作成した。既存 user 変更はなく、upstream は `origin/codex/m4-debug-adapter`、main 宛 [draft PR #19](https://github.com/carimatics/lang/pull/19)。D01 head `8421298` は CI `40874260252`（18 成功、意図した文書専用 skip）と debugger `40874260229`（3/3）に成功し、D02 head `ced8e56` は push 済みで、CI `40879596677`（18 成功、意図した文書専用 skip）と debugger `40879596614`（3/3）に成功。merge は未実施。初期記録 base `carimatics/lang:codex/m4-editor-checked-edits` は #18 merge により `carimatics/lang:main` へ変更した。base 同期中も DAP 作業を保持した。
 
-**26 done · 1 doing · 15 todo · 45 remaining pt**
+**27 done · 1 doing · 14 todo · 42 remaining pt**
 
-D04 の最終実行 checkpoint、2026-10-30 03:45 JST: 明示Rust NativeHosts／mode:mixed／協調pauseにより、実native callbackと元VMを同じworkerに保持する。完全一致PC suffixで物理prefixと元child→main spanを表示する。exact-SDKの独立stdio checkerはローカルのcontinue／disconnect／capture-limitに成功。物理frame5件とVM4／8行目、結果42／fuel7、各caseでcallback entryとowner drop各1回を確認し、取消／上限超過では値や部分stackを公開しない。12 debugger試験と最終fmt／警告エラーClippy／168 suite・2,471 test／docが成功。D04B source `67f62fa`はcommit／push済みで、native-debug CI 3 jobと両hostのRust試験が成功。全体CIで別fuzz lockの更新漏れを検出し、新backtrace依存をCargoで反映した。新checkerを両hostのdebugger CIに追加。D04の残る条件は最新headでの両host独立frame／failure受入。D05 lifecycleは未完了。
+D05 の最終実行 checkpoint、2026-10-30 04:05 JST: 作業treeのrestart／terminate／cancelと独立target参照がDAP／lifecycle 16試験、quota境界unit 2試験、consistency 6試験に成功。exact-SDKの独立stdioはmixed／lifecycle／不正入力12 caseに成功。restartはcallback owner entry／drop各2回で43を一度返し、terminate／EOF／上限超過は値を返さず元ownerを解放。実macOS native DAPも停止processをrestartし、旧source／thread IDを拒否してbreak／step／正常終了、adapter終了0。最終fmtと全警告エラーClippyが成功。残る受入は最終local全test／doc baselineと最新head両host CI。D04 source `759bae0`は全体CI `40933947721`（18成功、意図したdoc専用skip）とnative `40933947573`（3/3）が成功し、lock問題は解決済み。
 
-**次: M4-D04 — 両hostの生存mixed protocol／frame／failure受入（doing、3 pt）。** D04Bは`67f62fa`で完了、追加なしで最終2 ptを消化。追加+15、消化73、42 deliveryの残り45 pt。D05 lifecycle監査と最新head通常CIも引き続き必要。
+**次: M4-D05 — debugger lifecycle監査（doing、3 pt）。** D04は`759bae0`で完了、追加なしで最終3 ptを消化。追加+15、消化76、42 deliveryの残り42 pt。scope監査: 上限付きserver lifecycle／target identity変更と重点protocol／両host fixtureへ分解し、残タスク確認後も3 ptを維持。G7はこの監査と最新head CI成功後に閉じる。
 
 A04 source `cf6cf5c` は fmt、全 Clippy／doc、checked opt-level 1 全 test（**158 suite／2,384 成功／0 失敗**）、重点 75 test に成功。最終 head `75a2041` は [全 CI](https://github.com/carimatics/lang/actions/runs/40810065213)（全 19 job、18 成功、意図した文書専用 skip）と [debugger 実行](https://github.com/carimatics/lang/actions/runs/40810065278)（3/3）に成功した。[PR #13](https://github.com/carimatics/lang/pull/13) は `58527c2` として merge、main を fast-forward して clean・同期済み、ahead／behind 0/0。workspace branch 作成と現在の PR／upstream は上記に記録した。既存の user 変更はなかった。
 
@@ -76,8 +76,8 @@ A01 入力修正は Unix の nonblocking open と開いた handle の metadata �
 | M4-D03R | done | 0 | M4-D02 | G7 | Windows LLVM の対応 Python runtime を設定し実 native DAP breakpoint を証明 | `99a20de` |
 | M4-D03 | done | 0 | M4-D03R | G7 | 両 tier-1 host で native debugger launch と source breakpoint | `39473b1` |
 | M4-D04B | done | 0 | M4-D03 | G7 | 明示grant済みhost bridgeと元VMに結合する上限付きnative物理frame停止 | `67f62fa` |
-| M4-D04 | doing | 3 | M4-D04B | G7 | native／VM 混在 stack fixture で call 順、span、失敗 cleanup 保持 | — |
-| M4-D05 | todo | 3 | M4-D04 | G7 | DAP disconnect／restart／cancel／不正 input と両 host session 証拠 | — |
+| M4-D04 | done | 0 | M4-D04B | G7 | native／VM 混在 stack fixture で call 順、span、失敗 cleanup 保持 | `759bae0` |
+| M4-D05 | doing | 3 | M4-D04 | G7 | DAP disconnect／restart／cancel／不正 input と両 host session 証拠 | — |
 | M4-E01 | todo | 3 | M4-A06 | G8 | profile／trace schema 採択、上限付き compiler phase cost 出力 | — |
 | M4-E02 | todo | 3 | M4-E01 | G8 | sampling／測定限界を明示する source 対応 VM／native runtime profile | — |
 | M4-E03 | todo | 3 | M4-E02 | G8 | 実 allocator counter と整合し buffer 上限を持つ allocation／retirement trace | — |
@@ -99,9 +99,9 @@ A01 入力修正は Unix の nonblocking open と開いた handle の metadata �
 
 | Baseline remaining | Net added/re-estimated | Retired on completion | Remaining |
 | ---: | ---: | ---: | ---: |
-| 103 pt | +15 pt | −73 pt | 45 pt |
+| 103 pt | +15 pt | −76 pt | 42 pt |
 
-**103 + 15 − 73 = 45 pt**
+**103 + 15 − 76 = 42 pt**
 
 名前空間の前提監査、2026-10-29 JST: 既存 `ModuleGraph::root()` は常に `ModuleId(0)`。path provider だけでは依存ごとの package-root 名前空間や共有 dependency identity の安全な再利用を提供できない。元の A02 を、許可 graph（新規 A02R、3 pt）と名前空間／source 実行の統合（task list を見直した A02、残り 3 pt）へ分割する。純追加 +3 pt、全 37 delivery。A01 と A02R は前提二つとなるため、水平基盤を増やす前に A02 で次の source 実行 fixture を示す。この監査による gate 完了や延期はない。
 

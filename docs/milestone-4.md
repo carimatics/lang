@@ -6,11 +6,11 @@
 
 Updated: 2026-10-30 JST. M4 is active. Goal start: clean main/origin/main `af9988f`, remote `git@github.com:carimatics/lang.git`. PRs #9–#18 are merged. Editor PR #18 final head `5cdc422` passes CI `40864753941` (18 success, intentional documentation-only skip) and debugger `40864753946` (3/3), merged as `0a15fb5`; local main/origin/main refs match with 0/0 ahead/behind. Current `codex/m4-debug-adapter` was created from clean, upstream-synchronized `codex/m4-editor-checked-edits` head `5cdc422` for the coherent D01–D05 outcome. No preexisting user changes; upstream `origin/codex/m4-debug-adapter`, [draft PR #19](https://github.com/carimatics/lang/pull/19) against main. D01 head `8421298` passes CI `40874260252` (18 success, intentional documentation-only skip) and debugger `40874260229` (3/3); D02 head `ced8e56` is pushed; CI `40879596677` (18 success, intentional documentation-only skip) and debugger `40879596614` (3/3) succeed. No merge is claimed. Its initially recorded base `carimatics/lang:codex/m4-editor-checked-edits` is now `carimatics/lang:main` because #18 merged. Current DAP work was preserved during base synchronization.
 
-**26 done · 1 doing · 15 todo · 45 remaining pt**
+**27 done · 1 doing · 14 todo · 42 remaining pt**
 
-D04 last executable checkpoint, 2026-10-30 03:45 JST: explicit Rust NativeHosts/mode:mixed/cooperative pause retain the real native callback and original VM on one worker. Exact PC suffix correspondence publishes the physical native prefix then original child→main spans. The independent exact-SDK stdio checker passes continue, disconnect and capture-limit cases locally: five physical frames plus VM lines 4/8, result 42/fuel 7, one callback entry and one owner drop in every case; cancellation/overflow never return a value or publish a partial stack. Twelve debugger tests and final fmt/warnings-denied Clippy/168 suites and 2,471 tests/docs pass. D04B source `67f62fa` is committed/pushed; its three native-debug CI jobs and both-host Rust tests pass. Full CI exposed an outdated separate fuzz lock; Cargo regenerated it for the new backtrace dependency. The new checker is wired into both-host debugger CI. Remaining D04 conditions: latest-head both-host independent frame/failure acceptance. D05 lifecycle remains open.
+D05 last executable checkpoint, 2026-10-30 04:05 JST: working-tree restart/terminate/cancel and disjoint target references pass 16 DAP/lifecycle tests, two quota-boundary unit tests and six consistency tests. Independent exact-SDK stdio passes 12 mixed/lifecycle/malformed cases; restart enters/drops two callback owners and returns 43 once, while terminate/EOF/overflow return none and release the original owner. Actual macOS native DAP restarts a paused process, refuses old source/thread IDs, then breaks/steps/exits normally with adapter exit 0. Final fmt and full warnings-denied Clippy pass. Remaining acceptance: final local full test/doc baseline and latest-head both-host CI. D04 source `759bae0` has full CI `40933947721` (18 success, intentional documentation-only skip) and native `40933947573` (3/3); its lock issue is resolved.
 
-**Next: M4-D04 — both-host live mixed protocol/frame/failure acceptance (doing, 3 pt).** D04B is done at `67f62fa`; retire its last 2 pt with no additions. Additions +15, retired 73, remaining 45 pt across 42 deliveries. D05 lifecycle audit and latest-head full CI remain required.
+**Next: M4-D05 — debugger lifecycle audit (doing, 3 pt).** D04 is done at `759bae0`; retire its last 3 pt with no additions. Additions +15, retired 76, remaining 42 pt across 42 deliveries. Scope audit: one bounded server lifecycle/target identity change plus focused protocol and both-host fixtures; retain 3 pt after enumerating these tasks. G7 closes only after this audit and latest-head CI.
 
 A04 source `cf6cf5c` passes fmt, full Clippy/doc and checked opt-level 1 full tests (**158 suites / 2,384 passed / 0 failed**), plus 75 focused tests. Final head `75a2041` passes [full CI](https://github.com/carimatics/lang/actions/runs/40810065213) (all 19 jobs: 18 success; intentional documentation-only skip) and [debugger execution](https://github.com/carimatics/lang/actions/runs/40810065278) (3/3). [PR #13](https://github.com/carimatics/lang/pull/13) merged as `58527c2`; main was fast-forwarded, clean and synchronized with 0/0 ahead/behind. Workspace branch creation and its current PR/upstream are recorded above. No preexisting user changes were present.
 
@@ -76,8 +76,8 @@ The [roadmap](roadmap.md#milestone-4-developer-toolchain) retains the original 6
 | M4-D03R | done | 0 | M4-D02 | G7 | Configure the matching Windows LLVM Python runtime and prove native DAP breakpoints | `99a20de` |
 | M4-D03 | done | 0 | M4-D03R | G7 | Native debugger launch and source breakpoints on both tier-1 hosts | `39473b1` |
 | M4-D04B | done | 0 | M4-D03 | G7 | Explicitly granted host bridge and bounded native physical stop on the original VM | `67f62fa` |
-| M4-D04 | doing | 3 | M4-D04B | G7 | Mixed native/VM stack fixture preserves call order, spans and failure cleanup | — |
-| M4-D05 | todo | 3 | M4-D04 | G7 | DAP disconnect/restart/cancel/malformed-input and both-host session evidence | — |
+| M4-D04 | done | 0 | M4-D04B | G7 | Mixed native/VM stack fixture preserves call order, spans and failure cleanup | `759bae0` |
+| M4-D05 | doing | 3 | M4-D04 | G7 | DAP disconnect/restart/cancel/malformed-input and both-host session evidence | — |
 | M4-E01 | todo | 3 | M4-A06 | G8 | Accept profile/trace schema and report bounded compiler phase costs | — |
 | M4-E02 | todo | 3 | M4-E01 | G8 | Source-attributed VM/native runtime profile with explicit sampling/measurement limits | — |
 | M4-E03 | todo | 3 | M4-E02 | G8 | Allocation/retirement traces reconcile real allocator counters and bounded buffers | — |
@@ -99,9 +99,9 @@ Activation audit, 2026-10-29 JST: 36 observable deliveries, baseline 103 pt. The
 
 | Baseline remaining | Net added/re-estimated | Retired on completion | Remaining |
 | ---: | ---: | ---: | ---: |
-| 103 pt | +15 pt | −73 pt | 45 pt |
+| 103 pt | +15 pt | −76 pt | 42 pt |
 
-**103 + 15 − 73 = 45 pt**
+**103 + 15 − 76 = 42 pt**
 
 Namespace prerequisite audit, 2026-10-29 JST: the existing `ModuleGraph::root()` is always `ModuleId(0)`. A path provider alone cannot give each dependency its own package-root namespace or safely reuse a shared dependency identity. Split the original A02 outcome into an authorized graph (new A02R, 3 pt) and namespace/source execution integration (A02, remaining 3 pt after reviewing its task list). Net addition: +3 pt; 37 deliveries total. A01 and A02R are two prerequisites, so A02 must supply the next source execution fixture before further horizontal scaffolding. No gate is completed or deferred by this audit.
 

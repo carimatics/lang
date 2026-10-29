@@ -556,6 +556,7 @@ struct DapClient {
     reader: Option<std::thread::JoinHandle<()>>,
     sequence: u32,
     last_sequence: u64,
+    terminated: bool,
 }
 impl DapClient {
     fn new() -> Self {
@@ -618,6 +619,7 @@ impl DapClient {
             reader: Some(reader),
             sequence: 0,
             last_sequence: 0,
+            terminated: false,
         }
     }
     fn receive(&mut self) -> serde_json::Value {
@@ -628,6 +630,7 @@ impl DapClient {
         let seq = message["seq"].as_u64().unwrap();
         assert!(seq > self.last_sequence);
         self.last_sequence = seq;
+        self.terminated |= message["event"] == "terminated";
         assert!(message.get("jsonrpc").is_none());
         message
     }
@@ -650,7 +653,9 @@ impl DapClient {
     }
     fn finish(mut self) {
         self.request("disconnect", serde_json::json!({}));
-        assert_eq!(self.receive()["event"], "terminated");
+        if !self.terminated {
+            assert_eq!(self.receive()["event"], "terminated");
+        }
         self.input.take();
         let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
         loop {
