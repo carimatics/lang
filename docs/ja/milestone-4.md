@@ -4,11 +4,11 @@
 
 [English](../milestone-4.md)
 
-更新: 2026-10-29 JST。M4 は active。Goal 開始時は clean な `main`／`origin/main` の `af9988f`、remote `git@github.com:carimatics/lang.git`。PR #9–#12 は merge 済み。command branch `codex/m4-package-commands` は clean な `codex/m4-package-lock-cli` の `6e11460` から作成し、PR #12 で merge した。依存 branch `codex/m4-package-tests` は command head `9cf5f7c` から元 checkout に作成し、元 checkout の開始状態は `3f06a70` の clean・同期済み `main`／`origin/main`。PR #12 が `2cd06e2` として merge した後、記録した PR base を `carimatics/lang:codex/m4-package-commands` から `carimatics/lang:main` へ変更した。local main をその remote tip へ fast-forward（ahead／behind 0/0）し、test branch も自身の変更を保持して fast-forward した。upstream はまだない。既存の user 変更はなかった。
+更新: 2026-10-29 JST。M4 は active。Goal 開始時は clean な `main`／`origin/main` の `af9988f`、remote `git@github.com:carimatics/lang.git`。PR #9–#12 は merge 済み。command branch `codex/m4-package-commands` は clean な `codex/m4-package-lock-cli` の `6e11460` から作成し、PR #12 で merge した。現在の branch `codex/m4-package-tests` は command head `9cf5f7c` から元 checkout に作成し、元 checkout の開始状態は `3f06a70` の clean・同期済み `main`／`origin/main`。PR #12 が `2cd06e2` として merge した後、当初の PR base `carimatics/lang:codex/m4-package-commands` を `carimatics/lang:main` へ変更した。local main と test branch を test 作業を保持して fast-forward し、main tip は ahead／behind 0/0 で一致する。upstream は `origin/codex/m4-package-tests`、[PR #13](https://github.com/carimatics/lang/pull/13)。既存の user 変更はなかった。
 
-**6 done · 1 doing · 32 todo · 94 remaining pt**
+**7 done · 1 doing · 31 todo · 91 remaining pt**
 
-**次: M4-A04 — 宣言 test entry を共有 VM profile と元診断で実行（doing、3 pt）。** local 実行 checkpoint（2026-10-29 JST）: command 18/18、source 15/15、従来 CLI 30/30、service-work 6/6、consistency 6/6 の **計 75 件** と、fmt、警告なし全 Clippy が成功。自身の公開 nominal type、private UTF-8 span、削除／project 移動後の固定解析、Copy／ownership／task／isolated-service 実行、test 単位 fuel、manifest 順 fail-fast、test 0 件 library、64 MiB batch-output 拒否を実行した。残る受入条件は全 test／doc baseline と最新 head の両 host CI。build 出力は完了した command checkout と分離する。追加 exit gate は未完了。
+**次: M4-A05 — 実装前に workspace 選択・権限・完全一致 target-condition lock を監査（doing、暫定 3 pt）。** 最後の実行 checkpoint は A04 source `cf6cf5c`、検証日 2026-10-29 JST。fmt、警告なし全 Clippy、doc、checked opt-level 1 全 test（**158 suite／2,384 成功／0 失敗**）と、重点 command／source／CLI／service-work／consistency の **75/75** が成功。[全 CI](https://github.com/carimatics/lang/actions/runs/40808026690) は期待した全 19 job（18 成功、意図した文書専用 skip）、[debugger 実行](https://github.com/carimatics/lang/actions/runs/40808026705) は 3/3 成功。[PR #13](https://github.com/carimatics/lang/pull/13)、upstream `origin/codex/m4-package-tests` は、最終文書 head の CI を確認してから merge する。A05 は member 選択、workspace manifest 整合性、sibling 権限、両 target replay を監査し、新たな前提があれば code 前に公開・再見積する。追加 exit gate は未完了。
 
 A04B source `9cf5f7c` は [全 CI](https://github.com/carimatics/lang/actions/runs/40800668325)（全 19 job、18 成功、意図した文書専用 skip）と [debugger 実行](https://github.com/carimatics/lang/actions/runs/40800668297)（3/3）に成功。command fixture は macOS 12/12、Windows 11/11。独立した checked opt-level 1 local 全 baseline は **158 suite／2,376 成功／0 失敗** で完了し、fmt／Clippy／doc も成功。[PR #12](https://github.com/carimatics/lang/pull/12) は `2cd06e2` として merge し、local main tip は ahead／behind 0/0 で一致する。以前の command baseline／PR lifecycle メモはこれで完了。
 
@@ -52,8 +52,8 @@ A01 入力修正は Unix の nonblocking open と開いた handle の metadata �
 | M4-A02 | done | 0 | M4-A02S | G2,G3 | 分離した package module root と不変 source access を統合、実際の宣言 dependency import を実行 | `b81633e` |
 | M4-A03 | done | 0 | M4-A02 | G2,G3 | canonical checksum lock fixture を offline replay、従来 output を書き換えず変更 source を拒否 | `117a2ab` |
 | M4-A04B | done | 0 | M4-A03 | G2,G3 | package／local dependency 作成、実 package build／run、locked／offline replay と失敗時保護 generation | `9cf5f7c` |
-| M4-A04 | doing | 3 | M4-A04B | G2,G3 | 宣言 test-entry scope、共有 VM profile、失敗 test／source／JSON 診断 fixture | — |
-| M4-A05 | todo | 3 | M4-A04 | G2,G3 | workspace member 選択と、両 supported target の完全一致 target condition lock | — |
+| M4-A04 | done | 0 | M4-A04B | G2,G3 | 宣言 test-entry scope、共有 VM profile、失敗 test／source／JSON 診断 fixture | `cf6cf5c` |
+| M4-A05 | doing | 3 | M4-A04 | G2,G3 | workspace member 選択と、両 supported target の完全一致 target condition lock | — |
 | M4-A06 | todo | 3 | M4-A05 | G2,G3 | 配置変更した locked package から native executable を二度 build、両 host で固定 input digest 比較 | — |
 | M4-B01 | todo | 3 | M4-A04 | G4 | 決定的 package source list／archive と逸脱／変更 input の拒否 | — |
 | M4-B02 | todo | 2 | M4-A04 | G4 | package fmt／check が CST comment を保持し、不正／古い edit を拒否 | — |
@@ -92,9 +92,9 @@ A01 入力修正は Unix の nonblocking open と開いた handle の metadata �
 
 | Baseline remaining | Net added/re-estimated | Retired on completion | Remaining |
 | ---: | ---: | ---: | ---: |
-| 103 pt | +8 pt | −17 pt | 94 pt |
+| 103 pt | +8 pt | −20 pt | 91 pt |
 
-**103 + 8 − 17 = 94 pt**
+**103 + 8 − 20 = 91 pt**
 
 名前空間の前提監査、2026-10-29 JST: 既存 `ModuleGraph::root()` は常に `ModuleId(0)`。path provider だけでは依存ごとの package-root 名前空間や共有 dependency identity の安全な再利用を提供できない。元の A02 を、許可 graph（新規 A02R、3 pt）と名前空間／source 実行の統合（task list を見直した A02、残り 3 pt）へ分割する。純追加 +3 pt、全 37 delivery。A01 と A02R は前提二つとなるため、水平基盤を増やす前に A02 で次の source 実行 fixture を示す。この監査による gate 完了や延期はない。
 
@@ -103,6 +103,8 @@ snapshot lifecycle 監査、2026-10-29 JST: Windows CI は dependency fixture �
 CLI 成果監査、2026-10-29 JST、実装前: 採択した transaction profile で実行可能な成果二つが明確になった。新規 A04B（3 pt）は scaffold／既存 file 互換、全 profile の build／run、不変 generation 公開を、42 を返す実 dependency で示す。A04 は残る test-entry 選択、複数 profile の戻り値検査、構造化した失敗／span fixture を見直して 3 pt とする。公開処理や共有 engine 作業を元の見積に隠さず、元の複合 CLI 成果を縦の delivery に分割する。純追加 +3 pt、累計 +8 pt、全 39 delivery。これと別に、修正 source の両 host CI が API 成果を検証した A03 の最終 2 pt を消化する。CLI 二行は同じ一貫した command 実装 branch とし、lock wire API を review 済み依存とする。独立 local API baseline／PR lifecycle は source を固定した checkout で継続する。gate 完了や延期はない。
 
 ## Delivery note と roadmap review
+
+A04 完了: `cf6cf5c` が `_package`、通常の可視性／nominal identity、元 UTF-8 診断で固定した宣言 test root を実行する。manifest 順、fail-fast 時の保持、test 0 件 library、entry 再利用、entry 単位 fuel、ownership／task／isolated-service profile、実際の累積 64 MiB output 拒否が成功。上記の local 全 baseline と両 host CI／debugger 検査が成功した。実行 probe に基づき RFC／fixture の例を既存の加算と符号付き literal に修正した。見積追加なしで最終 3 pt を消化。workspace 選択と native package 再現性が残るので G2／G3 は未完了。A05 は scope／整合性監査から始める。
 
 checkout 監査、2026-10-29 JST: 以前は A04B／A04 を同じ branch に置く計画だった。native baseline の source fingerprint を保持するため、command checkout を固定したまま、依存する test-entry 名前空間／実行の成果を既存の元 checkout へ分ける。二つの観測可能な成果の依存関係であり、delivery や前提を追加せず、見積は不変。CPU を使う build／test は順次実行する。A04B の最終 head の両 host CI が command 成果を証明したため、実装 doing は A04 のみ。独立した command baseline／PR lifecycle は実際の完了まで継続する。
 
