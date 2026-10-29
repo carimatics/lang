@@ -52,6 +52,7 @@ source構文・native language ABI・private SDK/package formatは実験段階�
 - [リポジトリ全体レビュー、2026-10-20](docs/ja/review-2026-10-20.md)
 - [リポジトリ全体レビュー、2026-10-27](docs/ja/review-2026-10-27.md)
 - [リポジトリ全体レビュー、2026-10-28](docs/ja/review-2026-10-28.md)
+- [仕様改善調査：Goose・メモリドメイン・GraalVM](docs/ja/spec-improvement-study.md)
 - [M3アーキテクチャ履歴](docs/ja/architecture-m3-history.md)
 - [M3実装・見積り履歴](docs/ja/milestone-3-history.md)
 - [RFCプロセスとテンプレート](docs/ja/rfcs/0000-template.md)
