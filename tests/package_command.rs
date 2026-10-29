@@ -445,7 +445,7 @@ fn concurrent_builds_adopt_one_complete_generation_and_leave_no_private_stages()
             .unwrap()
             .file_name()
             .to_string_lossy()
-            .starts_with(".lang-")
+            .starts_with(".Lang.lock.stage-")
     }));
 }
 
@@ -525,7 +525,7 @@ fn a_busy_final_lock_preserves_the_previous_generation_and_cleans_stages() {
         e.unwrap()
             .file_name()
             .to_string_lossy()
-            .starts_with(".lang-lock-")
+            .starts_with(".Lang.lock.stage-")
     }));
     drop(busy);
     assert_eq!(

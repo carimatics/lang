@@ -8,7 +8,7 @@
 
 **5 done · 1 doing · 33 todo · 97 remaining pt**
 
-**次: M4-A04B — package 作成と失敗時保護 generation を使う dependency build／run（doing、3 pt）。** 最後の実行 checkpoint（2026-10-29 JST）は command／graph／lock／manifest／source／consistency の **56/56 成功**。42 を返す実 dependency と ownership／task VM 実行を含む。残る受入条件は generation 同時再利用、不完全 cache、Windows 最終 lock 失敗の検査、最終 lint／全 baseline、両 host CI。command delivery や追加 exit gate の完了はまだ主張しない。
+**次: M4-A04B — package 作成と失敗時保護 generation を使う dependency build／run（doing、3 pt）。** 最後の実行 checkpoint は source `e3a9dda`、検証時刻 2026-10-29 10:06 JST。初期 command／graph／lock／manifest／source／consistency は **56/56 成功**、拡張した command **11/11** と consistency **6/6** も成功し、四つの同時 build、不完全／余分な cache 拒否、42 を返す実 dependency、ownership／task VM 実行を含む。fmt と警告なし全 workspace Clippy が成功。残る受入条件は Windows 最終 lock 失敗、両 host CI／全 baseline。command delivery や追加 exit gate の完了はまだ主張しない。
 
 A03 の検証は完了。修正 source `117a2ab`、最終 head `6e11460` で、local fmt、警告なし全 Clippy、assertion／overflow check を有効にした checked opt-level 1 全 workspace test（**157 suite／2,364 成功／0 失敗**）、doc が成功した。最終 head の [全 CI](https://github.com/carimatics/lang/actions/runs/40788344128) は期待した 19 job（18 成功、意図した文書専用 skip）、[debugger 実行](https://github.com/carimatics/lang/actions/runs/40788344085) は 3/3 成功。root／fuzz fmt、全 fuzz-bin Clippy、instrumentation なし metadata fuzz smoke 10,000 回も成功し、coverage／sanitizer campaign は主張しない。[PR #11](https://github.com/carimatics/lang/pull/11) は `3f06a70` として merge、local `main` は clean・同期済み、ahead／behind 0/0。以下の過去の未完了 API 検証メモをこの記録で更新する。
 
