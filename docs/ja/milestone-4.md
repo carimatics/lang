@@ -6,11 +6,11 @@
 
 更新: 2026-10-29 JST。M4 は active。Goal 開始時は clean な `main`／`origin/main` の `af9988f`、remote `git@github.com:carimatics/lang.git`。PR #9–#15 は merge 済み。native PR #15 は `a454e6d` として merge し、local／remote main tip は ahead／behind 0/0。現在の `codex/m4-package-tooling` はその同期済み main から作成し、PR base は `carimatics/lang:main`、upstream は `origin/codex/m4-package-tooling`、[PR #16](https://github.com/carimatics/lang/pull/16)。agent 所有の native checkpoint 日英編集二つを引き継ぎ、既存の user 変更はなかった。
 
-**13 done · 1 doing · 26 todo · 77 remaining pt**
+**14 done · 0 doing · 26 todo · 74 remaining pt**
 
-B04 実行 checkpoint、2026-10-29 16:07 JST、現在 worktree: library／archive／command／doc／formatter／lint／consistency の重点 121 件が成功。実 doc fixture は public root／dependency API、同名／入れ子 type link、元 Unicode comment／byte span、escape 済み source panel、配置変更／単独化、不正／古い入力／cache 拒否、filesystem 失敗時保護を検証した。独立 Python HTMLParser で一意 fragment 3 件と解決する internal link 全 5 件、active content なし、CSP を確認した。fmt、警告なし全 Clippy、source 固定の全 test（**164 suite／2,425 成功／0 失敗**）、rustdoc が成功。残る条件は code 証拠と最新 head 両 host CI／PR lifecycle。B04 は 3 pt の doing に保つ。
+B04 実行 checkpoint、2026-10-29 16:07 JST、現在 worktree: library／archive／command／doc／formatter／lint／consistency の重点 121 件が成功。実 doc fixture は public root／dependency API、同名／入れ子 type link、元 Unicode comment／byte span、escape 済み source panel、配置変更／単独化、不正／古い入力／cache 拒否、filesystem 失敗時保護を検証した。独立 Python HTMLParser で一意 fragment 3 件と解決する internal link 全 5 件、active content なし、CSP を確認した。fmt、警告なし全 Clippy、source 固定の全 test（**164 suite／2,425 成功／0 失敗**）、rustdoc が成功。残る条件は code 証拠と最新 head 両 host CI／PR lifecycle。B04 実装証拠は `4f62c78` で、CI／PR lifecycle は継続する。
 
-**次: M4-B04 — 解決済み link と元 source 位置を持つ package API 文書（doing、3 pt）。** B03 source `99fabc4` は重点 110 件、全 baseline（163 suite／2,419 test）、fmt／Clippy／doc に成功し、Windows path 比較も修正した。最終 3 pt を消化し、追加 +11、消化 37、残り 77 pt。実装前に RFC 0038 で static HTML、typed-ID link、元 source panel、上限、既存 staging 公開を採択した。実 task list は既存 3 pt の範囲で、見積／delivery を追加しない。最新 head 両 host CI と tooling PR lifecycle は継続し、G4–G9 は未完了。
+**次: M4-C01 — editor symbol／snapshot／edit 契約と実 package dependency navigation。** tooling source `4f62c78` は archive／fmt／lint／doc の全実装を含み、重点 121 件、全 baseline（164 suite／2,425 test）、fmt／警告なし Clippy／rustdoc、独立 TAR／HTML parser 検査が成功した。B04 の最終 3 pt を消化し、追加 +11、消化 40、残り 74 pt。実装 doing は一旦 0。tooling PR の最新 head 両 host CI／merge を終えてから C01 を doing にする。新 delivery／見積は追加せず、G4 は実 CI の終了監査まで pending、G5–G9 も維持する。
 
 A04 source `cf6cf5c` は fmt、全 Clippy／doc、checked opt-level 1 全 test（**158 suite／2,384 成功／0 失敗**）、重点 75 test に成功。最終 head `75a2041` は [全 CI](https://github.com/carimatics/lang/actions/runs/40810065213)（全 19 job、18 成功、意図した文書専用 skip）と [debugger 実行](https://github.com/carimatics/lang/actions/runs/40810065278)（3/3）に成功した。[PR #13](https://github.com/carimatics/lang/pull/13) は `58527c2` として merge、main を fast-forward して clean・同期済み、ahead／behind 0/0。workspace branch 作成と現在の PR／upstream は上記に記録した。既存の user 変更はなかった。
 
@@ -63,7 +63,7 @@ A01 入力修正は Unix の nonblocking open と開いた handle の metadata �
 | M4-B01 | done | 0 | M4-A04 | G4 | 決定的 package source list／archive と逸脱／変更 input の拒否 | `b150762` |
 | M4-B02 | done | 0 | M4-A04 | G4 | package fmt／check が CST comment を保持し、不正／古い edit を拒否 | `5010d45` |
 | M4-B03 | done | 0 | M4-B02 | G4 | lint rule 採択、安定 code、package lint pass／fail／JSON fixture | `99fabc4` |
-| M4-B04 | doing | 3 | M4-B03 | G4 | 解決済み link、source 位置、失敗時 output 保護を持つ package API doc 生成 | — |
+| M4-B04 | done | 0 | M4-B03 | G4 | 解決済み link、source 位置、失敗時 output 保護を持つ package API doc 生成 | `4f62c78` |
 | M4-C01 | todo | 3 | M4-A05 | G5,G6 | editor symbol／snapshot／edit 契約を採択し、実 package dependency を navigate | — |
 | M4-C02 | todo | 3 | M4-C01 | G5 | package overlay、edit、watched-file refresh を跨ぐ definition／reference | — |
 | M4-C03 | todo | 3 | M4-C02 | G5 | scope／privacy／type に従う completion、UTF-16 と stale result test | — |
@@ -97,9 +97,9 @@ A01 入力修正は Unix の nonblocking open と開いた handle の metadata �
 
 | Baseline remaining | Net added/re-estimated | Retired on completion | Remaining |
 | ---: | ---: | ---: | ---: |
-| 103 pt | +11 pt | −37 pt | 77 pt |
+| 103 pt | +11 pt | −40 pt | 74 pt |
 
-**103 + 11 − 37 = 77 pt**
+**103 + 11 − 40 = 74 pt**
 
 名前空間の前提監査、2026-10-29 JST: 既存 `ModuleGraph::root()` は常に `ModuleId(0)`。path provider だけでは依存ごとの package-root 名前空間や共有 dependency identity の安全な再利用を提供できない。元の A02 を、許可 graph（新規 A02R、3 pt）と名前空間／source 実行の統合（task list を見直した A02、残り 3 pt）へ分割する。純追加 +3 pt、全 37 delivery。A01 と A02R は前提二つとなるため、水平基盤を増やす前に A02 で次の source 実行 fixture を示す。この監査による gate 完了や延期はない。
 
