@@ -23,6 +23,7 @@ pub(super) struct File<'a> {
 pub(super) enum Generation<'a> {
     Build,
     Test,
+    Package,
     Native(&'a str),
 }
 impl Generation<'_> {
@@ -30,6 +31,7 @@ impl Generation<'_> {
         match self {
             Self::Build => "build",
             Self::Test => "test",
+            Self::Package => "package",
             Self::Native(name) => name,
         }
     }

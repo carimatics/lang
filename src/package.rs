@@ -1,4 +1,5 @@
 //! Host-only package metadata; parsing never follows dependency paths.
+pub mod archive;
 pub mod cli;
 pub mod command;
 pub mod graph;

@@ -90,15 +90,18 @@ source構文・native language ABI・private SDK/package formatは実験段階�
 - [RFC 0032: 明示host binding付きinstalled component package（implemented）](docs/ja/rfcs/0032-installed-component-packages.md)
 - [RFC 0033: Component C v1の互換性と移行（stabilized）](docs/ja/rfcs/0033-component-v1-compatibility.md)
 - [RFC 0034: パッケージワークスペースと CLI 診断（accepted）](docs/ja/rfcs/0034-package-workspaces-and-cli-diagnostics.md)
+- [RFC 0035: 決定的な source package snapshot（accepted）](docs/ja/rfcs/0035-source-package-snapshots.md)
 - [コントリビューションガイド](CONTRIBUTING.ja.md)
 
 ## 開発
+
+`cargo run -- package --manifest-path target/my_app/Lang.json --list` は予定する固定 source snapshot を無書込みで一覧表示します。`--list` を省くと、元 manifest／source byte、`Lang.lock`、version 付き descriptor の決定的な非圧縮 TAR を公開します。`--locked --offline` は完全一致 replay を検証します。profile 1 は directory alias を拒否し、信頼しない archive の展開や registry 公開は行いません。[RFC 0035](docs/ja/rfcs/0035-source-package-snapshots.md) を参照してください。
 
 `rust-toolchain.toml`で固定したRust **1.99.0**とrustfmt/Clippyを使います。[M2機能guide](docs/ja/milestone-2-capabilities.md)と[M3機能guide](docs/ja/milestone-3-capabilities.md)に実装動作・完了条件・制約を記録しています。`cargo run -- run examples/scripts/tasks.lang`で実装済みsource asyncを実行し、42を返します。[M3 board](docs/ja/milestone-3.md)は完了した79 deliveryの記録です。
 
 M4 の最初のコマンドは `cargo run -- package check-manifest --message-format json examples/packages/hello/Lang.json`。RFC 0034 の上限付き manifest を dependency を読まずに検証します。成功時は出力なし、エラーは stderr の JSON line（exit 1、usage は exit 2）です。host の `package::graph::Graph::resolve` API は明示 manifest の directory 内で完全一致 local dependency graph を snapshot 化し、edge を整列して package／edge／source 上限を適用します。`package::source::analyze` は分離した package root を共有 frontend へ接続し、`cargo test --test package_source` が実 local-dependency fixture を VM と native JIT で実行して両方 42 を返します。`package::lock::Lock::capture` は固定 inventory と解決した entry／test／directory binding を hash 化します。`Lock::check` は厳密な canonical lock を offline replay し、`Lock::publish` は別途渡した directory capability で atomic に置換します。`cargo test --test package_lock` が配置変更、古い input／binding の拒否、失敗時の公開保護を検証します。
 
-`cargo run -- new target/my_app` は完成した新規 package を排他的に作成します。`cargo run -- build --manifest-path target/my_app/Lang.json` は検証済み portable artifact を生成し、`cargo run -- run --manifest-path target/my_app/Lang.json --locked --offline` は既存 VM profile で実行します。manifest option がなければ package command は `./Lang.json` だけを使います。build 成功時は出力なし、run 成功時は i64 の結果を出力して exit 0 です。`target/lang/<lock-sha256>/build/` の不変 generation を先に公開して最後に `Lang.lock` を更新し、失敗時は従来 output を保持します。JSON 診断は元 source の byte span を保持します。file 明示 command は引き続き使えます。workspace 選択と native package executable は active board に残ります。
+`cargo run -- new target/my_app` は完成した新規 package を排他的に作成します。`cargo run -- build --manifest-path target/my_app/Lang.json` は検証済み portable artifact を生成し、`cargo run -- run --manifest-path target/my_app/Lang.json --locked --offline` は既存 VM profile で実行します。manifest option がなければ package command は `./Lang.json` だけを使います。build 成功時は出力なし、run 成功時は i64 の結果を出力して exit 0 です。`target/lang/<lock-sha256>/build/` の不変 generation を先に公開して最後に `Lang.lock` を更新し、失敗時は従来 output を保持します。JSON 診断は元 source の byte span を保持します。file 明示 command は引き続き使えます。workspace command は `--package NAME` で明示 member を選択します。`build --native --sdk SDK` は対応 SDK で再現可能な native executable と固定 build receipt を生成します。
 
 `cargo run -- test --manifest-path target/my_app/Lang.json` は宣言 test を manifest 順に実行します。test 内の `mod _package;` は package の公開 API を参照し、0 を返せば成功です。固定 source scope、元 span、既存 Copy／ownership／task／service engine を使い、entry ごとに実行 control を初期化します。成功時は出力なし、最初の source／runtime／非 0 失敗は exit 1。test 0 件でも main を要求せず package を型検査します。test artifact は同じ lock key の `test/` generation に置き、全 test 成功後だけ公開します。test にも `--locked --offline` を適用できます。
 

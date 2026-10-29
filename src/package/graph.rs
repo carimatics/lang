@@ -281,6 +281,19 @@ impl Graph {
     pub fn workspace(&self) -> Option<&WorkspaceSnapshot> {
         self.workspace.as_ref()
     }
+    pub(super) fn manifest_files(&self) -> impl Iterator<Item = (&Path, &[u8])> {
+        self.packages
+            .iter()
+            .map(|p| (p.manifest_path(), p.manifest_bytes()))
+            .chain(
+                self.workspace
+                    .iter()
+                    .flat_map(|w| {
+                        std::iter::once(&w.manifest).chain(w.members.iter().map(|m| &m.manifest))
+                    })
+                    .map(|m| (m.path.as_path(), m.input.bytes.as_slice())),
+            )
+    }
     pub(super) fn manifest_inputs(&self) -> impl Iterator<Item = (&Path, &cap_std::fs::Metadata)> {
         self.packages
             .iter()
