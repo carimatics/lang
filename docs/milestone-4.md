@@ -4,13 +4,13 @@
 
 [日本語版](ja/milestone-4.md)
 
-Updated: 2026-10-29 JST. M4 is active. Goal start: clean `main`/`origin/main` at `af9988f`, remote `git@github.com:carimatics/lang.git`. PRs #9–#15 are merged. Native PR #15 merged as `a454e6d`; local/remote main tips match with 0/0 ahead/behind. Current `codex/m4-package-tooling` was created from that synchronized main; PR base `carimatics/lang:main`, upstream `origin/codex/m4-package-tooling`, [PR #16](https://github.com/carimatics/lang/pull/16). Two agent-owned bilingual native-checkpoint edits were carried into this branch; no preexisting user changes were present.
+Updated: 2026-10-29 JST. M4 is active. Goal start: clean main/origin/main `af9988f`, remote `git@github.com:carimatics/lang.git`. PRs #9–#16 are merged. Tooling PR #16 merged as `49a0fe8`; main was fast-forwarded, clean and synchronized with 0/0 ahead/behind. Current `codex/m4-editor-navigation` was created from that main; PR base `carimatics/lang:main`. The new branch has no upstream/PR yet and no preexisting working-tree/user changes. C01–C04 form the coherent navigation/references/completion/token outcome.
 
-**14 done · 0 doing · 26 todo · 74 remaining pt**
+**14 done · 1 doing · 25 todo · 74 remaining pt**
 
-B04 executable checkpoint, 2026-10-29 16:07 JST, current worktree: all 121 focused library/archive/command/doc/formatter/lint/consistency checks pass. The real doc fixture verifies public root/dependency API, same-spelled and nested type links, original Unicode comments/byte spans, escaped source panels, relocation/detachment, invalid/stale/cache refusals and filesystem-failure preservation. Independent Python HTMLParser confirms 3 unique fragments, all 5 internal links resolving, no active content and the CSP. Fmt, warning-free full Clippy, source-frozen full tests (**164 suites / 2,425 passed / 0 failed**) and rustdoc pass. Remaining: code evidence and latest-head both-host CI/PR lifecycle. B04 implementation evidence is `4f62c78`; CI/PR lifecycle remains open.
+C01 executable checkpoint, 2026-10-29 16:45 JST, current worktree: all 4 editor fixtures plus 9 graph, 15 source and 6 consistency tests pass (34 total); full Clippy is warning-free. Actual dependency/import/type/enum-case navigation uses original spans; HIR excludes shadowing local reads/assignments. Frozen snapshots survive project rename/provider edits, admitted overlays change only the new epoch, invalid/private source publishes no stale bindings, and stale/non-boundary offsets fail. Overlay/count/work/index-byte limits, including exact/one-below owned bytes, execute. Fmt, source-frozen full tests (**165 suites / 2,429 passed / 0 failed**) and doc pass. Remaining: code evidence and latest-head both-host CI on the coherent editor branch. C01 remains doing at 3 pt.
 
-**Next: M4-C01 — editor symbol/snapshot/edit contract and real package-dependency navigation.** Tooling source `4f62c78` includes archive/fmt/lint/doc implementation, 121 passing focused checks, the full baseline (164 suites / 2,425 tests), fmt/warnings-denied Clippy/rustdoc and independent TAR/HTML parser inspection. Retire B04’s last 3 pt: additions +11, retired 40, remaining 74 pt. No implementation is doing while the tooling PR awaits latest-head both-host CI/merge; select C01 afterwards. No delivery/estimate is added. G4 remains pending until its actual CI exit audit; G5–G9 remain required.
+**Next: M4-C01 — editor symbol/snapshot/edit contract and real package-dependency navigation (doing, 3 pt).** RFC 0039 is accepted under experimental delegation before implementation. The prototype supports reuse of resolver/HIR and snapshots; the actual task list fits the existing 3 pt. No additions/re-estimates: 74 pt remain (103 + 11 − 40). Tooling head `76c7c9a` passes all 19 CI jobs (18 success, intentional documentation-only skip) and debugger 3/3; PR #16 is merged and main synchronized. G4’s exit audit is complete; G5–G9 remain required.
 
 A04 source `cf6cf5c` passes fmt, full Clippy/doc and checked opt-level 1 full tests (**158 suites / 2,384 passed / 0 failed**), plus 75 focused tests. Final head `75a2041` passes [full CI](https://github.com/carimatics/lang/actions/runs/40810065213) (all 19 jobs: 18 success; intentional documentation-only skip) and [debugger execution](https://github.com/carimatics/lang/actions/runs/40810065278) (3/3). [PR #13](https://github.com/carimatics/lang/pull/13) merged as `58527c2`; main was fast-forwarded, clean and synchronized with 0/0 ahead/behind. Workspace branch creation and its current PR/upstream are recorded above. No preexisting user changes were present.
 
@@ -30,14 +30,14 @@ The A01 input correction refuses FIFO/device/directory inputs with `PKG0005`/exi
 
 ## Exit gates
 
-The [roadmap](roadmap.md#milestone-4-developer-toolchain) retains the original 63 pt acceptance weights. **3/9 gates verified; 18/63 gate weight (28.6%).** Accepting a design does not complete its implementation gates. Every P0 and P1 remains in scope; no work is deferred.
+The [roadmap](roadmap.md#milestone-4-developer-toolchain) retains the original 63 pt acceptance weights. **4/9 gates verified; 23/63 gate weight (36.5%).** Accepting a design does not complete its implementation gates. Every P0 and P1 remains in scope; no work is deferred.
 
 | Gate | Priority | Outcome | Weight | State |
 | --- | --- | --- | ---: | --- |
 | G1 | P0 | Accepted manifest/workspace, targets, lock compatibility and CLI diagnostics | 5 | done |
 | G2 | P0 | Deterministic dependency resolution, checksums, locks and offline replay | 8 | done |
 | G3 | P0 | Package-aware build/run/test and structured diagnostics | 5 | done |
-| G4 | P0 | Package/fmt/lint/doc CLI integration | 5 | pending |
+| G4 | P0 | Package/fmt/lint/doc CLI integration | 5 | done |
 | G5 | P0 | LSP navigation/completion/semantic tokens | 8 | pending |
 | G6 | P0 | Safe rename and code actions | 8 | pending |
 | G7 | P0 | DAP adapter with mixed native/VM stacks | 8 | pending |
@@ -64,7 +64,7 @@ The [roadmap](roadmap.md#milestone-4-developer-toolchain) retains the original 6
 | M4-B02 | done | 0 | M4-A04 | G4 | Package fmt/check preserves CST comments and refuses invalid/stale edits | `5010d45` |
 | M4-B03 | done | 0 | M4-B02 | G4 | Accepted lint rules, stable codes and package lint pass/fail/JSON fixture | `99fabc4` |
 | M4-B04 | done | 0 | M4-B03 | G4 | Generate package API documentation with resolved links, source locations and failure-safe output | `4f62c78` |
-| M4-C01 | todo | 3 | M4-A05 | G5,G6 | Accept editor symbol/snapshot/edit contract and navigate a real package dependency | — |
+| M4-C01 | doing | 3 | M4-A05 | G5,G6 | Accept editor symbol/snapshot/edit contract and navigate a real package dependency | — |
 | M4-C02 | todo | 3 | M4-C01 | G5 | Definition/references across package overlays, edits and watched-file refresh | — |
 | M4-C03 | todo | 3 | M4-C02 | G5 | Scope/privacy/type-aware completion with UTF-16 and stale-result tests | — |
 | M4-C04 | todo | 3 | M4-C03 | G5 | Semantic tokens and refresh survive Unicode, malformed source and document lifecycle | — |

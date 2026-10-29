@@ -18,7 +18,7 @@ M2は完了済みです。18/18ゲート、過去のゲート重み113/113です
 
 ## M3完了後の作業
 
-M3 は完了済みです。M4 の [作業ボード](milestone-4.md) は 40 delivery、**14 done · 0 doing · 26 todo · 74 remaining pt** です。source `d66c764` が両 host の native package 再現性、全 CI 19 job（18 成功、意図した文書専用 skip）、debugger 全 3 環境、全 local baseline（160 suite／2,400 test）に成功しました。G1–G3 を検証済みで、package／fmt／lint／doc、editor、DAP、profiling、installer gate はすべて維持します。B01 source `b150762` は決定的 source listing／archive を実装し、全 local baseline（161 suite／2,405 test）に成功しました。B02 source `5010d45` は検証付き整形を実装し、全 baseline（162 suite／2,412 test）が成功。B03 source `99fabc4` は無実行 package lint を完了（163 suite／2,419 test）し、B04 source `4f62c78` は単独 API 文書を完了（164 suite／2,425 test）。最終 head の両 host CI／PR lifecycle 後に C01 を選択し、G4 は pending に保ちます。純追加は累計 +11 pt、完了で 40 pt を消化し、**103 + 11 − 40 = 74**。完了済み M2／M3 履歴を保ち、M5 は将来作業です。
+M3 は完了済みです。M4 の [作業ボード](milestone-4.md) は 40 delivery、**14 done · 1 doing · 25 todo · 74 remaining pt**。G1–G4 を検証済みです。tooling source `4f62c78`／最終 head `76c7c9a` は全 baseline（164 suite／2,425 test）、全 CI 19 job（18 成功、意図した文書専用 skip）、debugger 3/3 と両 host の archive／fmt／lint／doc fixture に成功し、PR #16 は `49a0fe8` として merge、main は clean・同期済みです。C01 navigation は RFC 0039 の採択契約と実 resolver prototype を基に 3 pt で doing。追加 +11、消化 40、**103 + 11 − 40 = 74**。editor、DAP、profiling、installer の残 gate は全て維持し、完了済み M2／M3 を再開せず、M5 は将来作業です。
 
 PR #9–#15 は merge 済みです。native PR #15 は `a454e6d` として merge、local main を fast-forward し origin/main と ahead／behind 0/0 を確認しました。現在の `codex/m4-package-tooling` はその main から作成し、agent 所有の checkpoint 文書編集二つを引き継ぎました。PR base は `carimatics/lang:main`、upstream は `origin/codex/m4-package-tooling`、[PR #16](https://github.com/carimatics/lang/pull/16) です。現在の証拠と残る条件は board に記録しています。
 
@@ -42,11 +42,11 @@ PR #9–#15 は merge 済みです。native PR #15 は `a454e6d` として merge
 | 1 — frontendとbytecodeのvertical slice（完了） | 89 pt | 89 pt | **100.0%** |
 | 2 — ownershipとnative AOT | 113 pt | 113 pt | 100.0% |
 | 3 — concurrencyとembedding（完了） | 96 pt | 96 pt | 100.0% |
-| 4 — developer toolchain | 18 pt | 63 pt | 28.6% |
+| 4 — developer toolchain | 23 pt | 63 pt | 36.5% |
 | 5 — ecosystemとcompatibility | 0 pt | 65 pt | 0.0% |
 | 6 — セルフホスティング | 0 pt | 74 pt | 0.0% |
 | 7 — 追加frontend | 0 pt | 55 pt | 0.0% |
-| **全体** | **525 pt** | **764 pt** | **68.7%** |
+| **全体** | **530 pt** | **764 pt** | **69.4%** |
 
 ## Milestone 0：設計baseline
 
@@ -228,7 +228,7 @@ Exit：Native hostがuser scriptをloadし、typed APIを公開し、scriptをca
 
 ## Milestone 4：developer toolchain
 
-**進捗：18 / 63 pt（28.6%）。**
+**進捗：23 / 63 pt（36.5%）。**
 
 有効化監査（2026-10-29 JST）: 現在の task、実行 checkpoint、積上げ baseline 103 pt は [M4 board](milestone-4.md)で管理します。[RFC 0034](rfcs/0034-package-workspaces-and-cli-diagnostics.md)が manifest／diagnostic と最初の local package 契約を採択しました。厳密な検査、許可 local dependency の実行、lock／offline replay、create／build／run／test fixture の順に進めてから広範な tooling へ進みます。installer は M5 registry より先に toolchain binary を配布するため、trust root、署名 release metadata 検証、atomic update／failure recovery の採択設計を download／install 前に必要とします。M5 signing は registry package 公開／provenance を対象とします。元の九つの gate と weight を維持し、63 pt を残作業予測には使いません。
 
@@ -237,7 +237,7 @@ Exit：Native hostがuser scriptをloadし、typed APIを公開し、scriptをca
 - [x] **P0 — Version付きpackage／workspace manifest、target condition、lockfile互換性、machine-readable CLI diagnostic契約を受理する。** — 5 pt
 - [x] **P0 — Deterministic dependency resolution、lockfile、checksum、offline modeを実装する。** — 8 pt
 - [x] **P0 — 既存の`lang run` frontendをpackage対応build／run／test orchestrationへ拡張し、受理済みstructured diagnostic出力を提供する。** — 5 pt
-- [ ] **P0 — Package、fmt、lint、doc commandをCLIへ統合する。** — 5 pt
+- [x] **P0 — Package、fmt、lint、doc commandをCLIへ統合する。** — 5 pt
 - [ ] **P0 — LSP navigation、completion、semantic tokenを実装する。** — 8 pt
 - [ ] **P0 — 安全なrename／code actionを実装する。** — 8 pt
 - [ ] **P0 — Mixed native／VM stackを持つDAP adapterを実装する。** — 8 pt

@@ -207,6 +207,16 @@ impl ModuleGraph {
         self.resolve_charged(module, path, &mut remaining)
     }
 
+    /// Resolve against a caller-owned shared budget for bounded tooling scans.
+    pub fn resolve_with_budget(
+        &self,
+        module: ModuleId,
+        path: NodeId,
+        remaining: &mut usize,
+    ) -> Result<ResolvedName, ResolutionError> {
+        self.resolve_charged(module, path, remaining)
+    }
+
     pub(crate) fn resolve_charged(
         &self,
         module: ModuleId,

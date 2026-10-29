@@ -3,6 +3,7 @@ pub mod archive;
 pub mod cli;
 pub mod command;
 pub mod doc;
+pub mod editor;
 pub mod format;
 pub mod graph;
 pub mod lint;

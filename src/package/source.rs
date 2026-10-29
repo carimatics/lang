@@ -4,7 +4,7 @@ pub(super) mod inventory;
 use crate::frontend::{self, Analysis, CompileLimits};
 use lang_diagnostics::SourceMap;
 use lang_semantics::modules::{
-    ModuleLoadError, ModuleProvider, PackageSource, ParseFailure, ProvidedParse,
+    ModuleGraph, ModuleLoadError, ModuleProvider, PackageSource, ParseFailure, ProvidedParse,
     load_package_sources,
 };
 use lang_syntax::{ParseLimits, add_source, parse};
@@ -44,7 +44,44 @@ fn analyze_entry(
     test: Option<&inventory::Declared>,
     limits: CompileLimits,
 ) -> Result<Analysis, Diagnostic> {
+    indexed_entry(graph, test, limits, &BTreeMap::new(), false).map(|(analysis, _)| analysis)
+}
+
+pub(super) fn analyze_indexed(
+    graph: &Graph,
+    overlays: &BTreeMap<PathBuf, Arc<[u8]>>,
+    limits: CompileLimits,
+) -> Result<(Analysis, Option<ModuleGraph>), Diagnostic> {
+    indexed_entry(graph, None, limits, overlays, true)
+}
+
+fn indexed_entry(
+    graph: &Graph,
+    test: Option<&inventory::Declared>,
+    limits: CompileLimits,
+    overlays: &BTreeMap<PathBuf, Arc<[u8]>>,
+    retain_graph: bool,
+) -> Result<(Analysis, Option<ModuleGraph>), Diagnostic> {
     let inputs = graph.inputs()?;
+    let mut replacements = BTreeMap::new();
+    for (path, bytes) in overlays {
+        let file = inputs.files.get(path).ok_or_else(|| {
+            Diagnostic::error("PKG0003", "overlay is not an admitted canonical source")
+                .at_path(path)
+        })?;
+        if replacements
+            .insert(file.identity, bytes)
+            .is_some_and(|old| old != bytes)
+        {
+            return Err(Diagnostic::error(
+                "PKG0003",
+                "conflicting overlays for one source identity",
+            )
+            .at_path(path));
+        }
+    }
+    let effective =
+        |id: Identity, bytes: &[u8]| replacements.get(&id).map_or(bytes, |b| b.as_ref()).to_vec();
     let mut provider = Provider {
         inventory: inputs,
         raw: BTreeMap::new(),
@@ -61,7 +98,7 @@ fn analyze_entry(
             .insert(
                 path.clone(),
                 snapshot.entry_path().to_path_buf(),
-                snapshot.entry_bytes().to_vec(),
+                effective(inputs.files[&path].identity, snapshot.entry_bytes()),
                 inputs.files[&path].identity,
             )
             .map_err(package_io)?;
@@ -80,7 +117,7 @@ fn analyze_entry(
             .insert(
                 path.clone(),
                 file.display.clone(),
-                file.bytes.clone(),
+                effective(file.identity, &file.bytes),
                 file.identity,
             )
             .map_err(package_io)?;
@@ -114,7 +151,12 @@ fn analyze_entry(
     }
     let mut sources = SourceMap::new();
     let modules = load_package_sources(&mut sources, &packages, limits.modules, &mut provider);
-    Ok(frontend::finish(sources, modules, limits, None))
+    let graph = if retain_graph {
+        modules.as_ref().ok().and_then(|m| m.graph.clone())
+    } else {
+        None
+    };
+    Ok((frontend::finish(sources, modules, limits, None), graph))
 }
 
 fn package_io(error: ModuleLoadError) -> Diagnostic {
