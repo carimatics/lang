@@ -45,7 +45,7 @@ libraries = [SDK / f["path"] for f in manifest["files"] if f["path"].endswith(".
 command = [rustc, "--edition=2024", "--crate-name=lang_native_dap_probe",
            "-Cpanic=unwind", "-Cdebuginfo=2", "-Csplit-debuginfo=packed",
            str(PACKAGE / "main.rs"), "-o", str(EXE)]
-for directory in sorted({p.parent for p in libraries}):
+for directory in sorted({(SDK / f["path"]).parent for f in manifest["files"]}):
     command += ["-L", f"dependency={directory}", "-L", f"native={directory}"]
 for name in ["lang_codegen_clif", "lang_runtime", "lang_mir", "lang_bytecode"]:
     selected = [p for p in libraries if p.name.removeprefix("lib").startswith(name + "-")]
