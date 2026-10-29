@@ -231,8 +231,8 @@ impl Builder<'_> {
     }
     fn allowed(&self, root: &Path, path: &Path) -> bool {
         path.starts_with(root)
-            && !self.graph.packages().iter().any(|p| {
-                let package = normal(p.root());
+            && !self.graph.package_roots().any(|p| {
+                let package = normal(p);
                 (package != root && package.starts_with(root) && path.starts_with(&package))
                     || path.starts_with(package.join("target"))
             })
@@ -288,6 +288,7 @@ impl Builder<'_> {
                 let child = path.join(name);
                 let global = root.join(&child);
                 if !self.allowed(root, &global)
+                    || self.graph.manifest_inputs().any(|(p, _)| p == global)
                     || child
                         .file_name()
                         .is_some_and(|n| n == ".git" || n == ".codex")

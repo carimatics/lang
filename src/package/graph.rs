@@ -5,7 +5,7 @@ use super::{
     manifest::{MAX_BYTES, Manifest, Package, TARGETS},
 };
 use cap_std::fs::{Dir, OpenOptions};
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::io::Read;
 use std::path::{Path, PathBuf};
 use std::sync::{Mutex, OnceLock};
@@ -88,15 +88,82 @@ pub struct Graph {
     authority_root: PathBuf,
     target: String,
     packages: Vec<Snapshot>,
+    workspace: Option<WorkspaceSnapshot>,
     pub(super) directory: Mutex<Option<Dir>>,
     pub(super) limits: Limits,
     pub(super) inventory: OnceLock<Result<super::source::inventory::Inventory, Diagnostic>>,
+}
+
+#[derive(Clone, Debug)]
+pub(super) struct CapturedManifest {
+    pub path: PathBuf,
+    pub manifest: Manifest,
+    pub input: Input,
+}
+
+#[derive(Debug)]
+pub struct MemberSnapshot {
+    pub(super) path: String,
+    pub(super) root: PathBuf,
+    pub(super) manifest: CapturedManifest,
+}
+impl MemberSnapshot {
+    pub fn path(&self) -> &str {
+        &self.path
+    }
+    pub fn root(&self) -> &Path {
+        &self.root
+    }
+    pub fn manifest_path(&self) -> &Path {
+        &self.manifest.path
+    }
+    pub fn manifest_bytes(&self) -> &[u8] {
+        &self.manifest.input.bytes
+    }
+    pub fn package(&self) -> &Package {
+        self.manifest
+            .manifest
+            .package
+            .as_ref()
+            .expect("catalogued package")
+    }
+}
+
+#[derive(Debug)]
+pub struct WorkspaceSnapshot {
+    pub(super) manifest: CapturedManifest,
+    pub(super) members: Vec<MemberSnapshot>,
+    pub(super) selected_root: PathBuf,
+}
+impl WorkspaceSnapshot {
+    pub fn manifest_path(&self) -> &Path {
+        &self.manifest.path
+    }
+    pub fn manifest_bytes(&self) -> &[u8] {
+        &self.manifest.input.bytes
+    }
+    pub fn members(&self) -> &[MemberSnapshot] {
+        &self.members
+    }
+    pub fn selected_root(&self) -> &Path {
+        &self.selected_root
+    }
 }
 
 impl Graph {
     /// The explicit manifest's directory grants the only ambient read authority.
     /// Workspace member selection is a separate orchestration operation.
     pub fn resolve(manifest: &Path, target: &str, limits: Limits) -> Result<Self, Diagnostic> {
+        Self::resolve_selected(manifest, target, limits, None)
+    }
+
+    /// Select an explicit member using the containing manifest's authority.
+    pub fn resolve_selected(
+        manifest: &Path,
+        target: &str,
+        limits: Limits,
+        selected: Option<&str>,
+    ) -> Result<Self, Diagnostic> {
         if !TARGETS.contains(&target) {
             return Err(Diagnostic::error("PKG0003", "unsupported package target"));
         }
@@ -119,7 +186,7 @@ impl Graph {
         let root = std::fs::canonicalize(parent.join(".")).map_err(|e| io(parent, e))?;
         let directory = Dir::open_ambient_dir(root.join("."), cap_std::ambient_authority())
             .map_err(|e| io(&root, e))?;
-        Self::resolve_in(directory, root, Path::new(name), target, limits)
+        Self::resolve_selected_in(directory, root, Path::new(name), target, limits, selected)
     }
 
     /// Resolve through the caller's exact capability. `display` is diagnostic
@@ -132,11 +199,29 @@ impl Graph {
         target: &str,
         limits: Limits,
     ) -> Result<Self, Diagnostic> {
+        Self::resolve_selected_in(directory, display, name, target, limits, None)
+    }
+
+    /// Retain the caller's capability while selecting a frozen workspace member.
+    pub fn resolve_selected_in(
+        directory: Dir,
+        display: PathBuf,
+        name: &Path,
+        target: &str,
+        limits: Limits,
+        selected: Option<&str>,
+    ) -> Result<Self, Diagnostic> {
         if !TARGETS.contains(&target) {
             return Err(Diagnostic::error("PKG0003", "unsupported package target"));
         }
         if limits.packages == 0 {
             return Err(limit("package count limit exceeded"));
+        }
+        if selected.is_some_and(|name| !super::manifest::valid_name(name)) {
+            return Err(Diagnostic::error(
+                "PKG0003",
+                "invalid selected package name",
+            ));
         }
         let mut components = name.components();
         if !matches!(components.next(), Some(std::path::Component::Normal(_)))
@@ -156,13 +241,25 @@ impl Graph {
             packages: Vec::new(),
             edges: 0,
             source_bytes: 0,
+            manifests: BTreeMap::new(),
         };
         let package_root = resolver.canonical_directory(Path::new("."))?;
-        resolver.visit(package_root, name, None)?;
+        let workspace = resolver.select(&package_root, name, selected)?;
+        let selected_root = workspace
+            .as_ref()
+            .map(|w| w.selected_root.clone())
+            .unwrap_or_else(|| package_root.clone());
+        let selected_name = if selected_root == package_root {
+            name
+        } else {
+            Path::new("Lang.json")
+        };
+        resolver.visit(selected_root, selected_name, None)?;
         Ok(Self {
             authority_root: display,
             target: target.into(),
             packages: resolver.packages,
+            workspace,
             directory: Mutex::new(Some(resolver.directory)),
             limits,
             inventory: OnceLock::new(),
@@ -180,6 +277,29 @@ impl Graph {
     }
     pub fn packages(&self) -> &[Snapshot] {
         &self.packages
+    }
+    pub fn workspace(&self) -> Option<&WorkspaceSnapshot> {
+        self.workspace.as_ref()
+    }
+    pub(super) fn manifest_inputs(&self) -> impl Iterator<Item = (&Path, &cap_std::fs::Metadata)> {
+        self.packages
+            .iter()
+            .map(|p| (p.manifest_path(), &p.manifest_metadata))
+            .chain(
+                self.workspace
+                    .iter()
+                    .flat_map(|w| {
+                        std::iter::once(&w.manifest).chain(w.members.iter().map(|m| &m.manifest))
+                    })
+                    .map(|m| (m.path.as_path(), &m.input.metadata)),
+            )
+    }
+    pub(super) fn package_roots(&self) -> impl Iterator<Item = &Path> {
+        self.packages.iter().map(Snapshot::root).chain(
+            self.workspace
+                .iter()
+                .flat_map(|w| w.members.iter().map(MemberSnapshot::root)),
+        )
     }
     pub fn package(&self, id: PackageId) -> Option<&Snapshot> {
         self.packages.get(id.0)
@@ -214,6 +334,7 @@ struct Resolver<'a> {
     packages: Vec<Snapshot>,
     edges: usize,
     source_bytes: usize,
+    manifests: BTreeMap<PathBuf, CapturedManifest>,
 }
 
 fn limit(message: &str) -> Diagnostic {
@@ -278,6 +399,7 @@ impl Resolver<'_> {
     }
 }
 
+#[derive(Clone, Debug)]
 pub(super) struct Input {
     pub bytes: Vec<u8>,
     pub metadata: cap_std::fs::Metadata,
@@ -331,6 +453,110 @@ pub(super) fn read(
 }
 
 impl Resolver<'_> {
+    fn manifest(&mut self, root: &Path, name: &Path) -> Result<CapturedManifest, Diagnostic> {
+        if let Some(captured) = self.manifests.get(root) {
+            return Ok(captured.clone());
+        }
+        let path = input_path(root, name);
+        let input = self.read(&path, MAX_BYTES)?;
+        let manifest =
+            Manifest::parse(&input.bytes).map_err(|e| e.at_path(&self.display.join(&path)))?;
+        let captured = CapturedManifest {
+            path,
+            manifest,
+            input,
+        };
+        self.manifests.insert(root.to_path_buf(), captured.clone());
+        Ok(captured)
+    }
+
+    fn select(
+        &mut self,
+        root: &Path,
+        name: &Path,
+        selected: Option<&str>,
+    ) -> Result<Option<WorkspaceSnapshot>, Diagnostic> {
+        let manifest = self.manifest(root, name)?;
+        let Some(workspace) = &manifest.manifest.workspace else {
+            if let Some(selected) = selected
+                && manifest
+                    .manifest
+                    .package
+                    .as_ref()
+                    .is_none_or(|package| package.name != selected)
+            {
+                return Err(graph_error(
+                    &self.display.join(&manifest.path),
+                    "selected package is not declared",
+                ));
+            }
+            return Ok(None);
+        };
+        if selected.is_none() && manifest.manifest.package.is_none() {
+            return Err(graph_error(
+                &self.display.join(&manifest.path),
+                "workspace-only manifest requires --package",
+            ));
+        }
+        let mut members = Vec::new();
+        if manifest.manifest.package.is_some() {
+            members.push(MemberSnapshot {
+                path: ".".into(),
+                root: root.to_path_buf(),
+                manifest: manifest.clone(),
+            });
+        }
+        let mut roots: BTreeSet<_> = members.iter().map(|member| member.root.clone()).collect();
+        for path in &workspace.members {
+            let canonical = self.canonical_directory(Path::new(path))?;
+            if !roots.insert(canonical.clone()) {
+                return Err(graph_error(
+                    &self.display.join(path),
+                    "duplicate canonical workspace member",
+                ));
+            }
+            let captured = self.manifest(&canonical, Path::new("Lang.json"))?;
+            if captured.manifest.package.is_none() {
+                return Err(graph_error(
+                    &self.display.join(&captured.path),
+                    "workspace member requires a package",
+                ));
+            }
+            members.push(MemberSnapshot {
+                path: path.clone(),
+                root: canonical,
+                manifest: captured,
+            });
+        }
+        let mut names = BTreeMap::new();
+        for member in &members {
+            if names
+                .insert(member.package().name.clone(), member.root.clone())
+                .is_some()
+            {
+                return Err(graph_error(
+                    &self.display.join(member.manifest_path()),
+                    "duplicate workspace package name",
+                ));
+            }
+        }
+        members.sort_by(|a, b| a.path.cmp(&b.path));
+        let selected_root = match selected {
+            Some(selected) => names.get(selected).cloned().ok_or_else(|| {
+                graph_error(
+                    &self.display.join(&manifest.path),
+                    "selected package is not declared",
+                )
+            })?,
+            None => root.to_path_buf(),
+        };
+        Ok(Some(WorkspaceSnapshot {
+            manifest,
+            members,
+            selected_root,
+        }))
+    }
+
     fn visit(
         &mut self,
         root: PathBuf,
@@ -360,11 +586,11 @@ impl Resolver<'_> {
         if self.packages.len() >= self.limits.packages {
             return Err(limit("package count limit exceeded").at_path(&self.display.join(&root)));
         }
-        let manifest_path = input_path(&root, name);
-        let input = self.read(&manifest_path, MAX_BYTES)?;
+        let captured = self.manifest(&root, name)?;
+        let manifest_path = captured.path;
+        let input = captured.input;
         let manifest_bytes = input.bytes;
-        let manifest = Manifest::parse(&manifest_bytes)
-            .map_err(|e| e.at_path(&self.display.join(&manifest_path)))?;
+        let manifest = captured.manifest;
         let package = manifest.package.as_ref().ok_or_else(|| {
             graph_error(
                 &self.display.join(&manifest_path),

@@ -3,7 +3,7 @@ use super::{Diagnostic, manifest};
 use std::io::{self, Write};
 use std::{collections::BTreeSet, ffi::OsString, path::PathBuf};
 
-pub const USAGE: &str = "usage: lang new [--name NAME] [--message-format human|json] DIR\n       lang build [--manifest-path FILE] [--target TRIPLE] [--locked] [--offline] [--message-format human|json]\n       lang run [--manifest-path FILE] [--target TRIPLE] [--locked] [--offline] [--message-format human|json] [--fuel N] [--service-work N] [--host-calls N] [--frames N] [--cells N]\n       lang test [--manifest-path FILE] [--target TRIPLE] [--locked] [--offline] [--message-format human|json] [--fuel N] [--service-work N] [--host-calls N] [--frames N] [--cells N]\n";
+pub const USAGE: &str = "usage: lang new [--name NAME] [--message-format human|json] DIR\n       lang build [--manifest-path FILE] [--package NAME] [--target TRIPLE] [--locked] [--offline] [--message-format human|json]\n       lang run [--manifest-path FILE] [--package NAME] [--target TRIPLE] [--locked] [--offline] [--message-format human|json] [--fuel N] [--service-work N] [--host-calls N] [--frames N] [--cells N]\n       lang test [--manifest-path FILE] [--package NAME] [--target TRIPLE] [--locked] [--offline] [--message-format human|json] [--fuel N] [--service-work N] [--host-calls N] [--frames N] [--cells N]\n";
 
 #[derive(Clone, Copy, Default)]
 pub struct ExecutionOptions {
@@ -38,6 +38,7 @@ pub enum Command {
 pub struct Request {
     pub action: Action,
     pub manifest: PathBuf,
+    pub package: Option<String>,
     pub target: String,
     pub locked: bool,
     pub offline: bool,
@@ -80,7 +81,7 @@ pub fn selected(args: &[OsString]) -> bool {
             package = true;
         } else if matches!(
             arg.to_str(),
-            Some("--manifest-path" | "--target" | "--message-format")
+            Some("--manifest-path" | "--package" | "--target" | "--message-format")
         ) {
             package = true;
             values.next();
@@ -125,6 +126,7 @@ pub fn parse(args: &[OsString]) -> Result<Command, Diagnostic> {
     let mut request = Request {
         action,
         manifest: PathBuf::from("Lang.json"),
+        package: None,
         target: lang_codegen_clif::Triple::host().to_string(),
         locked: false,
         offline: false,
@@ -158,7 +160,7 @@ pub fn parse(args: &[OsString]) -> Result<Command, Diagnostic> {
         }
         let permitted = flag == "--message-format"
             || (new && flag == "--name")
-            || (!new && matches!(flag, "--manifest-path" | "--target"))
+            || (!new && matches!(flag, "--manifest-path" | "--package" | "--target"))
             || (!new
                 && matches!(action, Action::Run | Action::Test)
                 && matches!(
@@ -193,6 +195,13 @@ pub fn parse(args: &[OsString]) -> Result<Command, Diagnostic> {
                 }
             }
             "--manifest-path" => request.manifest = PathBuf::from(value),
+            "--package" => {
+                let name = number()?;
+                if !manifest::valid_name(name) {
+                    return Err(usage("invalid package name"));
+                }
+                request.package = Some(name.to_string());
+            }
             "--target" => request.target = number()?.to_string(),
             "--fuel" => {
                 request.execution.limits.fuel =

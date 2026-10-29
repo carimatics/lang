@@ -83,6 +83,22 @@ output-directory 権限は source capture と別に保持する。書込み前�
 
 理由: 固定 artifact path と lock の別々の置換では atomic な commit point を一つにできない。不変 generation と最後の lock 公開により、複数 file の rollback journal なしで従来 output を保持する。固定した可変 output path の維持、lock の先行公開、lock 検証後の可変 path からの再 compile ではこの契約を満たさない。未実装だった CLI／output 挙動の明確化であり、既存 lock／artifact schema は変更しない。両 host の排他的 directory 公開、同時再利用、test-entry／profile 統合、resource／失敗 cleanup は A04 の実行証拠が必要で、性能改善は仮定しない。
 
+### Workspace 選択と lock schema 2
+
+workspace 実装前の 2026-10-29 JST、実験段階の委任で採択する。build／run／test に `--package NAME` を追加する。明示 workspace manifest では、name がなく root package があればそれを選び、workspace 専用 root は name を要求する。package identity で名前を選択し、root package があれば暗黙 member `.` に含める。明示した全 member manifest を一度検証し、package を必須にして、canonical directory または package 名の重複を `PKG0006` で拒否する。nested workspace 宣言を再帰展開しない。選択不足／未知名は `PKG0006`、不正 command option は `CLI0001`／exit 2 を維持する。standalone の名前選択は同 package と一致する必要があり、包含 directory 権限を追加しない。祖先検索や先頭／全 member の暗黙選択は追加しない。
+
+明示 manifest の directory を権限と output root に保つ。workspace root は sibling を含む同 directory 内の宣言 dependency を許可し、既存の包含、通常 file、循環、完全一致 version、resource 検査を維持する。選択 dependency graph の解決前に root／member metadata を固定し、検査済み manifest を再読せず同 byte を使う。選択 graph の source entry だけを準備する。別 package の source 走査配下に入る全 catalogue member root は除外し、明示した source scope は保持する。既知 manifest path は metadata input とする。未選択 member を含む全受入 manifest を output alias／予約 path 検査に含める。source capture は引き続き handle を閉じ、compile は固定 input だけを使う。workspace 操作は root の `Lang.lock` と `target/lang/<key>/` generation を共有し、standalone member 操作は自身の権限／output root を使う。
+
+standalone lock は schema 1 と完全一致 encoding／checksum fixture を維持する。workspace 操作は schema 2 とし、top-level field 順を `schema`、`target`、`compiler_version`、`compiler_build_id`、`workspace`、`packages` とする。package record／checksum は schema 1 の field と encoding を維持する。必須 workspace record は `manifest_path`、`manifest_sha256`、`members`、`selected_root`、`checksum`。各 member は `path`（宣言 directory、または暗黙 `.`）、`root`（canonical な権限相対 directory）、`manifest_path`、`manifest_sha256`、`name`、`version` を持ち、UTF-8 `path` 順に整列する。root package があればこの list に含める。root／member metadata は root 一つと既存の 128 member 上限、各 manifest 64 KiB に制限する。lock 1 MiB、UTF-8 JSON の 2-space indent と末尾 LF を維持し、path は schema 1 と同じ正規化を使う。
+
+workspace checksum は `LANGWORKSPACE1` と NUL、little-endian u64 の一意 metadata-file 数で始める。root／member manifest file を canonical な権限相対 path 順に並べ、root package の manifest は一度だけ数える。各 file は u64 UTF-8 path 長、path byte、u64 原内容長、原 byte を与える。続いて u64 member 数、整列した各 member の `path`、`root`、`manifest_path`、`name`、`version` をそれぞれ u64 UTF-8 長付きで加え、最後に長さ付き `selected_root` を加える。SHA-256 は小文字 hex。metadata を言語 source と扱ったり package identity を作ったりせず、未選択 manifest、宣言／canonical binding、選択を固定する。schema 2 の replay 利用前に独立計算した canonical fixture を公開する。
+
+独立した schema 2 fixture は [`tests/fixtures/package-lock/schema2-workspace.json`](../../../tests/fixtures/package-lock/schema2-workspace.json) で、`tests/package_workspace.rs` が検証する。workspace checksum は `a672b45db910fc7f615e083b7fa3f33fca975bd716640a00a4ff5e726a49134a`、test では compiler build identity だけを置換する。schema 2 replay 実装前に独立計算した fixture である。
+
+上限付き schema header を読んで対応する厳密な schema 1／2 shape を decode し、重複／未知 field と未対応 version を拒否する。純粋な encoding 検査は replay 権限を与えない。locked 検証は型検査前に、新たに取得した完全な canonical record と比較する。workspace manifest、member manifest、binding、選択、有効 source の変更は旧 output を書き換えず拒否し、catalogue 検証だけのために無効／未選択 source file を読まない。test は A04 の名前空間／control 契約で選択 package の宣言だけを実行する。両 supported target の完全一致 target-condition graph と compiler identity を維持する。
+
+理由と互換性: 実装前の実行 probe は仮想 root と standalone sibling access を拒否し、root package の schema 1 lock は未選択 member manifest 変更後も受入可能だった。schema 1 にこの input の型付き保存欄がない。workspace record は input の役割と旧 standalone fixture を保ち、wrapper では欠落した権限／metadata を固定できず、source／package record の流用は契約を曖昧にする。既存 standalone encoding は引き続き対応する。旧 binary は workspace schema 2 を拒否し、workspace の旧 package-only lock は通常の unlocked 再生成を必要とする。自動 migration は行わない。manifest／source 構文、artifact schema、guest capability、native ABI は不変。member alias の包含、metadata 固定／handle 解放、配置変更、両 target replay、失敗時保護は実行証拠を必要とし、native package 再現性は A06 に残す。性能改善は仮定しない。
+
 ## 厳密な意味論
 
 manifest schema 1 は必須 field の欠落、未知 field、全 object 階層の重複キー、未対応 schema／edition、不正な name／version／path／condition、末尾の余剰入力を拒否する。package identity の既定値や dependency path の推測は行わない。dependencies／tests は省略時に空、workspace は省略時に存在しない。省略可能な field も存在する場合は宣言された型を必要とし、明示的 null は省略とは扱わない。manifest は 64 KiB、dependency／member／test リストはそれぞれ 128 件までとする。JSON のネストには serde_json の再帰上限を維持する。

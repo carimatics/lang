@@ -243,6 +243,12 @@ fn malformed_duplicate_unknown_noncanonical_and_incompatible_locks_are_refused()
         lock.verify(text.replace("\"schema\": 1", "\"schema\": 2").as_bytes())
             .unwrap_err()
             .code,
+        "PKG0007"
+    );
+    assert_eq!(
+        lock.verify(text.replace("\"schema\": 1", "\"schema\": 99").as_bytes())
+            .unwrap_err()
+            .code,
         "PKG0002"
     );
     let other = Graph::resolve(
