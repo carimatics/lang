@@ -187,6 +187,119 @@ fn dap_source_steps_enter_skip_and_leave_the_original_guest_call() {
 }
 
 #[test]
+fn mixed_dap_stops_inside_the_real_native_call_with_original_vm_callers() {
+    use lang::dap::mixed;
+    use serde_json::json;
+    static CALLS: AtomicU64 = AtomicU64::new(0);
+    extern "C" fn native_bridge(n: i64) -> i64 {
+        CALLS.fetch_add(1, Ordering::SeqCst);
+        if mixed::pause().is_err() {
+            return 0;
+        }
+        n + 1
+    }
+    let source = "extern fn native_bridge(n:i64)->i64;\nfn child(n:i64)->i64 {\n return native_bridge(n)+1;\n}\nfn main()->i64 {\n return child(40);\n}\n";
+    let package = Package::new(source);
+    let mut hosts = mixed::NativeHosts::new();
+    hosts.register("native_bridge", native_bridge).unwrap();
+    let mut server = lang::dap::Server::with_native_hosts(hosts);
+    dap(&mut server, "initialize", json!({}));
+    dap(
+        &mut server,
+        "launch",
+        json!({"root":package.0,"manifestPath":"Lang.json","mode":"mixed"}),
+    );
+    std::fs::write(package.0.join("main.lang"), "invalid after admission").unwrap();
+    dap(&mut server, "configurationDone", json!({}));
+    let stopped = events(&mut server);
+    assert_eq!(stopped[0]["event"], "stopped", "{stopped:?}");
+    assert_eq!(stopped[0]["body"]["reason"], "pause");
+    assert_eq!(CALLS.load(Ordering::SeqCst), 1);
+    let stack = dap(
+        &mut server,
+        "stackTrace",
+        json!({"threadId":1,"levels":256}),
+    );
+    let frames = stack["stackFrames"].as_array().unwrap();
+    let native = frames
+        .iter()
+        .take_while(|f| f.get("instructionPointerReference").is_some())
+        .count();
+    assert!(native > 0 && native + 2 == frames.len(), "{frames:?}");
+    assert!(frames[..native].iter().all(|f| f.get("source").is_none()));
+    assert_eq!(frames[native]["name"], "child");
+    assert_eq!(frames[native]["line"], 3);
+    assert_eq!(frames[native + 1]["name"], "main");
+    assert_eq!(frames[native + 1]["line"], 6);
+    let page = dap(
+        &mut server,
+        "stackTrace",
+        json!({"threadId":1,"startFrame":native,"levels":2}),
+    );
+    assert_eq!(page["stackFrames"][0]["id"], frames[native]["id"]);
+    let frozen = dap(
+        &mut server,
+        "source",
+        json!({"sourceReference":frames[native]["source"]["sourceReference"]}),
+    );
+    assert_eq!(frozen["content"], source);
+    let refused = server.handle(json!({"seq":2,"type":"request","command":"scopes","arguments":{"frameId":frames[native]["id"]}}));
+    assert_eq!(refused[0]["success"], false);
+    dap(&mut server, "continue", json!({"threadId":1}));
+    let finished = events(&mut server);
+    assert_eq!(finished[0]["body"]["output"], "42\n");
+    assert_eq!(finished[0]["body"]["data"]["fuel"], 7);
+    assert_eq!(finished[1]["body"]["exitCode"], 0);
+    assert_eq!(CALLS.load(Ordering::SeqCst), 1);
+    dap(&mut server, "disconnect", json!({}));
+    assert_eq!(mixed::pause(), Err(mixed::Error::OutsideNativeCall));
+}
+
+#[test]
+fn mixed_import_grants_are_host_only_and_disconnect_releases_the_native_pause() {
+    use lang::dap::mixed;
+    use serde_json::json;
+    static ENTERED: AtomicU64 = AtomicU64::new(0);
+    static RETURNED: AtomicU64 = AtomicU64::new(0);
+    extern "C" fn native_bridge(n: i64) -> i64 {
+        ENTERED.fetch_add(1, Ordering::SeqCst);
+        if mixed::pause().is_err() {
+            return 0;
+        }
+        RETURNED.fetch_add(1, Ordering::SeqCst);
+        n + 1
+    }
+    let package = Package::new(
+        "extern fn native_bridge(n:i64)->i64;fn main()->i64{return native_bridge(41);}",
+    );
+    let mut server = lang::dap::Server::default();
+    dap(&mut server, "initialize", json!({}));
+    let response=server.handle(json!({"seq":2,"type":"request","command":"launch","arguments":{
+        "root":package.0,"manifestPath":"Lang.json","mode":"mixed","nativeHosts":["native_bridge"]}}));
+    assert_eq!(response[0]["success"], false);
+    assert_eq!(ENTERED.load(Ordering::SeqCst), 0);
+    let mut hosts = mixed::NativeHosts::new();
+    hosts.register("native_bridge", native_bridge).unwrap();
+    let mut server = lang::dap::Server::with_native_hosts(hosts);
+    dap(&mut server, "initialize", json!({}));
+    let response = server.handle(
+        json!({"seq":2,"type":"request","command":"launch","arguments":{
+        "root":package.0,"manifestPath":"Lang.json","mode":"vm"}}),
+    );
+    assert_eq!(response[0]["success"], false);
+    dap(
+        &mut server,
+        "launch",
+        json!({"root":package.0,"manifestPath":"Lang.json","mode":"mixed"}),
+    );
+    dap(&mut server, "configurationDone", json!({}));
+    assert_eq!(events(&mut server)[0]["event"], "stopped");
+    dap(&mut server, "disconnect", json!({}));
+    assert_eq!(ENTERED.load(Ordering::SeqCst), 1);
+    assert_eq!(RETURNED.load(Ordering::SeqCst), 0);
+}
+
+#[test]
 fn debug_lowering_matches_ordinary_mir_and_inspects_only_initialized_source_bindings() {
     let source = "fn child(n:i64)->i64{let mut value:i64=n+1;return value;}fn main()->i64{let mut result:i64=child(41);return result;}";
     let analysis = frontend::analyze_virtual(

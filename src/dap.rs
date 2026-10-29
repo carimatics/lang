@@ -1,5 +1,6 @@
 //! Bounded, source-snapshot DAP host for retained VM execution (RFC 0040).
 mod inspect;
+pub mod mixed;
 mod native;
 mod target;
 
@@ -39,8 +40,17 @@ pub struct Server {
     coordinates: Coordinates,
     target: Option<Target>,
     native: Option<native::Target>,
+    native_hosts: mixed::NativeHosts,
 }
 impl Server {
+    /// Configure trusted native imports in the embedding host, never in source
+    /// or protocol input. Callback code must live for the server lifetime.
+    pub fn with_native_hosts(native_hosts: mixed::NativeHosts) -> Self {
+        Self {
+            native_hosts,
+            ..Self::default()
+        }
+    }
     fn number(&mut self) -> u32 {
         self.sequence += 1;
         self.sequence
@@ -96,7 +106,7 @@ impl Server {
         }
         let mut output = vec![response];
         if success && command == "launch" {
-            if self.native.is_some() {
+            if self.native.is_some() || args["mode"] == "mixed" {
                 output.push(self.event(
                     "capabilities",
                     json!({"capabilities":{"supportsEvaluateForHovers":false}}),
@@ -157,6 +167,13 @@ impl Server {
             match args["mode"].as_str() {
                 Some("native") => self.native = Some(native::Target::launch(args)?),
                 Some("vm") => self.target = Some(Target::launch(args, self.coordinates)?),
+                Some("mixed") => {
+                    self.target = Some(Target::launch_mixed(
+                        args,
+                        self.coordinates,
+                        self.native_hosts.clone(),
+                    )?)
+                }
                 _ => return Err("unsupported debug mode".into()),
             }
             return Ok(json!({}));
@@ -165,6 +182,9 @@ impl Server {
             return native.dispatch(command, args, self.coordinates);
         }
         let target = self.target.as_mut().ok_or("launch is required")?;
+        if target.native_paused() && matches!(command, "scopes" | "variables" | "evaluate") {
+            return Err("value inspection is unavailable inside a native callback".into());
+        }
         match command {
             "setBreakpoints" => target.breakpoints(args, self.coordinates),
             "configurationDone" => {
@@ -234,6 +254,14 @@ impl Server {
 /// Stdio uses a bounded input queue so execution events do not depend on the
 /// client sending another request. Only the reader thread touches stdin.
 pub fn serve_stdio() -> Result<u8, wire::TransportError> {
+    serve_stdio_with_native_hosts(mixed::NativeHosts::new())
+}
+
+/// Stdio endpoint with explicit native bindings supplied by its trusted Rust
+/// embedding host. The ordinary CLI calls this with an empty configuration.
+pub fn serve_stdio_with_native_hosts(
+    hosts: mixed::NativeHosts,
+) -> Result<u8, wire::TransportError> {
     let (send, receive) = mpsc::sync_channel(2);
     std::thread::spawn(move || {
         let mut input = io::stdin().lock();
@@ -246,7 +274,7 @@ pub fn serve_stdio() -> Result<u8, wire::TransportError> {
         }
     });
     let mut output = io::stdout().lock();
-    let mut server = Server::default();
+    let mut server = Server::with_native_hosts(hosts);
     loop {
         for event in server.poll() {
             wire::write(&mut output, &event, WIRE)?;

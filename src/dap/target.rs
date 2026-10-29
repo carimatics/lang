@@ -1,4 +1,5 @@
 use super::inspect::{self, Preview, Query};
+use super::mixed::{self, NativeHosts, PhysicalFrame};
 use super::{Coordinates, uri};
 use lang_semantics::program_lowering::DebugInfo;
 mod inspection;
@@ -70,12 +71,12 @@ impl Source {
     }
 }
 
-struct Run {
+pub(super) struct Run {
     breakpoints: BTreeSet<Key>,
     stop: Stop,
     skip: Option<DebugPoint>,
 }
-enum Command {
+pub(super) enum Command {
     Run(Run),
     Inspect {
         frame: usize,
@@ -115,6 +116,7 @@ pub(super) enum StopReason {
     Entry,
     Breakpoint,
     Step,
+    Native,
 }
 impl StopReason {
     pub fn name(self) -> &'static str {
@@ -122,6 +124,7 @@ impl StopReason {
             Self::Entry => "entry",
             Self::Breakpoint => "breakpoint",
             Self::Step => "step",
+            Self::Native => "pause",
         }
     }
 }
@@ -135,6 +138,7 @@ pub(super) enum Event {
         point: DebugPoint,
         stack: Vec<StackFrame>,
         reason: StopReason,
+        physical: Vec<PhysicalFrame>,
     },
     Exited {
         value: i64,
@@ -163,6 +167,7 @@ pub(super) struct Target {
     stop_on_entry: bool,
     point: Option<DebugPoint>,
     frames: Vec<(u32, StackFrame)>,
+    physical: Vec<(u32, PhysicalFrame)>,
     next_reference: u32,
     references: BTreeMap<u32, Reference>,
     index_bytes: usize,
@@ -188,13 +193,28 @@ fn relative(path: &Path) -> bool {
 fn worker(
     program: Program,
     debug: DebugInfo,
+    native_callbacks: Vec<lang_runtime::I64HostFunction>,
     flag: Arc<InterruptionFlag>,
     receive: mpsc::Receiver<Command>,
     send: mpsc::Sender<Event>,
     ready: mpsc::SyncSender<Result<(), String>>,
 ) {
-    let hosts = HostFunctionRegistry::new();
-    let bindings = HostBindings::new();
+    let mut hosts = HostFunctionRegistry::new();
+    let mut bindings = HostBindings::new();
+    let unit = program.verified().unit();
+    if native_callbacks.len() != unit.imports.len() {
+        let _ = ready.send(Err("missing native host grant".into()));
+        return;
+    }
+    for (i, import) in unit.imports.iter().enumerate() {
+        let id = lang_mir::HostFunctionId::new(i as u32 + 1);
+        if hosts.register_i64(id, mixed::dispatch).is_err()
+            || bindings.bind(&import.name, id).is_err()
+        {
+            let _ = ready.send(Err("invalid native host grant".into()));
+            return;
+        }
+    }
     let mut session = match DebugSession::entry(
         &program,
         &hosts,
@@ -210,8 +230,9 @@ fn worker(
     if ready.send(Ok(())).is_err() {
         return;
     }
-    while let Ok(command) = receive.recv() {
-        let run = match command {
+    let receive = std::rc::Rc::new(std::cell::RefCell::new(receive));
+    while let Ok(command) = receive.borrow().recv() {
+        let mut run = match command {
             Command::Run(run) => run,
             Command::Inspect {
                 frame,
@@ -224,52 +245,104 @@ fn worker(
         };
         let mut first = true;
         let mut reason = StopReason::Breakpoint;
-        let event = session.resume_until(|point| {
-            let initial = first;
-            first = false;
-            if initial && run.skip == Some(*point) {
-                return false;
-            }
-            if run.breakpoints.contains(&key(point)) {
-                reason = StopReason::Breakpoint;
-                return true;
-            }
-            match run.stop {
-                Stop::Continue => false,
-                Stop::Entry => {
-                    reason = StopReason::Entry;
-                    true
+        let mut scope: Option<std::rc::Rc<mixed::Scope>> = None;
+        let mut scope_guard: Option<mixed::Guard> = None;
+        let mut internal_skip = None;
+        let event = loop {
+            let mut native_point = None;
+            let mut orphan = false;
+            let event = session.resume_until(|point| {
+                if !native_callbacks.is_empty() && mixed::orphan_failure() {
+                    orphan = true;
+                    return true;
                 }
-                Stop::Step(kind, base) => {
-                    let depth = match kind {
-                        StepKind::Into => true,
-                        StepKind::Over => point.depth <= base.depth,
-                        StepKind::Out => point.depth < base.depth,
-                    };
-                    if depth
-                        && point.span.is_some()
-                        && (point.span != base.span || point.depth != base.depth || *point == base)
-                    {
-                        reason = StopReason::Step;
-                        true
-                    } else {
-                        false
+                if let Some(next) = scope.as_ref().and_then(|s| s.take_run()) {
+                    run = next;
+                    first = true;
+                }
+                if internal_skip.take() == Some(*point) {
+                    return false;
+                }
+                let initial = std::mem::replace(&mut first, false);
+                let skip = initial && run.skip == Some(*point);
+                if !skip {
+                    if run.breakpoints.contains(&key(point)) {
+                        reason = StopReason::Breakpoint;
+                        return true;
+                    }
+                    match run.stop {
+                        Stop::Continue => {}
+                        Stop::Entry => {
+                            reason = StopReason::Entry;
+                            return true;
+                        }
+                        Stop::Step(kind, base) => {
+                            let depth = match kind {
+                                StepKind::Into => true,
+                                StepKind::Over => point.depth <= base.depth,
+                                StepKind::Out => point.depth < base.depth,
+                            };
+                            if depth
+                                && point.span.is_some()
+                                && (point.span != base.span
+                                    || point.depth != base.depth
+                                    || *point == base)
+                            {
+                                reason = StopReason::Step;
+                                return true;
+                            }
+                        }
                     }
                 }
+                if !native_callbacks.is_empty()
+                    && let Some(instruction) = unit.functions[point.function.0 as usize].blocks
+                        [point.block.0 as usize]
+                        .instructions
+                        .get(point.instruction)
+                    && let m::Op::HostCall { import, .. } = instruction.op
+                {
+                    native_point = Some((*point, import.0 as usize));
+                    return true;
+                }
+                false
+            });
+            if orphan {
+                flag.interrupt();
+                break Event::Failed("native callback has no live debug scope".into());
             }
-        });
-        let event = match event {
-            Ok(DebugEvent::Paused(point)) => Event::Paused {
-                point,
-                stack: session.stack().collect(),
-                reason,
-            },
-            Ok(DebugEvent::Exited(outcome)) => Event::Exited {
-                value: outcome.value.as_i64().unwrap_or_default(),
-                fuel: outcome.usage.fuel,
-            },
-            Err(error) => Event::Failed(error.to_string()),
+            if let Some(error) = scope.as_ref().and_then(|s| s.failure()) {
+                break Event::Failed(error.to_string());
+            }
+            if let (Some((point, import)), Ok(DebugEvent::Paused(_))) = (native_point, &event) {
+                scope_guard.take();
+                let current = mixed::Scope::new(
+                    native_callbacks[import],
+                    point,
+                    session.stack().collect(),
+                    receive.clone(),
+                    send.clone(),
+                    flag.clone(),
+                );
+                scope_guard = Some(mixed::enter(current.clone()));
+                scope = Some(current);
+                internal_skip = Some(point);
+                continue;
+            }
+            break match event {
+                Ok(DebugEvent::Paused(point)) => Event::Paused {
+                    point,
+                    stack: session.stack().collect(),
+                    reason,
+                    physical: vec![],
+                },
+                Ok(DebugEvent::Exited(outcome)) => Event::Exited {
+                    value: outcome.value.as_i64().unwrap_or_default(),
+                    fuel: outcome.usage.fuel,
+                },
+                Err(error) => Event::Failed(error.to_string()),
+            };
         };
+        drop(scope_guard);
         let terminal = !matches!(event, Event::Paused { .. });
         if send.send(event).is_err() || terminal {
             break;
@@ -309,10 +382,19 @@ pub(super) fn capture(args: &Value) -> Result<crate::package::editor::workspace:
     .map_err(|_| "package debug admission failed".to_owned())
 }
 impl Target {
-    pub fn launch(args: &Value, _c: Coordinates) -> Result<Self, String> {
+    pub fn launch(args: &Value, c: Coordinates) -> Result<Self, String> {
         if text(args, "mode")? != "vm" {
             return Err("unsupported debug mode".into());
         }
+        Self::prepare(args, c, None)
+    }
+    pub fn launch_mixed(args: &Value, c: Coordinates, hosts: NativeHosts) -> Result<Self, String> {
+        if hosts.is_empty() {
+            return Err("mixed launch requires explicit Rust host grants".into());
+        }
+        Self::prepare(args, c, Some(hosts))
+    }
+    fn prepare(args: &Value, _c: Coordinates, hosts: Option<NativeHosts>) -> Result<Self, String> {
         let stop_on_entry = match args.get("stopOnEntry") {
             None => false,
             Some(v) => v.as_bool().ok_or("invalid stopOnEntry")?,
@@ -329,9 +411,19 @@ impl Target {
             frontend::compile_script_debug(typed, &analysis.sources, Default::default())
                 .map_err(|_| "debug lowering failed")?;
         let unit = program.verified().unit();
-        if unit.entry.is_none() || !unit.imports.is_empty() {
+        if unit.entry.is_none() || (hosts.is_none() && !unit.imports.is_empty()) {
             return Err("debug target needs an entry and cannot acquire host imports".into());
         }
+        let native_callbacks = unit
+            .imports
+            .iter()
+            .map(|import| {
+                hosts
+                    .as_ref()
+                    .and_then(|h| h.get(&import.name))
+                    .ok_or("missing explicit native host grant".to_owned())
+            })
+            .collect::<Result<Vec<_>, _>>()?;
         let entry = &unit.functions[unit.entry.unwrap().0 as usize];
         if entry.signature.result != m::Type::I64 || !entry.signature.parameters.is_empty() {
             return Err("debug entry must have no parameters and return i64".into());
@@ -447,7 +539,17 @@ impl Target {
         let flag = interruption.clone();
         let worker = std::thread::Builder::new()
             .name("lang-dap-vm".into())
-            .spawn(move || worker(program, debug, flag, commands, events, ready))
+            .spawn(move || {
+                worker(
+                    program,
+                    debug,
+                    native_callbacks,
+                    flag,
+                    commands,
+                    events,
+                    ready,
+                )
+            })
             .map_err(|_| "cannot start debug worker")?;
         let next_reference = sources.len() as u32 + 1;
         let target = Self {
@@ -463,6 +565,7 @@ impl Target {
             stop_on_entry,
             point: None,
             frames: vec![],
+            physical: vec![],
             next_reference,
             references: BTreeMap::new(),
             index_bytes: bytes,
@@ -498,6 +601,7 @@ impl Target {
             .try_send(Command::Run(run))
             .map_err(|_| "debug worker unavailable")?;
         self.frames.clear();
+        self.physical.clear();
         self.references.clear();
         self.reference_bytes = 0;
         self.point = None;
@@ -525,6 +629,9 @@ impl Target {
         if self.state != State::Paused {
             return Err("target is not paused".into());
         }
+        if self.native_paused() {
+            return Err("native callback instruction stepping is unavailable".into());
+        }
         if args.get("targetId").is_some()
             || args.get("granularity").is_some_and(|v| v != "statement")
         {
@@ -536,6 +643,9 @@ impl Target {
         ))
     }
     pub fn poll(&mut self) -> Option<Event> {
+        if self.state == State::Exited {
+            return None;
+        }
         let event = match self.receiver.try_recv() {
             Ok(event) => event,
             Err(mpsc::TryRecvError::Empty) => return None,
@@ -545,17 +655,35 @@ impl Target {
             Err(_) => return None,
         };
         self.frames.clear();
+        self.physical.clear();
         self.references.clear();
         self.reference_bytes = 0;
         match &event {
-            Event::Paused { point, stack, .. } => {
-                if self.next_reference.saturating_add(stack.len() as u32) > REFERENCES {
+            Event::Paused {
+                point,
+                stack,
+                physical,
+                ..
+            } => {
+                let count = stack.len().saturating_add(physical.len());
+                if count > 256
+                    || self.next_reference.saturating_add(count as u32) > REFERENCES
+                    || self
+                        .index_bytes
+                        .saturating_add(physical.len().saturating_mul(size_of::<PhysicalFrame>()))
+                        > INDEX_BYTES
+                {
                     self.state = State::Exited;
                     self.interruption.interrupt();
+                    self.sender.take();
                     return Some(Event::Failed("debug reference limit exceeded".into()));
                 }
                 self.state = State::Paused;
                 self.point = Some(*point);
+                for frame in physical {
+                    self.physical.push((self.next_reference, frame.clone()));
+                    self.next_reference += 1;
+                }
                 for frame in stack {
                     self.frames.push((self.next_reference, *frame));
                     self.next_reference += 1;
@@ -567,6 +695,9 @@ impl Target {
             }
         }
         Some(event)
+    }
+    pub fn native_paused(&self) -> bool {
+        !self.physical.is_empty()
     }
     pub fn breakpoints(&mut self, args: &Value, c: Coordinates) -> Result<Value, String> {
         if self.state == State::Exited {
@@ -675,7 +806,13 @@ impl Target {
         }
         let mut frames = vec![];
         let mut work = 0usize;
-        for (id, frame) in self.frames.iter().skip(start).take(levels) {
+        for (id, frame) in self.physical.iter().skip(start).take(levels) {
+            frames.push(json!({"id":id,"name":format!("native 0x{:x}",frame.address),
+                "line":c.lines,"column":c.columns,"instructionPointerReference":format!("0x{:x}",frame.address)}));
+        }
+        let vm_start = start.saturating_sub(self.physical.len());
+        let vm_count = levels.saturating_sub(frames.len());
+        for (id, frame) in self.frames.iter().skip(vm_start).take(vm_count) {
             let mut value = json!({"id":id,"name":self.functions[frame.function.0 as usize],
                 "line":c.lines,"column":c.columns});
             if let Some(span) = frame.span {
@@ -693,7 +830,7 @@ impl Target {
             }
             frames.push(value);
         }
-        Ok(json!({"stackFrames":frames,"totalFrames":self.frames.len()}))
+        Ok(json!({"stackFrames":frames,"totalFrames":self.physical.len()+self.frames.len()}))
     }
     pub fn source(&self, args: &Value) -> Result<Value, String> {
         let id = args["sourceReference"]

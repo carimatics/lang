@@ -8,7 +8,7 @@
 
 **25 done · 1 doing · 16 todo · 47 remaining pt**
 
-D04B の最終実行 checkpoint、2026-10-30 02:31 JST: target/m4-d04-combined-probe.log の一つの保持invocationで、native物理PC6件、元VM child→main span、共通物理suffix10 frameの完全一致を観測。結果42／effect1回で、通常実行とfuel7・host call1・peak frame2・live cell6が一致した。symbol文字列や別実行の結合は使わない。残るD04B条件は明示Rust host grant、owner-thread停止scope、上限付き物理frameと元VMを公開する最初のmixed DAP stop。D04の両host protocol／failure受入、D05 lifecycle、最新head CIは引き続き必要。
+D04B の最終実行 checkpoint、2026-10-30 03:32 JST: 明示Rust NativeHosts／mode:mixed／協調pauseを実装。実native callbackと元VMを同じworkerに保持し、完全一致PC suffixで物理prefixと元child→main spanを表示する。独立stdio probeはnative物理frame5件、VM4／8行目、結果42、fuel7、adapter終了0。12 debugger試験はgrant偽装拒否、不変source、同じcallの一度の再開、inspection拒否、disconnect解除に成功。最終fmt／警告エラーClippy／168 suite・2,471 test／docが成功。残るD04B作業はこのlocal成果のcode commit／push記録。D04の両host protocol／failure、D05 lifecycle、最新head CIは未完了。
 
 **次: M4-D04B — 明示grant済みnative host bridgeと上限付きmixed DAP stop（doing、2 pt）。** 同じinvocationの実PC／source prototypeから前提を実装前に公開。追加+15、消化71、42 deliveryの残り47 pt。D04は両hostのprotocol／frame／failure受入に3 ptを保持し、D05 lifecycleと最新head CIも引き続き必要。
 

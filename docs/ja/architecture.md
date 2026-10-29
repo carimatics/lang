@@ -117,6 +117,8 @@ VM adapter は source step-in／over／out と、上限付き read-only scope／
 
 native DAP backend は同じ package admission を使い、検証した private SDK／program／code／debug sidecar の owner を debugger 終了まで保持します。実 native package の意味 bytes と受理 program を比較し、検査済み source line breakpoint と実行 control だけを転送して、未受理の物理 frame source location を省きます。source 応答は取得済み bytes を保持します。native value inspectionはunavailableです。source 39473b1のproduction native DAPは両hostで成功し、実混在stackの対応はD04の進行中要件に残します。
 
+実験段階のembedded mixed bridgeは明示的な信頼済みRust host bindingを必要とし、default CLIはimportを許可しません。元VMのHostCallで内部停止し、source frameを保持して同じworkerで登録callbackへ入ります。scope付き物理baselineと生存PCの完全一致suffixで、symbol名から推測せずnative prefixを確立します。協調的pauseから渡すのはowned物理／source frame dataだけで、借用中Machineはthreadを渡りません。callback return、割込み、scope退役で観測を失効させます。native pauseのvalue／stepはunavailableとし、元VMのcontrol・結果・effectを実行契約に保ちます。D04B bridge検証とD04の両host／failure根拠は進行中です。
+
 [M2 source/Rust/C測定](benchmarks.md)は名前付きの不変revisionに結び付き、大きな性能差を示しています。測定完了の根拠であり、native同等性能や速度保証ではありません。今後の最適化判断にはこのworkloadを使い、過去のscalar microbenchmarkでsource programの費用を代用しません。
 
 ## 診断、REPL、editor tooling

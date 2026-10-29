@@ -75,6 +75,12 @@ runner の旧 LLVM 20.1.8 は python310.dll、別配置の LLVM 23.1.4 MSI は p
 
 production native launch は D03 の `39473b1` で実装・両host検証済み（2026-10-30 JST、workflow 40918693919、3/3）。`SDK/bin/lang dap` を起動し、initialize 後に DAP launch `{"mode":"native","root":"/absolute/package","manifestPath":"Lang.json","sdk":"/absolute/sdk"}` を送る。host import のない i64 main を持つ Copy を受理し、既存 SDK／program format を snapshot 化して厳密 rustc と意味 identity を検証し、executable／sidecar を private debug link する。line breakpoint、不変 source query、stack、step、continue、disconnect に対応し、column breakpoint と native value inspection は拒否する。capability event で native hover 評価を無効にする。物理 frame の元の順を保ち、取得済み package file だけに source location を付ける。混在stackとlifecycleはD04／D05に残し、native value／column inspectionは引き続きunavailable。
 
+## 信頼済みmixed Rust host（実験段階）
+
+埋込みRust hostは`dap::mixed::NativeHosts`へ明示`extern "C" fn(i64) -> i64` callbackを登録し、`dap::Server::with_native_hosts`を構築するか`dap::serve_stdio_with_native_hosts`を呼べる。callback codeはserver存続中保持し、割込みを協調的に処理する。通常の`lang dap` serverにhost grantはなく、source／protocolからcode登録はできない。実行fixtureは`cargo run --example mixed-dap`。initialize後、DAP launchに`{"mode":"mixed","root":"/absolute/repository/examples/packages/debug_mixed","manifestPath":"Lang.json"}`を指定し、configurationDoneを送る。
+
+登録callbackは元workerで`dap::mixed::pause()`を呼ぶ。adapterは同じVM HostCallと厳密なsource callerを保持し、上限付きnative物理PCの後にVM frameを表示する。active call scopeと完全一致PC suffixで対応付け、symbol文字列の一致やnative Rust source読込は使わない。native frameの現表示名はaddress。continueは同じcallを一度だけ再開し、disconnectは協調的pauseを割り込む。native callback停止中のvalueとnative命令stepはunavailableで、通常paused VMのinspectionは保持する。信頼済みhost bridgeであり、任意attach／loadやnative sandboxではない。D04Bのlocal bridge検証は進行中で、D04の両host protocol／failureとD05 lifecycle受入は引き続き必要。
+
 ## Sources
 
 独立 probe は、全 SDK の検証・copy と rustc link を追加する production launch 準備に180秒を許し、通常 DAP request／event の deadline は30秒を維持する。`4a6c734` のWindows traceはSDK準備／link中に旧30秒deadlineを超えたが、`39473b1`は36.5秒（SDK検証／linkが36.0秒）で準備を完了し、全実行／終了assertionが成功した。`LANG_DAP_TRACE` は起動段階と経過時間を stderr に記録する信頼済み host の診断設定で、protocol／source option ではない。breakpoint／source／step／exit と framing／resource assertion は維持する。

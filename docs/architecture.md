@@ -117,6 +117,8 @@ The VM adapter now supports source step-in/over/out and bounded read-only scopes
 
 The native DAP backend uses the same package admission and retains verified private SDK/program/code/debug-sidecar owners through debugger shutdown. It compares the actual native package semantic bytes with the admitted program, forwards only sanitized source-line breakpoints and execution controls, and omits unadmitted physical-frame source locations. Source responses retain captured bytes. Native value inspection remains unavailable. Source 39473b1 passes production native DAP on both hosts; live mixed-stack correspondence remains the active D04 obligation.
 
+The experimental embedded mixed bridge requires explicit trusted Rust host bindings; the default CLI still grants no imports. It internally pauses the original VM at HostCall, retains its source frames and enters the registered callback on that same worker. A scoped physical baseline and exact live-PC suffix establish the native prefix without symbol-name inference. The cooperative pause publishes owned physical/source frame data only; the borrowed Machine never crosses threads. Callback return, interruption and scope retirement invalidate observations. Native-pause values/step are unavailable; original VM controls, results and effects remain the execution contract. D04B bridge validation and D04 both-host/failure evidence remain active.
+
 The [M2 source/Rust/C measurements](benchmarks.md) are tied to named immutable revisions and show substantial performance gaps. They establish measurement, not native parity or a speed guarantee. Use those workloads to decide subsequent optimizations; historical scalar microbenchmarks cannot substitute for source-program costs.
 
 ## Diagnostics, REPL and editor tooling
