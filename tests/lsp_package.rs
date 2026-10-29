@@ -1,4 +1,6 @@
 use lang::lsp::{Limits, Server, uri};
+#[path = "support/lsp_client.rs"]
+mod independent_client;
 use serde_json::{Value, json};
 use std::{
     fs,
@@ -721,6 +723,239 @@ fn action_server(f: &Files, limits: Limits) -> Server {
     );
     s.handle(note("initialized", json!({})));
     s
+}
+
+#[test]
+fn independent_stdio_client_applies_checked_package_edits_and_runs_the_saved_result() {
+    use independent_client::{ApplyError, Client, Document, apply, position};
+    use std::{collections::BTreeMap, process::Command};
+    let f = Files::new();
+    let initial =
+        "/*😀*/\r\nmod helper;fn main()->i64{let mut unused:i64=7;return helper::answer();}";
+    f.write("src/main.lang", initial);
+    let root = f
+        .uri("src/main.lang")
+        .replacen("file:///", "file://localhost/", 1);
+    let helper = f.uri("helper/src/main.lang");
+    let mut client = Client::start();
+    let init=client.call("initialize",json!({"rootUri":uri::file(&f.0).unwrap(),"capabilities":{"textDocument":{"publishDiagnostics":{"versionSupport":true,"relatedInformation":true},"codeAction":{"codeActionLiteralSupport":{"codeActionKind":{"valueSet":["quickfix","source"]}}}},"workspace":{"semanticTokens":{"refreshSupport":true},"workspaceEdit":{"documentChanges":true,"failureHandling":"textOnlyTransactional"}}}}));
+    assert_eq!(
+        init["result"]["capabilities"]["renameProvider"]["prepareProvider"],
+        true
+    );
+    client.note("initialized", json!({}));
+    client.note(
+        "textDocument/didOpen",
+        json!({"textDocument":{"uri":root,"languageId":"lang","version":1,"text":initial}}),
+    );
+    let usage = initial.find("helper::answer").unwrap() + 8;
+    let denied=client.call("textDocument/rename",json!({"textDocument":{"uri":root},"position":position(initial,usage),"newName":"solution"}));
+    assert!(
+        denied["error"]["message"]
+            .as_str()
+            .unwrap()
+            .contains("must be open"),
+        "{denied:?}"
+    );
+    assert!(denied.get("result").is_none());
+    client.note(
+        "textDocument/didOpen",
+        json!({"textDocument":{"uri":helper,"languageId":"lang","version":1,"text":HELPER}}),
+    );
+    let definition = client.call(
+        "textDocument/definition",
+        json!({"textDocument":{"uri":root},"position":position(initial,usage)}),
+    );
+    assert_eq!(definition["result"]["uri"], helper);
+    let outside = Files::new();
+    let denied=client.call("textDocument/definition",json!({"textDocument":{"uri":outside.uri("src/main.lang")},"position":{"line":0,"character":0}}));
+    assert_eq!(denied["error"]["code"], -32603);
+    assert!(denied.get("result").is_none());
+    assert!(
+        !denied["error"]["message"]
+            .as_str()
+            .unwrap()
+            .contains(outside.0.file_name().unwrap().to_str().unwrap())
+    );
+    let references=client.call("textDocument/references",json!({"textDocument":{"uri":root},"position":position(initial,usage),"context":{"includeDeclaration":true}}));
+    assert_eq!(references["result"].as_array().unwrap().len(), 2);
+    assert!(
+        references["result"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|r| r["uri"] == root)
+    );
+    let completion = client.call(
+        "textDocument/completion",
+        json!({"textDocument":{"uri":root},"position":position(initial,usage+2)}),
+    );
+    assert_eq!(completion["result"]["items"][0]["label"], "answer");
+    let tokens = client.call(
+        "textDocument/semanticTokens/full",
+        json!({"textDocument":{"uri":root}}),
+    );
+    assert!(
+        decoded_tokens(initial, &tokens)
+            .iter()
+            .any(|(text, kind)| text == "answer" && *kind == 3)
+    );
+    let prepared = client.call(
+        "textDocument/prepareRename",
+        json!({"textDocument":{"uri":root},"position":position(initial,usage)}),
+    );
+    assert_eq!(prepared["result"]["placeholder"], "answer");
+    let proposed=client.call("textDocument/rename",json!({"textDocument":{"uri":root},"position":position(initial,usage),"newName":"solution"}));
+    let mut documents = BTreeMap::from([
+        (
+            root.clone(),
+            Document {
+                version: 1,
+                text: initial.into(),
+            },
+        ),
+        (
+            helper.clone(),
+            Document {
+                version: 1,
+                text: HELPER.into(),
+            },
+        ),
+    ]);
+    documents.get_mut(&root).unwrap().version = 2;
+    documents
+        .get_mut(&root)
+        .unwrap()
+        .text
+        .push_str("\n// client\n");
+    let before = documents.clone();
+    assert_eq!(
+        apply(&mut documents, &proposed["result"]),
+        Err(ApplyError::Stale)
+    );
+    assert_eq!(
+        documents, before,
+        "a stale version cannot partially edit the dependency"
+    );
+    client.note("textDocument/didChange",json!({"textDocument":{"uri":root,"version":2},"contentChanges":[{"text":documents[&root].text}]}));
+    let proposed=client.call("textDocument/rename",json!({"textDocument":{"uri":root},"position":position(&documents[&root].text,usage),"newName":"solution"}));
+    apply(&mut documents, &proposed["result"]).unwrap();
+    for uri in [&helper, &root] {
+        client.note("textDocument/didChange",json!({"textDocument":{"uri":uri,"version":documents[uri].version},"contentChanges":[{"text":documents[uri].text}]}));
+    }
+    let current = documents[&root].text.clone();
+    let call = current.find("helper::solution").unwrap() + 8;
+    let definition = client.call(
+        "textDocument/definition",
+        json!({"textDocument":{"uri":root},"position":position(&current,call)}),
+    );
+    assert_eq!(definition["result"]["uri"], helper);
+    assert_eq!(definition["result"]["range"]["end"]["character"], 15);
+    for uri in [&root, &helper] {
+        let latest = client
+            .events
+            .iter()
+            .rev()
+            .find(|m| {
+                m["method"] == "textDocument/publishDiagnostics" && m["params"]["uri"] == *uri
+            })
+            .unwrap();
+        assert_eq!(latest["params"]["diagnostics"], json!([]));
+        assert_eq!(latest["params"]["version"], documents[uri].version);
+    }
+    let binding = current.find("unused").unwrap();
+    let fixed=client.call("textDocument/codeAction",json!({"textDocument":{"uri":root},"range":{"start":position(&current,binding),"end":position(&current,binding+6)},"context":{"diagnostics":[],"only":["quickfix"]}}));
+    assert_eq!(fixed["result"].as_array().unwrap().len(), 1, "{fixed:?}");
+    apply(&mut documents, &fixed["result"][0]["edit"]).unwrap();
+    client.note("textDocument/didChange",json!({"textDocument":{"uri":root,"version":documents[&root].version},"contentChanges":[{"text":documents[&root].text}]}));
+    let current = documents[&root].text.clone();
+    let formatted=client.call("textDocument/codeAction",json!({"textDocument":{"uri":root},"range":{"start":position(&current,0),"end":position(&current,current.len())},"context":{"diagnostics":[],"only":["source.format"]}}));
+    assert_eq!(
+        formatted["result"].as_array().unwrap().len(),
+        1,
+        "{formatted:?}"
+    );
+    apply(&mut documents, &formatted["result"][0]["edit"]).unwrap();
+    client.note("textDocument/didChange",json!({"textDocument":{"uri":root,"version":documents[&root].version},"contentChanges":[{"text":documents[&root].text}]}));
+    let current = documents[&root].text.clone();
+    assert!(current.contains("_unused"));
+    let now = client.call(
+        "textDocument/semanticTokens/full",
+        json!({"textDocument":{"uri":root}}),
+    );
+    assert_ne!(now["result"]["resultId"], tokens["result"]["resultId"]);
+    client.note("textDocument/didChange",json!({"textDocument":{"uri":root,"version":documents[&root].version-1},"contentChanges":[{"text":"broken"}]}));
+    let again = client.call(
+        "textDocument/semanticTokens/full",
+        json!({"textDocument":{"uri":root}}),
+    );
+    assert_eq!(again["result"], now["result"]);
+    assert!(again.get("error").is_none());
+    f.write("Lang.json", &format!("{MANIFEST}\n"));
+    let params = json!({"textDocument":{"uri":root},"range":{"start":position(&current,0),"end":position(&current,current.len())},"context":{"diagnostics":[],"only":["source.format"]}});
+    let stale = client.call("textDocument/codeAction", params.clone());
+    assert!(
+        stale["error"]["message"]
+            .as_str()
+            .unwrap()
+            .contains("refresh"),
+        "{stale:?}"
+    );
+    assert!(stale.get("result").is_none());
+    client.note(
+        "workspace/didChangeWatchedFiles",
+        json!({"changes":[{"uri":f.uri("Lang.json"),"type":2}]}),
+    );
+    assert_eq!(
+        client.call("textDocument/codeAction", params)["result"],
+        json!([])
+    );
+    let target = json!({"textDocument":{"uri":root},"position":position(&current,current.find("helper::solution").unwrap()+8)});
+    client.note(
+        "textDocument/didClose",
+        json!({"textDocument":{"uri":helper}}),
+    );
+    let closed = client.call("textDocument/definition", target.clone());
+    assert!(closed.get("error").is_none());
+    assert!(closed["result"].is_null());
+    client.note("textDocument/didOpen",json!({"textDocument":{"uri":helper,"languageId":"lang","version":documents[&helper].version,"text":documents[&helper].text}}));
+    assert_eq!(
+        client.call("textDocument/definition", target)["result"]["uri"],
+        helper
+    );
+    assert!(
+        client
+            .events
+            .iter()
+            .any(|m| m["method"] == "workspace/semanticTokens/refresh")
+    );
+    client.finish();
+    assert_eq!(
+        fs::read_to_string(f.0.join("src/main.lang")).unwrap(),
+        initial
+    );
+    assert_eq!(
+        fs::read_to_string(f.0.join("helper/src/main.lang")).unwrap(),
+        HELPER
+    );
+    assert!(!f.0.join("Lang.lock").exists());
+    assert!(!f.0.join("target").exists());
+    // The client, after the server exited, saves the accepted buffers and runs them.
+    f.write("src/main.lang", &documents[&root].text);
+    f.write("helper/src/main.lang", &documents[&helper].text);
+    let output = Command::new(env!("CARGO_BIN_EXE_lang"))
+        .current_dir(&f.0)
+        .args(["run", "--manifest-path"])
+        .arg(f.0.join("Lang.json"))
+        .output()
+        .unwrap();
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert_eq!(output.stdout, b"42\n");
+    assert!(output.stderr.is_empty());
 }
 fn action_query(
     s: &mut Server,

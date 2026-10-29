@@ -4,7 +4,7 @@
 
 [日本語版](../ja/rfcs/0039-package-editor-snapshots.md)
 
-- Status: accepted
+- Status: implemented
 - Authors: project maintainers with Codex
 - Created: 2026-10-29
 - Last updated: 2026-10-29
