@@ -8,7 +8,7 @@ Updated: 2026-10-30 JST. M4 is active. Goal start: clean main/origin/main `af998
 
 **24 done · 1 doing · 16 todo · 48 remaining pt**
 
-D03 last executable checkpoint, 2026-10-30 01:04 JST: D03R source `99a20de` passes native debugger workflow 40907199433 on macOS 15/26 and Windows 2025 (3/3). The pinned official LLVM 23.1.4 MSI has no Python DLL import; Windows proves source line 2/caller line 5/step/guest exit 0/adapter exit 0. Local VM regressions pass 10 tests, Python debugger validation 4 and repository consistency 6. Remaining D03 conditions: connect private verified SDK/code owners and admitted source authority to lang dap native launch, then exercise that production route on both hosts. G7 remains open.
+D03 last executable checkpoint, 2026-10-30 01:37 JST: production lang dap native launch passes the local macOS probe using matching 111-component SDK build 6199020c1ff5cf51e75827272ce855bc3dd97a008d412d70c6ddfc043944d72e. Actual guest line 2/caller line 5/step/guest exit 0/adapter exit 0 pass with URI/zero-based coordinates and a path containing spaces. Captured source survives disk mutation; outside-source and maximum-line refusals preserve the existing breakpoint. Final fmt, warnings-denied workspace Clippy, 167 suites/2,469 tests and workspace docs pass. Remaining: production-route CI on macOS and Windows; D03/G7 stay open until that evidence succeeds. D03R 99a20de retains its independent 3/3 vendor proof.
 
 **Next: M4-D03 — native debugger launch and source breakpoints on both tier-1 hosts (doing, 3 pt).** D03R is done at `99a20de`; retire its last 2 pt with no additions. Additions +13, retired 68, remaining 48 pt across 41 deliveries. D04 actual mixed stacks and D05 lifecycle audit remain required.
 

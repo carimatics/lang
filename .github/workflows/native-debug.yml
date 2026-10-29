@@ -147,6 +147,13 @@ jobs:
           LLDB_PYTHON_DLL: ${{ steps.lldb-distribution.outputs.python-dll }}
         run: python tools/check-native-dap.py --sdk "${{ runner.temp }}/lang-debug-sdk" --output "${{ runner.temp }}/lang-native-dap-probes"
 
+      - name: Exercise production lang DAP native launch and source authority
+        env:
+          LLDB_DAP_EXECUTABLE: ${{ steps.lldb-distribution.outputs.adapter }}
+          LLDB_PYTHON_RUNTIME: ${{ steps.lldb-python.outputs.python-path }}
+          LLDB_PYTHON_DLL: ${{ steps.lldb-distribution.outputs.python-dll }}
+        run: python tools/check-native-dap.py --adapter lang --zero-based-uri --sdk "${{ runner.temp }}/lang-debug-sdk" --output "${{ runner.temp }}/lang-dap-native-probes"
+
       - name: Upload native debugger evidence
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -158,5 +165,7 @@ jobs:
             ${{ runner.temp }}/lang-debug-probes/*.lang
             ${{ runner.temp }}/lang-native-dap-probes/*.json
             ${{ runner.temp }}/lang-native-dap-probes/*.lang
+            ${{ runner.temp }}/lang-dap-native-probes/*.json
+            ${{ runner.temp }}/lang-dap-native-probes/*.lang
           if-no-files-found: warn
           retention-days: 14

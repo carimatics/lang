@@ -115,6 +115,8 @@ That evidence uses a manual matching-SDK debug link with retained source. Defaul
 
 The VM adapter now supports source step-in/over/out and bounded read-only scopes, variables and identifier/field/scalar evaluation. Normal lowering can additionally capture target-neutral local/register environments without changing verified MIR or portable bytes. Initialized-register tracking exists only for retained debug frames; caller inspection uses the suspended call point. Queries run on the original worker and frame/variable references expire on resume. Actual native/mixed debugging remains required.
 
+The native DAP backend uses the same package admission and retains verified private SDK/program/code/debug-sidecar owners through debugger shutdown. It compares the actual native package semantic bytes with the admitted program, forwards only sanitized source-line breakpoints and execution controls, and omits unadmitted physical-frame source locations. Source responses retain captured bytes. Native value inspection remains unavailable; production both-host launch validation and mixed-stack correspondence are active D03/D04 obligations.
+
 The [M2 source/Rust/C measurements](benchmarks.md) are tied to named immutable revisions and show substantial performance gaps. They establish measurement, not native parity or a speed guarantee. Use those workloads to decide subsequent optimizations; historical scalar microbenchmarks cannot substitute for source-program costs.
 
 ## Diagnostics, REPL and editor tooling

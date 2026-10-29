@@ -115,6 +115,8 @@ Read-only revision 1のdebug descriptorで、dispatch時にallocationせずowned
 
 VM adapter は source step-in／over／out と、上限付き read-only scope／variable／identifier・field・scalar 評価にも対応します。通常 lowering は検証 MIR や portable bytes を変更せず、target 非依存の local／register 環境を追加取得できます。初期化済み register の追跡は保持 debug frame だけで行い、caller は停止した call 点から検査します。query は元 worker で処理し、再開時に frame／variable reference を無効化します。実 native／混在 debug は引き続き必要です。
 
+native DAP backend は同じ package admission を使い、検証した private SDK／program／code／debug sidecar の owner を debugger 終了まで保持します。実 native package の意味 bytes と受理 program を比較し、検査済み source line breakpoint と実行 control だけを転送して、未受理の物理 frame source location を省きます。source 応答は取得済み bytes を保持します。native value inspection は unavailable とし、production の両 host launch 検証と混在 stack 対応は D03／D04 の進行中要件です。
+
 [M2 source/Rust/C測定](benchmarks.md)は名前付きの不変revisionに結び付き、大きな性能差を示しています。測定完了の根拠であり、native同等性能や速度保証ではありません。今後の最適化判断にはこのworkloadを使い、過去のscalar microbenchmarkでsource programの費用を代用しません。
 
 ## 診断、REPL、editor tooling

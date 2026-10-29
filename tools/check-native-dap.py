@@ -8,11 +8,18 @@ import subprocess
 import threading
 import time
 from pathlib import Path
+from urllib.parse import unquote, urlsplit
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--sdk", required=True, type=Path)
 parser.add_argument("--output", required=True, type=Path)
+parser.add_argument("--adapter", choices=["llvm", "lang"], default="llvm")
+parser.add_argument("--zero-based-uri", action="store_true")
 args = parser.parse_args()
+if args.zero_based_uri and args.adapter != "lang":
+    parser.error("--zero-based-uri requires --adapter lang")
+CHILD_LINE = 2 - int(args.zero_based_uri)
+CALLER_LINE = 5 - int(args.zero_based_uri)
 SDK = args.sdk.resolve()
 ROOT = args.output.resolve()
 WINDOWS = platform.system() == "Windows"
@@ -70,6 +77,13 @@ ordinary = subprocess.run([str(EXE)], capture_output=True, text=True, timeout=30
 assert ordinary.returncode == 0 and ordinary.stdout.strip() == "42", ordinary
 print(json.dumps({"checkpoint": "ordinary-native", "result": ordinary.stdout.strip()}), flush=True)
 
+if args.adapter == "lang":
+    (ROOT / "Lang.json").write_text(json.dumps({"schema": 1, "package": {
+        "name": "native_debug", "version": "0.1.0", "edition": "2026", "entry": "main.lang"}}), encoding="utf-8")
+    debugger = [str(compiler), "dap"]
+    # The production adapter configures only its own LLVM child environment.
+    debugger_environment = None
+
 process = subprocess.Popen(debugger, stdin=subprocess.PIPE,
                            stdout=subprocess.PIPE, stderr=subprocess.PIPE, cwd=ROOT,
                            env=debugger_environment)
@@ -121,7 +135,12 @@ responses = {}
 events = []
 
 def source_path(frame):
-    path = Path(frame.get("source", {}).get("path", "."))
+    name = frame.get("source", {}).get("path", ".")
+    if name.startswith("file:"):
+        name = unquote(urlsplit(name).path)
+        if WINDOWS and name.startswith("/") and name[2:3] == ":":
+            name = name[1:]
+    path = Path(name)
     return (path if path.is_absolute() else ROOT / path).resolve()
 
 def send(command, arguments):
@@ -156,9 +175,20 @@ def response(sequence):
 def request(command, arguments):
     return response(send(command, arguments))
 
+def refused(command, arguments):
+    sequence = send(command, arguments)
+    deadline = time.monotonic()+30
+    while sequence not in responses:
+        receive(deadline)
+    assert responses.pop(sequence)["success"] is False
+
 def event(name):
     deadline = time.monotonic()+30
     while True:
+        if name == "initialized":
+            failures = [r for r in responses.values() if not r["success"]]
+            if failures:
+                raise RuntimeError(f"native initialization refused: {failures}")
         for index, value in enumerate(events):
             if value.get("event") == name:
                 return events.pop(index)
@@ -167,29 +197,53 @@ def event(name):
 completed = False
 disconnected = False
 try:
-    caps = request("initialize", {"adapterID": "lang-native-probe", "linesStartAt1": True,
-        "columnsStartAt1": True, "pathFormat": "path", "supportsRunInTerminalRequest": False})
-    launch = send("launch", {"program": str(EXE), "cwd": str(ROOT), "stopOnEntry": False,
-        "sourceMap": [[".",str(ROOT)]]})
+    caps = request("initialize", {"adapterID": "lang-native-probe", "linesStartAt1": not args.zero_based_uri,
+        "columnsStartAt1": not args.zero_based_uri, "pathFormat": "uri" if args.zero_based_uri else "path",
+        "supportsRunInTerminalRequest": False})
+    if args.adapter == "lang":
+        launch_args = {"mode": "native", "root": str(ROOT), "manifestPath": "Lang.json", "sdk": str(SDK)}
+    else:
+        launch_args = {"program": str(EXE), "cwd": str(ROOT), "stopOnEntry": False,
+            "sourceMap": [[".",str(ROOT)]]}
+    original_source = SOURCE.read_text(encoding="utf-8")
+    launch = send("launch", launch_args)
     event("initialized")
-    breakpoints = request("setBreakpoints", {"source": {"path": "main.lang"},
-        "breakpoints": [{"line": 2}]})
+    if args.adapter == "lang":
+        capabilities = event("capabilities")
+        assert capabilities["body"]["capabilities"]["supportsEvaluateForHovers"] is False
+        SOURCE.write_text("invalid source after admission\n", encoding="utf-8")
+    breakpoint_path = str(SOURCE) if args.adapter == "lang" else "main.lang"
+    if args.zero_based_uri:
+        breakpoint_path = SOURCE.as_uri()
+    breakpoints = request("setBreakpoints", {"source": {"path": breakpoint_path},
+        "breakpoints": [{"line": CHILD_LINE}]})
+    if args.adapter == "lang":
+        frozen = request("source", {"sourceReference": breakpoints["breakpoints"][0]["source"]["sourceReference"]})
+        assert frozen["content"] == original_source
+        outside = ROOT.parent / "outside.lang"
+        refused("setBreakpoints", {"source": {"path": outside.as_uri() if args.zero_based_uri else str(outside)},
+            "breakpoints": [{"line": 1}]})
+        if args.zero_based_uri:
+            refused("setBreakpoints", {"source": {"path": breakpoint_path},
+                "breakpoints": [{"line": 4294967295}]})
     print(json.dumps({"checkpoint":"native-dap-configured","breakpoints":breakpoints}),flush=True)
     request("configurationDone", {})
     response(launch)
     stopped = event("stopped")
     stack = request("stackTrace", {"threadId": stopped["body"]["threadId"], "levels": 32})
     frames = stack["stackFrames"]
-    assert any(source_path(f) == SOURCE and f["line"] == 2 for f in frames), frames
+    assert any(source_path(f) == SOURCE and f["line"] == CHILD_LINE for f in frames), frames
     guest_frames = [f for f in frames if source_path(f) == SOURCE]
-    assert len(guest_frames) >= 2 and guest_frames[0]["line"] == 2 and guest_frames[1]["line"] == 5, guest_frames
+    assert len(guest_frames) >= 2 and guest_frames[0]["line"] == CHILD_LINE and guest_frames[1]["line"] == CALLER_LINE, guest_frames
+    if args.adapter == "lang":
+        assert all("source" not in f or source_path(f) == SOURCE for f in frames), frames
     print(json.dumps({"checkpoint": "native-dap-breakpoint", "stopped": stopped["body"],
         "breakpoints": breakpoints, "frames": frames[:8]}), flush=True)
     request("next", {"threadId": stopped["body"]["threadId"]})
     stepped = event("stopped")
     stepped_stack = request("stackTrace", {"threadId": stepped["body"]["threadId"], "levels": 8})
     assert stepped["body"]["reason"] == "step", stepped
-    assert any(source_path(f) == SOURCE and f["line"] == 5
+    assert any(source_path(f) == SOURCE and f["line"] == CALLER_LINE
                for f in stepped_stack["stackFrames"]), stepped_stack
     print(json.dumps({"checkpoint": "native-dap-step", "stopped": stepped["body"],
         "frames": stepped_stack["stackFrames"][:4]}), flush=True)
@@ -200,6 +254,8 @@ try:
     request("disconnect", {"terminateDebuggee": True})
     disconnected = True
     report = {"version": 1, "os": platform.system(), "architecture": platform.machine(),
+        "adapter": args.adapter,
+        "zero_based_uri": args.zero_based_uri,
         "sdk_build_id": manifest["build_id"], "debugger": debugger, "rustc": rustc_fields,
         "breakpoints": breakpoints["breakpoints"], "frames": guest_frames,
         "step_frames": stepped_stack["stackFrames"], "exit_code": exited["body"]["exitCode"]}
@@ -208,7 +264,7 @@ try:
     completed = True
 finally:
     if not completed:
-        print(json.dumps({"pending_native_events": events}), flush=True)
+        print(json.dumps({"pending_native_events": events, "pending_native_responses": responses}), flush=True)
     if not disconnected and process.poll() is None:
         try:
             send("disconnect", {"terminateDebuggee": True})

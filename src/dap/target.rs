@@ -276,45 +276,48 @@ fn worker(
         }
     }
 }
+pub(super) fn capture(args: &Value) -> Result<crate::package::editor::workspace::View, String> {
+    let root = Path::new(text(args, "root")?);
+    if !root.is_absolute() {
+        return Err("root must be absolute".into());
+    }
+    let root = std::fs::canonicalize(root).map_err(|_| "root is unavailable")?;
+    let manifest = Path::new(text(args, "manifestPath")?);
+    if !relative(manifest) {
+        return Err("manifestPath must be relative to root".into());
+    }
+    let target = args
+        .get("target")
+        .map(|_| text(args, "target"))
+        .transpose()?
+        .unwrap_or(if cfg!(windows) {
+            "x86_64-pc-windows-msvc"
+        } else {
+            "aarch64-apple-darwin"
+        });
+    let selected = args
+        .get("package")
+        .map(|_| text(args, "package").map(str::to_owned))
+        .transpose()?;
+    Config {
+        manifest: root.join(manifest),
+        root,
+        selected,
+        target: target.into(),
+    }
+    .capture(1, &[], Limits::default())
+    .map_err(|_| "package debug admission failed".to_owned())
+}
 impl Target {
     pub fn launch(args: &Value, _c: Coordinates) -> Result<Self, String> {
         if text(args, "mode")? != "vm" {
             return Err("unsupported debug mode".into());
         }
-        let root = Path::new(text(args, "root")?);
-        if !root.is_absolute() {
-            return Err("root must be absolute".into());
-        }
-        let root = std::fs::canonicalize(root).map_err(|_| "root is unavailable")?;
-        let manifest = Path::new(text(args, "manifestPath")?);
-        if !relative(manifest) {
-            return Err("manifestPath must be relative to root".into());
-        }
         let stop_on_entry = match args.get("stopOnEntry") {
             None => false,
             Some(v) => v.as_bool().ok_or("invalid stopOnEntry")?,
         };
-        let target = args
-            .get("target")
-            .map(|_| text(args, "target"))
-            .transpose()?
-            .unwrap_or(if cfg!(windows) {
-                "x86_64-pc-windows-msvc"
-            } else {
-                "aarch64-apple-darwin"
-            });
-        let selected = args
-            .get("package")
-            .map(|_| text(args, "package").map(str::to_owned))
-            .transpose()?;
-        let view = Config {
-            manifest: root.join(manifest),
-            root,
-            selected,
-            target: target.into(),
-        }
-        .capture(1, &[], Limits::default())
-        .map_err(|_| "package debug admission failed")?;
+        let view = capture(args)?;
         let analysis = view.snapshot.analysis();
         let checked = analysis
             .result

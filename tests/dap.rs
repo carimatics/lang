@@ -724,6 +724,8 @@ fn dap_refuses_invalid_envelopes_escaping_manifests_and_ungranted_imports() {
     for args in [
         json!({"root":package.0,"manifestPath":"../Lang.json","mode":"vm"}),
         json!({"root":package.0,"manifestPath":"Lang.json","mode":"native"}),
+        json!({"root":package.0,"manifestPath":"Lang.json","mode":"native","sdk":package.0}),
+        json!({"root":package.0,"manifestPath":"Lang.json","mode":"native","sdk":package.0,"target":"unsupported-host"}),
         json!({"root":package.0,"manifestPath":"Lang.json","mode":"vm"}),
     ] {
         let reply =

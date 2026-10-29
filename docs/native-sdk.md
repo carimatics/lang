@@ -1,10 +1,10 @@
-<!-- canonical-language: en; japanese-translation: ja/native-sdk.md; reviewed: 2026-10-27 -->
+<!-- canonical-language: en; japanese-translation: ja/native-sdk.md; reviewed: 2026-10-30 -->
 
 # Experimental native SDK
 
 [日本語版](ja/native-sdk.md)
 
-Updated: 2026-10-27 JST. SDK version 3 starts all seven copy/owned/C/task/owned-task/component/component-gateway profiles in actual macOS AArch64 and Windows x86-64 checkout-free/Cargo-free consumers. The [M3 capability guide](milestone-3-capabilities.md) and [migration/full-validation record](evidence/2026-10-27-m3-migration-9e78f2d.json) retain current evidence. Public C v1 is stable under RFC 0033; private SDK ABI remains experimental and requires the exact build. The staged producer checkpoints below are historical and do not replace current both-host acceptance.
+Updated: 2026-10-30 JST. SDK version 3 starts all seven copy/owned/C/task/owned-task/component/component-gateway profiles in actual macOS AArch64 and Windows x86-64 checkout-free/Cargo-free consumers. The [M3 capability guide](milestone-3-capabilities.md) and [migration/full-validation record](evidence/2026-10-27-m3-migration-9e78f2d.json) retain current evidence. Public C v1 is stable under RFC 0033; private SDK ABI remains experimental and requires the exact build. The staged producer checkpoints below are historical and do not replace current both-host acceptance.
 
 Task extension ([RFC 0031](rfcs/0031-installed-native-task-packages.md), 2026-10-27 JST): This extension introduced SDK manifest version 2. `lang native` emits task source as program version 2/task, LANGBC schema 5 and the original LANGNAT-2 Task object; its generated main uses execute_tasks with the caller's allocator/Control/runner limits. Task packages require SDK version >=2 and are refused with SDK v1 before tools. Existing version-1 copy/owned/C packages also work with a matching-build SDK v2. Initial task emission is host-target only; component packages require a follow-up admission decision. A clean producer at `042fc38` supplied the SDK; after relocating it, the checkout-free consumer without Cargo passes isolated verification for all five profiles (2026-10-27 03:49 JST, macOS AArch64). Source/package/private SDK link inputs are removed before startup; task and owned-task both return 42. The full baseline passes 149 suites/2,300 tests. Component/both-host acceptance remains on the M3 board, distinct from M2's historical both-host evidence for legacy profiles.
 
@@ -72,6 +72,8 @@ The Windows runner’s LLVM 20.1.8 needs `python310.dll`. Set the experiment cli
 The experiment selects LLDB_USE_NATIVE_PDB_READER=1 in the debugger child to use the native PDB reader when the DIA reader does not expose source information. Selection follows the official [LLVM 20.1.8 implementation](https://github.com/llvm/llvm-project/blob/llvmorg-20.1.8/lldb/source/Plugins/SymbolFile/PDB/SymbolFilePDB.cpp). The fetched source provides no publication/update date; verified 2026-10-30 JST.
 
 The official [LLDB DAP documentation](https://lldb.llvm.org/use/lldbdap.html) describes obtaining the tool and launch configuration. Publication/update date is not provided; verified 2026-10-29 JST.
+
+Production native launch is being validated in D03 (2026-10-30 JST). Start `SDK/bin/lang dap` and send a DAP launch with `{"mode":"native","root":"/absolute/package","manifestPath":"Lang.json","sdk":"/absolute/sdk"}` after initialize. It admits a Copy main returning i64 without host imports, snapshots existing SDK/program formats, verifies exact rustc and semantic identity, and privately debug-links the executable and sidecars. Only line breakpoints, immutable source queries, stacks, stepping, continue and disconnect are available; column breakpoints and native value inspection refuse. The capability event disables native hover evaluation. Physical frames keep their original order and expose source locations only for captured package files. D03 production-route both-host evidence is still required; the vendor experiment alone does not complete it.
 
 ## Sources
 

@@ -1,5 +1,6 @@
 //! Bounded, source-snapshot DAP host for retained VM execution (RFC 0040).
 mod inspect;
+mod native;
 mod target;
 
 use crate::lsp::{uri, wire};
@@ -37,6 +38,7 @@ pub struct Server {
     closed: bool,
     coordinates: Coordinates,
     target: Option<Target>,
+    native: Option<native::Target>,
 }
 impl Server {
     fn number(&mut self) -> u32 {
@@ -73,6 +75,18 @@ impl Server {
         } else {
             self.dispatch(command, args)
         };
+        let result = result.and_then(|body| {
+            // Leave space for the response envelope and JSON escaping. This
+            // also makes oversized captured-source requests normal refusals.
+            let size = serde_json::to_vec(&body)
+                .map_err(|_| "cannot encode DAP response".to_owned())?
+                .len();
+            if size > WIRE.message_bytes.saturating_sub(1024) {
+                Err("DAP response limit exceeded".into())
+            } else {
+                Ok(body)
+            }
+        });
         let success = result.is_ok();
         let mut response = json!({"seq":self.number(),"type":"response",
             "request_seq":seq.unwrap_or(0),"command":command,"success":success});
@@ -82,6 +96,12 @@ impl Server {
         }
         let mut output = vec![response];
         if success && command == "launch" {
+            if self.native.is_some() {
+                output.push(self.event(
+                    "capabilities",
+                    json!({"capabilities":{"supportsEvaluateForHovers":false}}),
+                ));
+            }
             output.push(self.event("initialized", json!({})));
         }
         if success && command == "disconnect" {
@@ -125,14 +145,24 @@ impl Server {
         if command == "disconnect" {
             self.target = None; // interrupts and joins the original worker
             self.closed = true;
+            if let Some(mut native) = self.native.take() {
+                native.disconnect()?;
+            }
             return Ok(json!({}));
         }
         if command == "launch" {
-            if self.target.is_some() {
+            if self.target.is_some() || self.native.is_some() {
                 return Err("target already launched".into());
             }
-            self.target = Some(Target::launch(args, self.coordinates)?);
+            match args["mode"].as_str() {
+                Some("native") => self.native = Some(native::Target::launch(args)?),
+                Some("vm") => self.target = Some(Target::launch(args, self.coordinates)?),
+                _ => return Err("unsupported debug mode".into()),
+            }
             return Ok(json!({}));
+        }
+        if let Some(native) = self.native.as_mut() {
+            return native.dispatch(command, args, self.coordinates);
         }
         let target = self.target.as_mut().ok_or("launch is required")?;
         match command {
@@ -167,6 +197,20 @@ impl Server {
         }
     }
     pub fn poll(&mut self) -> Vec<Value> {
+        if let Some(native) = self.native.as_mut() {
+            return match native.poll() {
+                Ok(Some(value)) => vec![self.event(
+                    value["event"].as_str().expect("native event"),
+                    value["body"].clone(),
+                )],
+                Ok(None) => vec![],
+                Err(_) => {
+                    self.native.take();
+                    vec![self.event("output", json!({"category":"stderr","output":"native debugger session failed\n"})),
+                        self.event("exited", json!({"exitCode":1})), self.event("terminated", json!({}))]
+                }
+            };
+        }
         let Some(event) = self.target.as_mut().and_then(Target::poll) else {
             return vec![];
         };

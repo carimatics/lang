@@ -8,7 +8,7 @@
 
 **24 done · 1 doing · 16 todo · 48 remaining pt**
 
-D03 の最終実行 checkpoint、2026-10-30 01:04 JST: D03R source `99a20de` は native debugger workflow 40907199433 の macOS 15／26 と Windows 2025 全 3 job に成功。固定した公式 LLVM 23.1.4 MSI に Python DLL import はなく、Windows の source 2 行目／caller 5 行目／step／guest 終了 0／adapter 終了 0 を証明した。local VM 回帰 10 件、Python debugger 検証 4 件、repository consistency 6 件も成功。D03 の残る条件は private 検証済み SDK／code owner と受理 source 権限を lang dap native launch へ接続し、production 経路を両 host で実行すること。G7 は未完了。
+D03 の最終実行 checkpoint、2026-10-30 01:37 JST: production lang dap native launch は対応する 111-component SDK build 6199020c1ff5cf51e75827272ce855bc3dd97a008d412d70c6ddfc043944d72e で local macOS probe に成功。URI／0 始まり座標と空白を含む path で、実 guest 2 行目／caller 5 行目／step／guest 終了 0／adapter 終了 0 を証明した。disk 変更後も取得 source を保持し、権限外 source／最大行番号の拒否後も元 breakpoint を維持する。最終 fmt、警告をエラーとする workspace Clippy、167 suite／2,469 test、workspace doc が成功。残る条件は macOS／Windows の production 経路 CI で、その成功まで D03／G7 は未完了。D03R 99a20de の独立 vendor 検証 3/3 は維持。
 
 **次: M4-D03 — 両 tier-1 host の native debugger launch と source breakpoint（doing、3 pt）。** D03R は `99a20de` で完了し、追加なしで最終 2 pt を消化。追加 +13、消化 68、41 delivery の残り 48 pt。D04 実混在 stack と D05 lifecycle 監査は引き続き必要。
 

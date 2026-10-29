@@ -1,10 +1,10 @@
-<!-- translation-of: ../native-sdk.md; canonical-language: en; reviewed: 2026-10-27 -->
+<!-- translation-of: ../native-sdk.md; canonical-language: en; reviewed: 2026-10-30 -->
 
 # 実験段階native SDK
 
 [English](../native-sdk.md)
 
-更新日：2026-10-27 JST。SDK version 3のcopy/owned/C/task/owned-task/component/component-gateway全7 profileが、実macOS AArch64とWindows x86-64のcheckout/Cargoなしconsumerで起動しました。[M3機能ガイド](milestone-3-capabilities.md)と[移行/全検証記録](../evidence/2026-10-27-m3-migration-9e78f2d.json)に現証拠をまとめます。公開C v1はRFC 0033に従い安定化し、private SDK ABIは実験段階で厳密build一致を必要とします。以下の段階別producer checkpointは当時の履歴であり、現在の両host受入を置き換えません。
+更新日：2026-10-30 JST。SDK version 3のcopy/owned/C/task/owned-task/component/component-gateway全7 profileが、実macOS AArch64とWindows x86-64のcheckout/Cargoなしconsumerで起動しました。[M3機能ガイド](milestone-3-capabilities.md)と[移行/全検証記録](../evidence/2026-10-27-m3-migration-9e78f2d.json)に現証拠をまとめます。公開C v1はRFC 0033に従い安定化し、private SDK ABIは実験段階で厳密build一致を必要とします。以下の段階別producer checkpointは当時の履歴であり、現在の両host受入を置き換えません。
 
 Task拡張（[RFC 0031](rfcs/0031-installed-native-task-packages.md)、2026-10-27 JST）: この拡張でSDK manifest version 2を導入しました。`lang native`はtask sourceをprogram version 2/task・LANGBC schema 5・元LANGNAT-2 Task objectへ出力し、生成mainが`execute_tasks`でcaller allocator/Control/runner上限を保ちます。task packageはSDK version >=2を必要とし、SDK v1ではtool前に拒否します。旧version-1 copy/owned/C packageは対応buildのSDK v2でも動作します。初期task出力はhost targetに限り、component packageには後続受入決定が必要です。`042fc38`のclean producerからSDKを作り、producer退避後のcheckoutなし・Cargoなしconsumerで5 profileの隔離検証に成功しました（2026-10-27 03:49 JST、macOS AArch64）。起動前にsource/package/private SDKリンク入力を除去し、task/owned-taskとも42を返しました。全baselineは149 suite・2,300 test成功です。component/両host受入条件はM3進捗表で追跡し、M2の旧profileの両host証拠とは区別します。
 
@@ -72,6 +72,8 @@ Windows runner の LLVM 20.1.8 は `python310.dll` を必要とする。実験 c
 実験 client は debugger child で `LLDB_USE_NATIVE_PDB_READER=1` を選び、DIA reader が source 情報を公開しない場合に native PDB reader を使う。選択条件は公式 [LLVM 20.1.8 実装](https://github.com/llvm/llvm-project/blob/llvmorg-20.1.8/lldb/source/Plugins/SymbolFile/PDB/SymbolFilePDB.cpp) に従う。この取得結果に公開／更新日の記載はなく、2026-10-30 JST 確認。
 
 公式 [LLDB DAP 文書](https://lldb.llvm.org/use/lldbdap.html) は tool 入手方法と起動設定を記載しています。公開／更新日の記載はなく、2026-10-29 JST 確認。
+
+production native launch は D03 で検証中（2026-10-30 JST）。`SDK/bin/lang dap` を起動し、initialize 後に DAP launch `{"mode":"native","root":"/absolute/package","manifestPath":"Lang.json","sdk":"/absolute/sdk"}` を送る。host import のない i64 main を持つ Copy を受理し、既存 SDK／program format を snapshot 化して厳密 rustc と意味 identity を検証し、executable／sidecar を private debug link する。line breakpoint、不変 source query、stack、step、continue、disconnect に対応し、column breakpoint と native value inspection は拒否する。capability event で native hover 評価を無効にする。物理 frame の元の順を保ち、取得済み package file だけに source location を付ける。D03 production 経路自体の両 host 証拠が引き続き必要であり、vendor 実験だけでは完了しない。
 
 ## Sources
 

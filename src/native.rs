@@ -130,9 +130,9 @@ impl Package {
         publish::rename(&stage.0, output).map_err(|e| io("exclusive publication", output, e))
     }
 }
-struct Stage(PathBuf);
+pub(crate) struct Stage(pub(crate) PathBuf);
 impl Stage {
-    fn new(output: &Path) -> Result<Self, Error> {
+    pub(crate) fn new(output: &Path) -> Result<Self, Error> {
         if fs::symlink_metadata(output).is_ok() {
             return Err(io(
                 "destination exists",
