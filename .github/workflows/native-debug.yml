@@ -15,6 +15,7 @@ on:
       - 'tests/support/rust_artifacts.rs'
       - 'tools/build-native-sdk.py'
       - 'tools/check-native-debugger.py'
+      - 'tools/check-native-dap.py'
       - 'tools/test_native_debugger.py'
       - 'docs/native-sdk.md'
       - 'docs/ja/native-sdk.md'
@@ -35,6 +36,7 @@ on:
       - 'tests/support/rust_artifacts.rs'
       - 'tools/build-native-sdk.py'
       - 'tools/check-native-debugger.py'
+      - 'tools/check-native-dap.py'
       - 'tools/test_native_debugger.py'
       - 'docs/native-sdk.md'
       - 'docs/ja/native-sdk.md'
@@ -80,7 +82,8 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           foreach ($tool in @(
             "${env:ProgramFiles(x86)}\Windows Kits\10\Debuggers\x64\cdb.exe",
-            "$env:ProgramFiles\LLVM\bin\lldb.exe"
+            "$env:ProgramFiles\LLVM\bin\lldb.exe",
+            "$env:ProgramFiles\LLVM\bin\lldb-dap.exe"
           )) {
             Write-Host "$tool available: $(Test-Path $tool)"
           }
@@ -118,6 +121,9 @@ jobs:
       - name: Exercise actual native breakpoints, stepping and backtraces
         run: python tools/check-native-debugger.py --sdk "${{ runner.temp }}/lang-debug-sdk" --output "${{ runner.temp }}/lang-debug-probes"
 
+      - name: Exercise actual native DAP launch and source breakpoints
+        run: python tools/check-native-dap.py --sdk "${{ runner.temp }}/lang-debug-sdk" --output "${{ runner.temp }}/lang-native-dap-probes"
+
       - name: Upload native debugger evidence
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -127,5 +133,7 @@ jobs:
             ${{ runner.temp }}/lang-debug-probes/*.log
             ${{ runner.temp }}/lang-debug-probes/*.json
             ${{ runner.temp }}/lang-debug-probes/*.lang
+            ${{ runner.temp }}/lang-native-dap-probes/*.json
+            ${{ runner.temp }}/lang-native-dap-probes/*.lang
           if-no-files-found: warn
           retention-days: 14

@@ -4,13 +4,13 @@
 
 [English](../milestone-4.md)
 
-更新: 2026-10-29 JST。M4 は active。Goal 開始は clean main／origin/main `af9988f`、remote `git@github.com:carimatics/lang.git`。PR #9–#18 は merge 済み。editor PR #18 最終 head `5cdc422` は CI `40864753941`（18 成功、意図した文書専用 skip）と debugger `40864753946`（3/3）に成功し、`0a15fb5` として merge。local main／origin/main ref は ahead／behind 0/0 で一致する。現在の `codex/m4-debug-adapter` は clean・upstream 同期済み `codex/m4-editor-checked-edits` head `5cdc422` から、一貫した D01–D05 用に作成した。既存 user 変更はなく、upstream は `origin/codex/m4-debug-adapter`、main 宛 [draft PR #19](https://github.com/carimatics/lang/pull/19)。D01 head `8421298` は CI `40874260252`（18 成功、意図した文書専用 skip）と debugger `40874260229`（3/3）に成功し、merge は未実施。初期記録 base `carimatics/lang:codex/m4-editor-checked-edits` は #18 merge により `carimatics/lang:main` へ変更した。base 同期中も DAP 作業を保持した。
+更新: 2026-10-29 JST。M4 は active。Goal 開始は clean main／origin/main `af9988f`、remote `git@github.com:carimatics/lang.git`。PR #9–#18 は merge 済み。editor PR #18 最終 head `5cdc422` は CI `40864753941`（18 成功、意図した文書専用 skip）と debugger `40864753946`（3/3）に成功し、`0a15fb5` として merge。local main／origin/main ref は ahead／behind 0/0 で一致する。現在の `codex/m4-debug-adapter` は clean・upstream 同期済み `codex/m4-editor-checked-edits` head `5cdc422` から、一貫した D01–D05 用に作成した。既存 user 変更はなく、upstream は `origin/codex/m4-debug-adapter`、main 宛 [draft PR #19](https://github.com/carimatics/lang/pull/19)。D01 head `8421298` は CI `40874260252`（18 成功、意図した文書専用 skip）と debugger `40874260229`（3/3）に成功し、D02 head `ced8e56` は push 済みで、CI `40879596677`（18 成功、意図した文書専用 skip）と debugger `40879596614`（3/3）に成功。merge は未実施。初期記録 base `carimatics/lang:codex/m4-editor-checked-edits` は #18 merge により `carimatics/lang:main` へ変更した。base 同期中も DAP 作業を保持した。
 
-**22 done · 1 doing · 17 todo · 51 remaining pt**
+**23 done · 1 doing · 16 todo · 48 remaining pt**
 
-D02 の最終実行 checkpoint、2026-10-29 22:10 JST: fmt、警告なし全 Clippy、checked opt-level 1 全 baseline（167 suite／2,469 成功／0 失敗）、doc に成功。重点 debugger 10 test は step-in／over／out、MIR 不変の lowering sidecar、初期化済み local／record field／enum active payload、loop 引数と終了 block の非公開、未返却 caller 結果・古い参照・効果付き式の拒否、独立 stdio local 評価を検証する。参照の累積 byte と応答上限も検証対象に含む。既存 SRC0003 の重複名拒否を維持し、有効な block-local fixture を使う。残る条件は code commit／evidence と両 host CI。D02 は 3 pt doing、見積追加なし。D01 source `8421298` は上記両 host CI に成功し、G7 は pending。
+D03 の最終実行 checkpoint、2026-10-29 23:24 JST: matching SDK の実 native Copy executable は通常実行で 42 を返す。sandbox 内の DAP 起動は Resume timed out となり、許可された sandbox 外実行では source 2 行目の breakpoint、5 行目の caller、source step、終了 code 0 が成功した。CI 用の独立上限付き DAP client `tools/check-native-dap.py` も local macOS で成功し、Windows と両 macOS runner へ同じ実行検証を追加中。Windows LLDB 20.1.8 の存在は D02 job log で確認したが、lldb-dap の実起動は未検証。D02 source `ced8e56` は全 local baseline と上記両 host CI に成功。残る条件は lang dap の許可済み native 起動への統合、両 host 根拠、全検査。D03 は 3 pt doing、G7 は pending。
 
-**次: M4-D02 — pause／authority 上限付き VM stepping、frame、local、evaluation（doing、3 pt）。** D01 source `8421298` は保持 VM launch／configuration／source-breakpoint／stack／source／continue／disconnect を実装し、上記 local baseline に成功した。最終 3 pt を消化し、追加 +11、消化 63、残り 51 pt。D02 の scope を再確認し、source-step 実行、メモリ内 target 非依存 lowering sidecar、初期化済み・生存中の上限付き read-only inspection、古い pause／効果付き evaluate の拒否に 3 pt を保持する。広い inspection の前に実行 step fixture を示す。D03–D05 と G7 は未完了で、D01 両 host CI は draft PR #19 で成功。
+**次: M4-D03 — 両 tier-1 host の native debugger launch と source breakpoint（doing、3 pt）。** D02 の最終 3 pt を消化し、追加 +11、消化 66、残り 48 pt。D03 の matching-SDK／receipt trusted target、実 native source-breakpoint／stack control、上限付き protocol／source 権限、両 host 実行根拠を再確認し 3 pt を保持する。まず macOS で最小 lldb-dap 実行実験を行い、共通 backend を選ぶ前に Windows tool の有無を確かめる。実験で新しい前提が必要なら先に公開する。D04 実混在 stack と D05 lifecycle 監査は引き続き必要で、D02 両 host CI は draft PR #19 で成功。
 
 A04 source `cf6cf5c` は fmt、全 Clippy／doc、checked opt-level 1 全 test（**158 suite／2,384 成功／0 失敗**）、重点 75 test に成功。最終 head `75a2041` は [全 CI](https://github.com/carimatics/lang/actions/runs/40810065213)（全 19 job、18 成功、意図した文書専用 skip）と [debugger 実行](https://github.com/carimatics/lang/actions/runs/40810065278)（3/3）に成功した。[PR #13](https://github.com/carimatics/lang/pull/13) は `58527c2` として merge、main を fast-forward して clean・同期済み、ahead／behind 0/0。workspace branch 作成と現在の PR／upstream は上記に記録した。既存の user 変更はなかった。
 
@@ -72,8 +72,8 @@ A01 入力修正は Unix の nonblocking open と開いた handle の metadata �
 | M4-C06 | done | 0 | M4-C05 | G6 | 採択 code action が検証済み fix を生成し stale／曖昧 edit を拒否 | 503912f |
 | M4-C07 | done | 0 | M4-C04,M4-C06 | G5,G6 | editor package の end-to-end fixture と protocol／resource／refusal coverage | 6d16e93 |
 | M4-D01 | done | 0 | M4-A06 | G7 | DAP launch／control／stack／source 契約採択、VM source breakpoint で停止 | `8421298` |
-| M4-D02 | doing | 3 | M4-D01 | G7 | pause／authority 上限付き VM stepping、frame、local、evaluation | — |
-| M4-D03 | todo | 3 | M4-D02 | G7 | 両 tier-1 host で native debugger launch と source breakpoint | — |
+| M4-D02 | done | 0 | M4-D01 | G7 | pause／authority 上限付き VM stepping、frame、local、evaluation | `ced8e56` |
+| M4-D03 | doing | 3 | M4-D02 | G7 | 両 tier-1 host で native debugger launch と source breakpoint | — |
 | M4-D04 | todo | 3 | M4-D03 | G7 | native／VM 混在 stack fixture で call 順、span、失敗 cleanup 保持 | — |
 | M4-D05 | todo | 3 | M4-D04 | G7 | DAP disconnect／restart／cancel／不正 input と両 host session 証拠 | — |
 | M4-E01 | todo | 3 | M4-A06 | G8 | profile／trace schema 採択、上限付き compiler phase cost 出力 | — |
@@ -97,9 +97,9 @@ A01 入力修正は Unix の nonblocking open と開いた handle の metadata �
 
 | Baseline remaining | Net added/re-estimated | Retired on completion | Remaining |
 | ---: | ---: | ---: | ---: |
-| 103 pt | +11 pt | −63 pt | 51 pt |
+| 103 pt | +11 pt | −66 pt | 48 pt |
 
-**103 + 11 − 63 = 51 pt**
+**103 + 11 − 66 = 48 pt**
 
 名前空間の前提監査、2026-10-29 JST: 既存 `ModuleGraph::root()` は常に `ModuleId(0)`。path provider だけでは依存ごとの package-root 名前空間や共有 dependency identity の安全な再利用を提供できない。元の A02 を、許可 graph（新規 A02R、3 pt）と名前空間／source 実行の統合（task list を見直した A02、残り 3 pt）へ分割する。純追加 +3 pt、全 37 delivery。A01 と A02R は前提二つとなるため、水平基盤を増やす前に A02 で次の source 実行 fixture を示す。この監査による gate 完了や延期はない。
 

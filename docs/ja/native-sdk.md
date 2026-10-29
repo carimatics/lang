@@ -63,6 +63,12 @@ SDKのRust facade `component_embedding::gateway`はmode 2、`module_bind_native`
 
 `startup/component-producer.rs OUTPUT [HEADER]`の任意第2引数は、package roleを変えず、明示host入力用の`component-api.h`と`component-client.c`を出力します。SDKにはC template `startup/component-client.c.in`とRust host `startup/component-gateway-host.rs`を同梱します。生成Cを通常のtarget compilerでobjectにして、既存`link-native --host ... --object ...`に渡します。`tools/check-native-sdk-install.py`は、既存6 profileに`component-gateway`を追加し、全package/private SDK/link入力を消してからC gatewayの42・panic・再利用・fuel拒否・owner退役・空inventoryを確認します。E16の隔離検証はM3表へ記録し、Windowsの実行証拠とは区別します。
 
+## Native DAP 実行実験
+
+M4 の native DAP 実験は、厳密に対応する SDK から debug link した Copy executable で、実 source breakpoint、caller、step、正常終了を検証します。新規 output directory を指定して `python tools/check-native-dap.py --sdk SDK --output FRESH-DIRECTORY` を実行します。macOS は Xcode の `lldb-dap`、Windows は LLVM installation の `lldb-dap.exe` を使います。macOS の debugger 起動には適切な OS／sandbox の実行許可が必要です。現時点の実行成功根拠は local macOS で、Windows 実行は CI 確認中です。`lang dap` の native mode は実装中です。
+
+公式 [LLDB DAP 文書](https://lldb.llvm.org/use/lldbdap.html) は tool 入手方法と起動設定を記載しています。公開／更新日の記載はなく、2026-10-29 JST 確認。
+
 ## Sources
 
 対応する [project repository](https://github.com/carimatics/lang) の情報源：RFC 0020/0027/0031/0032、`src/native/component/image.rs`, `src/native/sdk_package.rs`、`src/native/link.rs`、`tools/build-native-sdk.py`、`crates/codegen-clif/src/sdk/runtime.rs`。project変更は2026-10-27 JST更新・確認。Cargo JSON fieldは公式 [Cargo Book: External tools](https://doc.rust-lang.org/cargo/reference/external-tools.html)、panic policyは [catch_unwind](https://doc.rust-lang.org/std/panic/fn.catch_unwind.html) と [Cargo profiles](https://doc.rust-lang.org/cargo/reference/profiles.html#panic) に従います。Response引数規則は公式 [rustc command-line reference](https://doc.rust-lang.org/rustc/command-line-arguments.html#path-load-command-line-flags-from-a-path) に従います。随時更新文書で更新日の記載はなく、2026-10-20 JST確認。

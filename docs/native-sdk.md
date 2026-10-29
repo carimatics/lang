@@ -63,6 +63,12 @@ The SDK Rust facade `component_embedding::gateway` connects mode 2, `module_bind
 
 The optional second argument of `startup/component-producer.rs OUTPUT [HEADER]` emits `component-api.h` and `component-client.c` as explicit host inputs without changing package roles. The SDK includes `startup/component-client.c.in` and `startup/component-gateway-host.rs`. Compile generated C with the normal target compiler and pass its object to the existing `link-native --host ... --object ...` entry. `tools/check-native-sdk-install.py` adds `component-gateway` to the six existing profiles, removing all package/private SDK/link inputs before checking C gateway 42, panic, reuse, fuel refusal, owner retirement and zero inventory. E16 isolation evidence is recorded on the M3 board, separately from actual Windows execution.
 
+## Native DAP execution experiment
+
+The M4 native DAP experiment debug-links a Copy executable from the exact matching SDK and verifies actual source breakpoints, callers, stepping and normal exit. Run `python tools/check-native-dap.py --sdk SDK --output FRESH-DIRECTORY` with a fresh output directory. macOS uses Xcode’s `lldb-dap`; Windows uses `lldb-dap.exe` from the LLVM installation. Debugger launch on macOS needs appropriate OS/sandbox execution authorization. Current successful execution evidence is local macOS; Windows execution is being checked in CI. Native mode in `lang dap` is under implementation.
+
+The official [LLDB DAP documentation](https://lldb.llvm.org/use/lldbdap.html) describes obtaining the tool and launch configuration. Publication/update date is not provided; verified 2026-10-29 JST.
+
 ## Sources
 
 Sources in the matching [project repository](https://github.com/carimatics/lang): RFC 0020/0027/0031/0032, `src/native/component/image.rs`, `src/native/sdk_package.rs`, `src/native/link.rs`, `tools/build-native-sdk.py`, `crates/codegen-clif/src/sdk/runtime.rs`, project changes updated/verified 2026-10-27 JST. Cargo JSON fields follow the official [Cargo Book: External tools](https://doc.rust-lang.org/cargo/reference/external-tools.html); panic policy follows [catch_unwind](https://doc.rust-lang.org/std/panic/fn.catch_unwind.html) and [Cargo profiles](https://doc.rust-lang.org/cargo/reference/profiles.html#panic). Response argument rules follow the official [rustc command-line reference](https://doc.rust-lang.org/rustc/command-line-arguments.html#path-load-command-line-flags-from-a-path). These living pages publish no update dates; verified 2026-10-20 JST.
