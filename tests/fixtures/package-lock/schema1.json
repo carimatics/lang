@@ -1,0 +1,32 @@
+{
+  "schema": 1,
+  "target": "aarch64-apple-darwin",
+  "compiler_version": "0.1.0",
+  "compiler_build_id": "<compiler_build_id>",
+  "packages": [
+    {
+      "root": ".",
+      "name": "app",
+      "version": "0.1.0",
+      "edition": "2026",
+      "manifest_path": "Lang.json",
+      "manifest_sha256": "cfa428b221893734226081024c9410cb98034320b94a7fbaba0fba1c64133a39",
+      "sources": [
+        {
+          "path": "src/main.lang",
+          "sha256": "11320eb4fab9748ce74ca8390891adb5b787a6793a581252d5be29720a752f2c"
+        }
+      ],
+      "dependencies": [],
+      "bindings": [
+        {
+          "kind": "entry",
+          "scope": "src",
+          "path": "src/main.lang",
+          "target": "src/main.lang"
+        }
+      ],
+      "checksum": "233e50193827732855495725b735604aa49c35ba49c2c78c6e52e3f1f29986fe"
+    }
+  ]
+}

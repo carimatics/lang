@@ -2,7 +2,7 @@
 use super::{Identity, identity, package_io};
 use crate::package::{
     Diagnostic,
-    graph::{self, Graph},
+    graph::{self, Graph, PackageId},
 };
 use cap_std::fs::Dir;
 use std::{
@@ -25,6 +25,32 @@ pub(crate) struct Scope {
 pub(crate) struct Inventory {
     pub files: BTreeMap<PathBuf, File>,
     pub scopes: BTreeMap<PathBuf, Scope>,
+    pub declared: BTreeMap<PackageId, Vec<Declared>>,
+}
+#[derive(Debug)]
+pub(crate) struct Declared {
+    pub kind: BindingKind,
+    pub scope: PathBuf,
+    pub path: PathBuf,
+    pub target: PathBuf,
+}
+#[derive(
+    Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd, serde::Deserialize, serde::Serialize,
+)]
+#[serde(rename_all = "lowercase")]
+pub(crate) enum BindingKind {
+    Directory,
+    Entry,
+    Test,
+}
+impl BindingKind {
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Directory => "directory",
+            Self::Entry => "entry",
+            Self::Test => "test",
+        }
+    }
 }
 impl Inventory {
     pub fn path(&self, requested: &Path, root: &Path) -> Option<PathBuf> {
@@ -90,6 +116,17 @@ pub(crate) fn capture(graph: &Graph) -> Result<Inventory, Diagnostic> {
         let path = package
             .source_root
             .join(package.entry_path().file_name().expect("entry filename"));
+        builder
+            .data
+            .declared
+            .entry(package.id())
+            .or_default()
+            .push(Declared {
+                kind: BindingKind::Entry,
+                scope: package.source_root.clone(),
+                path: package.entry_path().to_path_buf(),
+                target: path.clone(),
+            });
         builder.charge_bytes(package.entry_bytes().len())?;
         builder.file(
             path.clone(),
@@ -122,6 +159,17 @@ pub(crate) fn capture(graph: &Graph) -> Result<Inventory, Diagnostic> {
             )?;
             builder.charge_bytes(input.bytes.len())?;
             let path = root.join(name);
+            builder
+                .data
+                .declared
+                .entry(package.id())
+                .or_default()
+                .push(Declared {
+                    kind: BindingKind::Test,
+                    scope: root.clone(),
+                    path: requested.clone(),
+                    target: path.clone(),
+                });
             builder.file(
                 path.clone(),
                 File {
