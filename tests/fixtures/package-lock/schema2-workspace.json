@@ -1,0 +1,85 @@
+{
+  "schema": 2,
+  "target": "aarch64-apple-darwin",
+  "compiler_version": "0.1.0",
+  "compiler_build_id": "<compiler_build_id>",
+  "workspace": {
+    "manifest_path": "Lang.json",
+    "manifest_sha256": "1af7d8838008ce775801acef78da1123e23b38cb6314367a91ef2c992b8184b5",
+    "members": [
+      {
+        "path": "app",
+        "root": "app",
+        "manifest_path": "app/Lang.json",
+        "manifest_sha256": "5807ee4f28092d9279bae65771d9757efcc83857cecf082480d6c22496dfcf76",
+        "name": "app",
+        "version": "0.1.0"
+      },
+      {
+        "path": "helper",
+        "root": "helper",
+        "manifest_path": "helper/Lang.json",
+        "manifest_sha256": "e4656ff405793c50df42f1d791d04bf612f4397b4dee042b332f7c790d08d18f",
+        "name": "helper",
+        "version": "0.1.0"
+      }
+    ],
+    "selected_root": "app",
+    "checksum": "a672b45db910fc7f615e083b7fa3f33fca975bd716640a00a4ff5e726a49134a"
+  },
+  "packages": [
+    {
+      "root": "app",
+      "name": "app",
+      "version": "0.1.0",
+      "edition": "2026",
+      "manifest_path": "app/Lang.json",
+      "manifest_sha256": "5807ee4f28092d9279bae65771d9757efcc83857cecf082480d6c22496dfcf76",
+      "sources": [
+        {
+          "path": "app/src/main.lang",
+          "sha256": "0ef70231f8606b25930c82352756c1c6dc750a6e53f184d9c193adeaf6b35e29"
+        }
+      ],
+      "dependencies": [
+        {
+          "alias": "helper",
+          "root": "helper"
+        }
+      ],
+      "bindings": [
+        {
+          "kind": "entry",
+          "scope": "app/src",
+          "path": "app/src/main.lang",
+          "target": "app/src/main.lang"
+        }
+      ],
+      "checksum": "f8f95a610b2c5819770b5225ca12c87c64f1f10e3f952f63c35cde29038b6a81"
+    },
+    {
+      "root": "helper",
+      "name": "helper",
+      "version": "0.1.0",
+      "edition": "2026",
+      "manifest_path": "helper/Lang.json",
+      "manifest_sha256": "e4656ff405793c50df42f1d791d04bf612f4397b4dee042b332f7c790d08d18f",
+      "sources": [
+        {
+          "path": "helper/src/main.lang",
+          "sha256": "d3c7279134a5ce556bad9cfb3140692251ca24a44b5ca0aef88be94f38a53e40"
+        }
+      ],
+      "dependencies": [],
+      "bindings": [
+        {
+          "kind": "entry",
+          "scope": "helper/src",
+          "path": "helper/src/main.lang",
+          "target": "helper/src/main.lang"
+        }
+      ],
+      "checksum": "40552a86a2955855c8195673d25378f8b610af788388d808c88d21221b776a50"
+    }
+  ]
+}

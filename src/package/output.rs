@@ -87,27 +87,22 @@ impl Prepared {
             .map_err(|e| fs_error(&display, e))?;
         // This clone, not a later reopen of the display path, ties source and
         // output to exactly the same directory under concurrent path changes.
-        let graph = Graph::resolve_in(
+        let graph = Graph::resolve_selected_in(
             directory.try_clone().map_err(|e| fs_error(&display, e))?,
             display,
             Path::new(name),
             &request.target,
             Limits::default(),
+            request.package.as_deref(),
         )?;
         let lock = Lock::capture(&graph)?;
         let inventory = graph.inputs()?;
         let mut inputs: BTreeSet<_> = inventory.files.values().map(|f| f.identity).collect();
-        for package in graph.packages() {
-            if reserved(package.manifest_path()) {
-                return Err(invalid(
-                    package.manifest_path(),
-                    "manifest occupies a reserved package output",
-                ));
+        for (path, metadata) in graph.manifest_inputs() {
+            if reserved(path) {
+                return Err(invalid(path, "manifest occupies a reserved package output"));
             }
-            inputs.insert(input_id(
-                &package.manifest_metadata,
-                package.manifest_path(),
-            )?);
+            inputs.insert(input_id(metadata, path)?);
         }
         for path in inventory.files.keys() {
             if reserved(path) {

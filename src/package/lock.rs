@@ -1,4 +1,4 @@
-//! RFC 0034 schema-1 locks derived solely from the frozen source inventory.
+//! RFC 0034 locks derived solely from frozen package and workspace inputs.
 //! Checking and publication require an explicit, separately retained directory
 //! capability; a diagnostic display path never grants output authority.
 use super::{
@@ -32,6 +32,35 @@ struct Record {
     compiler_version: String,
     compiler_build_id: String,
     packages: Vec<Package>,
+}
+#[derive(Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct WorkspaceRecord {
+    schema: u32,
+    target: String,
+    compiler_version: String,
+    compiler_build_id: String,
+    workspace: Workspace,
+    packages: Vec<Package>,
+}
+#[derive(Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct Workspace {
+    manifest_path: String,
+    manifest_sha256: String,
+    members: Vec<Member>,
+    selected_root: String,
+    checksum: String,
+}
+#[derive(Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct Member {
+    path: String,
+    root: String,
+    manifest_path: String,
+    manifest_sha256: String,
+    name: String,
+    version: String,
 }
 #[derive(Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -120,6 +149,51 @@ fn checksum(files: &BTreeMap<String, &[u8]>, bindings: &[Binding]) -> String {
         }
     }
     hex(&hash.finalize())
+}
+fn workspace_record(workspace: &graph::WorkspaceSnapshot) -> Result<Workspace, Diagnostic> {
+    let manifest_path = path(workspace.manifest_path())?;
+    let mut files = BTreeMap::from([(manifest_path.clone(), workspace.manifest_bytes())]);
+    let mut members = Vec::new();
+    for member in workspace.members() {
+        let manifest_path = path(member.manifest_path())?;
+        files.insert(manifest_path.clone(), member.manifest_bytes());
+        members.push(Member {
+            path: member.path().into(),
+            root: path(member.root())?,
+            manifest_path,
+            manifest_sha256: digest(member.manifest_bytes()),
+            name: member.package().name.clone(),
+            version: member.package().version.clone(),
+        });
+    }
+    let selected_root = path(workspace.selected_root())?;
+    let mut hash = Sha256::new();
+    hash.update(b"LANGWORKSPACE1\0");
+    hash.update((files.len() as u64).to_le_bytes());
+    for (path, bytes) in files {
+        field(&mut hash, path.as_bytes());
+        field(&mut hash, bytes);
+    }
+    hash.update((members.len() as u64).to_le_bytes());
+    for member in &members {
+        for text in [
+            &member.path,
+            &member.root,
+            &member.manifest_path,
+            &member.name,
+            &member.version,
+        ] {
+            field(&mut hash, text.as_bytes());
+        }
+    }
+    field(&mut hash, selected_root.as_bytes());
+    Ok(Workspace {
+        manifest_path,
+        manifest_sha256: digest(workspace.manifest_bytes()),
+        members,
+        selected_root,
+        checksum: hex(&hash.finalize()),
+    })
 }
 impl Lock {
     /// Capture and validate every bounded input before lock verification.
@@ -215,15 +289,28 @@ impl Lock {
             .target()
             .parse()
             .map_err(|_| error("invalid compiler target"))?;
-        let record = Record {
-            schema: 1,
-            target: graph.target().into(),
-            compiler_version: env!("CARGO_PKG_VERSION").into(),
-            compiler_build_id: lang_codegen_clif::sdk::build_id(&target),
-            packages,
-        };
         let mut output = Bytes(Vec::new());
-        serde_json::to_writer_pretty(&mut output, &record).map_err(|_| capacity())?;
+        let compiler_build_id = lang_codegen_clif::sdk::build_id(&target);
+        if let Some(workspace) = graph.workspace() {
+            let record = WorkspaceRecord {
+                schema: 2,
+                target: graph.target().into(),
+                compiler_version: env!("CARGO_PKG_VERSION").into(),
+                compiler_build_id,
+                workspace: workspace_record(workspace)?,
+                packages,
+            };
+            serde_json::to_writer_pretty(&mut output, &record).map_err(|_| capacity())?;
+        } else {
+            let record = Record {
+                schema: 1,
+                target: graph.target().into(),
+                compiler_version: env!("CARGO_PKG_VERSION").into(),
+                compiler_build_id,
+                packages,
+            };
+            serde_json::to_writer_pretty(&mut output, &record).map_err(|_| capacity())?;
+        }
         output.write_all(b"\n").map_err(|_| capacity())?;
         Ok(Self { bytes: output.0 })
     }
@@ -287,12 +374,24 @@ pub fn validate_encoding(bytes: &[u8]) -> Result<(), Diagnostic> {
     if bytes.len() > MAX_BYTES {
         return Err(capacity());
     }
-    let record: Record =
-        serde_json::from_slice(bytes).map_err(|e| error(format!("invalid lock: {e}")))?;
-    if record.schema != 1 {
-        return Err(
-            Diagnostic::error("PKG0002", "unsupported lock schema").at_path(Path::new(NAME))
-        );
+    #[derive(Deserialize)]
+    struct Header {
+        schema: u32,
+    }
+    let invalid = |e| error(format!("invalid lock: {e}"));
+    let header: Header = serde_json::from_slice(bytes).map_err(invalid)?;
+    match header.schema {
+        1 => {
+            let _: Record = serde_json::from_slice(bytes).map_err(invalid)?;
+        }
+        2 => {
+            let _: WorkspaceRecord = serde_json::from_slice(bytes).map_err(invalid)?;
+        }
+        _ => {
+            return Err(
+                Diagnostic::error("PKG0002", "unsupported lock schema").at_path(Path::new(NAME))
+            );
+        }
     }
     Ok(())
 }
