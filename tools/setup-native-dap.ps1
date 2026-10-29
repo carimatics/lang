@@ -2,22 +2,27 @@ param([Parameter(Mandatory)][string]$OutputDirectory)
 
 $ErrorActionPreference = 'Stop'
 $version = '23.1.4'
-$sha256 = '1a3f2f998e230b5791cc4e2bfe11a1f7c07fe42c96ff44f227c9db0bedfaf091'
-$url = "https://github.com/llvm/llvm-project/releases/download/llvmorg-$version/clang%2Bllvm-$version-x86_64-pc-windows-msvc.tar.zst"
+$sha256 = '15e49aca3540991a6f28a0e57babab67da82155c4f73f79dd5e8666a851f9127'
+$url = "https://github.com/llvm/llvm-project/releases/download/llvmorg-$version/LLVM-$version-win64.msi"
 if (Test-Path $OutputDirectory) { throw 'Debugger output directory must be fresh' }
 $null = New-Item -ItemType Directory -Path $OutputDirectory
-$archive = Join-Path $OutputDirectory 'llvm.tar.zst'
+$archive = Join-Path $OutputDirectory 'llvm.msi'
 Invoke-WebRequest -Uri $url -OutFile $archive
-if ((Get-Item $archive).Length -ne 276626313 -or
+if ((Get-Item $archive).Length -ne 639641329 -or
     (Get-FileHash -Algorithm SHA256 $archive).Hash.ToLowerInvariant() -ne $sha256) {
-    throw 'Official LLVM archive size or SHA-256 does not match the pinned release'
+    throw 'Official LLVM MSI size or SHA-256 does not match the pinned release'
 }
-$tar = Join-Path $OutputDirectory 'llvm.tar'
-# This verified official archive uses a 1 GiB decoding window.
-& zstd -d --long=30 $archive -o $tar
-if ($LASTEXITCODE -ne 0) { throw 'LLVM archive decompression failed' }
-& tar -xf $tar -C $OutputDirectory
-if ($LASTEXITCODE -ne 0) { throw 'LLVM archive extraction failed' }
+# Administrative extraction creates a private image without registering an
+# installation or replacing the runner's existing LLVM tools.
+$image = Join-Path $OutputDirectory 'image'
+$log = Join-Path $OutputDirectory 'extract.log'
+$extract = Start-Process -FilePath "$env:WINDIR/System32/msiexec.exe" -Wait -PassThru -ArgumentList @(
+    '/a', "`"$archive`"", '/qn', "TARGETDIR=`"$image`"", '/l*v', "`"$log`""
+)
+if ($extract.ExitCode -ne 0) {
+    Get-Content $log -Tail 20
+    throw "LLVM administrative extraction failed: $($extract.ExitCode)"
+}
 $adapters = @(Get-ChildItem $OutputDirectory -Recurse -File -Filter 'lldb-dap.exe')
 if ($adapters.Count -ne 1) {
     $inventory = @(Get-ChildItem $OutputDirectory -Recurse -File -Filter '*lldb*' |
