@@ -19,7 +19,11 @@ if ($LASTEXITCODE -ne 0) { throw 'LLVM archive decompression failed' }
 & tar -xf $tar -C $OutputDirectory
 if ($LASTEXITCODE -ne 0) { throw 'LLVM archive extraction failed' }
 $adapters = @(Get-ChildItem $OutputDirectory -Recurse -File -Filter 'lldb-dap.exe')
-if ($adapters.Count -ne 1) { throw 'Expected exactly one official lldb-dap.exe' }
+if ($adapters.Count -ne 1) {
+    $inventory = @(Get-ChildItem $OutputDirectory -Recurse -File -Filter '*lldb*' |
+        Select-Object -First 32 -ExpandProperty FullName)
+    throw "Expected exactly one official lldb-dap.exe; found $($adapters.Count); LLDB inventory: $inventory"
+}
 $adapter = $adapters[0].FullName
 $library = Join-Path $adapters[0].DirectoryName 'liblldb.dll'
 $inspector = Join-Path $env:ProgramFiles 'LLVM/bin/llvm-readobj.exe'
