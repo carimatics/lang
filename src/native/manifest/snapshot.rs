@@ -61,14 +61,16 @@ struct Snapshot {
     dir: Option<Dir>,
 }
 impl Snapshot {
-    fn new(parent: &Path) -> Result<Self, Error> {
+    fn new(parent: &Path, name: Option<&str>) -> Result<Self, Error> {
         static NEXT: AtomicU64 = AtomicU64::new(0);
         for _ in 0..128 {
-            let path = parent.join(format!(
-                ".lang-snapshot-{}-{}",
-                std::process::id(),
-                NEXT.fetch_add(1, Ordering::Relaxed)
-            ));
+            let path = parent.join(name.map(str::to_owned).unwrap_or_else(|| {
+                format!(
+                    ".lang-snapshot-{}-{}",
+                    std::process::id(),
+                    NEXT.fetch_add(1, Ordering::Relaxed)
+                )
+            }));
             let builder = fs::DirBuilder::new();
             #[cfg(unix)]
             let builder = {
@@ -86,7 +88,7 @@ impl Snapshot {
                     );
                     return Ok(result);
                 }
-                Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => {}
+                Err(e) if name.is_none() && e.kind() == std::io::ErrorKind::AlreadyExists => {}
                 Err(e) => return Err(io(&path, e)),
             }
         }
@@ -188,12 +190,21 @@ fn context<T>(root: &Path, result: Result<T, Error>) -> Result<T, Error> {
 pub struct SdkSnapshot {
     snapshot: Snapshot,
     manifest: Sdk,
+    manifest_bytes: Vec<u8>,
 }
 impl SdkSnapshot {
     pub fn open(source: &Path, staging_parent: &Path, limits: Limits) -> Result<Self, Error> {
-        context(source, Self::load(source, staging_parent, limits))
+        context(source, Self::load(source, staging_parent, limits, None))
     }
-    fn load(source: &Path, parent: &Path, limits: Limits) -> Result<Self, Error> {
+    pub(crate) fn open_named(source: &Path, parent: &Path, limits: Limits) -> Result<Self, Error> {
+        context(source, Self::load(source, parent, limits, Some("sdk")))
+    }
+    fn load(
+        source: &Path,
+        parent: &Path,
+        limits: Limits,
+        name: Option<&str>,
+    ) -> Result<Self, Error> {
         let source = root(source)?;
         let bytes = read(&source, "sdk.json", limits.sdk_manifest)?;
         let manifest = parse_sdk(&bytes, limits).map_err(|e| at(e, "sdk.json"))?;
@@ -229,16 +240,23 @@ impl SdkSnapshot {
                 return Err(at(mismatch(field, expected, actual), "sdk.json"));
             }
         }
-        let snapshot = Snapshot::new(parent)?;
+        let snapshot = Snapshot::new(parent, name)?;
         snapshot.copy(&source, manifest.files())?;
         snapshot.write("sdk.json", &bytes)?;
-        Ok(Self { snapshot, manifest })
+        Ok(Self {
+            snapshot,
+            manifest,
+            manifest_bytes: bytes,
+        })
     }
     pub fn root(&self) -> &Path {
         &self.snapshot.path
     }
     pub fn manifest(&self) -> &Sdk {
         &self.manifest
+    }
+    pub(crate) fn manifest_bytes(&self) -> &[u8] {
+        &self.manifest_bytes
     }
 }
 /// Checked complete program data plus original private native build inputs.
@@ -256,13 +274,28 @@ impl ProgramSnapshot {
         sdk: &SdkSnapshot,
         limits: Limits,
     ) -> Result<Self, Error> {
-        context(source, Self::load(source, staging_parent, sdk, limits))
+        context(
+            source,
+            Self::load(source, staging_parent, sdk, limits, None),
+        )
+    }
+    pub(crate) fn open_named(
+        source: &Path,
+        parent: &Path,
+        sdk: &SdkSnapshot,
+        limits: Limits,
+    ) -> Result<Self, Error> {
+        context(
+            source,
+            Self::load(source, parent, sdk, limits, Some("program")),
+        )
     }
     fn load(
         source: &Path,
         parent: &Path,
         sdk: &SdkSnapshot,
         limits: Limits,
+        name: Option<&str>,
     ) -> Result<Self, Error> {
         let source = root(source)?;
         let bytes = read(&source, "package.json", limits.program_manifest)?;
@@ -295,7 +328,7 @@ impl ProgramSnapshot {
                 sdk.manifest.version().to_string(),
             ));
         }
-        let snapshot = Snapshot::new(parent)?;
+        let snapshot = Snapshot::new(parent, name)?;
         snapshot.copy(&source, manifest.files())?;
         snapshot.write("package.json", &bytes)?;
         let semantic = read(snapshot.dir(), "program.lbc", 64 * 1024 * 1024)?;

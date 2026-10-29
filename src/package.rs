@@ -4,6 +4,7 @@ pub mod command;
 pub mod graph;
 pub mod lock;
 pub mod manifest;
+mod native;
 mod output;
 mod scaffold;
 pub mod source;

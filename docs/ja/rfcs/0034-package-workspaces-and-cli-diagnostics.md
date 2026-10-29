@@ -99,6 +99,16 @@ workspace checksum は `LANGWORKSPACE1` と NUL、little-endian u64 の一意 me
 
 理由と互換性: 実装前の実行 probe は仮想 root と standalone sibling access を拒否し、root package の schema 1 lock は未選択 member manifest 変更後も受入可能だった。schema 1 にこの input の型付き保存欄がない。workspace record は input の役割と旧 standalone fixture を保ち、wrapper では欠落した権限／metadata を固定できず、source／package record の流用は契約を曖昧にする。既存 standalone encoding は引き続き対応する。旧 binary は workspace schema 2 を拒否し、workspace の旧 package-only lock は通常の unlocked 再生成を必要とする。自動 migration は行わない。manifest／source 構文、artifact schema、guest capability、native ABI は不変。member alias の包含、metadata 固定／handle 解放、配置変更、両 target replay、失敗時保護は実行証拠を必要とし、native package 再現性は A06 に残す。性能改善は仮定しない。
 
+### Native package build profile
+
+CLI 実装前の 2026-10-29 JST、実験段階の委任で採択する。`lang build --native --sdk SDK` は同じ固定済み選択 package graph を compile し、既存 native program profile を生成して明示した対応 SDK で既定 startup を link する。二つの option は組で必須、build 専用で、不正 usage は `CLI0001`／exit 2 を維持する。完成 native executable は現在 host 向けとし、別 target は output 前に `PKG0003` で拒否する。既存 Copy／owned／task startup と、C／component の明示 host 不足拒否を維持する。build は guest entry を実行せず、source 再読や Cargo／network 操作を行わない。
+
+linker は private snapshot から検証済み SDK manifest の原 byte を返す。native program file、`sdk-input.json`、executable `application`／`application.exe`、`inputs.lock`、canonical `build.json` を `target/lang/<lock-key>/native-<sdk-manifest-sha256>/` に一括公開する。SDK identity は受入済み manifest の原 byte を hash 化し、その検証済み file table がコピーした SDK input を固定する。native／portable generation は独立に再利用する。Unix の実行 permission を保持し、cache 受入でも検査する。128 output／64 MiB の package generation 上限と最終 lock transaction を再利用し、compile、SDK／toolchain／link、size、古い lock、cache 拒否で旧 output を保持する。
+
+`build.json` は 2-space indent と末尾 LF の UTF-8 JSON で、field 順は `schema`（1）、`target`、`compiler_build_id`、`lock_sha256`、`sdk_manifest_sha256`、`rustc_release`、`rustc_commit`、`package_manifest_sha256`、`executable_sha256`。identity／toolchain data は固定 compiler input と検証済み SDK／link 操作から得る。cache replay は期待する完全 canonical output byte と比較し、receipt は実行権限を与えない。native build 成功時は権限相対 executable path を表示し、JSON message format は field 順 `schema`（1）、`kind`（`artifact`）、`path` の object 一つを出す。error は既存診断を維持する。
+
+理由: 既存 compiler／SDK／link API の合成により、別 backend／startup engine を作らず元 entry、span、native 信頼、互換性を保持する。手作業の二 command recipe は package dependency の固定や lock と一緒の output commit を提供しない。portable generation 内に native output を置くと SDK 依存 input を混同する。source／lock／native／SDK schema は維持し、独立 version の build receipt と CLI profile を追加する。再現性 probe が示した startup／debug-map staging path の修正は、RFC 0020 に実装前記録した。executable 全 digest、source 不要 startup、失敗時保持、SDK 不一致、両 host 挙動を test で検証する。再現性は SDK と外部 native toolchain input を固定した範囲に限り、toolchain 間や host 間の byte 一致を主張しない。A06 の task list は既存受入／公開機構を使う単一 3-point 実行成果として review した。
+
 ## 厳密な意味論
 
 manifest schema 1 は必須 field の欠落、未知 field、全 object 階層の重複キー、未対応 schema／edition、不正な name／version／path／condition、末尾の余剰入力を拒否する。package identity の既定値や dependency path の推測は行わない。dependencies／tests は省略時に空、workspace は省略時に存在しない。省略可能な field も存在する場合は宣言された型を必要とし、明示的 null は省略とは扱わない。manifest は 64 KiB、dependency／member／test リストはそれぞれ 128 件までとする。JSON のネストには serde_json の再帰上限を維持する。

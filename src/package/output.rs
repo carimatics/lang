@@ -18,16 +18,19 @@ pub(super) const MAX_OUTPUT: usize = 64 * 1024 * 1024;
 pub(super) struct File<'a> {
     pub path: &'a str,
     pub bytes: &'a [u8],
+    pub executable: bool,
 }
-pub(super) enum Generation {
+pub(super) enum Generation<'a> {
     Build,
     Test,
+    Native(&'a str),
 }
-impl Generation {
-    fn name(self) -> &'static str {
+impl Generation<'_> {
+    fn name(&self) -> &str {
         match self {
             Self::Build => "build",
             Self::Test => "test",
+            Self::Native(name) => name,
         }
     }
 }
@@ -150,7 +153,7 @@ impl Output {
     pub fn publish(
         &self,
         lock: &Lock,
-        generation: Generation,
+        generation: Generation<'_>,
         files: &[File<'_>],
         locked: bool,
     ) -> Result<(), Diagnostic> {
@@ -213,16 +216,18 @@ impl Output {
         let expected: Vec<_> = std::iter::once(File {
             path: "inputs.lock",
             bytes: lock.as_bytes(),
+            executable: false,
         })
         .chain(files.iter().map(|f| File {
             path: f.path,
             bytes: f.bytes,
+            executable: f.executable,
         }))
         .collect();
         if !matches_existing(&parent, name, &expected, &self.inputs)? {
             let mut stage = Stage::new(&parent)?;
             for file in &expected {
-                stage.write(file.path, file.bytes)?;
+                stage.write_mode(file.path, file.bytes, file.executable)?;
             }
             stage.close();
             match parent.rename(&stage.name, &parent, name) {
@@ -283,6 +288,13 @@ fn matches_existing(
             directories.insert(parent.to_path_buf());
         }
         let input = graph::read(&dir, Path::new(name), path, file.bytes.len())?;
+        #[cfg(unix)]
+        {
+            use cap_std::fs::PermissionsExt;
+            if file.executable && input.metadata.permissions().mode() & 0o111 == 0 {
+                return Err(mismatch(path, "cached native output is not executable"));
+            }
+        }
         if input.bytes != file.bytes {
             return Err(mismatch(
                 path,
@@ -380,6 +392,11 @@ impl Stage {
         &self.name
     }
     pub fn write(&self, name: &str, bytes: &[u8]) -> Result<(), Diagnostic> {
+        self.write_mode(name, bytes, false)
+    }
+    fn write_mode(&self, name: &str, bytes: &[u8], executable: bool) -> Result<(), Diagnostic> {
+        #[cfg(not(unix))]
+        let _ = executable;
         let path = Path::new(name);
         if let Some(parent) = path.parent().filter(|p| !p.as_os_str().is_empty()) {
             self.directory()
@@ -391,7 +408,7 @@ impl Stage {
         #[cfg(unix)]
         {
             use cap_std::fs::OpenOptionsExt;
-            options.mode(0o600);
+            options.mode(if executable { 0o700 } else { 0o600 });
         }
         let mut file = self
             .directory()
