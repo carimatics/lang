@@ -20,15 +20,17 @@ debugger_environment = None
 if WINDOWS:
     debugger_environment = os.environ.copy()
     debugger_environment["LLDB_USE_NATIVE_PDB_READER"] = "1"
-    adapter = Path(os.environ.get("ProgramFiles", r"C:\Program Files")) / "LLVM" / "bin" / "lldb-dap.exe"
+    adapter = Path(os.environ.get("LLDB_DAP_EXECUTABLE") or
+                   str(Path(os.environ.get("ProgramFiles", r"C:\Program Files")) / "LLVM" / "bin" / "lldb-dap.exe"))
     if not adapter.is_file():
         raise RuntimeError(f"required native DAP adapter is unavailable: {adapter}")
     debugger = [str(adapter)]
     runtime = os.environ.get("LLDB_PYTHON_RUNTIME")
     if runtime:
         home = Path(runtime).resolve().parent
-        if not (home / "python310.dll").is_file():
-            raise RuntimeError("LLVM 20 requires an x64 Python 3.10 runtime containing python310.dll")
+        dll = os.environ.get("LLDB_PYTHON_DLL") or "python310.dll"
+        if Path(dll).name != dll or not (home / dll).is_file():
+            raise RuntimeError(f"selected LLVM requires an x64 Python runtime containing {dll}")
         debugger_environment["PYTHONHOME"] = str(home)
         debugger_environment["PATH"] = str(home) + os.pathsep + debugger_environment.get("PATH", "")
 else:

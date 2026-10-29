@@ -69,8 +69,12 @@ M4 の native DAP 実験は、厳密に対応する SDK から debug link した
 
 Windows runner の LLVM 20.1.8 は `python310.dll` を必要とする。実験 client の `LLDB_PYTHON_RUNTIME` に対応する x64 Python 3.10 executable を指定すると、その debugger child だけの `PATH`／`PYTHONHOME` を設定する。CI は commit を固定した公式 [setup-python action](https://github.com/actions/setup-python/blob/ece7cb06caefa5fff74198d8649806c4678c61a1/action.yml) で runtime を用意し、通常 job interpreter は変更しない。この living action 文書に公開／更新日の記載はなく、2026-10-30 JST 確認。
 
+実験 client は debugger child で `LLDB_USE_NATIVE_PDB_READER=1` を選び、DIA reader が source 情報を公開しない場合に native PDB reader を使う。選択条件は公式 [LLVM 20.1.8 実装](https://github.com/llvm/llvm-project/blob/llvmorg-20.1.8/lldb/source/Plugins/SymbolFile/PDB/SymbolFilePDB.cpp) に従う。この取得結果に公開／更新日の記載はなく、2026-10-30 JST 確認。
+
 公式 [LLDB DAP 文書](https://lldb.llvm.org/use/lldbdap.html) は tool 入手方法と起動設定を記載しています。公開／更新日の記載はなく、2026-10-29 JST 確認。
 
 ## Sources
+
+Windows DAP CI 実験は、公式 [LLVM 23.1.4 release](https://github.com/llvm/llvm-project/releases/tag/llvmorg-23.1.4) を runner の LLVM 20 tool とは別に導入する。公開日2026-10-20、asset size／SHA-256 は2026-10-30 JST 確認。`tools/setup-native-dap.ps1` は固定した x86-64 archive を展開前に検証し、実 `liblldb.dll` の Python import を調べて、その child runtime だけを選ぶ。`LLDB_DAP_EXECUTABLE` と `LLDB_PYTHON_DLL` は信頼済み実験 host の設定。既存 LLVM debugger 検証も維持する。この準備だけでは Windows session の正常終了証拠に数えず、adapter exit の厳密な assertion を引き続き必要とする。
 
 対応する [project repository](https://github.com/carimatics/lang) の情報源：RFC 0020/0027/0031/0032、`src/native/component/image.rs`, `src/native/sdk_package.rs`、`src/native/link.rs`、`tools/build-native-sdk.py`、`crates/codegen-clif/src/sdk/runtime.rs`。project変更は2026-10-27 JST更新・確認。Cargo JSON fieldは公式 [Cargo Book: External tools](https://doc.rust-lang.org/cargo/reference/external-tools.html)、panic policyは [catch_unwind](https://doc.rust-lang.org/std/panic/fn.catch_unwind.html) と [Cargo profiles](https://doc.rust-lang.org/cargo/reference/profiles.html#panic) に従います。Response引数規則は公式 [rustc command-line reference](https://doc.rust-lang.org/rustc/command-line-arguments.html#path-load-command-line-flags-from-a-path) に従います。随時更新文書で更新日の記載はなく、2026-10-20 JST確認。
