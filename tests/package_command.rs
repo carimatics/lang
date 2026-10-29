@@ -125,6 +125,22 @@ fn new_build_run_and_locked_offline_dependency_are_real_cli_operations() {
     assert!(run.stderr.is_empty());
     assert_eq!(f.lock(), lock);
     assert_eq!(fs::read(&artifact).unwrap(), bytes);
+    let default = success(
+        Command::new(env!("CARGO_BIN_EXE_lang"))
+            .current_dir(f.0.join("app"))
+            .arg("run")
+            .output()
+            .unwrap(),
+    );
+    assert_eq!(default.stdout, b"42\n");
+    assert!(default.stderr.is_empty());
+    let nested = Command::new(env!("CARGO_BIN_EXE_lang"))
+        .current_dir(f.0.join("app/src"))
+        .args(["run", "--message-format", "json"])
+        .output()
+        .unwrap();
+    diagnostic(&nested, "PKG0005");
+    assert_eq!(f.lock(), lock);
     let external = success(f.run(&["run", "--artifact", artifact.to_str().unwrap()]));
     assert_eq!(external.stdout, b"42\n");
     let replay = success(f.run(&[
