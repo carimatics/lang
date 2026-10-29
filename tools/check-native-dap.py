@@ -213,14 +213,14 @@ finally:
         except (BrokenPipeError, OSError):
             pass
     try:
-        process.stdin.close()
-    except OSError:
-        pass
-    try:
         process.wait(timeout=5)
     except subprocess.TimeoutExpired:
         process.kill()
         process.wait(timeout=5)
+    try:
+        process.stdin.close()
+    except OSError:
+        pass
     reader.join(timeout=5)
     stderr_reader.join(timeout=5)
     print(json.dumps({"adapter_exit_code": process.returncode,
