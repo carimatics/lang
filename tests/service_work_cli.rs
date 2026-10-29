@@ -213,9 +213,10 @@ fn option_validation_and_zero_work_copy_programs_keep_cli_exit_contracts() {
     assert!(help.contains("lang run [--manifest-path FILE]"));
     assert!(help.contains("lang test [--manifest-path FILE]"));
     assert!(help.contains("lang profile run [--manifest-path FILE]"));
+    assert!(help.contains("lang profile allocations [--manifest-path FILE]"));
     assert_eq!(
         help.matches("[--service-work N]").count(),
-        6 // The five existing forms plus profile run.
+        7 // The five existing forms plus profile run and allocations.
     );
 }
 

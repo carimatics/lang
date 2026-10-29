@@ -596,3 +596,337 @@ fn runtime_report_reader_refuses_unproven_points_and_false_sampling_totals() {
         .replacen("{", "{\"schema\":1,", 1);
     assert!(RuntimeReport::decode(duplicate.as_bytes()).is_err());
 }
+
+fn allocation_cli(engine: &str, extra: &[&str]) -> std::process::Output {
+    bin()
+        .args(["profile", "allocations", "--manifest-path"])
+        .arg(
+            Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("examples/packages/profile_runtime/Lang.json"),
+        )
+        .args(["--engine", engine])
+        .args(extra)
+        .output()
+        .unwrap()
+}
+
+#[test]
+fn allocation_cli_reconciles_original_vm_native_success_failure_and_capacity() {
+    use lang::profile::allocation::{Outcome, Report};
+    let mut original = None;
+    for engine in ["vm", "native"] {
+        let output = allocation_cli(engine, &[]);
+        assert!(
+            output.status.success(),
+            "{}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        assert!(output.stderr.is_empty());
+        let report = Report::decode(&output.stdout).unwrap();
+        assert_eq!(report.outcome, Outcome::Completed { result: 42 });
+        assert_eq!(report.usage.fuel, 23);
+        assert_eq!(report.stats.live_allocations, 0);
+        assert_eq!(report.stats.live_bytes, 0);
+        assert!(report.stats.allocations > 0);
+        assert_eq!(Report::decode(&report.encode().unwrap()).unwrap(), report);
+        if let Some((events, stats, usage)) = &original {
+            assert_eq!(&report.events, events);
+            assert_eq!(&report.stats, stats);
+            assert_eq!(&report.usage, usage);
+        } else {
+            original = Some((report.events, report.stats, report.usage));
+        }
+        for fuel in ["0", "8", "16"] {
+            let output = allocation_cli(engine, &["--fuel", fuel, "--message-format", "json"]);
+            assert_eq!(output.status.code(), Some(1));
+            let report = Report::decode(&output.stdout).unwrap();
+            assert!(matches!(
+                report.outcome,
+                Outcome::Failed { fault: Some(_), .. }
+            ));
+            assert!(
+                String::from_utf8(output.stderr)
+                    .unwrap()
+                    .contains("CLI0002")
+            );
+            assert_eq!(report.usage.fuel, fuel.parse::<u64>().unwrap());
+            assert_eq!(report.stats.live_allocations, 0);
+        }
+        let output = allocation_cli(engine, &["--events", "1", "--message-format", "json"]);
+        assert_eq!(output.status.code(), Some(1));
+        assert!(output.stdout.is_empty());
+        assert!(
+            String::from_utf8(output.stderr)
+                .unwrap()
+                .contains("PRF0003")
+        );
+        let output = allocation_cli(
+            engine,
+            &["--events", "1", "--fuel", "16", "--message-format", "json"],
+        );
+        assert_eq!(output.status.code(), Some(1));
+        assert!(output.stdout.is_empty());
+        let diagnostics = String::from_utf8(output.stderr).unwrap();
+        assert!(diagnostics.contains("CLI0002"), "{diagnostics}");
+        assert!(diagnostics.contains("PRF0003"), "{diagnostics}");
+    }
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("examples/packages/profile_runtime");
+    assert!(!root.join("Lang.lock").exists());
+    assert!(!root.join("target").exists());
+    for extra in [
+        vec!["--events", "0"],
+        vec!["--events", "16385"],
+        vec!["--sample-every", "1"],
+        vec!["--events", "4", "--events", "4"],
+    ] {
+        let output = allocation_cli("vm", &extra);
+        assert_eq!(output.status.code(), Some(2));
+        assert!(output.stdout.is_empty());
+    }
+}
+
+#[test]
+fn allocation_reader_replays_real_zero_resize_oom_and_preserves_live_prefixes() {
+    use lang::profile::allocation::{Event, Report};
+    use lang_runtime::allocation as a;
+    struct Oom;
+    impl a::Provider for Oom {
+        type Region = a::Storage;
+        fn allocate(&mut self, r: a::Request) -> Option<a::Storage> {
+            if r.bytes() == 64 {
+                None
+            } else {
+                a::System.allocate(r)
+            }
+        }
+        fn deallocate(&mut self, r: a::Storage, q: a::Request) {
+            a::System.deallocate(r, q);
+        }
+    }
+    let mut report = Report::decode(&allocation_cli("vm", &[]).stdout).unwrap();
+    let mut allocator = a::Allocator::new(Oom, Default::default()).unwrap();
+    let trace = allocator.start_trace(8).unwrap();
+    let zero = allocator.allocate(a::Request::new(0, 8).unwrap()).unwrap();
+    let mut value = allocator.allocate(a::Request::new(16, 8).unwrap()).unwrap();
+    allocator.resize(&mut value, 32).unwrap();
+    assert_eq!(
+        allocator.allocate(a::Request::new(64, 8).unwrap()),
+        Err(a::Error::OutOfMemory)
+    );
+    let snapshot = trace.snapshot().unwrap();
+    report.allocator = snapshot.allocator.get();
+    report.events = snapshot.events.into_iter().map(Event::from).collect();
+    report.stats = allocator.stats().into();
+    report.validate().unwrap();
+    assert_eq!(report.stats.cumulative_bytes, 112);
+    assert_eq!(report.stats.peak_live_bytes, 48);
+    assert_eq!(report.stats.live_bytes, 32);
+    assert_eq!(report.stats.live_allocations, 2);
+    assert_eq!(Report::decode(&report.encode().unwrap()).unwrap(), report);
+    allocator.release(value).unwrap();
+    allocator.release(zero).unwrap();
+    report.events = trace
+        .snapshot()
+        .unwrap()
+        .events
+        .into_iter()
+        .map(Event::from)
+        .collect();
+    report.stats = allocator.stats().into();
+    report.validate().unwrap();
+    assert_eq!(report.stats.live_allocations, 0);
+    let good = serde_json::to_value(&report).unwrap();
+    let mut failures = Vec::new();
+    for (key, value) in [
+        ("schema", serde_json::json!(2)),
+        ("allocator", serde_json::json!(0)),
+        ("profile", serde_json::json!("copy")),
+        ("unknown", serde_json::json!(true)),
+    ] {
+        let mut bad = good.clone();
+        bad[key] = value;
+        failures.push(bad);
+    }
+    for (index, key, value) in [
+        (0, "generation", serde_json::json!(0)),
+        (1, "generation", serde_json::json!(1)),
+        (3, "generation", serde_json::json!(u64::MAX)),
+        (0, "unknown", serde_json::json!(true)),
+    ] {
+        let mut bad = good.clone();
+        bad["events"][index]["operation"][key] = value;
+        failures.push(bad);
+    }
+    for key in [
+        "live_bytes",
+        "cumulative_bytes",
+        "peak_live_bytes",
+        "live_allocations",
+        "peak_live_allocations",
+        "requests",
+        "allocations",
+        "deallocations",
+    ] {
+        let mut bad = good.clone();
+        bad["stats"][key] = serde_json::json!(u64::MAX);
+        failures.push(bad);
+        let mut bad = good.clone();
+        bad["events"][2]["stats"][key] = serde_json::json!(u64::MAX);
+        failures.push(bad);
+    }
+    let mut bad = good.clone();
+    bad["events"][3]["request"]["bytes"] = serde_json::json!(17);
+    failures.push(bad);
+    let mut bad = good.clone();
+    bad["events"][4]["request"]["bytes"] = serde_json::json!(0);
+    failures.push(bad);
+    let mut bad = good.clone();
+    bad["events"][0]["request"]["alignment"] = serde_json::json!(3);
+    failures.push(bad);
+    let mut bad = good.clone();
+    bad["events"]
+        .as_array_mut()
+        .unwrap()
+        .push(good["events"][6].clone());
+    failures.push(bad);
+    let mut bad = good.clone();
+    bad["outcome"] = serde_json::json!({"status":"failed", "message":"x", "fault":{"source":4096,"start":0,"end":0}});
+    failures.push(bad);
+    for bad in failures {
+        assert!(
+            Report::decode(&serde_json::to_vec(&bad).unwrap()).is_err(),
+            "{bad}"
+        );
+    }
+    let duplicate = String::from_utf8(report.encode().unwrap())
+        .unwrap()
+        .replacen("{", "{\"schema\":1,", 1);
+    assert!(Report::decode(duplicate.as_bytes()).is_err());
+    assert!(Report::decode(&vec![b' '; lang::profile::MAX_REPORT_BYTES + 1]).is_err());
+}
+
+#[test]
+fn allocation_report_bounds_and_cli_admission_preserve_source_diagnostics_and_files() {
+    use lang::profile::allocation::{
+        Event, Failure, Operation, Outcome, Report, Request, Statistics,
+    };
+    let report = Report::decode(&allocation_cli("vm", &[]).stdout).unwrap();
+    let mut spaced = report.clone();
+    for event in &mut spaced.events {
+        match &mut event.operation {
+            Operation::Allocated { generation } | Operation::Retired { generation } => {
+                *generation *= 2
+            }
+            Operation::AllocationFailed { .. } => {}
+        }
+    }
+    spaced.validate().unwrap();
+    let mut overflow = report.clone();
+    overflow.events = vec![
+        Event {
+            request: Request {
+                bytes: i64::MAX as u64,
+                alignment: 1,
+            },
+            operation: Operation::AllocationFailed {
+                reason: Failure::OutOfMemory,
+            },
+            stats: Statistics {
+                requests: 1,
+                cumulative_bytes: i64::MAX as u64,
+                ..Default::default()
+            },
+        },
+        Event {
+            request: Request {
+                bytes: i64::MAX as u64,
+                alignment: 1,
+            },
+            operation: Operation::AllocationFailed {
+                reason: Failure::OutOfMemory,
+            },
+            stats: Statistics {
+                requests: 2,
+                cumulative_bytes: u64::MAX - 1,
+                ..Default::default()
+            },
+        },
+        Event {
+            request: Request {
+                bytes: 2,
+                alignment: 1,
+            },
+            operation: Operation::AllocationFailed {
+                reason: Failure::OutOfMemory,
+            },
+            stats: Statistics {
+                requests: 3,
+                cumulative_bytes: 0,
+                ..Default::default()
+            },
+        },
+    ];
+    assert!(overflow.validate().is_err());
+    let mut oversized = report.clone();
+    oversized.events = vec![report.events[0]; lang_runtime::allocation::MAX_TRACE_EVENTS + 1];
+    assert!(oversized.validate().is_err());
+    let mut oversized = report.clone();
+    oversized.outcome = Outcome::Failed {
+        message: "x".repeat(8193),
+        fault: None,
+    };
+    assert!(oversized.encode().is_err());
+    let mut oversized = report;
+    let source = oversized.sources[0].clone();
+    oversized.sources = (0..512)
+        .map(|id| lang::profile::runtime::Source {
+            id,
+            path: "x".repeat(8192),
+            bytes: 0,
+            digest: source.digest.clone(),
+        })
+        .collect();
+    oversized.validate().unwrap();
+    assert!(
+        oversized.encode().is_err(),
+        "preflight output must remain within 4 MiB"
+    );
+    let temp = Temp::new();
+    let app = temp.0.join("app");
+    assert!(bin().arg("new").arg(&app).status().unwrap().success());
+    std::fs::write(app.join("src/main.lang"), "fn main()->i64{return 42;}").unwrap();
+    std::fs::write(app.join("Lang.lock"), "existing lock").unwrap();
+    for source in [
+        "fn main()->i64{return 42;}",
+        "fn main()->i64{return missing;}",
+    ] {
+        std::fs::write(app.join("src/main.lang"), source).unwrap();
+        let output = bin()
+            .args(["profile", "allocations", "--manifest-path"])
+            .arg(app.join("Lang.json"))
+            .args(["--message-format", "json"])
+            .output()
+            .unwrap();
+        assert_eq!(output.status.code(), Some(1));
+        assert!(output.stdout.is_empty());
+        let diagnostic = String::from_utf8(output.stderr).unwrap();
+        if source.contains("missing") {
+            assert!(
+                diagnostic.contains("span") && diagnostic.contains("main.lang"),
+                "{diagnostic}"
+            );
+            assert!(!diagnostic.contains("PRF0003"));
+        } else {
+            assert!(diagnostic.contains("PRF0003"));
+        }
+        assert_eq!(
+            std::fs::read_to_string(app.join("src/main.lang")).unwrap(),
+            source
+        );
+        assert_eq!(
+            std::fs::read_to_string(app.join("Lang.lock")).unwrap(),
+            "existing lock"
+        );
+        assert!(!app.join("target").exists());
+    }
+}

@@ -102,7 +102,7 @@ pub struct Report {
 fn error(message: impl std::fmt::Display) -> Diagnostic {
     Diagnostic::error("PRF0002", message.to_string())
 }
-fn portable_path(path: &str) -> bool {
+pub(super) fn portable_path(path: &str) -> bool {
     !path.is_empty()
         && path.len() <= 8192
         && !path.contains(['\\', ':'])
@@ -276,7 +276,7 @@ fn parse(args: &[OsString]) -> Result<Request, Diagnostic> {
         observations,
     })
 }
-fn source_list(raw: &[lang_mir::unit::Source], root: &Path) -> Vec<Source> {
+pub(super) fn source_list(raw: &[lang_mir::unit::Source], root: &Path) -> Vec<Source> {
     raw.iter()
         .enumerate()
         .filter_map(|(id, source)| {
@@ -296,7 +296,7 @@ fn source_list(raw: &[lang_mir::unit::Source], root: &Path) -> Vec<Source> {
         })
         .collect()
 }
-fn fault(
+pub(super) fn fault(
     message: impl std::fmt::Display,
     usage: e::Usage,
     point: Option<e::Point>,

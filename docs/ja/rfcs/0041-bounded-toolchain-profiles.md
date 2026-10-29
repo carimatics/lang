@@ -78,6 +78,20 @@ RFC 0001の実験委任でこの前提を採択する。実験が欠けた観測
 
 compile profilingは通常portable compilerが受理する全意味profileを、元のentry／preflight規則で使う。VM／native AOT／JIT／component codeは実行しない。runtime modeは明示instrumentation／計測上限を持つE02／E03の要件に残る。
 
+### Allocation report elaboration (2026-10-30 JST)
+
+`lang profile allocations [--manifest-path FILE] [--package NAME] [--engine vm|native] [--events N] [--fuel N] [--frames N] [--cells N] [--service-work N] [--message-format human|json]`はE02と同じpackage capture、compiler、明示host target、元ownership VM／native JIT entryを使う。event上限は既定4,096、最大16,384。importをgrantしない。未対応profile／target／optionはentry前に拒否する。build／lockを公開せず、guestをreplayしない。freshな元allocatorへentry前にtraceを付け、allocatorをdropする前にsnapshotを取得する。
+
+閉じたschema-1 `allocation_trace` reportはcompiler／target／input identity、engine、ownership profile、`logical_requested_storage` measurement、`entry_return` boundary、正の元allocator identity、上限付きsource metadata、元execution usage、outcome、順序付きevent、最終Statsを含む。source metadataにはE02のpath／digest／size上限を使い、元failure spanを表す。allocation位置を推測しない。outcomeは元i64結果を持つcompleted、または空でない上限8,192 UTF-8 bytesのmessageと任意の元source rangeを持つfailedである。clockや物理memory計測は主張しない。
+
+各eventは要求bytes／alignment、処理後Stats、閉じたoperationを持つ。operationは正の元generationを持つallocated、out_of_memoryまたはinvalid_storageを持つallocation_failed、元generationを持つretiredである。Statsは元の8 counter（live／cumulative／peak-live bytes、live／peak-live allocation count、requests、allocations、deallocations）を持つ。wire counterは符号なし64-bit整数で、producerは実host countを正確に変換する。allocation failureにgenerationはなく、0-size logical allocationはproviderを呼ばないため要求bytesは非0である。
+
+validatorは0 counterと上限付きlive-generation mapからchecked演算でreplayする。admitされた各確保試行はrequestsと累積要求bytesを増やす。成功は未使用かつ増加するgenerationを追加し、live counterと成功peakを更新する。generationの連続性は要求しない。失敗は元refund後のlive counterとpeakを保持する。retirementは現在liveなgenerationと元と同じrequestを必要とし、削除してdeallocationsを増やす。各eventのStatsと最終Statsはreplay値と一致しなければならない。重複／再利用generation、不明／二重retirement、request改変、overflow、偽peak／合計を拒否する。entry return時のlive ownerは有効で、最終liveが0であることは要求しない。producerも同境界の元allocatorの実Statsとsnapshotを照合する。replayは内部整合性を示し、artifactの真正性や物理確保履歴を証明しない。
+
+encode／decodeは4 MiB上限を保持し、未知／重複field、未対応enum／schemaを拒否し、公開前にevent／source／message上限を検証する。guest成功は完全reportとexit 0、guest失敗は完全なfailed-outcome report、stderrの通常source診断とexit 1を返す。観測／encode失敗はpartial reportを出さずexit 1とし、元guest失敗診断も保持する。CLI誤用はexit 2。observer errorはguest control、結果、provider call、cleanupを変えない。
+
+RFC 0001の実験委任でこのreport詳細を採択する。E03Rの実境界testは観測機構を示し、strict replayと実CLIの成功／失敗／容量fixtureはE03の3-point実装scopeに残る。完全な失敗実行と不完全な観測を区別する設計である。E03Rの完全baseline／両host受入とE03実装は未完了で、この設計判断でdeliveryやG8を完了しない。
+
 ## ABI and compatibility
 
 reportは新しいschema-1 host artifactである。既存source／edition／MIR／bytecode／package／lock／SDK／C／component形式は変更しない。未知の将来report kindをreaderは拒否する。非互換compile report変更には新schemaを必要とし、既存programの移行は不要である。
@@ -111,7 +125,7 @@ E01でcompile report／readerと実package CLI fixtureを実装する。E02で�
 
 ## Open questions
 
-2026-10-30 JST、RFC 0001の実験委任で採択する。E01 compile reportはsource `e2f0c1d`／最終head `4ee6043`の完全local baselineと両host CIで検証した。E02最終head `7baee25`は完全local baseline（170 suite／2,485 test）、全体CI `40951375087`、native CI `40951374893`に成功し、実VM／nativeの結果、usage、元span観測が一致した。E03Rの元allocator trace実装とE03／E04のreport／rebuild契約・証拠は引き続き必要。単発timingを性能比較に使わない。
+2026-10-30 JST、RFC 0001の実験委任で採択する。E01／E02／E03Rは完全local baselineと両host CIで検証済み（E03R source `b715b7a`、全体／native run `40955893106`／`40955893087`）。E03の元VM／native allocation reportとstrict replayはCLI／reader／help／整合性の重点22 testと全Clippyにlocal成功し、完全baselineと両host受入は未完了である。E04 rebuild説明の契約と証拠は引き続き必要。単発timingを性能比較に使わない。
 
 ## Sources
 

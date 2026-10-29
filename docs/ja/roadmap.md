@@ -18,7 +18,7 @@ M2は完了済みです。18/18ゲート、過去のゲート重み113/113です
 
 ## M3完了後の作業
 
-M3は完了済みです。M4の[作業ボード](milestone-4.md)は42 delivery、**30 done · 1 doing · 12 todo · 35 remaining pt**です。G1–G7を検証済みです。DAP source `cf5e27f`が保持VMのstep／inspection、native source debug、実mixed native／VM pause、restart／terminationのID分離を実装し、完全local baseline、全体CI `40937041512`、native-debug `40937041276`の3環境に成功しました。E01 compile reportは`e2f0c1d`で実装し、E02 runtime観測は`7baee25`で検証し、E03R論理allocator traceがdoingで、runtime／allocation profiling（G8）、署名install（G9）、最終journey／機能guideは引き続き必要です。
+M3は完了済みです。M4の[作業ボード](milestone-4.md)は43 delivery、**31 done · 1 doing · 11 todo · 33 remaining pt**です。G1–G7を検証済みです。DAP source `cf5e27f`が保持VMのstep／inspection、native source debug、実mixed native／VM pause、restart／terminationのID分離を実装し、完全local baseline、全体CI `40937041512`、native-debug `40937041276`の3環境に成功しました。E01 compile reportは`e2f0c1d`で実装し、E02 runtime観測は`7baee25`で検証し、E03R論理allocator traceは`b715b7a`で検証済み、E03 allocation reportがdoingで、runtime／allocation profiling（G8）、署名install（G9）、最終journey／機能guideは引き続き必要です。
 
 PR #9–#18 は merge 済みです。local main／origin/main ref は `0a15fb5` で一致し、ahead／behind 0/0。現在の `codex/m4-debug-adapter` は clean・upstream 同期済み `codex/m4-editor-checked-edits` head `5cdc422` から作成し、既存 user 変更はありません。記録 PR base は #18 merge 後に `carimatics/lang:main` へ移行しました。upstream は `origin/codex/m4-debug-adapter`、[draft PR #19](https://github.com/carimatics/lang/pull/19) の D01 両 host CI／debugger は成功し、現在の証拠と残る条件は board に記録しています。
 
