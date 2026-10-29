@@ -18,6 +18,8 @@ ROOT = args.output.resolve()
 WINDOWS = platform.system() == "Windows"
 debugger_environment = None
 if WINDOWS:
+    debugger_environment = os.environ.copy()
+    debugger_environment["LLDB_USE_NATIVE_PDB_READER"] = "1"
     adapter = Path(os.environ.get("ProgramFiles", r"C:\Program Files")) / "LLVM" / "bin" / "lldb-dap.exe"
     if not adapter.is_file():
         raise RuntimeError(f"required native DAP adapter is unavailable: {adapter}")
@@ -27,7 +29,6 @@ if WINDOWS:
         home = Path(runtime).resolve().parent
         if not (home / "python310.dll").is_file():
             raise RuntimeError("LLVM 20 requires an x64 Python 3.10 runtime containing python310.dll")
-        debugger_environment = os.environ.copy()
         debugger_environment["PYTHONHOME"] = str(home)
         debugger_environment["PATH"] = str(home) + os.pathsep + debugger_environment.get("PATH", "")
 else:
@@ -117,6 +118,10 @@ sequence = 0
 responses = {}
 events = []
 
+def source_path(frame):
+    path = Path(frame.get("source", {}).get("path", "."))
+    return (path if path.is_absolute() else ROOT / path).resolve()
+
 def send(command, arguments):
     global sequence
     sequence += 1
@@ -158,6 +163,7 @@ def event(name):
         receive(deadline)
 
 completed = False
+disconnected = False
 try:
     caps = request("initialize", {"adapterID": "lang-native-probe", "linesStartAt1": True,
         "columnsStartAt1": True, "pathFormat": "path", "supportsRunInTerminalRequest": False})
@@ -172,8 +178,8 @@ try:
     stopped = event("stopped")
     stack = request("stackTrace", {"threadId": stopped["body"]["threadId"], "levels": 32})
     frames = stack["stackFrames"]
-    assert any(Path(f.get("source", {}).get("path", ".")).resolve() == SOURCE and f["line"] == 2 for f in frames), frames
-    guest_frames = [f for f in frames if Path(f.get("source", {}).get("path", ".")).resolve() == SOURCE]
+    assert any(source_path(f) == SOURCE and f["line"] == 2 for f in frames), frames
+    guest_frames = [f for f in frames if source_path(f) == SOURCE]
     assert len(guest_frames) >= 2 and guest_frames[0]["line"] == 2 and guest_frames[1]["line"] == 5, guest_frames
     print(json.dumps({"checkpoint": "native-dap-breakpoint", "stopped": stopped["body"],
         "breakpoints": breakpoints, "frames": frames[:8]}), flush=True)
@@ -181,7 +187,7 @@ try:
     stepped = event("stopped")
     stepped_stack = request("stackTrace", {"threadId": stepped["body"]["threadId"], "levels": 8})
     assert stepped["body"]["reason"] == "step", stepped
-    assert any(Path(f.get("source", {}).get("path", ".")).resolve() == SOURCE and f["line"] == 5
+    assert any(source_path(f) == SOURCE and f["line"] == 5
                for f in stepped_stack["stackFrames"]), stepped_stack
     print(json.dumps({"checkpoint": "native-dap-step", "stopped": stepped["body"],
         "frames": stepped_stack["stackFrames"][:4]}), flush=True)
@@ -190,6 +196,7 @@ try:
     exited = event("exited")
     assert exited["body"]["exitCode"] == 0, exited
     request("disconnect", {"terminateDebuggee": True})
+    disconnected = True
     report = {"version": 1, "os": platform.system(), "architecture": platform.machine(),
         "sdk_build_id": manifest["build_id"], "debugger": debugger, "rustc": rustc_fields,
         "breakpoints": breakpoints["breakpoints"], "frames": guest_frames,
@@ -200,7 +207,7 @@ try:
 finally:
     if not completed:
         print(json.dumps({"pending_native_events": events}), flush=True)
-    if process.poll() is None:
+    if not disconnected and process.poll() is None:
         try:
             send("disconnect", {"terminateDebuggee": True})
         except (BrokenPipeError, OSError):
@@ -238,4 +245,6 @@ finally:
                     cwd=ROOT, env=debugger_environment, capture_output=True, text=True, timeout=20)
                 print(json.dumps({"metadata_query": query, "status": metadata.returncode,
                     "stdout": metadata.stdout[:16384], "stderr": metadata.stderr[:4096]}), flush=True)
+    if completed:
+        assert process.returncode == 0, f"native adapter failed to exit cleanly: {process.returncode}"
 
