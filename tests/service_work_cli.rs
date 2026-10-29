@@ -211,9 +211,10 @@ fn option_validation_and_zero_work_copy_programs_keep_cli_exit_contracts() {
     assert!(help.status.success());
     let help = String::from_utf8(help.stdout).unwrap();
     assert!(help.contains("lang run [--manifest-path FILE]"));
+    assert!(help.contains("lang test [--manifest-path FILE]"));
     assert_eq!(
         help.matches("[--service-work N]").count(),
-        4 // Legacy run/native/REPL and package run.
+        5 // Legacy run/native/REPL and package run/test.
     );
 }
 

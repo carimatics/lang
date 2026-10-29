@@ -19,6 +19,18 @@ pub(super) struct File<'a> {
     pub path: &'a str,
     pub bytes: &'a [u8],
 }
+pub(super) enum Generation {
+    Build,
+    Test,
+}
+impl Generation {
+    fn name(self) -> &'static str {
+        match self {
+            Self::Build => "build",
+            Self::Test => "test",
+        }
+    }
+}
 pub(super) struct Output {
     directory: Dir,
     inputs: BTreeSet<source::Identity>,
@@ -140,7 +152,14 @@ impl Output {
         }
         Ok(())
     }
-    pub fn publish(&self, lock: &Lock, files: &[File<'_>], locked: bool) -> Result<(), Diagnostic> {
+    pub fn publish(
+        &self,
+        lock: &Lock,
+        generation: Generation,
+        files: &[File<'_>],
+        locked: bool,
+    ) -> Result<(), Diagnostic> {
+        let name = generation.name();
         let mut names = BTreeSet::new();
         let mut bytes = lock.as_bytes().len();
         if files.len() > super::manifest::MAX_ENTRIES {
@@ -205,17 +224,17 @@ impl Output {
             bytes: f.bytes,
         }))
         .collect();
-        if !matches_existing(&parent, "build", &expected, &self.inputs)? {
+        if !matches_existing(&parent, name, &expected, &self.inputs)? {
             let mut stage = Stage::new(&parent)?;
             for file in &expected {
                 stage.write(file.path, file.bytes)?;
             }
             stage.close();
-            match parent.rename(&stage.name, &parent, "build") {
+            match parent.rename(&stage.name, &parent, name) {
                 Ok(()) => {}
                 Err(e) => {
-                    if !matches_existing(&parent, "build", &expected, &self.inputs)? {
-                        return Err(fs_error(Path::new("build"), e));
+                    if !matches_existing(&parent, name, &expected, &self.inputs)? {
+                        return Err(fs_error(Path::new(name), e));
                     }
                 }
             }

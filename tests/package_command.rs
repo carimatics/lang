@@ -51,10 +51,22 @@ impl Files {
         fs::read(self.0.join("app/Lang.lock")).unwrap()
     }
     fn artifact(&self) -> PathBuf {
+        self.generation("build").join("main.lbc")
+    }
+    fn generation(&self, kind: &str) -> PathBuf {
         self.0
             .join("app/target/lang")
             .join(lang_codegen_clif::sdk::digest(&self.lock()))
-            .join("build/main.lbc")
+            .join(kind)
+    }
+    fn test_artifact(&self, index: usize) -> PathBuf {
+        self.generation("test").join(format!("tests/{index}.lbc"))
+    }
+    fn tests(&self, tests: &[&str]) {
+        let path = self.0.join("app/Lang.json");
+        let mut manifest: Value = serde_json::from_slice(&fs::read(&path).unwrap()).unwrap();
+        manifest["tests"] = json!(tests);
+        fs::write(path, serde_json::to_vec(&manifest).unwrap()).unwrap();
     }
 }
 impl Drop for Files {
@@ -592,4 +604,300 @@ fn a_busy_final_lock_preserves_the_previous_generation_and_cleans_stages() {
         success(f.run(&["run", "--manifest-path", "app/Lang.json"])).stdout,
         b"99\n"
     );
+}
+
+#[test]
+fn declared_tests_share_public_package_types_and_preserve_each_root_namespace() {
+    let f = Files::new();
+    f.app();
+    f.write("app/deps/helper/src/main.lang", "pub struct Shared { value:i64 } pub fn make()->Shared{return Shared{value:42};} pub fn take(x:Shared)->i64{return x.value;}\n");
+    f.write(
+        "app/deps/helper/tests/smoke.lang",
+        "fn main()->i64{return 9;}\n",
+    );
+    f.write("app/src/main.lang", "mod helper; pub fn make()->helper::Shared{return helper::make();} fn hidden()->i64{return 42;} pub fn answer()->i64{return root::hidden();} fn main()->i64{return 99;}\n");
+    f.write("app/tests/smoke.lang", "mod _package; mod helper; fn hidden()->i64{return 999;} fn main()->i64{return helper::take(_package::make()) + _package::answer() + -84;}\n");
+    let output = success(f.run(&[
+        "test",
+        "--manifest-path",
+        "app/Lang.json",
+        "--message-format",
+        "json",
+    ]));
+    assert!(output.stdout.is_empty());
+    assert!(output.stderr.is_empty());
+    let lock = f.lock();
+    let artifact = f.test_artifact(0);
+    let bytes = fs::read(&artifact).unwrap();
+    assert_eq!(
+        fs::read(f.generation("test").join("inputs.lock")).unwrap(),
+        lock
+    );
+    assert!(!f.generation("build").exists());
+    assert_eq!(
+        success(f.run(&["run", "--artifact", artifact.to_str().unwrap()])).stdout,
+        b"0\n"
+    );
+    success(f.run(&[
+        "test",
+        "--manifest-path",
+        "app/Lang.json",
+        "--locked",
+        "--offline",
+    ]));
+    assert_eq!(f.lock(), lock);
+    assert_eq!(fs::read(artifact).unwrap(), bytes);
+    assert_eq!(
+        success(f.run(&["run", "--manifest-path", "app/Lang.json", "--locked"])).stdout,
+        b"99\n"
+    );
+    assert!(f.generation("build").join("main.lbc").is_file());
+    assert!(f.test_artifact(0).is_file());
+}
+
+#[test]
+fn tests_stop_at_the_first_failure_and_preserve_prior_build_and_test_outputs() {
+    let f = Files::new();
+    f.app();
+    success(f.run(&["test", "--manifest-path", "app/Lang.json"]));
+    success(f.run(&["build", "--manifest-path", "app/Lang.json", "--locked"]));
+    let lock = f.lock();
+    let artifact = f.artifact();
+    let build_bytes = fs::read(&artifact).unwrap();
+    let test_artifact = f.test_artifact(0);
+    let test_bytes = fs::read(&test_artifact).unwrap();
+    f.tests(&["tests/z_first.lang", "tests/a_second.lang"]);
+    f.write("app/tests/z_first.lang", "fn main()->i64{return 7;}\n");
+    let source = "// 日本語\nfn main()->i64{return missing;}\n";
+    f.write("app/tests/a_second.lang", source);
+    let failure = diagnostic(
+        &f.run(&[
+            "test",
+            "--manifest-path",
+            "app/Lang.json",
+            "--message-format",
+            "json",
+        ]),
+        "CLI0002",
+    );
+    assert!(failure["message"].as_str().unwrap().contains("returned 7"));
+    assert_eq!(
+        failure["path"].as_str().unwrap().replace('\\', "/"),
+        "tests/z_first.lang"
+    );
+    f.write("app/tests/z_first.lang", "fn main()->i64{return 0;}\n");
+    let failure = diagnostic(
+        &f.run(&[
+            "test",
+            "--manifest-path",
+            "app/Lang.json",
+            "--message-format",
+            "json",
+        ]),
+        "SRC0002",
+    );
+    assert_eq!(
+        failure["path"].as_str().unwrap().replace('\\', "/"),
+        "tests/a_second.lang"
+    );
+    let start = source.find("missing").unwrap();
+    assert_eq!(failure["span"], json!({"start":start,"end":start+7}));
+    assert_eq!(f.lock(), lock);
+    assert_eq!(fs::read(artifact).unwrap(), build_bytes);
+    assert_eq!(fs::read(test_artifact).unwrap(), test_bytes);
+    assert_eq!(
+        fs::read_dir(f.0.join("app/target/lang")).unwrap().count(),
+        1
+    );
+    diagnostic(
+        &f.run(&[
+            "test",
+            "--manifest-path",
+            "app/Lang.json",
+            "--locked",
+            "--offline",
+            "--message-format",
+            "json",
+        ]),
+        "PKG0007",
+    );
+}
+
+#[test]
+fn zero_tests_typecheck_a_library_without_requiring_main_or_creating_artifacts() {
+    let f = Files::new();
+    success(f.run(&["new", "app"]));
+    f.tests(&[]);
+    f.write("app/src/main.lang", "pub fn answer()->i64{return 42;}\n");
+    let output = success(f.run(&[
+        "test",
+        "--manifest-path",
+        "app/Lang.json",
+        "--message-format",
+        "json",
+    ]));
+    assert!(output.stdout.is_empty());
+    assert!(output.stderr.is_empty());
+    let lock = f.lock();
+    let generation = f.generation("test");
+    assert_eq!(fs::read_dir(&generation).unwrap().count(), 1);
+    assert_eq!(fs::read(generation.join("inputs.lock")).unwrap(), lock);
+    assert!(!generation.join("tests").exists());
+    f.write(
+        "app/src/main.lang",
+        "pub fn answer()->i64{return missing;}\n",
+    );
+    diagnostic(
+        &f.run(&[
+            "test",
+            "--manifest-path",
+            "app/Lang.json",
+            "--message-format",
+            "json",
+        ]),
+        "SRC0002",
+    );
+    assert_eq!(f.lock(), lock);
+}
+
+#[test]
+fn a_test_can_reuse_the_package_entry_and_execution_limits_reset_per_test() {
+    let f = Files::new();
+    success(f.run(&["new", "app"]));
+    f.tests(&["src/main.lang"]);
+    f.write("app/src/main.lang", "mod _package; pub fn answer()->i64{return 42;} fn main()->i64{return _package::answer() + -42;}\n");
+    success(f.run(&["test", "--manifest-path", "app/Lang.json"]));
+    f.write("app/src/main.lang", "fn main()->i64{return 99;}\n");
+    f.tests(&["tests/smoke.lang", "tests/second.lang"]);
+    f.write("app/tests/second.lang", "fn main()->i64{return 0;}\n");
+    success(f.run(&["test", "--manifest-path", "app/Lang.json", "--fuel", "2"]));
+    let lock = f.lock();
+    assert!(f.test_artifact(0).is_file());
+    assert!(f.test_artifact(1).is_file());
+    let failure = diagnostic(
+        &f.run(&[
+            "test",
+            "--manifest-path",
+            "app/Lang.json",
+            "--fuel",
+            "0",
+            "--message-format",
+            "json",
+        ]),
+        "CLI0002",
+    );
+    assert!(failure["span"].is_object());
+    assert_eq!(
+        failure["path"].as_str().unwrap().replace('\\', "/"),
+        "tests/smoke.lang"
+    );
+    assert_eq!(f.lock(), lock);
+}
+
+#[test]
+fn ownership_task_and_isolated_service_tests_use_the_shared_vm_engines() {
+    for (source, wanted, kind, asynchronous) in [
+        (
+            include_str!("../examples/scripts/owned_aggregate.lang"),
+            9,
+            "owned",
+            false,
+        ),
+        (
+            include_str!("../examples/scripts/tasks.lang"),
+            42,
+            "tasks",
+            true,
+        ),
+        (
+            include_str!("fixtures/task_service.lang"),
+            42,
+            "tasks",
+            true,
+        ),
+    ] {
+        let f = Files::new();
+        success(f.run(&["new", "app"]));
+        let renamed = source.replacen("fn main(", "fn fixture(", 1);
+        assert_ne!(renamed, source);
+        let source = if asynchronous {
+            format!(
+                "{renamed}\nasync fn main()->i64{{task_scope{{let mut pending:core::Task<i64>=spawn fixture();let mut result:core::Result<i64,core::TaskError>=await pending;return core::result_unwrap::<i64,core::TaskError>(result) + -{wanted};}}}}\n"
+            )
+        } else {
+            format!("{renamed}\nfn main()->i64{{return fixture() + -{wanted};}}\n")
+        };
+        f.write("app/tests/smoke.lang", &source);
+        let output = success(f.run(&[
+            "test",
+            "--manifest-path",
+            "app/Lang.json",
+            "--message-format",
+            "json",
+        ]));
+        assert!(output.stdout.is_empty());
+        assert!(output.stderr.is_empty());
+        let program =
+            lang::artifact::decode(&fs::read(f.test_artifact(0)).unwrap(), Default::default())
+                .unwrap();
+        assert!(matches!(
+            (kind, program),
+            ("owned", lang::artifact::Program::Ownership(_))
+                | ("tasks", lang::artifact::Program::Tasks(_))
+        ));
+        let lock = f.lock();
+        let failure = diagnostic(
+            &f.run(&[
+                "test",
+                "--manifest-path",
+                "app/Lang.json",
+                "--locked",
+                "--offline",
+                "--fuel",
+                "0",
+                "--message-format",
+                "json",
+            ]),
+            "CLI0002",
+        );
+        assert!(failure["span"].is_object());
+        assert_eq!(
+            failure["path"].as_str().unwrap().replace('\\', "/"),
+            "tests/smoke.lang"
+        );
+        assert_eq!(f.lock(), lock);
+    }
+}
+
+#[test]
+fn repeated_test_artifacts_hit_the_batch_output_limit_before_any_publication() {
+    let f = Files::new();
+    success(f.run(&["new", "app"]));
+    let source = format!(
+        "// {}\npub fn answer()->i64{{return 0;}} fn main()->i64{{return 99;}}\n",
+        "x".repeat(512 * 1024)
+    );
+    f.write("app/src/main.lang", &source);
+    let tests: Vec<_> = (0..128)
+        .map(|index| format!("tests/case{index}.lang"))
+        .collect();
+    for test in &tests {
+        f.write(
+            &format!("app/{test}"),
+            "mod _package; fn main()->i64{return _package::answer();}\n",
+        );
+    }
+    f.tests(&tests.iter().map(String::as_str).collect::<Vec<_>>());
+    diagnostic(
+        &f.run(&[
+            "test",
+            "--manifest-path",
+            "app/Lang.json",
+            "--message-format",
+            "json",
+        ]),
+        "PKG0004",
+    );
+    assert!(!f.0.join("app/Lang.lock").exists());
+    assert!(!f.0.join("app/target").exists());
 }

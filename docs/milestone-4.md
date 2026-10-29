@@ -4,11 +4,13 @@
 
 [日本語版](ja/milestone-4.md)
 
-Updated: 2026-10-29 JST. M4 is active. Goal start: clean `main`/`origin/main` at `af9988f`, remote `git@github.com:carimatics/lang.git`. PRs #9–#11 are merged. Current coherent command branch: `codex/m4-package-commands`, created from clean `codex/m4-package-lock-cli` at `6e11460` while the API baseline ran in its frozen checkout. The recorded base was `carimatics/lang:codex/m4-package-lock-cli`; after PR #11 merged, its PR base is `carimatics/lang:main`. The original checkout is clean synchronized `main`/`origin/main` at `3f06a70`; command work is isolated in a worktree. No preexisting user changes were present.
+Updated: 2026-10-29 JST. M4 is active. Goal start: clean `main`/`origin/main` at `af9988f`, remote `git@github.com:carimatics/lang.git`. PRs #9–#12 are merged. Command branch `codex/m4-package-commands` was created from clean `codex/m4-package-lock-cli` at `6e11460` and merged through PR #12. Dependent branch `codex/m4-package-tests` was created from command head `9cf5f7c` in the original checkout, whose starting state was clean synchronized `main`/`origin/main` at `3f06a70`. Its recorded PR base changed from `carimatics/lang:codex/m4-package-commands` to `carimatics/lang:main` after PR #12 merged as `2cd06e2`. Local main was fast-forwarded to that remote tip (0/0 ahead/behind), and the test branch also fast-forwarded while preserving its own changes. It has no upstream yet. No preexisting user changes were present.
 
-**5 done · 1 doing · 33 todo · 97 remaining pt**
+**6 done · 1 doing · 32 todo · 94 remaining pt**
 
-**Next: M4-A04B — create a package and execute dependency build/run with failure-safe generations (doing, 3 pt).** Last executable checkpoint: source `e3a9dda`, verified 2026-10-29 10:06 JST. Initial command/graph/lock/manifest/source/consistency tests pass **56/56**; expanded command **11/11** and consistency **6/6** pass, including four concurrent builds, incomplete/extended cache refusal, a real dependency returning 42 and ownership/task VM execution. Fmt and warning-free full workspace Clippy pass. Remaining acceptance: Windows final-lock failure and both-host CI/full baseline. No command delivery or additional exit gate is claimed complete yet.
+**Next: M4-A04 — execute declared test entries with shared VM profiles and original diagnostics (doing, 3 pt).** Local executable checkpoint, verified 2026-10-29 JST: command 18/18, source 15/15, legacy CLI 30/30, service-work 6/6 and consistency 6/6 (**75 total**) pass, plus fmt and warning-free full Clippy. Own public nominal types, private UTF-8 spans, frozen analysis after deletion/project move, Copy/ownership/task/isolated-service execution, per-test fuel, manifest-order fail-fast, zero-test libraries and the 64 MiB batch-output refusal execute successfully. Remaining acceptance: full test/doc baseline and latest-head both-host CI. Build outputs are isolated from the completed command checkout. No additional exit gate is complete.
+
+A04B source `9cf5f7c` passes [full CI](https://github.com/carimatics/lang/actions/runs/40800668325) (all 19 jobs: 18 success; intentional documentation-only skip) and [debugger execution](https://github.com/carimatics/lang/actions/runs/40800668297) (3/3). Command fixtures pass 12/12 on macOS and 11/11 on Windows. Its independent checked opt-level 1 local full baseline completed **158 suites / 2,376 passed / 0 failed**, with fmt/Clippy/doc also passing. [PR #12](https://github.com/carimatics/lang/pull/12) merged as `2cd06e2`; local main tips match with 0/0 ahead/behind. This closes the earlier command baseline/PR lifecycle notes.
 
 A03 verification is complete: corrected source `117a2ab`, final head `6e11460`, local fmt, warning-free full Clippy, checked opt-level 1 full workspace tests (**157 suites / 2,364 passed / 0 failed**) and doc pass with assertions/overflow checks enabled. Final-head [full CI](https://github.com/carimatics/lang/actions/runs/40788344128) has all 19 expected jobs (18 success; intentional documentation-only skip), and [debugger execution](https://github.com/carimatics/lang/actions/runs/40788344085) passes 3/3. Root/fuzz fmt, all fuzz-bin Clippy and 10,000 uninstrumented metadata fuzz smoke runs pass; no coverage/sanitizer campaign is claimed. [PR #11](https://github.com/carimatics/lang/pull/11) merged as `3f06a70`; local `main` is clean and synchronized, 0/0 ahead/behind. This supersedes the earlier open API verification notes below.
 
@@ -49,8 +51,8 @@ The [roadmap](roadmap.md#milestone-4-developer-toolchain) retains the original 6
 | M4-A02S | done | 0 | M4-A02R | G2,G3 | Freeze bounded source inputs once, release directory handles and preserve execution after edits/renames on both hosts | `b81633e` |
 | M4-A02 | done | 0 | M4-A02S | G2,G3 | Integrate isolated package module roots and immutable source access; execute a real declared dependency import | `b81633e` |
 | M4-A03 | done | 0 | M4-A02 | G2,G3 | Canonical checksummed lock fixture replays offline and refuses changed sources without rewriting prior output | `117a2ab` |
-| M4-A04B | doing | 3 | M4-A03 | G2,G3 | Create a package/local dependency; real package build/run, locked/offline replay and failure-safe generations | — |
-| M4-A04 | todo | 3 | M4-A04B | G2,G3 | Declared test-entry scopes, shared VM profiles and failed-test/source/JSON diagnostic fixtures | — |
+| M4-A04B | done | 0 | M4-A03 | G2,G3 | Create a package/local dependency; real package build/run, locked/offline replay and failure-safe generations | `9cf5f7c` |
+| M4-A04 | doing | 3 | M4-A04B | G2,G3 | Declared test-entry scopes, shared VM profiles and failed-test/source/JSON diagnostic fixtures | — |
 | M4-A05 | todo | 3 | M4-A04 | G2,G3 | Workspace member selection and exact target-condition locks on both supported targets | — |
 | M4-A06 | todo | 3 | M4-A05 | G2,G3 | Build a native executable twice from a relocated locked package; compare pinned-input digests on both hosts | — |
 | M4-B01 | todo | 3 | M4-A04 | G4 | Deterministic package source listing/archive and escaping/changed-input refusal | — |
@@ -90,9 +92,9 @@ Activation audit, 2026-10-29 JST: 36 observable deliveries, baseline 103 pt. The
 
 | Baseline remaining | Net added/re-estimated | Retired on completion | Remaining |
 | ---: | ---: | ---: | ---: |
-| 103 pt | +8 pt | −14 pt | 97 pt |
+| 103 pt | +8 pt | −17 pt | 94 pt |
 
-**103 + 8 − 14 = 97 pt**
+**103 + 8 − 17 = 94 pt**
 
 Namespace prerequisite audit, 2026-10-29 JST: the existing `ModuleGraph::root()` is always `ModuleId(0)`. A path provider alone cannot give each dependency its own package-root namespace or safely reuse a shared dependency identity. Split the original A02 outcome into an authorized graph (new A02R, 3 pt) and namespace/source execution integration (A02, remaining 3 pt after reviewing its task list). Net addition: +3 pt; 37 deliveries total. A01 and A02R are two prerequisites, so A02 must supply the next source execution fixture before further horizontal scaffolding. No gate is completed or deferred by this audit.
 
@@ -101,6 +103,10 @@ Snapshot lifecycle audit, 2026-10-29 JST: Windows CI executes the dependency fix
 CLI outcome audit, 2026-10-29 JST, before implementation: the accepted transaction profile exposes two executable outcomes. A04B (new, 3 pt) covers scaffold/existing-file compatibility, whole-profile build/run and immutable generation publication with a real dependency returning 42. A04 retains 3 pt after reviewing its remaining test-entry selection, multi-profile result checks and structured failure/span fixtures. Split the original combined CLI outcome into these vertical deliveries rather than hiding publication or shared-engine work inside the original estimate. Net addition +3 pt, cumulative +8 pt; 39 deliveries. Separately, retire A03's last 2 pt after corrected-source both-host CI proves its API outcome. Both CLI rows belong to one coherent command implementation branch; the lock wire API is its reviewed dependency. The independent local API baseline/PR lifecycle continues in its frozen checkout. No gate is completed or deferred.
 
 ## Delivery notes and roadmap review
+
+Checkout audit, 2026-10-29 JST: the earlier plan kept A04B/A04 in one branch. Preserve the native baseline's source fingerprint by separating the dependent test-entry namespace/execution outcome into the existing original checkout while the command checkout remains frozen. This is a dependency between two observable outcomes, not another delivery or prerequisite; estimates stay unchanged. CPU builds/tests remain sequential. A04B's final-head both-host CI now proves the command outcome; A04 is the only doing implementation. The independent command baseline/PR lifecycle remains open until its actual completion.
+
+A04B complete: `9cf5f7c` verifies real package creation/dependency build/run and locked/offline replay, all three VM profiles, exact generation reuse, stale/tampered/resource/runtime refusals, original UTF-8 diagnostics and legacy explicit-file compatibility. Both-host CI and three debugger environments pass. Windows verifies final-lock failure retains old output and removes stages; macOS verifies publication through the retained directory after the diagnostic path is replaced. Retire its last 3 pt with no additions. After reviewing namespace selection, result/control handling and output/failure fixtures, A04 remains 3 pt. Its implementation uses the accepted `_package` edge and existing engines. Exit gates G2/G3 remain pending workspace/native-package evidence.
 
 Pre-merge A01 input audit checklist:
 

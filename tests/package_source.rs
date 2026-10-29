@@ -48,6 +48,9 @@ fn dep(path: &str) -> Value {
 }
 fn compile(graph: &Graph) -> Program {
     let a = source::analyze(graph, CompileLimits::default()).unwrap();
+    script(a)
+}
+fn script(a: frontend::Analysis) -> Program {
     assert!(a.result.is_ok(), "{:?}: {:?}", a.result, a.diagnostics);
     let checked = a.result.unwrap();
     let lang_semantics::analysis::Program::Copy(typed) = checked else {
@@ -68,6 +71,148 @@ fn run(program: &Program) -> i64 {
     .value
     .as_i64()
     .unwrap()
+}
+
+#[test]
+fn declared_test_analysis_survives_input_deletion_and_charges_the_extra_root() {
+    let mut f = Files::new();
+    f.package(
+        "",
+        "app",
+        json!({"helper":dep("deps/helper")}),
+        "mod helper; pub fn answer()->i64{return helper::answer();} fn main()->i64{return 99;}",
+    );
+    f.package(
+        "deps/helper",
+        "helper",
+        json!({}),
+        "pub fn answer()->i64{return 42;}",
+    );
+    fs::create_dir(f.0.join("tests")).unwrap();
+    let text = "// 日本語\nmod _package; fn main()->i64{return _package::answer() + -42;}\n";
+    fs::write(f.0.join("tests/check.lang"), text).unwrap();
+    let path = f.0.join("Lang.json");
+    let mut manifest: Value = serde_json::from_slice(&fs::read(&path).unwrap()).unwrap();
+    manifest["tests"] = json!(["tests/check.lang"]);
+    fs::write(path, serde_json::to_vec(&manifest).unwrap()).unwrap();
+    let graph = f.graph();
+    let lock = lang::package::lock::Lock::capture(&graph).unwrap();
+    fs::remove_dir_all(f.0.join("src")).unwrap();
+    fs::remove_dir_all(f.0.join("tests")).unwrap();
+    fs::remove_dir_all(f.0.join("deps")).unwrap();
+    let moved = f.0.with_extension("moved");
+    fs::rename(&f.0, &moved).unwrap();
+    f.0 = moved;
+    let mut limits = CompileLimits::default();
+    limits.modules.modules = 2;
+    assert_eq!(
+        source::analyze_test(&graph, 0, limits).unwrap_err().code,
+        "PKG0004"
+    );
+    assert_eq!(
+        source::analyze_test(&graph, 1, CompileLimits::default())
+            .unwrap_err()
+            .code,
+        "PKG0003"
+    );
+    limits.modules.modules = 3;
+    let program = script(source::analyze_test(&graph, 0, limits).unwrap());
+    assert_eq!(run(&program), 0);
+    assert!(
+        program
+            .verified()
+            .unit()
+            .sources
+            .iter()
+            .any(|source| source.text == text)
+    );
+    assert_eq!(
+        run(&script(source::analyze_test(&graph, 0, limits).unwrap())),
+        0
+    );
+    lang::package::lock::Lock::capture(&graph)
+        .unwrap()
+        .verify(lock.as_bytes())
+        .unwrap();
+}
+
+#[test]
+fn test_namespaces_preserve_private_spans_and_cannot_load_package_source_siblings() {
+    let f = Files::new();
+    f.package(
+        "",
+        "app",
+        json!({}),
+        "fn secret()->i64{return 42;} fn main()->i64{return 99;}",
+    );
+    fs::create_dir(f.0.join("tests")).unwrap();
+    fs::write(
+        f.0.join("src/outside.lang"),
+        "pub fn answer()->i64{return 42;}",
+    )
+    .unwrap();
+    let path = f.0.join("Lang.json");
+    let mut manifest: Value = serde_json::from_slice(&fs::read(&path).unwrap()).unwrap();
+    manifest["tests"] = json!(["tests/check.lang"]);
+    fs::write(path, serde_json::to_vec(&manifest).unwrap()).unwrap();
+    let text = "// 日本語\nmod _package; fn main()->i64{return _package::secret();}\n";
+    fs::write(f.0.join("tests/check.lang"), text).unwrap();
+    let analysis = source::analyze_test(&f.graph(), 0, CompileLimits::default()).unwrap();
+    assert!(analysis.result.is_err());
+    let diagnostic = analysis
+        .diagnostics
+        .iter()
+        .find(|d| d.message.contains("private"))
+        .unwrap();
+    let start = text.find("secret").unwrap();
+    assert_eq!(diagnostic.primary.span.range(), start..start + 6);
+    assert_eq!(
+        analysis
+            .sources
+            .file(diagnostic.primary.span.source())
+            .unwrap()
+            .name(),
+        "tests/check.lang"
+    );
+    assert_eq!(
+        analysis
+            .sources
+            .slice(diagnostic.secondary[0].span)
+            .unwrap(),
+        "secret"
+    );
+    assert_eq!(
+        analysis
+            .sources
+            .file(diagnostic.secondary[0].span.source())
+            .unwrap()
+            .name(),
+        "src/main.lang"
+    );
+    fs::write(
+        f.0.join("tests/check.lang"),
+        "mod outside; fn main()->i64{return outside::answer();}",
+    )
+    .unwrap();
+    let analysis = source::analyze_test(&f.graph(), 0, CompileLimits::default()).unwrap();
+    assert!(analysis.result.is_err());
+    let diagnostic = analysis
+        .diagnostics
+        .iter()
+        .find(|d| d.message.contains("cannot load module"))
+        .unwrap();
+    assert_eq!(
+        analysis.sources.slice(diagnostic.primary.span).unwrap(),
+        "outside"
+    );
+    assert_eq!(
+        analysis
+            .sources
+            .file(diagnostic.primary.span.source())
+            .unwrap()
+            .name(),
+        "tests/check.lang"
+    );
 }
 
 #[test]

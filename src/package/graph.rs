@@ -229,7 +229,7 @@ fn graph_error(path: &Path, message: impl Into<String>) -> Diagnostic {
     Diagnostic::error("PKG0006", message).at_path(path)
 }
 
-fn input_path(root: &Path, name: &Path) -> PathBuf {
+pub(super) fn input_path(root: &Path, name: &Path) -> PathBuf {
     if root == Path::new(".") {
         name.to_path_buf()
     } else {

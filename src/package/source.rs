@@ -17,6 +17,33 @@ use std::sync::Arc;
 /// First use freezes all bounded source inputs and releases capture handles.
 /// Later analyses use retained bytes, independent of edits and directory moves.
 pub fn analyze(graph: &Graph, limits: CompileLimits) -> Result<Analysis, Diagnostic> {
+    analyze_entry(graph, None, limits)
+}
+
+/// Analyze one declared root-package test from the same frozen input epoch.
+/// `_package` exposes the package's public namespace without a source wrapper.
+pub fn analyze_test(
+    graph: &Graph,
+    index: usize,
+    limits: CompileLimits,
+) -> Result<Analysis, Diagnostic> {
+    let inputs = graph.inputs()?;
+    let test = inputs
+        .declared
+        .get(&graph.root())
+        .into_iter()
+        .flatten()
+        .filter(|binding| binding.kind == inventory::BindingKind::Test)
+        .nth(index)
+        .ok_or_else(|| Diagnostic::error("PKG0003", "test index is not declared"))?;
+    analyze_entry(graph, Some(test), limits)
+}
+
+fn analyze_entry(
+    graph: &Graph,
+    test: Option<&inventory::Declared>,
+    limits: CompileLimits,
+) -> Result<Analysis, Diagnostic> {
     let inputs = graph.inputs()?;
     let mut provider = Provider {
         inventory: inputs,
@@ -57,6 +84,33 @@ pub fn analyze(graph: &Graph, limits: CompileLimits) -> Result<Analysis, Diagnos
                 file.identity,
             )
             .map_err(package_io)?;
+    }
+    if let Some(test) = test {
+        if test.target == packages[0].entry {
+            packages[0].dependencies.insert("_package".into(), 0);
+        } else {
+            if packages.len() >= limits.modules.modules {
+                return Err(Diagnostic::error(
+                    "PKG0004",
+                    "test root exceeds the package module limit",
+                ));
+            }
+            for package in &mut packages {
+                for index in package.dependencies.values_mut() {
+                    *index += 1;
+                }
+            }
+            let mut dependencies = packages[0].dependencies.clone();
+            dependencies.insert("_package".into(), 1);
+            packages.insert(
+                0,
+                PackageSource {
+                    entry: test.target.clone(),
+                    source_root: test.scope.clone(),
+                    dependencies,
+                },
+            );
+        }
     }
     let mut sources = SourceMap::new();
     let modules = load_package_sources(&mut sources, &packages, limits.modules, &mut provider);

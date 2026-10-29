@@ -3,7 +3,7 @@ use super::{Diagnostic, manifest};
 use std::io::{self, Write};
 use std::{collections::BTreeSet, ffi::OsString, path::PathBuf};
 
-pub const USAGE: &str = "usage: lang new [--name NAME] [--message-format human|json] DIR\n       lang build [--manifest-path FILE] [--target TRIPLE] [--locked] [--offline] [--message-format human|json]\n       lang run [--manifest-path FILE] [--target TRIPLE] [--locked] [--offline] [--message-format human|json] [--fuel N] [--service-work N] [--host-calls N] [--frames N] [--cells N]\n";
+pub const USAGE: &str = "usage: lang new [--name NAME] [--message-format human|json] DIR\n       lang build [--manifest-path FILE] [--target TRIPLE] [--locked] [--offline] [--message-format human|json]\n       lang run [--manifest-path FILE] [--target TRIPLE] [--locked] [--offline] [--message-format human|json] [--fuel N] [--service-work N] [--host-calls N] [--frames N] [--cells N]\n       lang test [--manifest-path FILE] [--target TRIPLE] [--locked] [--offline] [--message-format human|json] [--fuel N] [--service-work N] [--host-calls N] [--frames N] [--cells N]\n";
 
 #[derive(Clone, Copy, Default)]
 pub struct ExecutionOptions {
@@ -24,6 +24,7 @@ pub enum Format {
 pub enum Action {
     Build,
     Run,
+    Test,
 }
 pub enum Command {
     Help,
@@ -62,7 +63,7 @@ pub fn selected(args: &[OsString]) -> bool {
     let Some(first) = args.first() else {
         return false;
     };
-    if first == "new" || first == "build" {
+    if first == "new" || first == "build" || first == "test" {
         return true;
     }
     if first != "run" {
@@ -113,10 +114,12 @@ pub fn parse(args: &[OsString]) -> Result<Command, Diagnostic> {
         Action::Build
     } else if first == "run" {
         Action::Run
+    } else if first == "test" {
+        Action::Test
     } else if new {
         Action::Build
     } else {
-        return Err(usage("expected new, build or run"));
+        return Err(usage("expected new, build, run or test"));
     };
     let (mut directory, mut name) = (None, None);
     let mut request = Request {
@@ -157,7 +160,7 @@ pub fn parse(args: &[OsString]) -> Result<Command, Diagnostic> {
             || (new && flag == "--name")
             || (!new && matches!(flag, "--manifest-path" | "--target"))
             || (!new
-                && action == Action::Run
+                && matches!(action, Action::Run | Action::Test)
                 && matches!(
                     flag,
                     "--fuel" | "--service-work" | "--host-calls" | "--frames" | "--cells"
@@ -309,6 +312,145 @@ fn tool(error: impl std::fmt::Display) -> Diagnostic {
     Diagnostic::error("CLI0002", error.to_string())
 }
 
+fn checked(
+    analysis: crate::frontend::Analysis,
+    format: Format,
+    stderr: &mut impl Write,
+) -> io::Result<
+    Option<(
+        lang_semantics::analysis::Program,
+        lang_diagnostics::SourceMap,
+    )>,
+> {
+    for diagnostic in &analysis.diagnostics {
+        source_diagnostic(stderr, format, diagnostic, &analysis.sources)?;
+    }
+    match analysis.result {
+        Ok(program) => Ok(Some((program, analysis.sources))),
+        Err(crate::frontend::AnalysisError::Diagnostics) => Ok(None),
+        Err(error) => {
+            emit(stderr, format, &tool(error))?;
+            Ok(None)
+        }
+    }
+}
+
+fn compile_analysis(
+    analysis: crate::frontend::Analysis,
+    format: Format,
+    limits: crate::frontend::CompileLimits,
+    stderr: &mut impl Write,
+) -> io::Result<Option<Vec<u8>>> {
+    let Some((program, sources)) = checked(analysis, format, stderr)? else {
+        return Ok(None);
+    };
+    match crate::artifact::compile(
+        program,
+        &sources,
+        limits,
+        crate::artifact::Limits::default(),
+    ) {
+        Ok(bytes) => Ok(Some(bytes)),
+        Err(crate::artifact::CompileError::Script(crate::frontend::ScriptError::Entry(d))) => {
+            source_diagnostic(stderr, format, &d, &sources)?;
+            Ok(None)
+        }
+        Err(error) => {
+            emit(stderr, format, &tool(error))?;
+            Ok(None)
+        }
+    }
+}
+
+fn evaluate_artifact(
+    bytes: &[u8],
+    execution: ExecutionOptions,
+    evaluate: &mut impl FnMut(&crate::artifact::Program, ExecutionOptions) -> Result<i64, Diagnostic>,
+) -> Result<i64, Diagnostic> {
+    let program =
+        crate::artifact::decode(bytes, crate::artifact::Limits::default()).map_err(tool)?;
+    evaluate(&program, execution)
+}
+
+fn run_tests(
+    request: &Request,
+    prepared: &super::output::Prepared,
+    stderr: &mut impl Write,
+    evaluate: &mut impl FnMut(&crate::artifact::Program, ExecutionOptions) -> Result<i64, Diagnostic>,
+) -> io::Result<u8> {
+    let limits = crate::frontend::CompileLimits::default();
+    let root = prepared
+        .graph
+        .package(prepared.graph.root())
+        .expect("resolved root");
+    let tests = &root.manifest().tests;
+    let mut files = Vec::new();
+    let mut bytes = prepared.lock.as_bytes().len();
+    if tests.is_empty() {
+        let analysis = match super::source::analyze(&prepared.graph, limits) {
+            Ok(analysis) => analysis,
+            Err(d) => return fail(stderr, request.format, d),
+        };
+        if checked(analysis, request.format, stderr)?.is_none() {
+            return Ok(1);
+        }
+    }
+    for (index, test) in tests.iter().enumerate() {
+        let analysis = match super::source::analyze_test(&prepared.graph, index, limits) {
+            Ok(analysis) => analysis,
+            Err(d) => return fail(stderr, request.format, d),
+        };
+        let Some(artifact) = compile_analysis(analysis, request.format, limits, stderr)? else {
+            return Ok(1);
+        };
+        bytes = match bytes
+            .checked_add(artifact.len())
+            .filter(|n| *n <= super::output::MAX_OUTPUT)
+        {
+            Some(bytes) => bytes,
+            None => {
+                return fail(
+                    stderr,
+                    request.format,
+                    Diagnostic::error("PKG0004", "package output byte limit exceeded"),
+                );
+            }
+        };
+        match evaluate_artifact(&artifact, request.execution, evaluate) {
+            Ok(0) => {}
+            Ok(value) => {
+                return fail(
+                    stderr,
+                    request.format,
+                    Diagnostic::error(
+                        "CLI0002",
+                        format!("test {test} returned {value}; expected zero"),
+                    )
+                    .at_path(&super::graph::input_path(
+                        root.root(),
+                        std::path::Path::new(test),
+                    )),
+                );
+            }
+            Err(d) => return fail(stderr, request.format, d),
+        }
+        files.push((format!("tests/{index}.lbc"), artifact));
+    }
+    let files: Vec<_> = files
+        .iter()
+        .map(|(path, bytes)| super::output::File { path, bytes })
+        .collect();
+    match prepared.output.publish(
+        &prepared.lock,
+        super::output::Generation::Test,
+        &files,
+        request.locked,
+    ) {
+        Ok(()) => Ok(0),
+        Err(d) => fail(stderr, request.format, d),
+    }
+}
+
 /// Compile immutable package inputs and call the same VM engines used by the
 /// explicit-file host. The callback receives a verified decoded artifact, never
 /// filesystem authority. Publication follows successful evaluation.
@@ -351,38 +493,19 @@ pub fn run(
         Ok(p) => p,
         Err(d) => return fail(stderr, format, d),
     };
+    if request.action == Action::Test {
+        return run_tests(&request, &prepared, stderr, &mut evaluate);
+    }
     let limits = crate::frontend::CompileLimits::default();
     let analysis = match super::source::analyze(&prepared.graph, limits) {
         Ok(a) => a,
         Err(d) => return fail(stderr, format, d),
     };
-    for diagnostic in &analysis.diagnostics {
-        source_diagnostic(stderr, format, diagnostic, &analysis.sources)?;
-    }
-    let program = match analysis.result {
-        Ok(program) => program,
-        Err(crate::frontend::AnalysisError::Diagnostics) => return Ok(1),
-        Err(error) => return fail(stderr, format, tool(error)),
-    };
-    let bytes = match crate::artifact::compile(
-        program,
-        &analysis.sources,
-        limits,
-        crate::artifact::Limits::default(),
-    ) {
-        Ok(bytes) => bytes,
-        Err(crate::artifact::CompileError::Script(crate::frontend::ScriptError::Entry(d))) => {
-            source_diagnostic(stderr, format, &d, &analysis.sources)?;
-            return Ok(1);
-        }
-        Err(error) => return fail(stderr, format, tool(error)),
+    let Some(bytes) = compile_analysis(analysis, format, limits, stderr)? else {
+        return Ok(1);
     };
     let value = if request.action == Action::Run {
-        let program = match crate::artifact::decode(&bytes, crate::artifact::Limits::default()) {
-            Ok(p) => p,
-            Err(e) => return fail(stderr, format, tool(e)),
-        };
-        match evaluate(&program, request.execution) {
+        match evaluate_artifact(&bytes, request.execution, &mut evaluate) {
             Ok(v) => Some(v),
             Err(d) => return fail(stderr, format, d),
         }
@@ -391,6 +514,7 @@ pub fn run(
     };
     if let Err(d) = prepared.output.publish(
         &prepared.lock,
+        super::output::Generation::Build,
         &[super::output::File {
             path: "main.lbc",
             bytes: &bytes,
