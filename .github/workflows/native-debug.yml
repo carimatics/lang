@@ -16,6 +16,7 @@ on:
       - 'tools/build-native-sdk.py'
       - 'tools/check-native-debugger.py'
       - 'tools/check-native-dap.py'
+      - 'tools/check-mixed-dap.py'
       - 'tools/setup-native-dap.ps1'
       - 'tools/test_native_debugger.py'
       - 'docs/native-sdk.md'
@@ -38,6 +39,7 @@ on:
       - 'tools/build-native-sdk.py'
       - 'tools/check-native-debugger.py'
       - 'tools/check-native-dap.py'
+      - 'tools/check-mixed-dap.py'
       - 'tools/setup-native-dap.ps1'
       - 'tools/test_native_debugger.py'
       - 'docs/native-sdk.md'
@@ -154,6 +156,9 @@ jobs:
           LLDB_PYTHON_DLL: ${{ steps.lldb-distribution.outputs.python-dll }}
         run: python tools/check-native-dap.py --adapter lang --zero-based-uri --sdk "${{ runner.temp }}/lang-debug-sdk" --output "${{ runner.temp }}/lang-dap-native-probes"
 
+      - name: Exercise a live native VM mixed stack and failure cleanup
+        run: python tools/check-mixed-dap.py --sdk "${{ runner.temp }}/lang-debug-sdk" --output "${{ runner.temp }}/lang-mixed-dap-probes"
+
       - name: Upload native debugger evidence
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -167,5 +172,8 @@ jobs:
             ${{ runner.temp }}/lang-native-dap-probes/*.lang
             ${{ runner.temp }}/lang-dap-native-probes/*.json
             ${{ runner.temp }}/lang-dap-native-probes/*.lang
+            ${{ runner.temp }}/lang-mixed-dap-probes/*.json
+            ${{ runner.temp }}/lang-mixed-dap-probes/*/*.json
+            ${{ runner.temp }}/lang-mixed-dap-probes/*/*.lang
           if-no-files-found: warn
           retention-days: 14
