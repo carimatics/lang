@@ -287,7 +287,15 @@ fn unselected_metadata_is_frozen_and_changed_replay_preserves_outputs() {
     let mut files = Files::new();
     files.catalogue_with_idle();
     success(files.run(&["build", "--package", "app"]));
-    let graph = files.graph("app");
+    // Replay the CLI's default host target; the independent golden helper
+    // deliberately uses the fixed macOS target on every test host.
+    let graph = Graph::resolve_selected(
+        &files.0.join("Lang.json"),
+        &lang_codegen_clif::Triple::host().to_string(),
+        Default::default(),
+        Some("app"),
+    )
+    .unwrap();
     let lock = Lock::capture(&graph).unwrap();
     let old = fs::read(files.0.join("Lang.lock")).unwrap();
     let artifact = files
