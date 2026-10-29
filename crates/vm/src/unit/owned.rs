@@ -738,7 +738,16 @@ fn execute_single<P: a::Provider>(
             }
             f::Kind::Entry { next, .. } => next,
             f::Kind::Fuel { next, failure, .. } => {
-                let charged = control.charge(&mut usage).map_err(super::Reason::from);
+                let charged = control
+                    .charge(&mut usage)
+                    .inspect(|()| {
+                        control.observe(Some(lang_runtime::execution::Point {
+                            source: current.span.source.0,
+                            start: current.span.start,
+                            end: current.span.end,
+                        }));
+                    })
+                    .map_err(super::Reason::from);
                 match charged {
                     Ok(()) => next,
                     Err(error) => {

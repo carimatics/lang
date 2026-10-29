@@ -123,6 +123,8 @@ The experimental embedded mixed bridge requires explicit trusted Rust host bindi
 
 The [M2 source/Rust/C measurements](benchmarks.md) are tied to named immutable revisions and show substantial performance gaps. They establish measurement, not native parity or a speed guarantee. Use those workloads to decide subsequent optimizations; historical scalar microbenchmarks cannot substitute for source-program costs.
 
+Optional host point recorders participate in execution Control/configuration identity and retain Send/Sync. Original Copy VM, ownership VM and ordinary native ownership charge points record only after successful fuel charging, using reserved bounded storage and existing spans. `lang profile run` reports these frequencies, deterministic sampling, original usage and host entry elapsed time; it does not claim CPU attribution. The native engine is ownership JIT; native Copy, tasks and C/component profiles refuse. Observation overflow does not interrupt/replay the guest and prevents successful report publication. Closed runtime readers validate finite sample totals and captured source ranges within the 4 MiB report bound. Allocation/retirement traces and rebuild explanations remain subsequent G8 deliveries.
+
 ## Diagnostics, REPL and editor tooling
 
 The CLI supports checking, source/artifact execution, portable compilation, native packages/linking, transactional REPL and a synchronous LSP prototype. Formatting is available through the shared CST API and LSP document formatting. [RFC 0010](rfcs/0010-owned-repl-previews.md) and [RFC 0016](rfcs/0016-indirect-repl-previews.md) define bounded returned-value previews. Results retire before output publication; sessions retain source definitions, not mutable guest owners.

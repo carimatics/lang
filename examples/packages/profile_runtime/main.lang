@@ -1,0 +1,13 @@
+fn value(n: i64) -> i64 {
+    let mut made: core::Result<core::Vec<i64>, core::AllocError> = core::vec_new::<i64>(core::allocator());
+    let mut values: core::Vec<i64> = core::result_unwrap::<core::Vec<i64>, core::AllocError>(made);
+    let mut pushed: core::Result<core::Unit, core::AllocError> = core::vec_push::<i64>(values, n);
+    match core::vec_get::<i64>(values, 0) {
+        core::Result::Ok(item) => { return (*item); },
+        core::Result::Err(_) => { return -1; },
+    }
+}
+
+fn main() -> i64 {
+    return value(42);
+}

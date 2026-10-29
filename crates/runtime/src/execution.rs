@@ -1,4 +1,6 @@
 //! Shared polling, charging and usage contract for instrumented execution.
+mod observation;
+pub use observation::{MAX_SAMPLES, ObservationError, Point, PointRecorder, PointSnapshot};
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -58,6 +60,7 @@ pub struct Control<'a> {
     service_work: Option<u64>,
     interruption: Option<&'a InterruptionFlag>,
     deadline: Option<Instant>,
+    observations: Option<&'a PointRecorder>,
 }
 impl<'a> Control<'a> {
     pub const fn with_limits(limits: Limits) -> Self {
@@ -66,6 +69,7 @@ impl<'a> Control<'a> {
             service_work: None,
             interruption: None,
             deadline: None,
+            observations: None,
         }
     }
     pub const fn and_interruption(mut self, flag: &'a InterruptionFlag) -> Self {
@@ -76,6 +80,16 @@ impl<'a> Control<'a> {
         self.deadline = Some(deadline);
         self
     }
+    pub const fn and_observations(mut self, recorder: &'a PointRecorder) -> Self {
+        self.observations = Some(recorder);
+        self
+    }
+    /// Call after a successful original charge, never instead of charging.
+    pub fn observe(self, point: Option<Point>) {
+        if let Some(recorder) = self.observations {
+            recorder.record(point);
+        }
+    }
     pub const fn limits(self) -> Limits {
         self.limits
     }
@@ -83,6 +97,11 @@ impl<'a> Control<'a> {
         self.limits == other.limits
             && self.service_work == other.service_work
             && self.deadline == other.deadline
+            && match (self.observations, other.observations) {
+                (None, None) => true,
+                (Some(a), Some(b)) => std::ptr::eq(a, b),
+                _ => false,
+            }
             && match (self.interruption, other.interruption) {
                 (None, None) => true,
                 (Some(a), Some(b)) => std::ptr::eq(a, b),
@@ -152,6 +171,7 @@ struct Configuration {
     service_work: Option<u64>,
     interruption: Option<usize>,
     deadline: Option<Instant>,
+    observations: Option<usize>,
 }
 impl From<Control<'_>> for Configuration {
     fn from(control: Control<'_>) -> Self {
@@ -163,6 +183,9 @@ impl From<Control<'_>> for Configuration {
                 .interruption
                 .map(|flag| std::ptr::from_ref(flag) as usize),
             deadline: control.deadline,
+            observations: control
+                .observations
+                .map(|recorder| std::ptr::from_ref(recorder) as usize),
         }
     }
 }

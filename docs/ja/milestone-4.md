@@ -10,7 +10,7 @@
 
 現在のcheckoutは`codex/m4-profiling`。clean・同期済みdebugger branch `10aae50`から作成し、既存user変更はない。upstreamは`origin/codex/m4-profiling`、[draft PR #24](https://github.com/carimatics/lang/pull/24)のscopeはE01–E04。#19が`14a92df`でmergeしたため記録baseを`carimatics/lang:codex/m4-debug-adapter`から`carimatics/lang:main`へ移した。local main／origin/mainは`14a92df`で0/0。別文書PR #20–#23の祖先`be9f77c`も保持した。
 
-E02 の最終実行 checkpoint、2026-10-30 04:46 JST: E01 source `e2f0c1d`はfmt／全警告エラーClippy／170 suite・2,480 test／doc／fuzz Clippyに成功。実package／workspace／不正report 3試験、consistency 6試験も成功し、通常入力digestと695-byte artifactに一致して既存lock／buildを保持した。E01は完了。残るE02受入は元charge pointの上限付き観測、明示profile／計測制限の実VM／native source帰属、CLI、結果／usage同値fixture。PR #24の両host CIは実行中でG8は未完了。
+E02 の最終実行 checkpoint、2026-10-30 05:25 JST: 作業treeの元charge point recorder、厳格runtime reader、`profile run`が重点6試験／consistency 6試験と全Clippyに成功。公開profile_runtime fixtureは実VM／native JITの両方で42、fuel23／service16／frame2／cell34、元span集計20件が一致し帰属不能0。sample／上限／未対応mode／実行失敗を検証し、観測超過でも元実行結果／usage／cleanupが一致する。最終fmt／docは成功し、全workspace testを実行中。残るE02受入は最終baseline、code commit、両host証拠。E01 final head `4ee6043`は全体CI `40943604146`とnative `40943603843`に成功。G8は未完了。
 
 **次: M4-E02 — sourceに帰属するruntime観測（doing、3 pt）。** E01は`e2f0c1d`で完了し、追加なしで最終3 ptを消化。追加+15、消化82、42 deliveryの残り36 pt。scope監査で元charge pointへの任意の上限付きobserver、実VM／nativeの帰属report、重点同値／上限試験へ分解し3 ptを維持。runtime／trace契約は実行証拠に基づき実装前に具体化する。
 

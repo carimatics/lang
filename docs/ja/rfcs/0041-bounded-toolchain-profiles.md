@@ -46,6 +46,22 @@ checked monotonic差分とu64 nanosecond変換／加算を使い、不正な観�
 
 runtime／trace／rebuild kindは実装前にRFC具体化と実行証拠を必要とする。native帰属をVM replayで代用せず、provider counterを架空のallocation eventに置き換えず、不完全な観測を完全traceと呼ばない。rebuild説明はtimingからcache挙動を推測せず、実入力変更を特定する。
 
+### Runtime観測の具体化（2026-10-30 JST）
+
+exact-SDKの`target/m4-e02-charge-point-probe.log`は同じ所有権付きvector programを元VMと実compile済みnative JIT entryで実行する。fuel上限0／1／2／8で元usageとfault spanが一致し、完了時は両方9を返し、fuel20／host call0／service work16／peak frame1／cell30となる。元allocatorは両方とも全storageをretireする。既存charge／span境界の証拠であり、production profileやWindows受入ではない。
+
+execution Controlに信頼済み任意の借用point recorderを加える。元fuel charge成功後、効果前に、その操作の既存optional source spanだけを記録する。poll、fuel／service／host accounting、cleanup、主失敗順を保つ。両configuration比較へrecorder identityを含め、ControlのSend／Syncを維持する。recorderはuser callbackを持たず、実行前に有限bufferを予約し、同期した所有metadataだけを使い、記録中に確保しない。既定4,096 sample、最大65,536、sampling間隔1–65,536で成功chargeのN件ごとを選ぶ。spanなしも含め成功chargeをすべて数える。buffer／counter／lock失敗は観測errorとして保持し、guestの中断／再実行はせず、snapshot／公開を拒否して完全prefixと主張しない。
+
+`lang profile run`は`--engine vm|native`を選び、既定vm、明示package／host targetのadmissionを使いhost importはgrantしない。初期VM modeは通常Copy／ownership、native modeは元のownership JIT driverとそのcompile code ownerで、VMへfallbackしない。task／C／component bindingと非計測Copy nativeのsource-point profileは効果前に拒否する。native AOT instruction profileは未対応とし、実JIT／native fixtureが初期native runtime観測profileを満たす。元の有限fuel／frame／cell上限を使い、guest capabilityを増やさない。
+
+`cargo run -- profile run --manifest-path examples/packages/profile_runtime/Lang.json --engine native`で実行し、同じ取得済みsourceには`--engine vm`、決定的な間引きには`--sample-every 2`を使う。所有権付きvector／call fixtureはstorageをretireして42を返す。`--observations N`で有限buffer容量を選ぶ。runtime上限は通常の`--fuel`、`--frames`、`--cells`、`--service-work`を使う。未sample件数や統計的に偏りのないhot spotは推定しない。
+
+runtime reportはschema 1／kind runtimeを使い、engine／意味profile／sampling間隔／成功charge総数／sample／帰属不能件数／source byte-span別sample数／元usage／結果／host経過時間を明示する。entry計測は元実行／preflight／cleanupとinstrumentationを含み、code生成／準備はその前に行う。sample数は課金位置の頻度であり、CPU時間、完了操作数、推定instruction費用ではない。間隔1でbuffer内なら全成功chargeを観測する。不明spanは帰属不能とし、sourceは同じ取得済み受理programを使う。report pathは相対の観測で、IO権限にならない。完全reportを4 MiBに制限し、公開／読込み前にID／受理source範囲／合計／有限counterを検証する。compile reportのfield／encodingは変更しない。
+
+runtime schema-1 fieldは`schema`、`kind`、`clock`、`compiler_id`、`target`、`input_digest`、`engine`（`vm`／`native_jit`）、`profile`（`copy`／`ownership`）、`measurement`（`successful_fuel_charges`）、`sample_every`、`total_charged_points`、`sampled_points`、`unattributed_points`、`sources`、`points`、`usage`、`result`、`elapsed_ns`とする。sourceは`id`、相対`path`、`bytes`、`digest`、point集計は`source`、`start`、`end`、`samples`を持つ。usageは`fuel`、`host_calls`、`service_work`、`peak_frames`、`peak_live_cells`を保つ。sourceはID順、集計はsource／start／end順で重複を認めない。sample合計はfloor(total／interval)および集計sample＋帰属不能sampleと一致し、fuelは総charge数に一致する。native JITにはownershipを必要とする。readerは未知／重複field、不正span／件数、合計不一致を拒否する。guest実行失敗は通常診断経路で報告し、成功runtime reportを返さない。
+
+RFC 0001の実験委任で採択する。有限実験が実native codeで共有span、厳密counter、cleanupを示した。観測にはhost lock／memory／timing overheadが増え、deadlineは引き続き実host経過時間を含む。private Rust metadata／layout準備費用は変わり得るが、保存形式とguest fuel／service／provider accountingは変えない。時間やoverheadの同値は主張しない。元結果／usage同値、sample帰属、上限超過、両host証拠をE02で検証する。E03 allocator eventとE04 rebuild説明は別の具体化に残る。
+
 ## Execution modes
 
 compile profilingは通常portable compilerが受理する全意味profileを、元のentry／preflight規則で使う。VM／native AOT／JIT／component codeは実行しない。runtime modeは明示instrumentation／計測上限を持つE02／E03の要件に残る。
@@ -83,7 +99,7 @@ E01でcompile report／readerと実package CLI fixtureを実装する。E02で�
 
 ## Open questions
 
-2026-10-30 JST、RFC 0001の実験委任で採択する。既存compileと閉じた上限付きreportの再利用により言語の意味を変えない。E01 production統合、platform clock観測、E02–E04の帰属／trace／rebuild契約は未検証である。粗い実験は実現可能性のみを示す。
+2026-10-30 JST、RFC 0001の実験委任で採択する。E01 compile reportはsource `e2f0c1d`／最終head `4ee6043`の完全local baselineと両host CIで検証した。E02は実VM／nativeの結果／usage／span同値とruntime CLIをlocal検証し、完全baselineと両host受入は未完了である。E03／E04のtrace／rebuild契約と証拠は引き続き必要。単発timingを性能比較に使わない。
 
 ## Sources
 

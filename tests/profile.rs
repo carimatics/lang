@@ -207,3 +207,268 @@ fn compile_profile_reader_rejects_foreign_formats_overflow_and_incomplete_observ
         assert!(result.stdout.is_empty());
     }
 }
+
+#[test]
+fn runtime_points_observe_original_owned_vm_and_native_calls_without_changing_failures() {
+    use lang_codegen_clif::owned::{CompiledProgram, runtime};
+    use lang_runtime::{allocation as a, cleanup as c, execution as e, layout};
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("examples/scripts");
+    let limits = frontend::CompileLimits::default();
+    let analysis = frontend::analyze_file(&root.join("owned_calls.lang"), &root, limits);
+    let bytes = artifact::compile(
+        analysis.result.unwrap(),
+        &analysis.sources,
+        limits,
+        Default::default(),
+    )
+    .unwrap();
+    let artifact::Program::Ownership(program) =
+        artifact::decode(&bytes, Default::default()).unwrap()
+    else {
+        panic!("owned")
+    };
+    let flow = program.flow();
+    let layouts = layout::Layouts::compile(
+        flow.source()
+            .activity()
+            .moved()
+            .typed()
+            .places()
+            .declarations()
+            .types(),
+        Default::default(),
+    )
+    .unwrap();
+    let native = CompiledProgram::compile(flow, &layouts, Default::default(), 1000).unwrap();
+    let entry = program.entry().unwrap();
+    for fuel in [0, 1, 8, 1000] {
+        let observed_vm = e::PointRecorder::new(4096, 1).unwrap();
+        let observed_native = e::PointRecorder::new(4096, 1).unwrap();
+        let short_vm = e::PointRecorder::new(1, 1).unwrap();
+        let short_native = e::PointRecorder::new(1, 1).unwrap();
+        let vm = |control| {
+            let mut instance = c::Instance::default();
+            let mut allocator = a::Allocator::new(a::System, Default::default()).unwrap();
+            let outcome = lang_vm::unit::owned::execute_function(
+                flow,
+                entry,
+                &mut instance,
+                Some(&mut allocator),
+                control,
+            );
+            assert_eq!(allocator.stats().live_allocations, 0);
+            match outcome {
+                Ok(o) => (Some(o.value), o.usage, None),
+                Err(e) => (
+                    None,
+                    e.usage,
+                    e.fault.map(|s| e::Point {
+                        source: s.source.0,
+                        start: s.start,
+                        end: s.end,
+                    }),
+                ),
+            }
+        };
+        let machine = |control| {
+            let mut instance = c::Instance::default();
+            let mut allocator = a::Allocator::new(a::System, Default::default()).unwrap();
+            let outcome = runtime::execute_entry(
+                &native,
+                entry,
+                &mut instance,
+                &mut allocator,
+                runtime::Config {
+                    control,
+                    ..Default::default()
+                },
+            );
+            assert_eq!(allocator.stats().live_allocations, 0);
+            match outcome {
+                Ok(o) => (Some(o.value), o.usage, None),
+                Err(e) => (
+                    None,
+                    e.usage,
+                    e.fault.map(|s| e::Point {
+                        source: s.source.0,
+                        start: s.start,
+                        end: s.end,
+                    }),
+                ),
+            }
+        };
+        let control = e::Control::with_limits(e::Limits {
+            fuel: Some(fuel),
+            host_calls: Some(0),
+            frames: Some(64),
+            live_cells: Some(65536),
+        });
+        let original = vm(control);
+        assert_eq!(machine(control), original);
+        assert_eq!(vm(control.and_observations(&observed_vm)), original);
+        assert_eq!(
+            machine(control.and_observations(&observed_native)),
+            original
+        );
+        let left = observed_vm.snapshot().unwrap();
+        let right = observed_native.snapshot().unwrap();
+        assert_eq!(left.total, original.1.fuel);
+        assert_eq!(right.total, left.total);
+        assert_eq!(left.samples, right.samples);
+        if fuel == 1000 {
+            assert!(original.0.is_some());
+            assert_eq!(vm(control.and_observations(&short_vm)), original);
+            assert_eq!(machine(control.and_observations(&short_native)), original);
+            assert!(matches!(
+                short_vm.snapshot(),
+                Err(e::ObservationError::Capacity)
+            ));
+            assert!(matches!(
+                short_native.snapshot(),
+                Err(e::ObservationError::Capacity)
+            ));
+        }
+    }
+}
+
+#[test]
+fn runtime_cli_attributes_real_vm_native_and_sampled_points_without_publishing_builds() {
+    use lang::profile::runtime::{Engine, Report as RuntimeReport};
+    let temp = Temp::new();
+    let app = temp.0.join("app");
+    assert!(bin().arg("new").arg(&app).status().unwrap().success());
+    std::fs::copy(
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("examples/scripts/owned_calls.lang"),
+        app.join("src/main.lang"),
+    )
+    .unwrap();
+    let mut reports = Vec::new();
+    for engine in ["vm", "native"] {
+        let result = bin()
+            .args(["profile", "run", "--manifest-path"])
+            .arg(app.join("Lang.json"))
+            .args(["--engine", engine])
+            .output()
+            .unwrap();
+        assert!(
+            result.status.success(),
+            "{}",
+            String::from_utf8_lossy(&result.stderr)
+        );
+        let report = RuntimeReport::decode(&result.stdout).unwrap();
+        assert!(!report.points.is_empty(), "{report:?}");
+        assert_eq!(report.unattributed_points, 0);
+        assert_eq!(report.sources[0].path, "src/main.lang");
+        assert_eq!(report.total_charged_points, report.usage.fuel);
+        assert_eq!(report.sampled_points, report.total_charged_points);
+        assert_eq!(
+            RuntimeReport::decode(&report.encode().unwrap()).unwrap(),
+            report
+        );
+        reports.push(report);
+    }
+    assert_eq!(reports[0].engine, Engine::Vm);
+    assert_eq!(reports[1].engine, Engine::NativeJit);
+    assert_eq!(reports[0].result, reports[1].result);
+    assert_eq!(reports[0].usage, reports[1].usage);
+    assert_eq!(reports[0].points, reports[1].points);
+    let sampled = bin()
+        .args(["profile", "run", "--manifest-path"])
+        .arg(app.join("Lang.json"))
+        .args(["--sample-every", "2"])
+        .output()
+        .unwrap();
+    assert!(sampled.status.success());
+    let sample = RuntimeReport::decode(&sampled.stdout).unwrap();
+    assert_eq!(sample.usage, reports[0].usage);
+    assert_eq!(sample.sampled_points, sample.total_charged_points / 2);
+    for options in [
+        vec!["--observations", "1"],
+        vec!["--engine", "native", "--fuel", "0"],
+    ] {
+        let failed = bin()
+            .args(["profile", "run", "--manifest-path"])
+            .arg(app.join("Lang.json"))
+            .args(options)
+            .args(["--message-format", "json"])
+            .output()
+            .unwrap();
+        assert_eq!(failed.status.code(), Some(1));
+        assert!(failed.stdout.is_empty());
+        assert!(!failed.stderr.is_empty());
+    }
+    assert!(!app.join("Lang.lock").exists());
+    assert!(!app.join("target").exists());
+    std::fs::write(app.join("src/main.lang"), "fn main()->i64{return 42;}").unwrap();
+    let copy = bin()
+        .args(["profile", "run", "--manifest-path"])
+        .arg(app.join("Lang.json"))
+        .output()
+        .unwrap();
+    assert!(copy.status.success());
+    assert_eq!(RuntimeReport::decode(&copy.stdout).unwrap().result, 42);
+    let refused = bin()
+        .args(["profile", "run", "--manifest-path"])
+        .arg(app.join("Lang.json"))
+        .args(["--engine", "native"])
+        .output()
+        .unwrap();
+    assert_eq!(refused.status.code(), Some(1));
+    assert!(refused.stdout.is_empty());
+}
+
+#[test]
+fn runtime_report_reader_refuses_unproven_points_and_false_sampling_totals() {
+    use lang::profile::runtime::Report as RuntimeReport;
+    let result = bin()
+        .args(["profile", "run", "--manifest-path"])
+        .arg(fixture())
+        .output()
+        .unwrap();
+    assert!(
+        result.status.success(),
+        "{}",
+        String::from_utf8_lossy(&result.stderr)
+    );
+    let report = RuntimeReport::decode(&result.stdout).unwrap();
+    let good = serde_json::to_value(&report).unwrap();
+    let mut failures = Vec::new();
+    for (key, value) in [
+        ("schema", serde_json::json!(2)),
+        ("kind", serde_json::json!("compile")),
+        ("sample_every", serde_json::json!(0)),
+        ("sampled_points", serde_json::json!(u64::MAX)),
+        ("unattributed_points", serde_json::json!(u64::MAX)),
+        ("unknown", serde_json::json!(true)),
+    ] {
+        let mut bad = good.clone();
+        bad[key] = value;
+        failures.push(bad);
+    }
+    let mut bad = good.clone();
+    bad["usage"]["fuel"] = serde_json::json!(0);
+    failures.push(bad);
+    let mut bad = good.clone();
+    bad["points"][0]["end"] = serde_json::json!(u32::MAX);
+    failures.push(bad);
+    let mut bad = good.clone();
+    bad["points"][0]["source"] = serde_json::json!(4096);
+    failures.push(bad);
+    let mut bad = good.clone();
+    bad["sources"][0]["path"] = serde_json::json!("../outside.lang");
+    failures.push(bad);
+    let mut bad = good.clone();
+    bad["engine"] = serde_json::json!("native_jit");
+    failures.push(bad);
+    for bad in failures {
+        assert!(
+            RuntimeReport::decode(&serde_json::to_vec(&bad).unwrap()).is_err(),
+            "{bad}"
+        );
+    }
+    assert!(RuntimeReport::decode(&vec![b' '; lang::profile::MAX_REPORT_BYTES + 1]).is_err());
+    let duplicate = String::from_utf8(report.encode().unwrap())
+        .unwrap()
+        .replacen("{", "{\"schema\":1,", 1);
+    assert!(RuntimeReport::decode(duplicate.as_bytes()).is_err());
+}

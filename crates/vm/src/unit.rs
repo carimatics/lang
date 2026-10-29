@@ -749,7 +749,14 @@ impl Machine<'_> {
         Ok(())
     }
     fn charge(&mut self) -> Result<(), Reason> {
-        self.control.charge(&mut self.usage).map_err(Reason::from)
+        self.control.charge(&mut self.usage).map_err(Reason::from)?;
+        self.control
+            .observe(self.fault.map(|span| lang_runtime::execution::Point {
+                source: span.source.0,
+                start: span.start,
+                end: span.end,
+            }));
+        Ok(())
     }
     fn host_call(&mut self, function: I64HostFunction, argument: i64) -> Result<i64, Reason> {
         self.control

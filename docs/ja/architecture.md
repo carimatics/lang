@@ -123,6 +123,8 @@ native DAP backend は同じ package admission を使い、検証した private 
 
 [M2 source/Rust/C測定](benchmarks.md)は名前付きの不変revisionに結び付き、大きな性能差を示しています。測定完了の根拠であり、native同等性能や速度保証ではありません。今後の最適化判断にはこのworkloadを使い、過去のscalar microbenchmarkでsource programの費用を代用しません。
 
+任意のhost point recorderはexecution Control／configuration identityに含まれ、Send／Syncを維持します。元Copy VM／ownership VM／通常native ownershipのcharge pointはfuel課金成功後だけ、予約済み有限storageと既存spanを使って記録します。`lang profile run`は頻度、決定的sampling、元usage、host entry経過時間を返し、CPU帰属とは主張しません。native engineはownership JITで、native Copy／task／C／component profileは拒否します。観測上限超過でもguestを中断／再実行せず、成功report公開を拒否します。閉じたruntime readerは4 MiB上限内で有限sample合計と取得済みsource範囲を検証します。allocation／retirement traceとrebuild説明は後続G8 deliveryに残します。
+
 ## 診断、REPL、editor tooling
 
 CLI は check、source/artifact 実行、portable compile、native package/link、transactional REPL、同期 LSP prototype を備えます。format は共通 CST API と LSP document formatting から利用できます。[RFC 0010](rfcs/0010-owned-repl-previews.md) と [RFC 0016](rfcs/0016-indirect-repl-previews.md) が有界 result preview を定めます。output 公開前に result を retire し、session は source 定義を保持しても mutable guest owner を保持しません。
