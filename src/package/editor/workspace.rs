@@ -90,6 +90,11 @@ impl Config {
     }
 }
 impl View {
+    pub fn same_inputs(&self, other: &Self) -> bool {
+        self.snapshot.inputs == other.snapshot.inputs
+            && self.snapshot.aliases == other.snapshot.aliases
+            && self.snapshot.versions() == other.snapshot.versions()
+    }
     pub fn relative<'a>(&self, path: &'a Path) -> Result<&'a Path, Diagnostic> {
         path.strip_prefix(&self.authority)
             .map_err(|_| Diagnostic::error("PKG0003", "document is outside the selected package"))

@@ -4,13 +4,13 @@
 
 [English](../milestone-4.md)
 
-更新: 2026-10-29 JST。M4 は active。Goal 開始は clean main／origin/main `af9988f`、remote `git@github.com:carimatics/lang.git`。PR #9–#16 は merge 済み。tooling PR #16 は `49a0fe8` として merge し、main を fast-forward して clean、ahead／behind 0/0 を確認した。現在の `codex/m4-editor-navigation` はその main から作成し、PR base は `carimatics/lang:main`。upstream は origin/codex/m4-editor-navigation、[PR #17](https://github.com/carimatics/lang/pull/17) で、既存 working-tree／user 変更はなかった。C01–C04 の navigation／references／completion／token を一貫した成果として扱う。
+更新: 2026-10-29 JST。M4 は active。Goal 開始は clean main／origin/main `af9988f`、remote `git@github.com:carimatics/lang.git`。PR #9–#17 は merge 済み。navigation PR #17 最終 head `bdc2547` は CI `40852934805`（18 成功、意図した文書専用 skip）と debugger `40852934802`（3/3）に成功し、`0293026` として merge。local main／origin/main ref は ahead／behind 0/0 で一致する。現在の `codex/m4-editor-checked-edits` は clean・upstream 同期済み `codex/m4-editor-navigation` head `bdc2547` から、一貫した C05–C07 用に作成した。既存 user 変更はなく、upstream は origin/codex/m4-editor-checked-edits、[PR #18](https://github.com/carimatics/lang/pull/18) は main を base とする。初期記録 base `carimatics/lang:codex/m4-editor-navigation` は #17 merge により `carimatics/lang:main` へ変更した。base ref 同期中も現在の検証 edit worktree を保持する。
 
-**18 done · 1 doing · 21 todo · 62 remaining pt**
+**21 done · 1 doing · 18 todo · 54 remaining pt**
 
-C04 実行 checkpoint、2026-10-29 18:48 JST: 重点 40 件、fmt、警告なし全 Clippy が成功。full semantic token は証明済み function／type／parameter／local／field identity、UTF-16、CRLF／CR のみの改行、複数行 comment を保持し、構文不正時は字句 fallback を使う。open／change／close／watch は result ID を無効化し、古い version を無視して対応 client だけへ refresh を要求する。実 stdio で navigation／completion／token を実行し、range／delta と出力超過は部分成功なしで拒否する。source 固定の全 baseline（**166 suite／2,447 成功／0 失敗**）と doc も成功した。code 証拠は `be05690` で、最新 head CI／PR lifecycle が残る。現在は C05 が doing で、見積追加はない。C03 source `0612c45` は 166 suite／2,445 test と fmt／Clippy／doc に成功した。
+C07 実行 checkpoint、2026-10-29 20:18 JST: 重点 57 件が成功。独立した上限付き stdio consumer が wire frame、元 localhost URI／UTF-16／CRLF、公開 navigation／completion／token、古い二 file rename の client 側全体拒否、version 付き rename／fix／整形の適用、監視 metadata の回復、dependency close／reopen、workspace 外拒否を検証した。server は source／lock／artifact を変更せず、その後 client が buffer を保存して実 package run が 42 を返した。fmt、警告なし全 Clippy、source 固定の全 baseline（**166 suite／2,459 成功／0 失敗**）と doc も成功。G5／G6 完了前に最新 head 両 host CI が残る。C07 code 証拠は `6d16e93` で、現在は D01 が doing。見積追加はない。C06 code 証拠は `503912f`（166 suite／2,458 test、fmt／Clippy／doc）で、PR #18 は draft に保つ。
 
-**次: M4-C05 — binding 対応を証明し version 付き edit を返す prepare／rename（doing、3 pt）。** C04 source `be05690` は重点 40 件、fmt／Clippy／doc、全 baseline（166 suite／2,447 test）に成功。最終 3 pt を消化し、追加 +11、消化 52、残り 62 pt。C05 は snapshot を再利用し、合法名／source symbol 選択、メモリ内再解析と binding 対応、collision／privacy 拒否、input 再確認、version 付き transactional client edit を実装する。実行可能な複数 file の dependency rename から始め、RFC 0039 に従い alias／module／external 宣言は未対応とする。review 済み 3 pt を保持し、新 delivery／見積追加はない。PR #17 の最新 head CI／merge は並行して進める。
+**次: M4-D01 — DAP launch／control／stack／source 契約の採択と VM source breakpoint 停止（doing、3 pt）。** C07 source `6d16e93` は重点 57 件、fmt／Clippy／doc、全 baseline（166 suite／2,459 test）に成功し、独立 stdio edit と client 保存後に 42 を返す実行も検証した。最終 2 pt を消化し、追加 +11、消化 60、残り 54 pt。C01–C07 の実装 delivery は全て done で、G5／G6 は PR #18 最新 head の両 host CI／merge 待ち。D01 は既存 source 契約と最小 VM debugger 実験から始め、広い adapter 設計の前に実行する。一貫した D01–D05 branch を記録済み editor head から作成し、依存／base を記録する。review 済み 3 pt を保持し、見積追加はない。
 
 A04 source `cf6cf5c` は fmt、全 Clippy／doc、checked opt-level 1 全 test（**158 suite／2,384 成功／0 失敗**）、重点 75 test に成功。最終 head `75a2041` は [全 CI](https://github.com/carimatics/lang/actions/runs/40810065213)（全 19 job、18 成功、意図した文書専用 skip）と [debugger 実行](https://github.com/carimatics/lang/actions/runs/40810065278)（3/3）に成功した。[PR #13](https://github.com/carimatics/lang/pull/13) は `58527c2` として merge、main を fast-forward して clean・同期済み、ahead／behind 0/0。workspace branch 作成と現在の PR／upstream は上記に記録した。既存の user 変更はなかった。
 
@@ -68,10 +68,10 @@ A01 入力修正は Unix の nonblocking open と開いた handle の metadata �
 | M4-C02 | done | 0 | M4-C01 | G5 | package overlay、edit、watched-file refresh を跨ぐ definition／reference | `569260b` |
 | M4-C03 | done | 0 | M4-C02 | G5 | scope／privacy／type に従う completion、UTF-16 と stale result test | 0612c45 |
 | M4-C04 | done | 0 | M4-C03 | G5 | Unicode、不正 source、document lifecycle に耐える semantic token と refresh | be05690 |
-| M4-C05 | doing | 3 | M4-C02 | G6 | 衝突／privacy 検査と version 付き atomic edit を持つ複数 file prepare／rename | — |
-| M4-C06 | todo | 3 | M4-C05 | G6 | 採択 code action が検証済み fix を生成し stale／曖昧 edit を拒否 | — |
-| M4-C07 | todo | 2 | M4-C04,M4-C06 | G5,G6 | editor package の end-to-end fixture と protocol／resource／refusal coverage | — |
-| M4-D01 | todo | 3 | M4-A06 | G7 | DAP launch／control／stack／source 契約採択、VM source breakpoint で停止 | — |
+| M4-C05 | done | 0 | M4-C02 | G6 | 衝突／privacy 検査と version 付き atomic edit を持つ複数 file prepare／rename | 3cd27e2 |
+| M4-C06 | done | 0 | M4-C05 | G6 | 採択 code action が検証済み fix を生成し stale／曖昧 edit を拒否 | 503912f |
+| M4-C07 | done | 0 | M4-C04,M4-C06 | G5,G6 | editor package の end-to-end fixture と protocol／resource／refusal coverage | 6d16e93 |
+| M4-D01 | doing | 3 | M4-A06 | G7 | DAP launch／control／stack／source 契約採択、VM source breakpoint で停止 | — |
 | M4-D02 | todo | 3 | M4-D01 | G7 | pause／authority 上限付き VM stepping、frame、local、evaluation | — |
 | M4-D03 | todo | 3 | M4-D02 | G7 | 両 tier-1 host で native debugger launch と source breakpoint | — |
 | M4-D04 | todo | 3 | M4-D03 | G7 | native／VM 混在 stack fixture で call 順、span、失敗 cleanup 保持 | — |
@@ -97,9 +97,9 @@ A01 入力修正は Unix の nonblocking open と開いた handle の metadata �
 
 | Baseline remaining | Net added/re-estimated | Retired on completion | Remaining |
 | ---: | ---: | ---: | ---: |
-| 103 pt | +11 pt | −52 pt | 62 pt |
+| 103 pt | +11 pt | −60 pt | 54 pt |
 
-**103 + 11 − 52 = 62 pt**
+**103 + 11 − 60 = 54 pt**
 
 名前空間の前提監査、2026-10-29 JST: 既存 `ModuleGraph::root()` は常に `ModuleId(0)`。path provider だけでは依存ごとの package-root 名前空間や共有 dependency identity の安全な再利用を提供できない。元の A02 を、許可 graph（新規 A02R、3 pt）と名前空間／source 実行の統合（task list を見直した A02、残り 3 pt）へ分割する。純追加 +3 pt、全 37 delivery。A01 と A02R は前提二つとなるため、水平基盤を増やす前に A02 で次の source 実行 fixture を示す。この監査による gate 完了や延期はない。
 
@@ -142,3 +142,14 @@ A04B 完了: `9cf5f7c` が実 package 作成／dependency build／run、locked�
 - A04B 互換性 checkpoint、2026-10-29 JST: Windows CI と初回 local baseline が、source なし `run` の usage exit 2 と service-work help 3 形式という二つの古い期待値を検出した。RFC 0034 は既定 package manifest の選択と第 4 help 形式を意図して追加している。更新した検査は全ての不正な file 明示 exit 2 を維持し、manifest 不在の exit 1、42 を返す既定 manifest run、祖先検索の拒否を検証する。CLI／service-work／package-command／consistency は 53/53 成功。失敗 baseline は診断証拠として保持し、修正後の全 baseline と最新 head CI は引き続き必要。この修正による delivery や見積の追加はない。
 - roadmap 監査: P1 profiling を含む元の九つの gate は、新規開発者 journey に引き続き必要。M4 を有効化したので roadmap から live board を参照する。署名 installer 検証は install／download より先に行う。registry distribution は M5 に保ち、暗黙に供給したり削除したりしない。
 - 出典: repository roadmap／architecture／RFC を 2026-10-29 JST に確認。source file に埋込み更新日はない。RFC 0034 更新日 2026-10-29。checkpoint は有限の local 証拠で、両 host／milestone 全体の主張ではない。
+
+## C07 editor protocol 監査
+
+local 監査、2026-10-29 JST。remote 最新 head の確認は引き続き必要。
+
+- 権限／input lifetime: `tests/package_editor.rs` と package LSP admission fixture が frozen input、metadata／source 物理共有、元表示 alias、workspace 外と未許可 overlay を検証する。
+- semantic／protocol 境界: package LSP fixture が privacy／import／scope／field identity、不正 source、元 URI／version／UTF-16／CRLF、token 順序／refresh、件数／出力／変換 work 上限と部分成功なしの拒否を検証する。
+- edit 安全性: HIR／型全体の対応と独立した「型は有効だが binding が違う」証明 test に加え、具体 version、open file／transactional client guard、衝突／alias／ABI 拒否、古い閉 input、file 不変を確認する。整形／未読 binding action は formatter／linter を再利用し、initializer／代入を保持して曖昧・偽造 fix を拒否する。
+- 相互運用／実行: `tests/support/lsp_client.rs` は deadline と atomic version 検査を持ち、Content-Length frame と UTF-16 edit を独立に処理する。実 stdio package journey が両 action と複数 file rename、dependency close／reopen、監視 metadata の回復を適用し、client 保存後の source が 42 を返す。既存 standalone protocol／framing fixture も有効に保つ。
+
+この有限の監査は任意 client の atomicity、外部 writer の排除、性能 benchmark、fuzz coverage を主張しない。G5／G6 は最新 head 両 host CI と PR lifecycle 完了まで pending に保つ。

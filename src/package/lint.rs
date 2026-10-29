@@ -2,7 +2,10 @@
 use super::{ByteSpan, Diagnostic, Severity, graph::Graph, source};
 use crate::frontend::{Analysis, AnalysisError, CompileLimits};
 use lang_diagnostics::{SourceMap, Span};
-use lang_hir::resolved::{BindingKind, ExpressionKind};
+use lang_hir::{
+    resolved::{self as r, BindingKind, ExpressionKind},
+    source::Name,
+};
 use std::collections::{BTreeMap, BTreeSet};
 
 pub const MAX_DIAGNOSTICS: usize = 65_536;
@@ -92,39 +95,52 @@ impl Collector {
                 return Ok(());
             }
         };
-        for function in &program.source().functions {
-            let used: BTreeSet<_> = function
-                .expressions
-                .iter()
-                .filter_map(|e| {
-                    if let ExpressionKind::Local(id) = e.kind {
-                        Some(id.0)
-                    } else {
-                        None
-                    }
-                })
-                .collect();
-            for (index, local) in function.locals.iter().enumerate() {
-                if local.kind != BindingKind::ArenaOwner
-                    && !local.name.text.starts_with('_')
-                    && !used.contains(&index)
-                {
-                    let mut d = at(
-                        &analysis.sources,
-                        local.name.span,
-                        "LNT0001",
-                        format!(
-                            "binding {} is never read; prefix its name with _ if intentional",
-                            local.name.text
-                        ),
-                    )?;
-                    d.severity = Severity::Warning;
-                    self.push(d)?;
-                }
-            }
+        for name in unread_bindings(program.source()) {
+            self.push(unread_diagnostic(&analysis.sources, name)?)?;
         }
         Ok(())
     }
+}
+pub(crate) fn unread_bindings(program: &r::Program) -> impl Iterator<Item = &Name> {
+    program.functions.iter().flat_map(|function| {
+        let used: BTreeSet<_> = function
+            .expressions
+            .iter()
+            .filter_map(|e| {
+                if let ExpressionKind::Local(id) = e.kind {
+                    Some(id.0)
+                } else {
+                    None
+                }
+            })
+            .collect();
+        function
+            .locals
+            .iter()
+            .enumerate()
+            .filter(move |(index, local)| {
+                local.kind != BindingKind::ArenaOwner
+                    && !local.name.text.starts_with('_')
+                    && !used.contains(index)
+            })
+            .map(|(_, local)| &local.name)
+    })
+}
+pub(crate) fn unread_diagnostic(
+    sources: &SourceMap,
+    name: &Name,
+) -> Result<Diagnostic, Diagnostic> {
+    let mut d = at(
+        sources,
+        name.span,
+        "LNT0001",
+        format!(
+            "binding {} is never read; prefix its name with _ if intentional",
+            name.text
+        ),
+    )?;
+    d.severity = Severity::Warning;
+    Ok(d)
 }
 fn at(
     sources: &SourceMap,

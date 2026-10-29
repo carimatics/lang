@@ -94,7 +94,7 @@ The rationale and unresolved tradeoffs are documented in [the architecture basel
 - [RFC 0036: Checked package formatting (accepted)](docs/rfcs/0036-checked-package-formatting.md)
 - [RFC 0037: Package lint diagnostics (accepted)](docs/rfcs/0037-package-lint-diagnostics.md)
 - [RFC 0038: Package API documentation (accepted)](docs/rfcs/0038-package-api-documentation.md)
-- [RFC 0039: Package editor snapshots and checked edits (accepted)](docs/rfcs/0039-package-editor-snapshots.md)
+- [RFC 0039: Package editor snapshots and checked edits (implemented)](docs/rfcs/0039-package-editor-snapshots.md)
 - [Contribution guide](CONTRIBUTING.md)
 
 `cargo run -- lint --manifest-path target/my_app/Lang.json --deny-warnings --message-format json` checks the selected package and declared tests without executing guest code or writing lock/artifacts. `LNT0001` reports unread bindings; `_`-prefixed names suppress that rule. Existing warnings retain their codes. Omit `--deny-warnings` to keep warnings non-failing. See [RFC 0037](docs/rfcs/0037-package-lint-diagnostics.md).
@@ -106,6 +106,10 @@ The rationale and unresolved tradeoffs are documented in [the architecture basel
 Package completion returns public module/import/enum names, scoped bindings and fields recovered from declared receiver types. Incomplete identifiers use a bounded in-memory normal-parser/binder probe; returned text edits retain original UTF-16 ranges and carry epoch/version data. Unsupported receiver expressions produce no guessed fields.
 
 Full semantic tokens use a fixed legend and the current binding index, with lexical fallback for malformed source. Tokens split at CR/LF, use non-overlapping UTF-16 delta encoding and carry an epoch result ID. Clients advertising semantic-token refresh support receive refresh requests after source/overlay/watch invalidation; range and delta requests are unsupported.
+
+Prepare/rename proposes checked source identifier edits, including across dependency files. Every edited file must be open and versioned; clients need `workspaceEdit.documentChanges`, and multi-file edits additionally require `transactional` or `textOnlyTransactional` failure handling. The server rechecks all admitted input bytes, reanalyzes replacements and verifies complete resolved-HIR/type correspondence. Collisions, import aliases, modules, external ABI declarations and stale inputs are refused; the server never writes the proposal to disk.
+
+Literal code actions reuse those input/version guards and the package linter rule. Clients must announce the supported kind families: `source.format` offers whole-document formatting after a source-position-independent HIR/type proof; `quickfix` prefixes one unambiguously selected unread binding with `_` through the rename proof. Initializers and assignment effects are retained, guest code is never executed, and ambiguous/colliding fixes produce no edit.
 
 ## Development
 

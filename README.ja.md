@@ -94,7 +94,7 @@ source構文・native language ABI・private SDK/package formatは実験段階�
 - [RFC 0036: 検証付き package formatting（accepted）](docs/ja/rfcs/0036-checked-package-formatting.md)
 - [RFC 0037: package lint 診断（accepted）](docs/ja/rfcs/0037-package-lint-diagnostics.md)
 - [RFC 0038: package API 文書（accepted）](docs/ja/rfcs/0038-package-api-documentation.md)
-- [RFC 0039: package editor snapshot と検証付き edit（accepted）](docs/ja/rfcs/0039-package-editor-snapshots.md)
+- [RFC 0039: package editor snapshot と検証付き edit（implemented）](docs/ja/rfcs/0039-package-editor-snapshots.md)
 - [コントリビューションガイド](CONTRIBUTING.ja.md)
 
 `cargo run -- lint --manifest-path target/my_app/Lang.json --deny-warnings --message-format json` は guest code を実行せず、lock／artifact を書かずに選択 package と宣言 test を検査します。`LNT0001` は未読 binding を報告し、`_` で始まる名前はこの rule を抑制します。既存 warning は code を保持します。`--deny-warnings` を省くと warning は失敗にしません。[RFC 0037](docs/ja/rfcs/0037-package-lint-diagnostics.md) を参照してください。
@@ -106,6 +106,10 @@ source構文・native language ABI・private SDK/package formatは実験段階�
 package completion は公開 module／import／enum 名、scope 内 binding、宣言 receiver 型から取得した field を返します。不完全な識別子は上限付きのメモリ内通常 parser／binder probe で扱い、text edit は元 UTF-16 範囲と epoch／version data を保持します。未対応 receiver 式の field は推測しません。
 
 full semantic token は固定 legend と現在の binding index を使い、不正 source には字句 fallback を使います。CR／LF で分割し、非重複 UTF-16 delta と epoch result ID を返します。semantic-token refresh 対応を宣言した client には source／overlay／watch 無効化後に refresh を要求し、range／delta request は未対応です。
+
+prepare／rename は dependency file を含む source 識別子の検証 edit を提案します。編集する全 file が open・version 付きであることと、client の `workspaceEdit.documentChanges`、複数 file では `transactional`／`textOnlyTransactional` の failure handling が必要です。許可済み全 input bytes の再確認、置換後の再解析、resolved HIR 全体と型の対応検証を行い、衝突、import alias、module、外部 ABI 宣言、古い input を拒否します。提案を disk に直接書き込みません。
+
+literal code action は同じ input／version guard と package linter の rule を再利用し、client が宣言した kind family に限定して提供します。`source.format` は source 位置に依存しない HIR／型の証明後に文書全体を整形し、`quickfix` は一意に選択した未読 binding を rename 証明で `_` prefix にします。initializer と代入の効果を保持し、guest code を実行せず、曖昧／衝突する fix は edit を返しません。
 
 ## 開発
 

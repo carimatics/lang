@@ -4,7 +4,7 @@
 
 [日本語版](../ja/rfcs/0039-package-editor-snapshots.md)
 
-- Status: accepted
+- Status: implemented
 - Authors: project maintainers with Codex
 - Created: 2026-10-29
 - Last updated: 2026-10-29
@@ -74,9 +74,13 @@ C03 may replace only the current identifier slot with a bounded private marker i
 
 Prepare/rename supports proven source item, case, field and local bindings; names must be legal non-keyword identifiers. Refuse unresolved/core/external declarations, overlapping edits, collisions and unsupported alias/module/file renames. Build replacements for the exact declaration/use set, apply them to an in-memory copy, reanalyze and compare binding correspondence under byte-offset remapping. The intended symbol changes name; other bindings, type/privacy/ownership/effect facts must retain their meaning. Successful type checking alone does not prove absence of accidental capture.
 
+The initial binding proof structurally compares the complete resolved HIR after remapping source spans and only the names selected by the edit plan; declaration-qualified names are rebuilt from their unchanged module and edited declaration name. Compare checked function/type facts as well. Preserve callable/local/nominal/field identities, ABI, effects, arena authority, control flow and initializer operations; do not normalize away semantic IDs or compare formatted debug strings. An unsupported or ambiguous correspondence is a refusal, including import-alias/module/external renames. This is a bounded sufficient proof for identifier replacements, not a general refactoring equivalence algorithm.
+
 Before emission, refresh/validate relevant closed inputs and recheck open versions/epoch. Every edited file must be open, with a concrete version, because an LSP null version provides no client stale-edit guard. Require `workspaceEdit.documentChanges` and `failureHandling` of `transactional` or `textOnlyTransactional` for multi-file text edits. Return versioned non-overlapping TextDocumentEdits; otherwise explain the missing prerequisite and return no partial edit. Client application supplies atomicity within that advertised contract. There is no direct server write, resource operation or guarantee against arbitrary changes after proposal emission.
 
 Initial code actions are explicit document formatting and prefixing an unread binding with `_`, only when their validated edit proof succeeds. Reuse the formatter and unread-binding rule, preserve initializer effects/ownership, and rename all proven assignment uses when needed. Do not auto-insert unsafe, change allocators, swallow failures or delete effectful initializers.
+
+C06 initially requires code-action literal support and versioned documentChanges. Use `source.format` for whole-document formatting and `quickfix` only when the requested range selects exactly one proven unread binding; multiple eligible bindings are ambiguous and offer no underscore fix. Reuse the package linter rule. Formatting reanalyzes the candidate and compares complete resolved HIR with only source-position metadata erased on both sides, plus checked type facts; names, IDs, ABI, effects and operations remain exact. Rename keeps its stricter span/name correspondence proof. These bounded initial actions never execute guest code, delete initializers or apply edits themselves.
 
 ## Execution modes
 

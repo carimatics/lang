@@ -4,7 +4,7 @@
 
 [English](../../rfcs/0039-package-editor-snapshots.md)
 
-- Status: accepted
+- Status: implemented
 - Authors: project maintainers with Codex
 - Created: 2026-10-29
 - Last updated: 2026-10-29
@@ -74,9 +74,13 @@ C03 は一時 source overlay 内で現在 identifier slot だけを上限付き 
 
 prepare／rename は証明済み source item、case、field、local binding を扱い、名前は keyword 以外の合法 identifier とする。未解決／core／外部宣言、重なる edit、衝突、未対応 alias／module／file rename は拒否する。正確な宣言／use 集合への置換を作り、memory 内複写に適用し、再解析して byte offset 対応付けの下で binding の対応を比較する。意図した symbol の名前だけを変え、他の binding、type／privacy／ownership／effect fact の意味を保持する。型検査成功だけでは意図しない capture がないことを証明できない。
 
+初期 binding 証明は source span と edit plan が選択した名前だけを対応付けた後、resolved HIR 全体を構造比較する。宣言の修飾名は変更しない module と編集後の宣言名から再構築し、検査済み function／type fact も比較する。callable／local／nominal／field identity、ABI、effect、arena 権限、制御フロー、initializer 操作を保持し、semantic ID を除去したり整形済み debug 文字列を比較したりしない。import alias／module／external rename を含め、未対応・曖昧な対応は拒否する。識別子置換のための上限付き十分条件であり、一般的な refactoring 同値判定ではない。
+
 返却前に関連 closed input を refresh／検証し、open version／epoch を再確認する。LSP null version は client の stale-edit guard を持たないため、編集対象 file は全て open で具体的 version を持つ必要がある。複数 file の text edit は `workspaceEdit.documentChanges` と `failureHandling` の `transactional` または `textOnlyTransactional` を要求する。version 付き非重複 TextDocumentEdit を返し、条件が足りなければ不足理由を示して部分 edit を返さない。atomicity は広告された client 契約内で client 適用が提供する。server の直接 write、resource 操作、提案後の任意変更に対する保証はない。
 
 初期 code action は明示 document formatting と、検証 edit 証明に成功した場合だけの未読 binding への `_` prefix。formatter と未読 binding rule を再利用し、initializer の effect／ownership を保持し、必要なら証明済み代入 use も全て rename する。unsafe 挿入、allocator 変更、失敗の握り潰し、effect のある initializer 削除は自動化しない。
+
+C06 の初期 profile は code-action literal support と version 付き documentChanges を必要とする。文書全体の整形は `source.format` とし、`quickfix` は要求範囲が証明済み未読 binding を丁度一つ選択する場合だけ提供する。候補が複数なら曖昧として underscore fix を提供せず、package linter の rule を再利用する。整形候補を再解析し、双方の source 位置 metadata だけを除いた resolved HIR 全体と、検査済み型 fact を比較する。name、ID、ABI、effect、操作は厳密に保持し、rename は従来の厳密な span／name 対応証明を保つ。これらの上限付き初期 action は guest code を実行せず、initializer を削除せず、自ら edit を適用しない。
 
 ## 実行モード
 

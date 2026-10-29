@@ -4,13 +4,13 @@
 
 [日本語版](ja/milestone-4.md)
 
-Updated: 2026-10-29 JST. M4 is active. Goal start: clean main/origin/main `af9988f`, remote `git@github.com:carimatics/lang.git`. PRs #9–#16 are merged. Tooling PR #16 merged as `49a0fe8`; main was fast-forwarded, clean and synchronized with 0/0 ahead/behind. Current `codex/m4-editor-navigation` was created from that main; PR base `carimatics/lang:main`. Upstream is origin/codex/m4-editor-navigation, [PR #17](https://github.com/carimatics/lang/pull/17); no preexisting working-tree/user changes were present. C01–C04 form the coherent navigation/references/completion/token outcome.
+Updated: 2026-10-29 JST. M4 is active. Goal start: clean main/origin/main `af9988f`, remote `git@github.com:carimatics/lang.git`. PRs #9–#17 are merged. Navigation PR #17 final head `bdc2547` passes CI `40852934805` (18 success, intentional documentation-only skip) and debugger `40852934802` (3/3), merged as `0293026`; local main/origin/main refs match with 0/0 ahead/behind. Current `codex/m4-editor-checked-edits` was created from the clean, upstream-synchronized `codex/m4-editor-navigation` head `bdc2547` for the coherent C05–C07 outcome. No preexisting user changes; upstream is origin/codex/m4-editor-checked-edits, [PR #18](https://github.com/carimatics/lang/pull/18) targets main. Its initially recorded base `carimatics/lang:codex/m4-editor-navigation` is now `carimatics/lang:main` because #17 merged. Preserve the current checked-edit worktree while synchronizing base refs.
 
-**18 done · 1 doing · 21 todo · 62 remaining pt**
+**21 done · 1 doing · 18 todo · 54 remaining pt**
 
-C04 executable checkpoint, 2026-10-29 18:48 JST: all 40 focused checks, fmt and warning-free full Clippy pass. Full semantic tokens preserve proven function/type/parameter/local/field identities, UTF-16, CRLF/bare-CR and multiline comments; malformed syntax uses lexical fallback. Open/change/close/watch invalidates result IDs, ignores old versions and requests refresh only for supporting clients. Actual stdio executes navigation/completion/tokens; range/delta and output overflow refuse without partial success. Source-frozen full baseline (**166 suites / 2,447 passed / 0 failed**) and doc also pass. Code evidence is `be05690`; latest-head CI/PR lifecycle remains. C05 is now doing; no estimates are added. C03 source `0612c45` passed 166 suites / 2,445 tests and fmt/Clippy/doc.
+C07 executable checkpoint, 2026-10-29 20:18 JST: all 57 focused checks pass. The independent bounded stdio consumer verifies wire frames, original localhost URI/UTF-16/CRLF, public navigation/completion/tokens, client-side all-or-none refusal of a stale two-file rename, accepted versioned rename/fixes/formatting, watched-metadata recovery, dependency close/reopen and outside-root refusal. The server leaves source/locks/artifacts untouched; the client then saves buffers and actual package run returns 42. Fmt, warning-free full Clippy, the source-frozen full baseline (**166 suites / 2,459 passed / 0 failed**) and doc also pass. Latest-head both-host CI remains before G5/G6 closure. C07 code evidence is `6d16e93`; D01 is now doing, no estimates added. C06 code evidence is `503912f` (166 suites / 2,458 tests, fmt/Clippy/doc); PR #18 remains draft.
 
-**Next: M4-C05 — prepare/rename with binding-correspondence proof and versioned edits (doing, 3 pt).** C04 source `be05690` passes 40 focused checks, fmt/Clippy/doc and the full baseline (166 suites / 2,447 tests). Retire its last 3 pt: additions +11, retired 52, remaining 62 pt. C05 reuses the snapshot for legal-name/source-symbol selection, in-memory reanalysis and binding correspondence, collision/privacy refusal, fresh-input checks and versioned transactional client edits. Begin with an executable multi-file dependency rename; aliases/modules/external declarations remain unsupported under RFC 0039. Keep its reviewed 3 pt; no delivery/estimate is added. PR #17 latest-head CI/merge continues independently.
+**Next: M4-D01 — accept the DAP launch/control/stack/source contract and stop at a VM source breakpoint (doing, 3 pt).** C07 source `6d16e93` passes 57 focused checks, fmt/Clippy/doc and the full baseline (166 suites / 2,459 tests), including independent stdio edits and actual client-saved execution returning 42. Retire its last 2 pt: additions +11, retired 60, remaining 54 pt. All C01–C07 implementation deliveries are done; G5/G6 remain pending on PR #18 latest-head both-host CI/merge. D01 begins with the accepted-source contracts and smallest VM debugger experiment before broader adapter design; create a coherent D01–D05 branch from the recorded editor head and record its dependency/base. Keep its reviewed 3 pt; no estimates are added.
 
 A04 source `cf6cf5c` passes fmt, full Clippy/doc and checked opt-level 1 full tests (**158 suites / 2,384 passed / 0 failed**), plus 75 focused tests. Final head `75a2041` passes [full CI](https://github.com/carimatics/lang/actions/runs/40810065213) (all 19 jobs: 18 success; intentional documentation-only skip) and [debugger execution](https://github.com/carimatics/lang/actions/runs/40810065278) (3/3). [PR #13](https://github.com/carimatics/lang/pull/13) merged as `58527c2`; main was fast-forwarded, clean and synchronized with 0/0 ahead/behind. Workspace branch creation and its current PR/upstream are recorded above. No preexisting user changes were present.
 
@@ -68,10 +68,10 @@ The [roadmap](roadmap.md#milestone-4-developer-toolchain) retains the original 6
 | M4-C02 | done | 0 | M4-C01 | G5 | Definition/references across package overlays, edits and watched-file refresh | `569260b` |
 | M4-C03 | done | 0 | M4-C02 | G5 | Scope/privacy/type-aware completion with UTF-16 and stale-result tests | 0612c45 |
 | M4-C04 | done | 0 | M4-C03 | G5 | Semantic tokens and refresh survive Unicode, malformed source and document lifecycle | be05690 |
-| M4-C05 | doing | 3 | M4-C02 | G6 | Prepare/rename across files with collision/privacy checks and versioned atomic edits | — |
-| M4-C06 | todo | 3 | M4-C05 | G6 | Accepted code actions produce checked fixes and reject stale/ambiguous edits | — |
-| M4-C07 | todo | 2 | M4-C04,M4-C06 | G5,G6 | End-to-end editor package fixture plus protocol/resource/refusal coverage | — |
-| M4-D01 | todo | 3 | M4-A06 | G7 | Accept DAP launch/control/stack/source contract and stop at a VM source breakpoint | — |
+| M4-C05 | done | 0 | M4-C02 | G6 | Prepare/rename across files with collision/privacy checks and versioned atomic edits | 3cd27e2 |
+| M4-C06 | done | 0 | M4-C05 | G6 | Accepted code actions produce checked fixes and reject stale/ambiguous edits | 503912f |
+| M4-C07 | done | 0 | M4-C04,M4-C06 | G5,G6 | End-to-end editor package fixture plus protocol/resource/refusal coverage | 6d16e93 |
+| M4-D01 | doing | 3 | M4-A06 | G7 | Accept DAP launch/control/stack/source contract and stop at a VM source breakpoint | — |
 | M4-D02 | todo | 3 | M4-D01 | G7 | VM stepping, frames, locals and evaluation with pause/authority limits | — |
 | M4-D03 | todo | 3 | M4-D02 | G7 | Native debugger launch and source breakpoints on both tier-1 hosts | — |
 | M4-D04 | todo | 3 | M4-D03 | G7 | Mixed native/VM stack fixture preserves call order, spans and failure cleanup | — |
@@ -97,9 +97,9 @@ Activation audit, 2026-10-29 JST: 36 observable deliveries, baseline 103 pt. The
 
 | Baseline remaining | Net added/re-estimated | Retired on completion | Remaining |
 | ---: | ---: | ---: | ---: |
-| 103 pt | +11 pt | −52 pt | 62 pt |
+| 103 pt | +11 pt | −60 pt | 54 pt |
 
-**103 + 11 − 52 = 62 pt**
+**103 + 11 − 60 = 54 pt**
 
 Namespace prerequisite audit, 2026-10-29 JST: the existing `ModuleGraph::root()` is always `ModuleId(0)`. A path provider alone cannot give each dependency its own package-root namespace or safely reuse a shared dependency identity. Split the original A02 outcome into an authorized graph (new A02R, 3 pt) and namespace/source execution integration (A02, remaining 3 pt after reviewing its task list). Net addition: +3 pt; 37 deliveries total. A01 and A02R are two prerequisites, so A02 must supply the next source execution fixture before further horizontal scaffolding. No gate is completed or deferred by this audit.
 
@@ -142,3 +142,14 @@ Pre-merge A01 input audit checklist:
 - A04B compatibility checkpoint, 2026-10-29 JST: Windows CI and the first local baseline exposed two obsolete assertions: source-less `run` expected usage exit 2, and help expected three service-work forms. RFC 0034 intentionally selects the default package manifest and adds a fourth help form. Updated checks retain all malformed explicit-file exit-2 cases, assert missing-manifest exit 1, execute default-manifest run returning 42, and refuse ancestor lookup. CLI/service-work/package-command/consistency pass 53/53. The failed baseline is retained as diagnostic evidence; corrected full baseline and latest-head CI remain required. This correction adds no delivery or estimates.
 - Roadmap audit: all nine original gates, including P1 profiling, remain necessary for the stated new-developer journey. M4 is now activated; the roadmap must link this live board. Signed installer verification precedes install/download. Registry distribution stays M5; it is not silently supplied or removed here.
 - Sources: repository roadmap/architecture and RFCs inspected 2026-10-29 JST; source files have no embedded update dates. RFC 0034 updated 2026-10-29. Test checkpoint is finite local evidence, not a both-host or full milestone claim.
+
+## C07 editor protocol audit
+
+Local audit, 2026-10-29 JST; remote latest-head confirmation remains required.
+
+- Authority/input lifetime: `tests/package_editor.rs` and package LSP admission fixtures cover frozen inputs, physical metadata/source aliases, original display aliases, outside roots and unadmitted overlays.
+- Semantic/protocol boundaries: package LSP fixtures cover privacy/import/scope/field identities, malformed source, original URI/version/UTF-16/CRLF, token ordering/refresh, count/output/mapping-work refusal and no partial successful response.
+- Edit safety: complete HIR/type correspondence and the separate valid-types/wrong-binding proof test supplement concrete versions, open-file/transactional client guards, collision/alias/ABI refusal, stale closed inputs and unchanged files. Formatting and unread-binding actions reuse the formatter/linter, retain initializer/assignment operations and refuse ambiguous or forged fixes.
+- Interoperability/execution: `tests/support/lsp_client.rs` independently consumes Content-Length frames and UTF-16 edits with deadlines and atomic version checks. The actual stdio package journey applies both actions and multi-file rename, closes/reopens a dependency, recovers watched metadata and runs client-saved source returning 42. Existing standalone protocol/framing fixtures remain enabled.
+
+This finite audit does not claim arbitrary-client atomicity, external-writer exclusion, performance benchmarks or fuzz coverage. G5/G6 remain pending until latest-head both-host CI and the PR lifecycle complete.

@@ -117,11 +117,15 @@ Read-only revision 1のdebug descriptorで、dispatch時にallocationせずowned
 
 CLI は check、source/artifact 実行、portable compile、native package/link、transactional REPL、同期 LSP prototype を備えます。format は共通 CST API と LSP document formatting から利用できます。[RFC 0010](rfcs/0010-owned-repl-previews.md) と [RFC 0016](rfcs/0016-indirect-repl-previews.md) が有界 result preview を定めます。output 公開前に result を retire し、session は source 定義を保持しても mutable guest owner を保持しません。
 
-Query graph は推移的 consumer を無効化し、編集、close／reopen、新しい処理の開始後に古い結果の公開を拒否します。LSP は source analysis、不変 overlay、UTF-16 mapping を再利用し、上限付き framing／output で lifecycle、full synchronization、診断、format、監視 module の refresh を実装しています。package profile は dependency item、case、parameter、local、record field の definition／references を追加します。[RFC 0039](rfcs/0039-package-editor-snapshots.md) が許可 input／overlay epoch、元 URI／span 対応、応答上限、検証 edit の前提を定義します。rename、code action、DAP は active delivery として残ります。
+Query graph は推移的 consumer を無効化し、編集、close／reopen、新しい処理の開始後に古い結果の公開を拒否します。LSP は source analysis、不変 overlay、UTF-16 mapping を再利用し、上限付き framing／output で lifecycle、full synchronization、診断、format、監視 module の refresh を実装しています。package profile は dependency item、case、parameter、local、record field の definition／references を追加します。[RFC 0039](rfcs/0039-package-editor-snapshots.md) が許可 input／overlay epoch、元 URI／span 対応、応答上限、検証 edit の前提を定義します。DAP は active delivery として残ります。
 
 package completion は上限付きで決定的な module／import／case 名、lexical binding、宣言型 record field を追加し、不完全な修飾名／member slot は一時的な通常 parser／binder overlay で扱います。probe 診断／位置は公開せず、edit は元 UTF-16 範囲と epoch／version data を使います。曖昧／未解決／未対応 receiver 式の field は推測しません。
 
 full semantic token は固定 legend と現在の binding index を使い、不正 source には字句 fallback を使います。CR／LF で分割し、非重複 UTF-16 delta と epoch result ID を返します。semantic-token refresh 対応を宣言した client には source／overlay／watch 無効化後に refresh を要求し、range／delta request は未対応です。
+
+prepare／rename は dependency file を含む source 識別子の検証 edit を提案します。編集する全 file が open・version 付きであることと、client の `workspaceEdit.documentChanges`、複数 file では `transactional`／`textOnlyTransactional` の failure handling が必要です。許可済み全 input bytes の再確認、置換後の再解析、resolved HIR 全体と型の対応検証を行い、衝突、import alias、module、外部 ABI 宣言、古い input を拒否します。提案を disk に直接書き込みません。
+
+literal code action は同じ input／version guard と package linter の rule を再利用し、client が宣言した kind family に限定して提供します。`source.format` は source 位置に依存しない HIR／型の証明後に文書全体を整形し、`quickfix` は一意に選択した未読 binding を rename 証明で `_` prefix にします。initializer と代入の効果を保持し、guest code を実行せず、曖昧／衝突する fix は edit を返しません。
 
 ## Concurrency、component、将来のtoolchain
 
@@ -147,7 +151,7 @@ M4 は 2026-10-29 JST に開始しました。[RFC 0034](rfcs/0034-package-works
 
 `package::source::analyze_test` は固定 binding inventory から宣言 test を選択します。その root は選択 package の直接 edge と、同 package を指す `_package` を持ち、元 package-root 名前空間、nominal identity、可視性、source span を保持します。別 test root は module 上限に算入し、package entry 自体が test なら同じ root を再利用します。`lang test` は選択 package の test だけを manifest 順に、同じ検証済み artifact／VM 経路と entry ごとに初期化する control で実行します。test 0 件でも main を要求せず graph を型検査します。最初の source／runtime／非 0 失敗では旧 lock／build／test output を保持します。保持 artifact と完全一致 lock copy は 64 MiB に制限し、`target/lang/<lock-sha256>/test/{inputs.lock,tests/<manifest-index>.lbc}` を公開します。test は package／test root 間の公開 nominal type、private UTF-8 span、入力削除／project 移動後の固定解析、isolated service を含む全 VM profile、test ごとの fuel、test 0 件の library、batch-output 拒否を検証します。test 名前空間による artifact／lock schema 変更はありません。
 
-workspace 選択、再現可能 native executable、package／archive／fmt／lint／doc tooling は実装し、両 host で検証済みです。package editor navigation は [live board](milestone-4.md) で進行中で、検証 edit、DAP、profiling、署名 installer は引き続き必要です。registry、WebAssembly component、追加 backend、self-hosting、別 frontend は後続 milestone で、実装済みではありません。async REPL、detached task、非同期 foreign callback stack も現在の実行範囲外です。
+workspace 選択、再現可能 native executable、package／archive／fmt／lint／doc tooling は実装し、両 host で検証済みです。package editor navigation は [live board](milestone-4.md) で進行中で、editor protocol 全体の監査、DAP、profiling、署名 installer は引き続き必要です。registry、WebAssembly component、追加 backend、self-hosting、別 frontend は後続 milestone で、実装済みではありません。async REPL、detached task、非同期 foreign callback stack も現在の実行範囲外です。
 
 ## 検証と保守
 

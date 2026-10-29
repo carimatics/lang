@@ -1,4 +1,6 @@
 use lang::lsp::{Limits, Server, uri};
+#[path = "support/lsp_client.rs"]
+mod independent_client;
 use serde_json::{Value, json};
 use std::{
     fs,
@@ -318,6 +320,926 @@ fn token_query(s: &mut Server, uri: &str) -> Value {
         json!({"textDocument":{"uri":uri}}),
     ))
     .remove(0)
+}
+
+#[test]
+fn checked_rename_reanalyzes_a_real_dependency_and_returns_versioned_original_ranges() {
+    let f = Files::new();
+    let root = f.uri("src/main.lang");
+    let helper = f.uri("helper/src/main.lang");
+    let mut s = Server::new(Default::default());
+    let init=s.handle(request("initialize",json!({"rootUri":uri::file(&f.0).unwrap(),"capabilities":{"workspace":{"workspaceEdit":{"documentChanges":true,"failureHandling":"textOnlyTransactional"}}}})));
+    assert_eq!(
+        init[0]["result"]["capabilities"]["renameProvider"]["prepareProvider"],
+        true
+    );
+    s.handle(note("initialized", json!({})));
+    open(&mut s, &root, ROOT);
+    open(&mut s, &helper, HELPER);
+    let prepare = s.handle(request(
+        "textDocument/prepareRename",
+        json!({"textDocument":{"uri":root},"position":position()}),
+    ));
+    assert_eq!(prepare[0]["result"]["placeholder"], "answer", "{prepare:?}");
+    let renamed = s.handle(request(
+        "textDocument/rename",
+        json!({"textDocument":{"uri":root},"position":position(),"newName":"solution"}),
+    ));
+    let changes = renamed[0]["result"]["documentChanges"]
+        .as_array()
+        .unwrap_or_else(|| panic!("{renamed:?}"));
+    assert_eq!(changes.len(), 2, "{renamed:?}");
+    let mut updated = std::collections::BTreeMap::new();
+    for change in changes {
+        let uri = change["textDocument"]["uri"].as_str().unwrap();
+        assert_eq!(change["textDocument"]["version"], 1);
+        let original = if uri == root {
+            ROOT
+        } else {
+            assert_eq!(uri, helper);
+            HELPER
+        };
+        let mut text = original.to_string();
+        for edit in change["edits"].as_array().unwrap().iter().rev() {
+            let offset = |end: &str| {
+                lang_lsp::text_offset(
+                    original,
+                    edit["range"][end]["line"].as_u64().unwrap() as u32,
+                    edit["range"][end]["character"].as_u64().unwrap() as u32,
+                    original.len(),
+                )
+                .unwrap()
+            };
+            let start = offset("start");
+            let end = offset("end");
+            assert_eq!(&original[start..end], "answer");
+            text.replace_range(start..end, edit["newText"].as_str().unwrap());
+        }
+        updated.insert(uri.to_string(), text);
+    }
+    change(&mut s, &root, 2, &updated[&root]);
+    let diagnostics_after = change(&mut s, &helper, 2, &updated[&helper]);
+    assert!(
+        diagnostics(&diagnostics_after, &root).is_empty(),
+        "{diagnostics_after:?}"
+    );
+    assert!(
+        diagnostics(&diagnostics_after, &helper).is_empty(),
+        "{diagnostics_after:?}"
+    );
+    assert_eq!(fs::read_to_string(f.0.join("src/main.lang")).unwrap(), ROOT);
+    assert_eq!(
+        fs::read_to_string(f.0.join("helper/src/main.lang")).unwrap(),
+        HELPER
+    );
+    assert!(!f.0.join("Lang.lock").exists());
+    assert!(!f.0.join("target").exists());
+}
+
+fn rename_server(f: &Files, handling: &str) -> Server {
+    rename_server_limits(f, handling, Default::default())
+}
+fn rename_server_limits(f: &Files, handling: &str, limits: Limits) -> Server {
+    let mut s = Server::new(limits);
+    let r=s.handle(request("initialize",json!({"rootUri":uri::file(&f.0).unwrap(),"capabilities":{"workspace":{"workspaceEdit":{"documentChanges":true,"failureHandling":handling}}}})));
+    assert!(r[0]["error"].is_null(), "{r:?}");
+    s.handle(note("initialized", json!({})));
+    s
+}
+fn rename_query(s: &mut Server, uri: &str, source: &str, offset: usize, name: &str) -> Value {
+    let before = &source[..offset];
+    let line = before.bytes().filter(|b| *b == b'\n').count();
+    let character = before.rsplit('\n').next().unwrap().encode_utf16().count();
+    s.handle(request("textDocument/rename",json!({"textDocument":{"uri":uri},"position":{"line":line,"character":character},"newName":name}))).remove(0)
+}
+
+#[test]
+fn checked_rename_preserves_parameters_assignments_fields_cases_types_loans_and_async_calls() {
+    let f = Files::new();
+    let root = f.uri("src/main.lang");
+    for (source, needle, new_name, count) in [
+        (
+            "fn id(value:i64)->i64{return value;}fn main()->i64{return id(42);}",
+            "return value",
+            "parameter",
+            2,
+        ),
+        (
+            "fn main()->i64{let mut value:i64=1;value=42;return value;}",
+            "return value",
+            "amount",
+            3,
+        ),
+        (
+            "struct Pair{value:i64}fn main()->i64{let mut p:Pair=Pair{value:41};p.value=42;match p{Pair{value:copy}=>{return copy;},}}",
+            "p.value",
+            "amount",
+            4,
+        ),
+        (
+            "enum E{Yes,No}fn main()->i64{let mut e:E=E::Yes;match e{E::Yes=>{return 42;},E::No=>{return 0;},}}",
+            "E::Yes",
+            "Accepted",
+            3,
+        ),
+        (
+            "struct Pair{value:i64}fn main()->i64{let mut p:Pair=Pair{value:42};return p.value;}",
+            "p:Pair",
+            "Tuple",
+            3,
+        ),
+        (
+            "fn main()->i64{let mut value:i64=41;if true{let mut pointer:&mut i64=&mut value;(*pointer)=42;}return value;}",
+            "return value",
+            "amount",
+            3,
+        ),
+        (
+            "async fn answer()->i64{return 42;}async fn main()->i64{return core::result_unwrap::<i64,core::TaskError>(await answer());}",
+            "await answer",
+            "solution",
+            2,
+        ),
+    ] {
+        let mut s = rename_server(&f, "transactional");
+        let messages = open(&mut s, &root, source);
+        assert!(
+            diagnostics(&messages, &root).is_empty(),
+            "source={source}: {messages:?}"
+        );
+        let start = source.find(needle).unwrap();
+        let offset = start
+            + if needle.starts_with("return ") {
+                7
+            } else if needle.starts_with("await ") {
+                6
+            } else if needle.starts_with("E::") {
+                3
+            } else {
+                2
+            };
+        let r = rename_query(&mut s, &root, source, offset, new_name);
+        let changes = r["result"]["documentChanges"]
+            .as_array()
+            .unwrap_or_else(|| panic!("source={source}: {r:?}"));
+        assert_eq!(changes.len(), 1, "{r:?}");
+        assert_eq!(
+            changes[0]["edits"].as_array().unwrap().len(),
+            count,
+            "source={source}: {r:?}"
+        );
+    }
+}
+
+#[test]
+fn checked_rename_refuses_capture_collisions_invalid_names_aliases_and_missing_client_guarantees() {
+    let f = Files::new();
+    let root = f.uri("src/main.lang");
+    let helper = f.uri("helper/src/main.lang");
+    let source = "fn main()->i64{let mut first:i64=1;if true{let mut second:i64=2;return first+second;}return first;}";
+    let mut s = rename_server(&f, "transactional");
+    open(&mut s, &root, source);
+    for name in ["second", "fn", "_", "two words", ""] {
+        let r = rename_query(
+            &mut s,
+            &root,
+            source,
+            source.find("return first").unwrap() + 7,
+            name,
+        );
+        assert!(r.get("error").is_some(), "{name}: {r:?}");
+        assert!(r.get("result").is_none());
+        if name == "second" {
+            assert!(
+                r["error"]["message"]
+                    .as_str()
+                    .unwrap()
+                    .contains("would invalidate"),
+                "{r:?}"
+            );
+        }
+    }
+    let imported = "mod helper;use helper::answer;fn main()->i64{return answer();}";
+    change(&mut s, &root, 2, imported);
+    open(&mut s, &helper, HELPER);
+    let r = rename_query(
+        &mut s,
+        &root,
+        imported,
+        imported.find("return answer").unwrap() + 7,
+        "solution",
+    );
+    assert!(
+        r["error"]["message"].as_str().unwrap().contains("alias"),
+        "{r:?}"
+    );
+    let mut closed = rename_server(&f, "transactional");
+    open(&mut closed, &root, ROOT);
+    let r = rename_query(
+        &mut closed,
+        &root,
+        ROOT,
+        ROOT.find("helper::answer").unwrap() + 8,
+        "solution",
+    );
+    assert!(
+        r["error"]["message"]
+            .as_str()
+            .unwrap()
+            .contains("must be open"),
+        "{r:?}"
+    );
+    let mut non_atomic = rename_server(&f, "undo");
+    open(&mut non_atomic, &root, ROOT);
+    open(&mut non_atomic, &helper, HELPER);
+    let r = rename_query(
+        &mut non_atomic,
+        &root,
+        ROOT,
+        ROOT.find("helper::answer").unwrap() + 8,
+        "solution",
+    );
+    assert!(
+        r["error"]["message"]
+            .as_str()
+            .unwrap()
+            .contains("transactional"),
+        "{r:?}"
+    );
+    let mut unsupported = f.ready(Default::default(), json!({}));
+    open(&mut unsupported, &root, ROOT);
+    open(&mut unsupported, &helper, HELPER);
+    let r = rename_query(
+        &mut unsupported,
+        &root,
+        ROOT,
+        ROOT.find("helper::answer").unwrap() + 8,
+        "solution",
+    );
+    assert!(
+        r["error"]["message"]
+            .as_str()
+            .unwrap()
+            .contains("documentChanges"),
+        "{r:?}"
+    );
+}
+
+#[test]
+fn checked_rename_rechecks_closed_inputs_metadata_versions_and_response_limits() {
+    let f = Files::new();
+    let root = f.uri("src/main.lang");
+    let helper = f.uri("helper/src/main.lang");
+    let source = "fn main()->i64{let mut value:i64=42;return value;}";
+    let offset = source.find("return value").unwrap() + 7;
+    let mut s = rename_server(&f, "transactional");
+    open(&mut s, &root, source);
+    f.write("helper/src/main.lang", "pub fn answer()->i64{return 43;}");
+    let stale = rename_query(&mut s, &root, source, offset, "amount");
+    assert!(
+        stale["error"]["message"]
+            .as_str()
+            .unwrap()
+            .contains("refresh"),
+        "{stale:?}"
+    );
+    watch(&mut s, &helper);
+    let r = rename_query(&mut s, &root, source, offset, "amount");
+    assert_eq!(
+        r["result"]["documentChanges"][0]["textDocument"]["version"], 1,
+        "{r:?}"
+    );
+    change(&mut s, &root, 5, source);
+    assert!(change(&mut s, &root, 4, "broken").is_empty());
+    let r = rename_query(&mut s, &root, source, offset, "amount");
+    assert_eq!(
+        r["result"]["documentChanges"][0]["textDocument"]["version"], 5,
+        "{r:?}"
+    );
+    f.write("Lang.json", &format!("{MANIFEST}\n"));
+    let stale = rename_query(&mut s, &root, source, offset, "amount");
+    assert!(
+        stale["error"]["message"]
+            .as_str()
+            .unwrap()
+            .contains("refresh"),
+        "{stale:?}"
+    );
+    let mut bounded = rename_server_limits(
+        &f,
+        "transactional",
+        Limits {
+            mapping: lang_lsp::Limits {
+                output_bytes: 96,
+                ..Limits::default().mapping
+            },
+            ..Default::default()
+        },
+    );
+    open(&mut bounded, &root, source);
+    let r = rename_query(&mut bounded, &root, source, offset, "amount");
+    assert!(
+        r["error"]["message"]
+            .as_str()
+            .unwrap()
+            .contains("byte limit"),
+        "{r:?}"
+    );
+    assert!(r.get("result").is_none());
+    assert_eq!(fs::read_to_string(f.0.join("src/main.lang")).unwrap(), ROOT);
+    assert!(!f.0.join("Lang.lock").exists());
+    assert!(!f.0.join("target").exists());
+}
+
+#[test]
+fn checked_rename_refuses_module_and_external_abi_declarations() {
+    let f = Files::new();
+    let root = f.uri("src/main.lang");
+    for (source, needle) in [
+        (ROOT, "helper"),
+        (
+            "extern \"C\" fn external(x:i64)->i64;fn main()->i64{return 42;}",
+            "external",
+        ),
+        (
+            "pub extern \"C\" fn exported(x:i64)->i64{return x;}fn main()->i64{return 42;}",
+            "exported",
+        ),
+    ] {
+        let mut s = rename_server(&f, "transactional");
+        let messages = open(&mut s, &root, source);
+        assert!(diagnostics(&messages, &root).is_empty(), "{messages:?}");
+        let r = rename_query(
+            &mut s,
+            &root,
+            source,
+            source.find(needle).unwrap(),
+            "changed",
+        );
+        assert!(r.get("error").is_some(), "{r:?}");
+        assert!(r.get("result").is_none());
+    }
+}
+
+#[test]
+fn checked_rename_bounds_repeated_utf16_mapping_before_returning_any_edit() {
+    let f = Files::new();
+    let root = f.uri("src/main.lang");
+    let mut source = format!(
+        "/*{}*/fn answer()->i64{{return 42;}}fn main()->i64{{",
+        "x".repeat(40_000)
+    );
+    for i in 0..100 {
+        source.push_str(&format!("let mut local{i}:i64=answer();"));
+    }
+    source.push_str("return 0;}");
+    let mut s = rename_server(&f, "transactional");
+    let messages = open(&mut s, &root, &source);
+    assert!(diagnostics(&messages, &root).is_empty(), "{messages:?}");
+    let r = rename_query(
+        &mut s,
+        &root,
+        &source,
+        source.find("fn answer").unwrap() + 3,
+        "reply",
+    );
+    assert!(
+        r["error"]["message"]
+            .as_str()
+            .unwrap()
+            .contains("mapping work limit"),
+        "{r:?}"
+    );
+    assert!(r.get("result").is_none());
+    assert_eq!(fs::read_to_string(f.0.join("src/main.lang")).unwrap(), ROOT);
+}
+
+fn action_server(f: &Files, limits: Limits) -> Server {
+    let mut s = Server::new(limits);
+    let r=s.handle(request("initialize",json!({"rootUri":uri::file(&f.0).unwrap(),"capabilities":{"textDocument":{"codeAction":{"codeActionLiteralSupport":{"codeActionKind":{"valueSet":["quickfix","source"]}}}},"workspace":{"workspaceEdit":{"documentChanges":true,"failureHandling":"transactional"}}}})));
+    assert_eq!(
+        r[0]["result"]["capabilities"]["codeActionProvider"]["resolveProvider"],
+        false
+    );
+    s.handle(note("initialized", json!({})));
+    s
+}
+
+#[test]
+fn independent_stdio_client_applies_checked_package_edits_and_runs_the_saved_result() {
+    use independent_client::{ApplyError, Client, Document, apply, position};
+    use std::{collections::BTreeMap, process::Command};
+    let f = Files::new();
+    let initial =
+        "/*😀*/\r\nmod helper;fn main()->i64{let mut unused:i64=7;return helper::answer();}";
+    f.write("src/main.lang", initial);
+    let root = f
+        .uri("src/main.lang")
+        .replacen("file:///", "file://localhost/", 1);
+    let helper = f.uri("helper/src/main.lang");
+    let mut client = Client::start();
+    let init=client.call("initialize",json!({"rootUri":uri::file(&f.0).unwrap(),"capabilities":{"textDocument":{"publishDiagnostics":{"versionSupport":true,"relatedInformation":true},"codeAction":{"codeActionLiteralSupport":{"codeActionKind":{"valueSet":["quickfix","source"]}}}},"workspace":{"semanticTokens":{"refreshSupport":true},"workspaceEdit":{"documentChanges":true,"failureHandling":"textOnlyTransactional"}}}}));
+    assert_eq!(
+        init["result"]["capabilities"]["renameProvider"]["prepareProvider"],
+        true
+    );
+    client.note("initialized", json!({}));
+    client.note(
+        "textDocument/didOpen",
+        json!({"textDocument":{"uri":root,"languageId":"lang","version":1,"text":initial}}),
+    );
+    let usage = initial.find("helper::answer").unwrap() + 8;
+    let denied=client.call("textDocument/rename",json!({"textDocument":{"uri":root},"position":position(initial,usage),"newName":"solution"}));
+    assert!(
+        denied["error"]["message"]
+            .as_str()
+            .unwrap()
+            .contains("must be open"),
+        "{denied:?}"
+    );
+    assert!(denied.get("result").is_none());
+    client.note(
+        "textDocument/didOpen",
+        json!({"textDocument":{"uri":helper,"languageId":"lang","version":1,"text":HELPER}}),
+    );
+    let definition = client.call(
+        "textDocument/definition",
+        json!({"textDocument":{"uri":root},"position":position(initial,usage)}),
+    );
+    assert_eq!(definition["result"]["uri"], helper);
+    let outside = Files::new();
+    let denied=client.call("textDocument/definition",json!({"textDocument":{"uri":outside.uri("src/main.lang")},"position":{"line":0,"character":0}}));
+    assert_eq!(denied["error"]["code"], -32603);
+    assert!(denied.get("result").is_none());
+    assert!(
+        !denied["error"]["message"]
+            .as_str()
+            .unwrap()
+            .contains(outside.0.file_name().unwrap().to_str().unwrap())
+    );
+    let references=client.call("textDocument/references",json!({"textDocument":{"uri":root},"position":position(initial,usage),"context":{"includeDeclaration":true}}));
+    assert_eq!(references["result"].as_array().unwrap().len(), 2);
+    assert!(
+        references["result"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|r| r["uri"] == root)
+    );
+    let completion = client.call(
+        "textDocument/completion",
+        json!({"textDocument":{"uri":root},"position":position(initial,usage+2)}),
+    );
+    assert_eq!(completion["result"]["items"][0]["label"], "answer");
+    let tokens = client.call(
+        "textDocument/semanticTokens/full",
+        json!({"textDocument":{"uri":root}}),
+    );
+    assert!(
+        decoded_tokens(initial, &tokens)
+            .iter()
+            .any(|(text, kind)| text == "answer" && *kind == 3)
+    );
+    let prepared = client.call(
+        "textDocument/prepareRename",
+        json!({"textDocument":{"uri":root},"position":position(initial,usage)}),
+    );
+    assert_eq!(prepared["result"]["placeholder"], "answer");
+    let proposed=client.call("textDocument/rename",json!({"textDocument":{"uri":root},"position":position(initial,usage),"newName":"solution"}));
+    let mut documents = BTreeMap::from([
+        (
+            root.clone(),
+            Document {
+                version: 1,
+                text: initial.into(),
+            },
+        ),
+        (
+            helper.clone(),
+            Document {
+                version: 1,
+                text: HELPER.into(),
+            },
+        ),
+    ]);
+    documents.get_mut(&root).unwrap().version = 2;
+    documents
+        .get_mut(&root)
+        .unwrap()
+        .text
+        .push_str("\n// client\n");
+    let before = documents.clone();
+    assert_eq!(
+        apply(&mut documents, &proposed["result"]),
+        Err(ApplyError::Stale)
+    );
+    assert_eq!(
+        documents, before,
+        "a stale version cannot partially edit the dependency"
+    );
+    client.note("textDocument/didChange",json!({"textDocument":{"uri":root,"version":2},"contentChanges":[{"text":documents[&root].text}]}));
+    let proposed=client.call("textDocument/rename",json!({"textDocument":{"uri":root},"position":position(&documents[&root].text,usage),"newName":"solution"}));
+    apply(&mut documents, &proposed["result"]).unwrap();
+    for uri in [&helper, &root] {
+        client.note("textDocument/didChange",json!({"textDocument":{"uri":uri,"version":documents[uri].version},"contentChanges":[{"text":documents[uri].text}]}));
+    }
+    let current = documents[&root].text.clone();
+    let call = current.find("helper::solution").unwrap() + 8;
+    let definition = client.call(
+        "textDocument/definition",
+        json!({"textDocument":{"uri":root},"position":position(&current,call)}),
+    );
+    assert_eq!(definition["result"]["uri"], helper);
+    assert_eq!(definition["result"]["range"]["end"]["character"], 15);
+    for uri in [&root, &helper] {
+        let latest = client
+            .events
+            .iter()
+            .rev()
+            .find(|m| {
+                m["method"] == "textDocument/publishDiagnostics" && m["params"]["uri"] == *uri
+            })
+            .unwrap();
+        assert_eq!(latest["params"]["diagnostics"], json!([]));
+        assert_eq!(latest["params"]["version"], documents[uri].version);
+    }
+    let binding = current.find("unused").unwrap();
+    let fixed=client.call("textDocument/codeAction",json!({"textDocument":{"uri":root},"range":{"start":position(&current,binding),"end":position(&current,binding+6)},"context":{"diagnostics":[],"only":["quickfix"]}}));
+    assert_eq!(fixed["result"].as_array().unwrap().len(), 1, "{fixed:?}");
+    apply(&mut documents, &fixed["result"][0]["edit"]).unwrap();
+    client.note("textDocument/didChange",json!({"textDocument":{"uri":root,"version":documents[&root].version},"contentChanges":[{"text":documents[&root].text}]}));
+    let current = documents[&root].text.clone();
+    let formatted=client.call("textDocument/codeAction",json!({"textDocument":{"uri":root},"range":{"start":position(&current,0),"end":position(&current,current.len())},"context":{"diagnostics":[],"only":["source.format"]}}));
+    assert_eq!(
+        formatted["result"].as_array().unwrap().len(),
+        1,
+        "{formatted:?}"
+    );
+    apply(&mut documents, &formatted["result"][0]["edit"]).unwrap();
+    client.note("textDocument/didChange",json!({"textDocument":{"uri":root,"version":documents[&root].version},"contentChanges":[{"text":documents[&root].text}]}));
+    let current = documents[&root].text.clone();
+    assert!(current.contains("_unused"));
+    let now = client.call(
+        "textDocument/semanticTokens/full",
+        json!({"textDocument":{"uri":root}}),
+    );
+    assert_ne!(now["result"]["resultId"], tokens["result"]["resultId"]);
+    client.note("textDocument/didChange",json!({"textDocument":{"uri":root,"version":documents[&root].version-1},"contentChanges":[{"text":"broken"}]}));
+    let again = client.call(
+        "textDocument/semanticTokens/full",
+        json!({"textDocument":{"uri":root}}),
+    );
+    assert_eq!(again["result"], now["result"]);
+    assert!(again.get("error").is_none());
+    f.write("Lang.json", &format!("{MANIFEST}\n"));
+    let params = json!({"textDocument":{"uri":root},"range":{"start":position(&current,0),"end":position(&current,current.len())},"context":{"diagnostics":[],"only":["source.format"]}});
+    let stale = client.call("textDocument/codeAction", params.clone());
+    assert!(
+        stale["error"]["message"]
+            .as_str()
+            .unwrap()
+            .contains("refresh"),
+        "{stale:?}"
+    );
+    assert!(stale.get("result").is_none());
+    client.note(
+        "workspace/didChangeWatchedFiles",
+        json!({"changes":[{"uri":f.uri("Lang.json"),"type":2}]}),
+    );
+    assert_eq!(
+        client.call("textDocument/codeAction", params)["result"],
+        json!([])
+    );
+    let target = json!({"textDocument":{"uri":root},"position":position(&current,current.find("helper::solution").unwrap()+8)});
+    client.note(
+        "textDocument/didClose",
+        json!({"textDocument":{"uri":helper}}),
+    );
+    let closed = client.call("textDocument/definition", target.clone());
+    assert!(closed.get("error").is_none());
+    assert!(closed["result"].is_null());
+    client.note("textDocument/didOpen",json!({"textDocument":{"uri":helper,"languageId":"lang","version":documents[&helper].version,"text":documents[&helper].text}}));
+    assert_eq!(
+        client.call("textDocument/definition", target)["result"]["uri"],
+        helper
+    );
+    assert!(
+        client
+            .events
+            .iter()
+            .any(|m| m["method"] == "workspace/semanticTokens/refresh")
+    );
+    client.finish();
+    assert_eq!(
+        fs::read_to_string(f.0.join("src/main.lang")).unwrap(),
+        initial
+    );
+    assert_eq!(
+        fs::read_to_string(f.0.join("helper/src/main.lang")).unwrap(),
+        HELPER
+    );
+    assert!(!f.0.join("Lang.lock").exists());
+    assert!(!f.0.join("target").exists());
+    // The client, after the server exited, saves the accepted buffers and runs them.
+    f.write("src/main.lang", &documents[&root].text);
+    f.write("helper/src/main.lang", &documents[&helper].text);
+    let output = Command::new(env!("CARGO_BIN_EXE_lang"))
+        .current_dir(&f.0)
+        .args(["run", "--manifest-path"])
+        .arg(f.0.join("Lang.json"))
+        .output()
+        .unwrap();
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert_eq!(output.stdout, b"42\n");
+    assert!(output.stderr.is_empty());
+}
+fn action_query(
+    s: &mut Server,
+    uri: &str,
+    source: &str,
+    bytes: std::ops::Range<usize>,
+    only: Value,
+) -> Value {
+    let point = |offset: usize| {
+        let text = &source[..offset];
+        json!({"line":text.bytes().filter(|b|*b==b'\n').count(),"character":text.rsplit('\n').next().unwrap().encode_utf16().count()})
+    };
+    s.handle(request("textDocument/codeAction",json!({"textDocument":{"uri":uri},"range":{"start":point(bytes.start),"end":point(bytes.end)},"context":{"diagnostics":[{"code":"forged-client-diagnostic"}],"only":only}}))).remove(0)
+}
+fn apply_single_document_edit(source: &str, edit: &Value, uri: &str, version: i32) -> String {
+    let changes = edit["documentChanges"].as_array().unwrap();
+    assert_eq!(changes.len(), 1);
+    assert_eq!(changes[0]["textDocument"]["uri"], uri);
+    assert_eq!(changes[0]["textDocument"]["version"], version);
+    let mut text = source.to_string();
+    for edit in changes[0]["edits"].as_array().unwrap().iter().rev() {
+        let point = |end: &str| {
+            lang_lsp::text_offset(
+                source,
+                edit["range"][end]["line"].as_u64().unwrap() as u32,
+                edit["range"][end]["character"].as_u64().unwrap() as u32,
+                source.len(),
+            )
+            .unwrap()
+        };
+        text.replace_range(
+            point("start")..point("end"),
+            edit["newText"].as_str().unwrap(),
+        );
+    }
+    text
+}
+
+#[test]
+fn code_actions_prefix_an_unread_binding_without_executing_or_removing_host_calls() {
+    let f = Files::new();
+    let root = f.uri("src/main.lang");
+    let mut s = action_server(&f, Default::default());
+    let source = "/*😀*/extern fn tick(value:i64)->i64;fn main()->i64{let mut unused:i64=tick(1);unused=tick(2);return 42;}";
+    let messages = open(&mut s, &root, source);
+    assert!(diagnostics(&messages, &root).is_empty(), "{messages:?}");
+    let start = source.find("unused").unwrap();
+    let r = action_query(&mut s, &root, source, start..start + 6, json!(["quickfix"]));
+    let actions = r["result"].as_array().unwrap_or_else(|| panic!("{r:?}"));
+    assert_eq!(actions.len(), 1, "{r:?}");
+    assert_eq!(actions[0]["kind"], "quickfix");
+    assert_eq!(actions[0]["diagnostics"][0]["code"], "LNT0001");
+    assert_eq!(
+        actions[0]["edit"]["documentChanges"][0]["edits"]
+            .as_array()
+            .unwrap()
+            .len(),
+        2
+    );
+    let fixed = apply_single_document_edit(source, &actions[0]["edit"], &root, 1);
+    assert!(fixed.contains("_unused:i64=tick(1);_unused=tick(2);"));
+    change(&mut s, &root, 2, &fixed);
+    assert_eq!(
+        action_query(&mut s, &root, &fixed, 0..fixed.len(), json!(["quickfix"]))["result"],
+        json!([])
+    );
+    assert_eq!(fs::read_to_string(f.0.join("src/main.lang")).unwrap(), ROOT);
+    assert!(!f.0.join("Lang.lock").exists());
+    assert!(!f.0.join("target").exists());
+}
+
+#[test]
+fn code_actions_format_original_unicode_source_with_checked_types_and_current_versions() {
+    let f = Files::new();
+    let root = f.uri("src/main.lang");
+    let mut s = action_server(&f, Default::default());
+    let source = "/*😀\r\nkeep*/struct Pair{value:i64}fn main()->i64{let mut pair:Pair=Pair{value:42};return pair.value;}";
+    open(&mut s, &root, source);
+    let r = action_query(&mut s, &root, source, 0..source.len(), json!(["source"]));
+    let actions = r["result"].as_array().unwrap_or_else(|| panic!("{r:?}"));
+    assert_eq!(actions.len(), 1, "{r:?}");
+    assert_eq!(actions[0]["kind"], "source.format");
+    let formatted = apply_single_document_edit(source, &actions[0]["edit"], &root, 1);
+    assert_ne!(formatted, source);
+    assert!(formatted.contains("😀"));
+    assert!(formatted.contains("keep*/"));
+    let messages = change(&mut s, &root, 7, &formatted);
+    assert!(diagnostics(&messages, &root).is_empty(), "{messages:?}");
+    assert!(change(&mut s, &root, 6, "broken").is_empty());
+    assert_eq!(
+        action_query(
+            &mut s,
+            &root,
+            &formatted,
+            0..formatted.len(),
+            json!(["source.format"])
+        )["result"],
+        json!([])
+    );
+    let r = s.handle(request(
+        "codeAction/resolve",
+        json!({"kind":"source.format"}),
+    ));
+    assert_eq!(r[0]["error"]["code"], -32601);
+    assert_eq!(fs::read_to_string(f.0.join("src/main.lang")).unwrap(), ROOT);
+}
+
+#[test]
+fn code_actions_refuse_ambiguous_colliding_stale_forged_and_unversioned_fixes() {
+    let f = Files::new();
+    let root = f.uri("src/main.lang");
+    let mut s = action_server(&f, Default::default());
+    let ambiguous = "fn main()->i64{let mut first:i64=1;let mut second:i64=2;return 42;}";
+    open(&mut s, &root, ambiguous);
+    assert_eq!(
+        action_query(
+            &mut s,
+            &root,
+            ambiguous,
+            0..ambiguous.len(),
+            json!(["quickfix"])
+        )["result"],
+        json!([])
+    );
+    let collision = "fn main()->i64{let mut unused:i64=1;let mut _unused:i64=2;return 42;}";
+    change(&mut s, &root, 2, collision);
+    let start = collision.find("unused").unwrap();
+    assert_eq!(
+        action_query(
+            &mut s,
+            &root,
+            collision,
+            start..start + 6,
+            json!(["quickfix"])
+        )["result"],
+        json!([])
+    );
+    let used = "fn main()->i64{let mut used:i64=42;return used;}";
+    change(&mut s, &root, 3, used);
+    let start = used.find("used").unwrap();
+    assert_eq!(
+        action_query(&mut s, &root, used, start..start + 4, json!(["quickfix"]))["result"],
+        json!([])
+    );
+    f.write("helper/src/main.lang", "pub fn answer()->i64{return 43;}");
+    let stale = action_query(&mut s, &root, used, 0..used.len(), json!(["source.format"]));
+    assert!(
+        stale["error"]["message"]
+            .as_str()
+            .unwrap()
+            .contains("refresh"),
+        "{stale:?}"
+    );
+    let mut unsupported = rename_server(&f, "transactional");
+    open(&mut unsupported, &root, used);
+    let r = action_query(
+        &mut unsupported,
+        &root,
+        used,
+        0..used.len(),
+        json!(["quickfix"]),
+    );
+    assert!(
+        r["error"]["message"].as_str().unwrap().contains("literal"),
+        "{r:?}"
+    );
+    let mut bounded = action_server(
+        &f,
+        Limits {
+            mapping: lang_lsp::Limits {
+                output_bytes: 64,
+                ..Limits::default().mapping
+            },
+            ..Default::default()
+        },
+    );
+    open(&mut bounded, &root, used);
+    let r = action_query(
+        &mut bounded,
+        &root,
+        used,
+        0..used.len(),
+        json!(["source.format"]),
+    );
+    assert!(
+        r["error"]["message"]
+            .as_str()
+            .unwrap()
+            .contains("byte limit"),
+        "{r:?}"
+    );
+    assert!(r.get("result").is_none());
+}
+
+#[test]
+fn code_actions_validate_capabilities_ranges_and_invalid_source_without_stale_edits() {
+    let f = Files::new();
+    let root = f.uri("src/main.lang");
+    let mut no_versions = Server::new(Default::default());
+    no_versions.handle(request("initialize",json!({"rootUri":uri::file(&f.0).unwrap(),"capabilities":{"textDocument":{"codeAction":{"codeActionLiteralSupport":{"codeActionKind":{"valueSet":["quickfix","source"]}}}}}})));
+    no_versions.handle(note("initialized", json!({})));
+    open(&mut no_versions, &root, ROOT);
+    let r = action_query(
+        &mut no_versions,
+        &root,
+        ROOT,
+        0..ROOT.len(),
+        json!(["source.format"]),
+    );
+    assert!(
+        r["error"]["message"]
+            .as_str()
+            .unwrap()
+            .contains("documentChanges"),
+        "{r:?}"
+    );
+    let mut s = action_server(&f, Default::default());
+    open(&mut s, &root, ROOT);
+    for (start, end) in [(3, 3), (10, 0)] {
+        let r=s.handle(request("textDocument/codeAction",json!({"textDocument":{"uri":root},"range":{"start":{"line":0,"character":start},"end":{"line":0,"character":end}},"context":{"diagnostics":[],"only":["source.format"]}})));
+        assert_eq!(r[0]["error"]["code"], -32602, "{r:?}");
+        assert!(r[0].get("result").is_none());
+    }
+    let r = action_query(&mut s, &root, ROOT, 0..ROOT.len(), json!("quickfix"));
+    assert_eq!(r["error"]["code"], -32602);
+    let broken = "fn main()->i64{return unknown;}";
+    change(&mut s, &root, 2, broken);
+    assert_eq!(
+        action_query(
+            &mut s,
+            &root,
+            broken,
+            0..broken.len(),
+            json!(["source.format", "quickfix"])
+        )["result"],
+        json!([])
+    );
+    s.handle(note(
+        "textDocument/didClose",
+        json!({"textDocument":{"uri":root}}),
+    ));
+    let r = action_query(&mut s, &root, ROOT, 0..ROOT.len(), json!(["source.format"]));
+    assert!(
+        r["error"]["message"]
+            .as_str()
+            .unwrap()
+            .contains("must be open"),
+        "{r:?}"
+    );
+    assert!(r.get("result").is_none());
+    let source = "fn main()->i64{let mut unused:i64=1;return 42;}";
+    for (supported, offered, unsupported) in [
+        (vec!["quickfix"], vec!["quickfix"], "source.format"),
+        (vec!["source"], vec!["source.format"], "quickfix"),
+    ] {
+        let mut limited = Server::new(Default::default());
+        let init=limited.handle(request("initialize",json!({"rootUri":uri::file(&f.0).unwrap(),"capabilities":{"textDocument":{"codeAction":{"codeActionLiteralSupport":{"codeActionKind":{"valueSet":supported}}}},"workspace":{"workspaceEdit":{"documentChanges":true}}}})));
+        assert_eq!(
+            init[0]["result"]["capabilities"]["codeActionProvider"]["codeActionKinds"],
+            json!(offered)
+        );
+        limited.handle(note("initialized", json!({})));
+        open(&mut limited, &root, source);
+        assert_eq!(
+            action_query(
+                &mut limited,
+                &root,
+                source,
+                0..source.len(),
+                json!([unsupported])
+            )["result"],
+            json!([])
+        );
+        let all = action_query(&mut limited, &root, source, 0..source.len(), json!([""]));
+        assert_eq!(
+            all["result"]
+                .as_array()
+                .unwrap_or_else(|| panic!("{all:?}"))
+                .len(),
+            1,
+            "{all:?}"
+        );
+        assert_eq!(all["result"][0]["kind"], offered[0]);
+    }
 }
 fn decoded_tokens(source: &str, result: &Value) -> Vec<(String, u64)> {
     let data = result["result"]["data"]
