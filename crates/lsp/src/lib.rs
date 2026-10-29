@@ -175,6 +175,25 @@ impl<'a> Index<'a> {
         })
     }
 
+    fn offset(&self, line: u32, character: u32) -> Result<usize, MappingError> {
+        let bounds = self
+            .lines
+            .get(line as usize)
+            .ok_or(MappingError::Source(SourceError::OutOfBounds))?;
+        let mut units = 0usize;
+        let wanted = character as usize;
+        for (offset, c) in self.text[bounds.start..bounds.end].char_indices() {
+            if units == wanted {
+                return Ok(bounds.start + offset);
+            }
+            units += c.len_utf16();
+            if units > wanted {
+                return Err(MappingError::Source(SourceError::NotCharBoundary));
+            }
+        }
+        Ok(bounds.end)
+    }
+
     fn range(&self, span: Span) -> Result<Range, MappingError> {
         let range = span.range();
         Ok(Range {
@@ -218,6 +237,36 @@ pub fn text_position(
         return Err(MappingError::LimitExceeded(LimitKind::SourceBytes));
     }
     Index::new(text)?.position(offset)
+}
+
+/// Inverse UTF-16 mapping; clamp a column beyond line content as LSP requires.
+/// Surrogate interiors and absent lines have no valid source byte position.
+pub fn text_offset(
+    text: &str,
+    line: u32,
+    character: u32,
+    source_bytes: usize,
+) -> Result<usize, MappingError> {
+    if text.len() > source_bytes {
+        return Err(MappingError::LimitExceeded(LimitKind::SourceBytes));
+    }
+    Index::new(text)?.offset(line, character)
+}
+
+#[cfg(test)]
+mod inverse_position_tests {
+    use super::*;
+    #[test]
+    fn unicode_crlf_empty_eof_and_column_clamping_preserve_source_boundaries() {
+        let text = "a😀b\r\n最後\n";
+        assert_eq!(text_offset(text, 0, 3, text.len()).unwrap(), 5);
+        assert_eq!(text_offset(text, 0, u32::MAX, text.len()).unwrap(), 6);
+        assert_eq!(text_offset(text, 1, 1, text.len()).unwrap(), 11);
+        assert_eq!(text_offset(text, 2, 0, text.len()).unwrap(), text.len());
+        assert!(text_offset(text, 0, 2, text.len()).is_err());
+        assert!(text_offset(text, 3, 0, text.len()).is_err());
+        assert!(text_offset(text, 0, 0, text.len() - 1).is_err());
+    }
 }
 
 /// Map a validated source range, including whole-document formatting edits.

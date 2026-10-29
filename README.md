@@ -94,11 +94,18 @@ The rationale and unresolved tradeoffs are documented in [the architecture basel
 - [RFC 0036: Checked package formatting (accepted)](docs/rfcs/0036-checked-package-formatting.md)
 - [RFC 0037: Package lint diagnostics (accepted)](docs/rfcs/0037-package-lint-diagnostics.md)
 - [RFC 0038: Package API documentation (accepted)](docs/rfcs/0038-package-api-documentation.md)
+- [RFC 0039: Package editor snapshots and checked edits (accepted)](docs/rfcs/0039-package-editor-snapshots.md)
 - [Contribution guide](CONTRIBUTING.md)
 
 `cargo run -- lint --manifest-path target/my_app/Lang.json --deny-warnings --message-format json` checks the selected package and declared tests without executing guest code or writing lock/artifacts. `LNT0001` reports unread bindings; `_`-prefixed names suppress that rule. Existing warnings retain their codes. Omit `--deny-warnings` to keep warnings non-failing. See [RFC 0037](docs/rfcs/0037-package-lint-diagnostics.md).
 
 `cargo run -- doc --manifest-path target/my_app/Lang.json --locked --offline` publishes a detached static API reference at `target/lang/<lock-digest>/doc/index.html`. Public signatures and type links use checked identities; adjacent `///` text and original source panels are escaped. The source panels include private implementation text. Generation failures preserve the previous lock/output. See [RFC 0038](docs/rfcs/0038-package-api-documentation.md).
+
+`cargo run -- lsp` uses package definition/references when its explicit workspace contains `Lang.json`. Initialize options `manifestPath`, `package` and `target` select the package; open source overlays and watched changes update one admitted epoch. Navigation retains original UTF-16 locations for dependency items, cases, parameters, locals and fields. Save/refresh dirty manifests before semantic navigation. See [RFC 0039](docs/rfcs/0039-package-editor-snapshots.md) for source authority and edit prerequisites.
+
+Package completion returns public module/import/enum names, scoped bindings and fields recovered from declared receiver types. Incomplete identifiers use a bounded in-memory normal-parser/binder probe; returned text edits retain original UTF-16 ranges and carry epoch/version data. Unsupported receiver expressions produce no guessed fields.
+
+Full semantic tokens use a fixed legend and the current binding index, with lexical fallback for malformed source. Tokens split at CR/LF, use non-overlapping UTF-16 delta encoding and carry an epoch result ID. Clients advertising semantic-token refresh support receive refresh requests after source/overlay/watch invalidation; range and delta requests are unsupported.
 
 ## Development
 

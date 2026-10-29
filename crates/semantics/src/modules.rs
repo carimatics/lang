@@ -2,7 +2,7 @@
 //! Loading grants no runtime capability. All declaration names are collected
 //! before import resolution; local body resolution and typing are subsequent stages.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::error::Error;
 use std::fmt::{Display, Formatter};
 use std::fs::File;
@@ -65,6 +65,13 @@ impl ItemId {
 pub enum ResolvedName {
     Item(ItemId),
     Case { definition: ItemId, index: usize },
+}
+
+/// A name accepted by ordinary module resolution in a hypothetical final slot.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct PathCompletion {
+    pub name: String,
+    pub target: ResolvedName,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -170,6 +177,9 @@ impl Module {
     pub fn find(&self, name: &str) -> Option<ItemId> {
         self.names.get(name).copied()
     }
+    pub fn owns_path(&self, path: NodeId) -> bool {
+        self.paths.contains_key(&path.index())
+    }
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -205,6 +215,124 @@ impl ModuleGraph {
     ) -> Result<ResolvedName, ResolutionError> {
         let mut remaining = work;
         self.resolve_charged(module, path, &mut remaining)
+    }
+
+    /// Resolve against a caller-owned shared budget for bounded tooling scans.
+    pub fn resolve_with_budget(
+        &self,
+        module: ModuleId,
+        path: NodeId,
+        remaining: &mut usize,
+    ) -> Result<ResolvedName, ResolutionError> {
+        self.resolve_charged(module, path, remaining)
+    }
+
+    pub fn complete_path(
+        &self,
+        module: ModuleId,
+        path: NodeId,
+        prefix: &str,
+        remaining: &mut usize,
+        limit: usize,
+    ) -> Result<Vec<PathCompletion>, ResolutionError> {
+        let source = self
+            .module(module)
+            .and_then(|m| m.paths.get(&path.index()))
+            .ok_or(ResolutionError::InvalidInput)?;
+        self.complete_source(module, source, prefix, remaining, limit)
+    }
+    pub fn complete_name(
+        &self,
+        module: ModuleId,
+        site: Span,
+        prefix: &str,
+        remaining: &mut usize,
+        limit: usize,
+    ) -> Result<Vec<PathCompletion>, ResolutionError> {
+        let origin = self.module(module).ok_or(ResolutionError::InvalidInput)?;
+        if origin.source != site.source()
+            || site.range().end
+                > origin
+                    .tree
+                    .node(origin.tree.root())
+                    .ok_or(ResolutionError::InvalidInput)?
+                    .span()
+                    .range()
+                    .end
+        {
+            return Err(ResolutionError::InvalidInput);
+        }
+        let source = SourcePath {
+            root: false,
+            segments: vec![DeclaredName {
+                text: String::new(),
+                span: site,
+            }],
+            span: site,
+        };
+        self.complete_source(module, &source, prefix, remaining, limit)
+    }
+    fn complete_source(
+        &self,
+        module: ModuleId,
+        source: &SourcePath,
+        prefix: &str,
+        remaining: &mut usize,
+        limit: usize,
+    ) -> Result<Vec<PathCompletion>, ResolutionError> {
+        if source.segments.is_empty() {
+            return Err(ResolutionError::InvalidInput);
+        }
+        let mut work = Work { left: *remaining };
+        let result = (|| {
+            for segment in &source.segments {
+                work.charge_many(segment.text.len(), source.span)?;
+            }
+            let mut candidate = source.clone();
+            let mut names = BTreeSet::new();
+            for item in &self.items {
+                work.charge(source.span)?;
+                names.insert(item.name.text.as_str());
+                if let ItemKind::Enum { cases } = &item.kind {
+                    for case in cases {
+                        work.charge(source.span)?;
+                        names.insert(case.text.as_str());
+                    }
+                }
+            }
+            let mut values = Vec::new();
+            for name in names {
+                work.charge(source.span)?;
+                if !name.starts_with(prefix) {
+                    continue;
+                }
+                work.charge_many(name.len(), source.span)?;
+                let last = candidate.segments.last_mut().expect("nonempty source path");
+                last.text.clear();
+                last.text.push_str(name);
+                match self.resolve_path(module, &candidate, &mut work) {
+                    Ok(Step::Found(target)) => {
+                        if values.len() == limit {
+                            return Err(ResolutionError::Limit(Box::new(Diagnostic::new(
+                                codes::RESOURCE_LIMIT,
+                                Severity::Error,
+                                "completion candidate limit exceeded",
+                                Label::new(source.span, "candidate limit reached"),
+                            ))));
+                        }
+                        values.push(PathCompletion {
+                            name: name.to_string(),
+                            target,
+                        });
+                    }
+                    Err(e @ ResolutionError::Limit(_)) => return Err(e),
+                    Ok(Step::Alias(_)) | Err(_) => {}
+                }
+            }
+            Ok(values)
+        })();
+        *remaining = work.left;
+        result
     }
 
     pub(crate) fn resolve_charged(
@@ -348,7 +476,10 @@ struct Work {
 }
 impl Work {
     fn charge(&mut self, span: Span) -> Result<(), ResolutionError> {
-        if self.left == 0 {
+        self.charge_many(1, span)
+    }
+    fn charge_many(&mut self, amount: usize, span: Span) -> Result<(), ResolutionError> {
+        if self.left < amount {
             return Err(ResolutionError::Limit(Box::new(Diagnostic::new(
                 codes::RESOURCE_LIMIT,
                 Severity::Error,
@@ -356,7 +487,7 @@ impl Work {
                 Label::new(span, "work limit reached"),
             ))));
         }
-        self.left -= 1;
+        self.left -= amount;
         Ok(())
     }
 }

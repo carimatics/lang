@@ -1,5 +1,7 @@
 //! Small stdio LSP 3.18 profile using the shared source query database.
 //! Official source/update dates are recorded in docs/architecture.md.
+mod package;
+mod tokens;
 pub mod uri;
 pub mod wire;
 use lang_diagnostics::{Diagnostic as SourceDiagnostic, SourceId, Span};
@@ -69,6 +71,14 @@ fn internal(error: impl std::fmt::Display) -> Fault {
         message: error.to_string(),
     }
 }
+fn database_error(error: lang_semantics::database::DbError) -> Fault {
+    match error {
+        lang_semantics::database::DbError::OutsideRoot(_) => {
+            internal("OutsideRoot: document is outside the workspace")
+        }
+        error => internal(error),
+    }
+}
 fn response_error(id: Value, code: i32, message: &str) -> Value {
     json!({"jsonrpc":"2.0","id":id,"error":{"code":code,"message":message}})
 }
@@ -118,6 +128,11 @@ pub struct Server {
     related: bool,
     versions: bool,
     watch: bool,
+    token_refresh: bool,
+    package: Option<package::Config>,
+    package_view: Option<Result<package::View, crate::package::Diagnostic>>,
+    package_epoch: u64,
+    package_published: BTreeSet<String>,
 }
 impl Server {
     pub fn new(limits: Limits) -> Self {
@@ -129,6 +144,11 @@ impl Server {
             related: false,
             versions: false,
             watch: false,
+            token_refresh: false,
+            package: None,
+            package_view: None,
+            package_epoch: 0,
+            package_published: BTreeSet::new(),
         }
     }
     pub fn exit_status(&self) -> Option<u8> {
@@ -218,6 +238,31 @@ impl Server {
                 .unwrap_or_default();
         }
         if let Some(id) = id {
+            if self.package.is_some() && method == "textDocument/semanticTokens/full" {
+                return vec![match self.semantic_tokens(params) {
+                    Ok(result) => response(id, result),
+                    Err(e) => response_error(id, e.code, &e.message),
+                }];
+            }
+            if self.package.is_some() && method == "textDocument/completion" {
+                return vec![match self.completion(params) {
+                    Ok(result) => response(id, result),
+                    Err(e) => response_error(id, e.code, &e.message),
+                }];
+            }
+            if self.package.is_some()
+                && matches!(
+                    method,
+                    "textDocument/definition" | "textDocument/references"
+                )
+            {
+                return vec![
+                    match self.navigation(params, method == "textDocument/references") {
+                        Ok(result) => response(id, result),
+                        Err(e) => response_error(id, e.code, &e.message),
+                    },
+                ];
+            }
             if method == "textDocument/formatting" {
                 return vec![match self.formatting(params) {
                     Ok(result) => response(id, result),
@@ -270,6 +315,7 @@ impl Server {
             .transpose()?;
         let db = Database::new(root.as_deref(), self.limits.database)
             .map_err(|_| invalid("invalid workspace source root"))?;
+        self.package = package::configuration(db.source_root(), params)?;
         self.related = params
             .pointer("/capabilities/textDocument/publishDiagnostics/relatedInformation")
             .and_then(Value::as_bool)
@@ -282,11 +328,21 @@ impl Server {
             .pointer("/capabilities/workspace/didChangeWatchedFiles/dynamicRegistration")
             .and_then(Value::as_bool)
             .unwrap_or(false);
+        self.token_refresh = params
+            .pointer("/capabilities/workspace/semanticTokens/refreshSupport")
+            .and_then(Value::as_bool)
+            .unwrap_or(false);
         self.db = Some(db);
         self.phase = Phase::Awaiting;
-        Ok(
-            json!({"capabilities":{"positionEncoding":"utf-16","textDocumentSync":{"openClose":true,"change":1},"documentFormattingProvider":true},"serverInfo":{"name":"lang prototype","version":env!("CARGO_PKG_VERSION")}}),
-        )
+        let mut result = json!({"capabilities":{"positionEncoding":"utf-16","textDocumentSync":{"openClose":true,"change":1},"documentFormattingProvider":true},"serverInfo":{"name":"lang prototype","version":env!("CARGO_PKG_VERSION")}});
+        if self.package.is_some() {
+            result["capabilities"]["definitionProvider"] = json!(true);
+            result["capabilities"]["referencesProvider"] = json!(true);
+            result["capabilities"]["completionProvider"] =
+                json!({"triggerCharacters":[".",":"],"resolveProvider":false});
+            result["capabilities"]["semanticTokensProvider"] = json!({"legend":{"tokenTypes":tokens::LEGEND,"tokenModifiers":[]},"full":true,"range":false});
+        }
+        Ok(result)
     }
     fn notify(&mut self, method: &str, params: &Value) -> Result<Vec<Value>, Fault> {
         match method {
@@ -313,7 +369,7 @@ impl Server {
                     .as_mut()
                     .unwrap()
                     .open(&path, bytes.clone())
-                    .map_err(internal)?;
+                    .map_err(database_error)?;
                 self.documents.insert(
                     name.into(),
                     Document {
@@ -356,7 +412,7 @@ impl Server {
                     .as_mut()
                     .unwrap()
                     .change(&path, bytes.clone())
-                    .map_err(internal)?;
+                    .map_err(database_error)?;
                 let document = self.documents.get_mut(name).unwrap();
                 document.version = version;
                 document.text = bytes;
@@ -373,7 +429,7 @@ impl Server {
                     .as_mut()
                     .unwrap()
                     .close(&document.path)
-                    .map_err(internal)?;
+                    .map_err(database_error)?;
                 self.documents.remove(name);
                 let mut messages = vec![self.publication(name, Some(version), vec![])];
                 messages.extend(self.reanalyze());
@@ -402,11 +458,15 @@ impl Server {
                             .as_ref()
                             .unwrap()
                             .document_path(&path)
-                            .map_err(internal)?,
+                            .map_err(database_error)?,
                     );
                 }
                 for path in paths {
-                    self.db.as_mut().unwrap().refresh(&path).map_err(internal)?;
+                    self.db
+                        .as_mut()
+                        .unwrap()
+                        .refresh(&path)
+                        .map_err(database_error)?;
                 }
                 Ok(self.reanalyze())
             }
@@ -423,6 +483,18 @@ impl Server {
         notification("textDocument/publishDiagnostics", params)
     }
     fn reanalyze(&mut self) -> Vec<Value> {
+        if self.package.is_some() {
+            let Some(epoch) = self.package_epoch.checked_add(1) else {
+                return vec![log("package editor epoch exhausted")];
+            };
+            self.package_epoch = epoch;
+            self.package_view = None;
+            let mut messages = self.package_publications();
+            if self.token_refresh {
+                messages.push(json!({"jsonrpc":"2.0","id":format!("lang-tokens-{epoch}"),"method":"workspace/semanticTokens/refresh"}));
+            }
+            return messages;
+        }
         let paths: Vec<_> = self.documents.values().map(|d| d.path.clone()).collect();
         let mut roots = Vec::new();
         let mut failures = Vec::new();
@@ -637,7 +709,7 @@ impl Server {
             .as_mut()
             .unwrap()
             .parsed(&document.path)
-            .map_err(internal)?;
+            .map_err(database_error)?;
         let tree = parsed
             .result
             .as_ref()
