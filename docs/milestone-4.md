@@ -6,9 +6,9 @@
 
 Updated: 2026-10-29 JST. M4 is active. Goal start: clean `main`/`origin/main` at `af9988f`, remote `git@github.com:carimatics/lang.git`. PRs #9–#13 are merged. Current branch `codex/m4-workspace-selection` was created from clean synchronized `main`/`origin/main` at `58527c2`. Recorded PR base: `carimatics/lang:main`; no upstream yet. No preexisting user changes were present.
 
-**7 done · 1 doing · 32 todo · 93 remaining pt**
+**8 done · 1 doing · 31 todo · 90 remaining pt**
 
-**Next: M4-A05W — capture workspace selection and versioned metadata, then execute a real sibling import (doing, 3 pt).** The pre-implementation probe verifies virtual-root refusal (`PKG0006`), standalone sibling containment (`PKG0005`) and an integrity gap: the existing root-package lock remains accepted after an unselected member manifest changes. RFC 0034 now accepts a typed schema-2 workspace record while preserving standalone schema 1. Remaining acceptance: bounded catalogue/frozen metadata, explicit member authority, independent checksum fixture, changed-member/binding refusal and sibling build/run/test returning 42. A05 separately retains target-condition replay and both-target refusals (2 pt). No additional exit gate is complete.
+**Next: M4-A05 — exact target-condition workspace locks on both supported targets (doing, 2 pt).** A05W source `183d393` passes local fmt, warning-free full Clippy, full tests (**159 suites / 2,396 passed / 0 failed**) and doc, verified 2026-10-29 13:18 JST. Its 12 macOS workspace fixtures cover sibling build/run/test returning 42, independent schema-2 bytes, frozen/relocated inputs, metadata/binding refusals and preserved outputs. Both-host CI remains a branch merge gate. A05 now checks active/inactive target edges, exact replay and cross-target refusal. No additional exit gate is complete.
 
 A04 source `cf6cf5c` passes fmt, full Clippy/doc and checked opt-level 1 full tests (**158 suites / 2,384 passed / 0 failed**), plus 75 focused tests. Final head `75a2041` passes [full CI](https://github.com/carimatics/lang/actions/runs/40810065213) (all 19 jobs: 18 success; intentional documentation-only skip) and [debugger execution](https://github.com/carimatics/lang/actions/runs/40810065278) (3/3). [PR #13](https://github.com/carimatics/lang/pull/13) merged as `58527c2`; main was fast-forwarded, clean and synchronized with 0/0 ahead/behind. Current `codex/m4-workspace-selection` was created from that clean main; PR base `carimatics/lang:main`, no upstream yet. No preexisting user changes were present.
 
@@ -55,8 +55,8 @@ The [roadmap](roadmap.md#milestone-4-developer-toolchain) retains the original 6
 | M4-A03 | done | 0 | M4-A02 | G2,G3 | Canonical checksummed lock fixture replays offline and refuses changed sources without rewriting prior output | `117a2ab` |
 | M4-A04B | done | 0 | M4-A03 | G2,G3 | Create a package/local dependency; real package build/run, locked/offline replay and failure-safe generations | `9cf5f7c` |
 | M4-A04 | done | 0 | M4-A04B | G2,G3 | Declared test-entry scopes, shared VM profiles and failed-test/source/JSON diagnostic fixtures | `cf6cf5c` |
-| M4-A05W | doing | 3 | M4-A04 | G2,G3 | Frozen workspace catalogue/schema-2 integrity and real sibling build/run/test execution | — |
-| M4-A05 | todo | 2 | M4-A05W | G2,G3 | Workspace member selection and exact target-condition locks on both supported targets | — |
+| M4-A05W | done | 0 | M4-A04 | G2,G3 | Frozen workspace catalogue/schema-2 integrity and real sibling build/run/test execution | `183d393` |
+| M4-A05 | doing | 2 | M4-A05W | G2,G3 | Workspace member selection and exact target-condition locks on both supported targets | — |
 | M4-A06 | todo | 3 | M4-A05 | G2,G3 | Build a native executable twice from a relocated locked package; compare pinned-input digests on both hosts | — |
 | M4-B01 | todo | 3 | M4-A04 | G4 | Deterministic package source listing/archive and escaping/changed-input refusal | — |
 | M4-B02 | todo | 2 | M4-A04 | G4 | Package fmt/check preserves CST comments and refuses invalid/stale edits | — |
@@ -95,9 +95,9 @@ Activation audit, 2026-10-29 JST: 36 observable deliveries, baseline 103 pt. The
 
 | Baseline remaining | Net added/re-estimated | Retired on completion | Remaining |
 | ---: | ---: | ---: | ---: |
-| 103 pt | +10 pt | −20 pt | 93 pt |
+| 103 pt | +10 pt | −23 pt | 90 pt |
 
-**103 + 10 − 20 = 93 pt**
+**103 + 10 − 23 = 90 pt**
 
 Namespace prerequisite audit, 2026-10-29 JST: the existing `ModuleGraph::root()` is always `ModuleId(0)`. A path provider alone cannot give each dependency its own package-root namespace or safely reuse a shared dependency identity. Split the original A02 outcome into an authorized graph (new A02R, 3 pt) and namespace/source execution integration (A02, remaining 3 pt after reviewing its task list). Net addition: +3 pt; 37 deliveries total. A01 and A02R are two prerequisites, so A02 must supply the next source execution fixture before further horizontal scaffolding. No gate is completed or deferred by this audit.
 

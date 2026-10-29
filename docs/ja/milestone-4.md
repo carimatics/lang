@@ -6,9 +6,9 @@
 
 更新: 2026-10-29 JST。M4 は active。Goal 開始時は clean な `main`／`origin/main` の `af9988f`、remote `git@github.com:carimatics/lang.git`。PR #9–#13 は merge 済み。現在の `codex/m4-workspace-selection` は `58527c2` の clean・同期済み `main`／`origin/main` から作成した。記録した PR base は `carimatics/lang:main`、upstream はまだない。既存の user 変更はなかった。
 
-**7 done · 1 doing · 32 todo · 93 remaining pt**
+**8 done · 1 doing · 31 todo · 90 remaining pt**
 
-**次: M4-A05W — workspace 選択と version 付き metadata を固定し、実 sibling import を実行（doing、3 pt）。** 実装前 probe で仮想 root 拒否（`PKG0006`）、standalone sibling 包含（`PKG0005`）と整合性の不足を確認した。未選択 member manifest 変更後も既存 root-package lock が受理される。RFC 0034 は standalone schema 1 を保持して、型付き schema 2 workspace record を採択した。残る受入条件は上限付き catalogue／固定 metadata、明示 member 権限、独立 checksum fixture、member／binding 変更拒否、42 を返す sibling build／run／test。A05 は target-condition replay と両 target 拒否を別に残す（2 pt）。追加 exit gate は未完了。
+**次: M4-A05 — 両 supported target の完全一致 target-condition workspace lock（doing、2 pt）。** A05W source `183d393` は local fmt、警告なし全 Clippy、全 test（**159 suite／2,396 成功／0 失敗**）、doc に成功した（2026-10-29 13:18 JST 確認）。macOS の workspace fixture 12 件で 42 を返す sibling build／run／test、独立 schema 2 byte、固定／移動後 input、metadata／binding 拒否、旧 output 保持を検証した。両 host CI は branch merge 条件として残る。A05 は有効／無効 target edge、完全一致 replay、target 間拒否を検証する。追加 exit gate は未完了。
 
 A04 source `cf6cf5c` は fmt、全 Clippy／doc、checked opt-level 1 全 test（**158 suite／2,384 成功／0 失敗**）、重点 75 test に成功。最終 head `75a2041` は [全 CI](https://github.com/carimatics/lang/actions/runs/40810065213)（全 19 job、18 成功、意図した文書専用 skip）と [debugger 実行](https://github.com/carimatics/lang/actions/runs/40810065278)（3/3）に成功した。[PR #13](https://github.com/carimatics/lang/pull/13) は `58527c2` として merge、main を fast-forward して clean・同期済み、ahead／behind 0/0。現在の `codex/m4-workspace-selection` はその clean main から作成し、PR base は `carimatics/lang:main`、upstream はまだない。既存の user 変更はなかった。
 
@@ -55,8 +55,8 @@ A01 入力修正は Unix の nonblocking open と開いた handle の metadata �
 | M4-A03 | done | 0 | M4-A02 | G2,G3 | canonical checksum lock fixture を offline replay、従来 output を書き換えず変更 source を拒否 | `117a2ab` |
 | M4-A04B | done | 0 | M4-A03 | G2,G3 | package／local dependency 作成、実 package build／run、locked／offline replay と失敗時保護 generation | `9cf5f7c` |
 | M4-A04 | done | 0 | M4-A04B | G2,G3 | 宣言 test-entry scope、共有 VM profile、失敗 test／source／JSON 診断 fixture | `cf6cf5c` |
-| M4-A05W | doing | 3 | M4-A04 | G2,G3 | 固定 workspace catalogue／schema 2 整合性と、実 sibling build／run／test 実行 | — |
-| M4-A05 | todo | 2 | M4-A05W | G2,G3 | workspace member 選択と、両 supported target の完全一致 target condition lock | — |
+| M4-A05W | done | 0 | M4-A04 | G2,G3 | 固定 workspace catalogue／schema 2 整合性と、実 sibling build／run／test 実行 | `183d393` |
+| M4-A05 | doing | 2 | M4-A05W | G2,G3 | workspace member 選択と、両 supported target の完全一致 target condition lock | — |
 | M4-A06 | todo | 3 | M4-A05 | G2,G3 | 配置変更した locked package から native executable を二度 build、両 host で固定 input digest 比較 | — |
 | M4-B01 | todo | 3 | M4-A04 | G4 | 決定的 package source list／archive と逸脱／変更 input の拒否 | — |
 | M4-B02 | todo | 2 | M4-A04 | G4 | package fmt／check が CST comment を保持し、不正／古い edit を拒否 | — |
@@ -95,9 +95,9 @@ A01 入力修正は Unix の nonblocking open と開いた handle の metadata �
 
 | Baseline remaining | Net added/re-estimated | Retired on completion | Remaining |
 | ---: | ---: | ---: | ---: |
-| 103 pt | +10 pt | −20 pt | 93 pt |
+| 103 pt | +10 pt | −23 pt | 90 pt |
 
-**103 + 10 − 20 = 93 pt**
+**103 + 10 − 23 = 90 pt**
 
 名前空間の前提監査、2026-10-29 JST: 既存 `ModuleGraph::root()` は常に `ModuleId(0)`。path provider だけでは依存ごとの package-root 名前空間や共有 dependency identity の安全な再利用を提供できない。元の A02 を、許可 graph（新規 A02R、3 pt）と名前空間／source 実行の統合（task list を見直した A02、残り 3 pt）へ分割する。純追加 +3 pt、全 37 delivery。A01 と A02R は前提二つとなるため、水平基盤を増やす前に A02 で次の source 実行 fixture を示す。この監査による gate 完了や延期はない。
 

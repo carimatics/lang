@@ -72,6 +72,30 @@ impl Files {
         self.write("idle/Lang.json", &HELPER.replace("\"helper\"", "\"idle\""));
         // No idle entry exists: catalogue capture must not read inactive sources.
     }
+    fn target_conditions(&self) {
+        self.write(
+            "Lang.json",
+            r#"{"schema":1,"workspace":{"members":["win_support","app","mac_support","helper"]}}"#,
+        );
+        let mut app: Value = serde_json::from_str(APP).unwrap();
+        for (name, target) in [
+            ("mac_support", TARGET),
+            ("win_support", "x86_64-pc-windows-msvc"),
+        ] {
+            app["dependencies"][name] =
+                json!({"path":format!("../{name}"),"version":"0.1.0","targets":[target]});
+            self.write(
+                &format!("{name}/Lang.json"),
+                &HELPER.replace("\"helper\"", &format!("\"{name}\"")),
+            );
+        }
+        app["tests"] = json!(["tests/smoke.lang"]);
+        self.write("app/Lang.json", &app.to_string());
+        self.write(
+            "app/tests/smoke.lang",
+            "mod _package; fn main()->i64{return _package::answer() + -42;}\n",
+        );
+    }
 }
 impl Drop for Files {
     fn drop(&mut self) {
@@ -562,4 +586,134 @@ fn inactive_member_fifo_metadata_is_refused_without_blocking() {
         files.run(&["build", "--package", "app", "--message-format", "json"]),
         "PKG0005",
     );
+}
+
+#[test]
+fn both_target_graphs_capture_exact_active_edges_without_inactive_source_reads() {
+    for (target, active, inactive) in [
+        (TARGET, "mac_support", "win_support"),
+        ("x86_64-pc-windows-msvc", "win_support", "mac_support"),
+    ] {
+        let files = Files::new();
+        files.target_conditions();
+        files.write(&format!("{active}/src/main.lang"), HELPER_SOURCE);
+        let resolve = || {
+            Graph::resolve_selected(
+                &files.0.join("Lang.json"),
+                target,
+                Default::default(),
+                Some("app"),
+            )
+            .unwrap()
+        };
+        let graph = resolve();
+        assert_eq!(graph.packages().len(), 3);
+        let aliases: Vec<_> = graph
+            .package(graph.root())
+            .unwrap()
+            .dependencies()
+            .keys()
+            .map(String::as_str)
+            .collect();
+        let mut expected = vec!["helper", active];
+        expected.sort();
+        assert_eq!(aliases, expected);
+        let lock = Lock::capture(&graph).unwrap();
+        let value: Value = serde_json::from_slice(lock.as_bytes()).unwrap();
+        assert_eq!(value["target"], target);
+        assert_eq!(value["workspace"]["members"].as_array().unwrap().len(), 4);
+        assert_eq!(value["packages"].as_array().unwrap().len(), 3);
+        assert_eq!(run(&graph), 42);
+        files.write(
+            &format!("{inactive}/src/main.lang"),
+            "invalid inactive source",
+        );
+        assert_eq!(
+            Lock::capture(&resolve()).unwrap().as_bytes(),
+            lock.as_bytes()
+        );
+        files.write(&format!("{active}/src/main.lang"), "changed active source");
+        let changed = Lock::capture(&resolve()).unwrap();
+        assert_eq!(changed.verify(lock.as_bytes()).unwrap_err().code, "PKG0007");
+    }
+}
+
+#[test]
+fn both_target_cli_locks_relocate_replay_and_refuse_cross_target_or_version_changes() {
+    for (target, other, active) in [
+        (TARGET, "x86_64-pc-windows-msvc", "mac_support"),
+        ("x86_64-pc-windows-msvc", TARGET, "win_support"),
+    ] {
+        let mut files = Files::new();
+        files.target_conditions();
+        for name in ["mac_support", "win_support"] {
+            files.write(&format!("{name}/src/main.lang"), HELPER_SOURCE);
+        }
+        success(files.run(&["build", "--package", "app", "--target", target]));
+        let old = fs::read(files.0.join("Lang.lock")).unwrap();
+        let generation = format!(
+            "target/lang/{}/build/main.lbc",
+            lang_codegen_clif::sdk::digest(&old)
+        );
+        let artifact = fs::read(files.0.join(&generation)).unwrap();
+        let relocated = files.0.with_extension("relocated");
+        fs::rename(&files.0, &relocated).unwrap();
+        files.0 = relocated;
+        for action in ["build", "run", "test"] {
+            let output = success(files.run(&[
+                action,
+                "--package",
+                "app",
+                "--target",
+                target,
+                "--locked",
+                "--offline",
+            ]));
+            assert_eq!(
+                output.stdout,
+                if action == "run" {
+                    b"42\n".as_slice()
+                } else {
+                    b""
+                }
+            );
+            refused(
+                files.run(&[
+                    action,
+                    "--package",
+                    "app",
+                    "--target",
+                    other,
+                    "--locked",
+                    "--offline",
+                    "--message-format",
+                    "json",
+                ]),
+                "PKG0007",
+            );
+        }
+        assert_eq!(fs::read(files.0.join("Lang.lock")).unwrap(), old);
+        assert_eq!(fs::read(files.0.join(&generation)).unwrap(), artifact);
+        let mut app: Value =
+            serde_json::from_str(&fs::read_to_string(files.0.join("app/Lang.json")).unwrap())
+                .unwrap();
+        app["dependencies"][active]["version"] = json!("0.1.1");
+        files.write("app/Lang.json", &app.to_string());
+        refused(
+            files.run(&[
+                "build",
+                "--package",
+                "app",
+                "--target",
+                target,
+                "--locked",
+                "--offline",
+                "--message-format",
+                "json",
+            ]),
+            "PKG0006",
+        );
+        assert_eq!(fs::read(files.0.join("Lang.lock")).unwrap(), old);
+        assert_eq!(fs::read(files.0.join(&generation)).unwrap(), artifact);
+    }
 }
