@@ -102,7 +102,7 @@ fn error(message: impl Into<String>) -> Diagnostic {
 fn filesystem(path: &Path, e: io::Error) -> Diagnostic {
     Diagnostic::error("PKG0005", e.to_string()).at_path(path)
 }
-fn path(path: &Path) -> Result<String, Diagnostic> {
+pub(super) fn path(path: &Path) -> Result<String, Diagnostic> {
     if path.as_os_str().is_empty() || path == Path::new(".") {
         return Ok(".".into());
     }

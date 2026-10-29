@@ -23,6 +23,8 @@ pub(super) struct File<'a> {
 pub(super) enum Generation<'a> {
     Build,
     Test,
+    Package,
+    Doc,
     Native(&'a str),
 }
 impl Generation<'_> {
@@ -30,6 +32,8 @@ impl Generation<'_> {
         match self {
             Self::Build => "build",
             Self::Test => "test",
+            Self::Package => "package",
+            Self::Doc => "doc",
             Self::Native(name) => name,
         }
     }
@@ -125,6 +129,9 @@ impl Prepared {
     }
 }
 impl Output {
+    pub(super) fn directory(&self) -> &Dir {
+        &self.directory
+    }
     fn admit_slot(&self, path: &Path) -> Result<(), Diagnostic> {
         let mut options = OpenOptions::new();
         options.read(true);

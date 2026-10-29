@@ -3,7 +3,7 @@ use super::{Diagnostic, manifest};
 use std::io::{self, Write};
 use std::{collections::BTreeSet, ffi::OsString, path::PathBuf};
 
-pub const USAGE: &str = "usage: lang new [--name NAME] [--message-format human|json] DIR\n       lang build [--manifest-path FILE] [--package NAME] [--target TRIPLE] [--native --sdk DIR] [--locked] [--offline] [--message-format human|json]\n       lang run [--manifest-path FILE] [--package NAME] [--target TRIPLE] [--locked] [--offline] [--message-format human|json] [--fuel N] [--service-work N] [--host-calls N] [--frames N] [--cells N]\n       lang test [--manifest-path FILE] [--package NAME] [--target TRIPLE] [--locked] [--offline] [--message-format human|json] [--fuel N] [--service-work N] [--host-calls N] [--frames N] [--cells N]\n";
+pub const USAGE: &str = "usage: lang new [--name NAME] [--message-format human|json] DIR\n       lang build [--manifest-path FILE] [--package NAME] [--target TRIPLE] [--native --sdk DIR] [--locked] [--offline] [--message-format human|json]\n       lang run [--manifest-path FILE] [--package NAME] [--target TRIPLE] [--locked] [--offline] [--message-format human|json] [--fuel N] [--service-work N] [--host-calls N] [--frames N] [--cells N]\n       lang test [--manifest-path FILE] [--package NAME] [--target TRIPLE] [--locked] [--offline] [--message-format human|json] [--fuel N] [--service-work N] [--host-calls N] [--frames N] [--cells N]\n       lang package [--list] [--manifest-path FILE] [--package NAME] [--target TRIPLE] [--locked] [--offline] [--message-format human|json]\n       lang fmt [--check] [--manifest-path FILE] [--package NAME] [--target TRIPLE] [--locked] [--offline] [--message-format human|json]\n       lang lint [--deny-warnings] [--manifest-path FILE] [--package NAME] [--target TRIPLE] [--locked] [--offline] [--message-format human|json]\n       lang doc [--manifest-path FILE] [--package NAME] [--target TRIPLE] [--locked] [--offline] [--message-format human|json]\n";
 
 #[derive(Clone, Copy, Default)]
 pub struct ExecutionOptions {
@@ -25,6 +25,10 @@ pub enum Action {
     Build,
     Run,
     Test,
+    Archive,
+    Format,
+    Lint,
+    Doc,
 }
 pub enum Command {
     Help,
@@ -40,6 +44,9 @@ pub struct Request {
     pub manifest: PathBuf,
     pub package: Option<String>,
     pub native_sdk: Option<PathBuf>,
+    pub list: bool,
+    pub check: bool,
+    pub deny_warnings: bool,
     pub target: String,
     pub locked: bool,
     pub offline: bool,
@@ -65,7 +72,16 @@ pub fn selected(args: &[OsString]) -> bool {
     let Some(first) = args.first() else {
         return false;
     };
-    if first == "new" || first == "build" || first == "test" {
+    if first == "package" {
+        return args.get(1).is_none_or(|a| a != "check-manifest");
+    }
+    if first == "new"
+        || first == "build"
+        || first == "test"
+        || first == "fmt"
+        || first == "lint"
+        || first == "doc"
+    {
         return true;
     }
     if first != "run" {
@@ -118,10 +134,20 @@ pub fn parse(args: &[OsString]) -> Result<Command, Diagnostic> {
         Action::Run
     } else if first == "test" {
         Action::Test
+    } else if first == "package" {
+        Action::Archive
+    } else if first == "fmt" {
+        Action::Format
+    } else if first == "lint" {
+        Action::Lint
+    } else if first == "doc" {
+        Action::Doc
     } else if new {
         Action::Build
     } else {
-        return Err(usage("expected new, build, run or test"));
+        return Err(usage(
+            "expected new, build, run, test, package, fmt, lint or doc",
+        ));
     };
     let (mut directory, mut name) = (None, None);
     let mut native = false;
@@ -130,6 +156,9 @@ pub fn parse(args: &[OsString]) -> Result<Command, Diagnostic> {
         manifest: PathBuf::from("Lang.json"),
         package: None,
         native_sdk: None,
+        list: false,
+        check: false,
+        deny_warnings: false,
         target: lang_codegen_clif::Triple::host().to_string(),
         locked: false,
         offline: false,
@@ -155,6 +184,18 @@ pub fn parse(args: &[OsString]) -> Result<Command, Diagnostic> {
         }
         if !new && action == Action::Build && flag == "--native" {
             native = true;
+            continue;
+        }
+        if !new && action == Action::Archive && flag == "--list" {
+            request.list = true;
+            continue;
+        }
+        if !new && action == Action::Format && flag == "--check" {
+            request.check = true;
+            continue;
+        }
+        if !new && action == Action::Lint && flag == "--deny-warnings" {
+            request.deny_warnings = true;
             continue;
         }
         if !new && matches!(flag, "--locked" | "--offline") {
@@ -337,6 +378,27 @@ fn fail(stderr: &mut impl Write, format: Format, diagnostic: Diagnostic) -> io::
 }
 fn tool(error: impl std::fmt::Display) -> Diagnostic {
     Diagnostic::error("CLI0002", error.to_string())
+}
+fn artifact(stdout: &mut impl Write, format: Format, path: &str) -> io::Result<()> {
+    if format == Format::Json {
+        #[derive(serde::Serialize)]
+        struct Artifact<'a> {
+            schema: u32,
+            kind: &'static str,
+            path: &'a str,
+        }
+        serde_json::to_writer(
+            &mut *stdout,
+            &Artifact {
+                schema: 1,
+                kind: "artifact",
+                path,
+            },
+        )?;
+        writeln!(stdout)
+    } else {
+        writeln!(stdout, "{path}")
+    }
 }
 
 fn checked(
@@ -524,6 +586,99 @@ pub fn run(
         Ok(p) => p,
         Err(d) => return fail(stderr, format, d),
     };
+    if request.action == Action::Format {
+        let plan = match super::format::Plan::capture(&prepared.graph) {
+            Ok(plan) => plan,
+            Err(error) => {
+                for d in error.diagnostics() {
+                    emit(stderr, format, d)?;
+                }
+                return Ok(1);
+            }
+        };
+        if let Err(d) = plan.validate(prepared.output.directory()) {
+            return fail(stderr, format, d);
+        }
+        if request.check {
+            for change in plan.changes() {
+                emit(
+                    stderr,
+                    format,
+                    &Diagnostic::error("FMT0001", "source needs formatting").at_path(change.path()),
+                )?;
+            }
+            return Ok(u8::from(!plan.changes().is_empty()));
+        }
+        return match plan.apply(prepared.output.directory()) {
+            Ok(_) => Ok(0),
+            Err(d) => fail(stderr, format, d),
+        };
+    }
+    if request.action == Action::Archive {
+        let archive = match super::archive::Archive::capture_locked(&prepared.graph, &prepared.lock)
+        {
+            Ok(archive) => archive,
+            Err(d) => return fail(stderr, format, d),
+        };
+        if request.list {
+            if format == Format::Json {
+                #[derive(serde::Serialize)]
+                struct Listing<'a> {
+                    schema: u32,
+                    kind: &'static str,
+                    files: &'a [super::archive::Entry],
+                }
+                serde_json::to_writer(
+                    &mut *stdout,
+                    &Listing {
+                        schema: 1,
+                        kind: "package-files",
+                        files: archive.entries(),
+                    },
+                )?;
+                writeln!(stdout)?;
+            } else {
+                for entry in archive.entries() {
+                    writeln!(stdout, "{}", escaped(&entry.path))?;
+                }
+            }
+            return Ok(0);
+        }
+        if let Err(d) = prepared.output.publish(
+            &prepared.lock,
+            super::output::Generation::Package,
+            &[super::output::File {
+                path: "source.tar",
+                bytes: archive.as_bytes(),
+                executable: false,
+            }],
+            request.locked,
+        ) {
+            return fail(stderr, format, d);
+        }
+        artifact(
+            stdout,
+            format,
+            &format!(
+                "target/lang/{}/package/source.tar",
+                lang_codegen_clif::sdk::digest(prepared.lock.as_bytes())
+            ),
+        )?;
+        return Ok(0);
+    }
+    if request.action == Action::Lint {
+        let report = match super::lint::Report::capture(
+            &prepared.graph,
+            crate::frontend::CompileLimits::default(),
+        ) {
+            Ok(report) => report,
+            Err(d) => return fail(stderr, format, d),
+        };
+        for d in report.diagnostics() {
+            emit(stderr, format, d)?;
+        }
+        return Ok(u8::from(report.failed(request.deny_warnings)));
+    }
     if request.action == Action::Test {
         return run_tests(&request, &prepared, stderr, &mut evaluate);
     }
@@ -532,6 +687,36 @@ pub fn run(
         Ok(a) => a,
         Err(d) => return fail(stderr, format, d),
     };
+    if request.action == Action::Doc {
+        let Some((program, sources)) = checked(analysis, format, stderr)? else {
+            return Ok(1);
+        };
+        let html = match super::doc::render(&program, &sources, super::doc::Limits::default()) {
+            Ok(html) => html,
+            Err(d) => return fail(stderr, format, d),
+        };
+        if let Err(d) = prepared.output.publish(
+            &prepared.lock,
+            super::output::Generation::Doc,
+            &[super::output::File {
+                path: "index.html",
+                bytes: html.as_bytes(),
+                executable: false,
+            }],
+            request.locked,
+        ) {
+            return fail(stderr, format, d);
+        }
+        artifact(
+            stdout,
+            format,
+            &format!(
+                "target/lang/{}/doc/index.html",
+                lang_codegen_clif::sdk::digest(prepared.lock.as_bytes())
+            ),
+        )?;
+        return Ok(0);
+    }
     if request.native_sdk.is_some() {
         let Some((program, sources)) = checked(analysis, format, stderr)? else {
             return Ok(1);
@@ -560,25 +745,7 @@ pub fn run(
         ) {
             return fail(stderr, format, d);
         }
-        if format == Format::Json {
-            #[derive(serde::Serialize)]
-            struct Artifact<'a> {
-                schema: u32,
-                kind: &'static str,
-                path: &'a str,
-            }
-            serde_json::to_writer(
-                &mut *stdout,
-                &Artifact {
-                    schema: 1,
-                    kind: "artifact",
-                    path: &built.relative_path,
-                },
-            )?;
-            writeln!(stdout)?;
-        } else {
-            writeln!(stdout, "{}", built.relative_path)?;
-        }
+        artifact(stdout, format, &built.relative_path)?;
         return Ok(0);
     }
     let Some(bytes) = compile_analysis(analysis, format, limits, stderr)? else {

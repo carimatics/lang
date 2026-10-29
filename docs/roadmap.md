@@ -18,9 +18,9 @@ Public C v1 and existing generated clients follow stabilized RFC 0033. Source/na
 
 ## Work after M3
 
-M3 implementation, both-host conformance, C stabilization and the final guide are complete. M4 is active as of 2026-10-29 JST: the [live delivery board](milestone-4.md) records **9 done · 1 doing · 30 todo · 88 remaining pt**. Its 40 observable deliveries cover all nine original gates, including P1 profiling. Manifest inspection, bounded graphs, immutable capture, dependency execution, canonical locks and package create/build/run/test retire 25 pt. A04 source `cf6cf5c` passes the full local baseline (158 suites / 2,384 tests), both-host CI and three debugger environments. Frozen test scopes, ordinary public/private identity, original UTF-8 spans, all VM profiles, per-test controls and bounded failure-safe output are verified. A05W source `183d393` adds frozen workspace selection/schema-2 integrity and passes the full local baseline (159 suites / 2,396 tests). A05 source `fc032f5` verifies both-target conditional graphs and relocated CLI replay/refusals; A06 native-package reproducibility is doing (3 pt). This adds a net 2 pt; cumulative additions are +10 pt: **103 + 10 − 25 = 88**. G1 alone is complete; workspace/native-package evidence keeps G2/G3 open. M5 and later milestones remain future work. Preserve M3's completed history and final reconciliation.
+M3 is complete. M4’s [live board](milestone-4.md) records **14 done · 0 doing · 26 todo · 74 remaining pt** across 40 deliveries. Source `d66c764` completes native package reproducibility on both hosts with all 19 CI jobs (18 success; intentional documentation-only skip), all 3 debugger environments and the full local baseline (160 suites / 2,400 tests). G1–G3 are verified; package/fmt/lint/doc, editor, DAP, profiling and installer gates remain required. B01 source `b150762` implements deterministic source listing/archive with a passing 161-suite / 2,405-test local baseline. B02 source `5010d45` completes checked formatting with a passing 162-suite / 2,412-test full baseline; B03 source `99fabc4` completes non-executing package lint (163 suites / 2,419 tests); B04 source `4f62c78` completes detached API documentation (164 suites / 2,425 tests). Tooling awaits final-head both-host CI/PR lifecycle before selecting C01; G4 remains pending. Cumulative additions are +11 pt; completion retires 40 pt: **103 + 11 − 40 = 74**. Preserve completed M2/M3 history; M5 remains future work.
 
-PRs #9–#14 are merged. Workspace PR #14 merged as `9c3ee19` after corrected head `2458edc` passed all 19 CI jobs (18 success; intentional documentation-only skip) and all 3 debugger environments. Local main was fast-forwarded with 0/0 ahead/behind while native source remained frozen. Current `codex/m4-native-package` came from the clean workspace branch; its PR base changed to `carimatics/lang:main` after dependency merge, with upstream `origin/codex/m4-native-package` and [PR #15](https://github.com/carimatics/lang/pull/15). The board records current checkpoints and remaining conditions.
+PRs #9–#15 are merged. Native PR #15 merged as `a454e6d`; local main was fast-forwarded and matches origin/main with 0/0 ahead/behind. Current `codex/m4-package-tooling` came from that main with two agent-owned checkpoint document edits; PR base `carimatics/lang:main`, upstream `origin/codex/m4-package-tooling`, [PR #16](https://github.com/carimatics/lang/pull/16). The board records current evidence and remaining conditions.
 
 Do not expand the completed M2 board for maintenance or reviews. Record fixes in their scoped checklist, and keep code, documentation and validation in the same change. New language/ABI/format choices still require an explicit RFC decision; experimental delegation avoids a separate owner-approval wait.
 
@@ -42,11 +42,11 @@ Snapshot of exit-gate weights verified 2026-10-29 JST. Acceptance weights are se
 | 1 — frontend and bytecode vertical slice (complete) | 89 pt | 89 pt | **100.0%** |
 | 2 — ownership and native AOT | 113 pt | 113 pt | 100.0% |
 | 3 — concurrency and embedding (complete) | 96 pt | 96 pt | 100.0% |
-| 4 — developer toolchain | 5 pt | 63 pt | 7.9% |
+| 4 — developer toolchain | 18 pt | 63 pt | 28.6% |
 | 5 — ecosystem and compatibility | 0 pt | 65 pt | 0.0% |
 | 6 — self-hosting | 0 pt | 74 pt | 0.0% |
 | 7 — additional frontends | 0 pt | 55 pt | 0.0% |
-| **Overall** | **512 pt** | **764 pt** | **67.0%** |
+| **Overall** | **525 pt** | **764 pt** | **68.7%** |
 
 ## Milestone 0: design baseline
 
@@ -228,15 +228,15 @@ Exit: a native host can load a user script, expose a typed API, call the script,
 
 ## Milestone 4: developer toolchain
 
-**Progress: 5 / 63 pt (7.9%).**
+**Progress: 18 / 63 pt (28.6%).**
 
 Activation audit (2026-10-29 JST): use the [M4 board](milestone-4.md) for current tasks, executable checkpoints and the bottom-up 103 pt baseline. [RFC 0034](rfcs/0034-package-workspaces-and-cli-diagnostics.md) accepts the manifest/diagnostic and initial local package contract. First validate strict inspection, then execute an authorized local dependency, lock/offline replay and the create/build/run/test fixture before broader tooling. The installer distributes toolchain binaries before M5's registry, so its accepted design must establish trust roots, signed release-metadata verification and atomic update/failure recovery before downloading/installing. M5's signing work covers registry package publication/provenance. The original nine gates and weights remain unchanged; 63 pt is not a remaining-effort forecast.
 
 Sequencing contract (clarified 2026-10-28 JST, retained on activation): the first package fixture must cover package creation, one local dependency, build/run/test and exact offline lock replay under the accepted manifest/diagnostic contract. Define package-source authority and checksum/refusal behavior before introducing dependency I/O; do not assume M5's public registry already exists. Reuse current parsing, formatting, query invalidation and native/VM source mapping for editor/debug work. Before broad tooling scaffolding, demonstrate the next user-visible fixture and its failure path. Installer verification remains a prerequisite to download/install, while registry publication and its trust policy remain M5. Activation does not complete these implementation gates.
 
 - [x] **P0 — Accept versioned package/workspace manifests, target conditions, lockfile compatibility, and the machine-readable CLI diagnostic contract.** — 5 pt
-- [ ] **P0 — Implement deterministic dependency resolution, lockfiles, checksums, and offline mode.** — 8 pt
-- [ ] **P0 — Extend the existing `lang run` frontend into package-aware build/run/test orchestration with the accepted structured diagnostic output.** — 5 pt
+- [x] **P0 — Implement deterministic dependency resolution, lockfiles, checksums, and offline mode.** — 8 pt
+- [x] **P0 — Extend the existing `lang run` frontend into package-aware build/run/test orchestration with the accepted structured diagnostic output.** — 5 pt
 - [ ] **P0 — Integrate package, fmt, lint, and doc commands into the CLI.** — 5 pt
 - [ ] **P0 — Implement LSP navigation, completion, and semantic tokens.** — 8 pt
 - [ ] **P0 — Implement safe rename and code actions.** — 8 pt
