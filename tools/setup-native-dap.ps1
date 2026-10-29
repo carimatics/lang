@@ -13,7 +13,8 @@ if ((Get-Item $archive).Length -ne 276626313 -or
     throw 'Official LLVM archive size or SHA-256 does not match the pinned release'
 }
 $tar = Join-Path $OutputDirectory 'llvm.tar'
-& zstd -d $archive -o $tar
+# This verified official archive uses a 1 GiB decoding window.
+& zstd -d --long=30 $archive -o $tar
 if ($LASTEXITCODE -ne 0) { throw 'LLVM archive decompression failed' }
 & tar -xf $tar -C $OutputDirectory
 if ($LASTEXITCODE -ne 0) { throw 'LLVM archive extraction failed' }
