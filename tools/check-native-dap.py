@@ -82,7 +82,8 @@ if args.adapter == "lang":
         "name": "native_debug", "version": "0.1.0", "edition": "2026", "entry": "main.lang"}}), encoding="utf-8")
     debugger = [str(compiler), "dap"]
     # The production adapter configures only its own LLVM child environment.
-    debugger_environment = None
+    debugger_environment = os.environ.copy()
+    debugger_environment["LANG_DAP_TRACE"] = "1"
 
 process = subprocess.Popen(debugger, stdin=subprocess.PIPE,
                            stdout=subprocess.PIPE, stderr=subprocess.PIPE, cwd=ROOT,

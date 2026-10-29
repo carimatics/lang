@@ -78,7 +78,7 @@ launch は実行前に不変 source／semantic／portable state を取得する�
 
 ### Native launch の具体化（2026-10-30 JST）
 
-tool は信頼済み host 設定だけで選ぶ。`LLDB_DAP_EXECUTABLE` で Windows adapter を指定でき、`LLDB_PYTHON_RUNTIME`／`LLDB_PYTHON_DLL` で対応 Python runtime を指定して、その child だけに PATH／PYTHONHOME を適用できる。公式 LLVM 23.1.4 x64 MSI は Python DLL import なしで Windows breakpoint／caller／step／guest 終了／adapter 終了 0 を証明した。runner の LLVM 20.1.8 は Python 3.10 を必要とし、終了処理が引き続き失敗する。source/protocol input から tool、runtime executable、debugger command は指定しない。
+tool は信頼済み host 設定だけで選ぶ。`LLDB_DAP_EXECUTABLE` で Windows adapter を指定でき、`LLDB_PYTHON_RUNTIME`／`LLDB_PYTHON_DLL` で対応 Python runtime を指定して、その child だけに PATH／PYTHONHOME を適用できる。公式 LLVM 23.1.4 x64 MSI は python3.dll 依存で Windows breakpoint／caller／step／guest 終了／adapter 終了 0 を証明した。runner の LLVM 20.1.8 は Python 3.10 を必要とし、終了処理が引き続き失敗する。source/protocol input から tool、runtime executable、debugger command は指定しない。
 
 明示 native launch は同じ root／manifest 選択と、absolute `sdk` directory を受け取る。取得済みの許可 Copy program を私有 native package へ compile し、既存 package manifest／SDK snapshot と厳密 Rust release／commit／host を検証して、私有 executable と dSYM／PDB を debug link する。code・object・sidecar の owner は debugger 終了まで保持する。これは既存 format を使う一時的 host state で、新しい永続 artifact schema ではない。通常の `link-native` publication と再現可能 output は変更しない。
 

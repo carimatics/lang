@@ -35,14 +35,19 @@ $inspector = Join-Path $env:ProgramFiles 'LLVM/bin/llvm-readobj.exe'
 $imports = & $inspector --coff-imports $library
 if ($LASTEXITCODE -ne 0) { throw 'Cannot inspect the actual LLDB Python ABI' }
 $pythonDlls = @($imports | ForEach-Object {
-    if ($_ -match '^\s*Name:\s+(python([0-9])([0-9]+)\.dll)\s*$') { $Matches[1] }
+    if ($_ -match '^\s*Name:\s+(python([0-9])([0-9]*)\.dll)\s*$') { $Matches[1] }
 } | Sort-Object -Unique)
 if ($pythonDlls.Count -gt 1) { throw 'Ambiguous LLDB Python ABI' }
 "adapter=$adapter" >> $env:GITHUB_OUTPUT
 if ($pythonDlls.Count -eq 1) {
     $dll = $pythonDlls[0]
-    $null = $dll -match '^python([0-9])([0-9]+)\.dll$'
-    "python-version=$($Matches[1]).$($Matches[2])" >> $env:GITHUB_OUTPUT
+    if ($dll -eq 'python3.dll') {
+        # The observed LLVM 23 Windows fixture works with runner Python 3.12.
+        'python-version=3.12' >> $env:GITHUB_OUTPUT
+    } else {
+        $null = $dll -match '^python([0-9])([0-9]+)\.dll$'
+        "python-version=$($Matches[1]).$($Matches[2])" >> $env:GITHUB_OUTPUT
+    }
     "python-dll=$dll" >> $env:GITHUB_OUTPUT
 }
 Write-Host "Pinned LLVM $version verified: $sha256; adapter=$adapter; Python=$pythonDlls"

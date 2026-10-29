@@ -78,7 +78,7 @@ Launch captures immutable source/semantic/portable state before execution. Do no
 
 ### Native launch elaboration (2026-10-30 JST)
 
-Select tools only through trusted host configuration: LLDB_DAP_EXECUTABLE may identify the Windows adapter, and LLDB_PYTHON_RUNTIME/LLDB_PYTHON_DLL may identify a matching Python runtime, applying PATH/PYTHONHOME only to that child. The official LLVM 23.1.4 x64 MSI proves Windows breakpoint/caller/step/guest exit/adapter exit 0 without a Python DLL import; runner LLVM 20.1.8 requires Python 3.10 and still fails shutdown. Source/protocol inputs cannot select tools, runtime executables or debugger commands.
+Select tools only through trusted host configuration: LLDB_DAP_EXECUTABLE may identify the Windows adapter, and LLDB_PYTHON_RUNTIME/LLDB_PYTHON_DLL may identify a matching Python runtime, applying PATH/PYTHONHOME only to that child. The official LLVM 23.1.4 x64 MSI proves Windows breakpoint/caller/step/guest exit/adapter exit 0 with the python3.dll dependency; runner LLVM 20.1.8 requires Python 3.10 and still fails shutdown. Source/protocol inputs cannot select tools, runtime executables or debugger commands.
 
 Explicit native launch takes the same root/manifest selection plus an absolute `sdk` directory. Compile the captured admitted Copy program into a private native package, validate its existing package manifest/SDK snapshots and exact Rust release/commit/host, then debug-link a private executable and dSYM/PDB. Retain code/object/sidecar owners until the debugger exits. This is temporary host state using existing formats, not a new persistent artifact schema. Ordinary link-native publication and reproducible outputs remain unchanged.
 

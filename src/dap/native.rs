@@ -51,6 +51,12 @@ pub(super) struct Target {
 }
 impl Target {
     pub fn launch(args: &Value) -> Result<Self, String> {
+        let checkpoint = |name: &str| {
+            if std::env::var_os("LANG_DAP_TRACE").is_some() {
+                eprintln!("native DAP launch: {name}");
+            }
+        };
+        checkpoint("begin admission");
         let host = lang_codegen_clif::Triple::host();
         if args
             .get("target")
@@ -142,6 +148,7 @@ impl Target {
         }
         let package = native::compile(checked.clone(), &analysis.sources, Default::default(), host)
             .map_err(|_| "native debug compilation failed")?;
+        checkpoint("compiled admitted source");
         let stage = native::Stage::new(
             &std::env::temp_dir().join(format!("lang-dap-{}", std::process::id())),
         )
@@ -162,23 +169,27 @@ impl Target {
             Default::default(),
         )
         .map_err(|_| "native debug SDK/link admission failed")?;
+        checkpoint("linked verified SDK snapshots");
         let semantic = lang_bytecode::unit::encode(&program, Default::default())
             .map_err(|_| "native semantic encoding failed")?;
         if image.semantic() != semantic {
             return Err("native debug semantic identity mismatch".into());
         }
         let mut connection = Connection::open(&view.authority)?;
+        checkpoint("spawned debugger");
         connection.request(
             "initialize",
             json!({"adapterID":"lang-native","linesStartAt1":true,
             "columnsStartAt1":true,"pathFormat":"path","supportsRunInTerminalRequest":false}),
         )?;
+        checkpoint("initialized debugger");
         let launch = connection.send(
             "launch",
             json!({"program":image.executable(),"cwd":view.authority,
             "stopOnEntry":stop,"sourceMap":[[".",view.authority]]}),
         )?;
         connection.initialized()?;
+        checkpoint("prepared native launch");
         Ok(Self {
             connection,
             _image: image,

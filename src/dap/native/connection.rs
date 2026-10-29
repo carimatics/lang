@@ -76,7 +76,11 @@ impl Connection {
             .current_dir(cwd)
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
-            .stderr(Stdio::null())
+            .stderr(if std::env::var_os("LANG_DAP_TRACE").is_some() {
+                Stdio::inherit()
+            } else {
+                Stdio::null()
+            })
             .spawn()
             .map_err(|_| "cannot start native debugger")?;
         let input = child.stdin.take();
