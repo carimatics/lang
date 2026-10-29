@@ -6,11 +6,11 @@
 
 Updated: 2026-10-30 JST. M4 is active. Goal start: clean main/origin/main `af9988f`, remote `git@github.com:carimatics/lang.git`. PRs #9–#18 are merged. Editor PR #18 final head `5cdc422` passes CI `40864753941` (18 success, intentional documentation-only skip) and debugger `40864753946` (3/3), merged as `0a15fb5`; local main/origin/main refs match with 0/0 ahead/behind. Current `codex/m4-debug-adapter` was created from clean, upstream-synchronized `codex/m4-editor-checked-edits` head `5cdc422` for the coherent D01–D05 outcome. No preexisting user changes; upstream `origin/codex/m4-debug-adapter`, [draft PR #19](https://github.com/carimatics/lang/pull/19) against main. D01 head `8421298` passes CI `40874260252` (18 success, intentional documentation-only skip) and debugger `40874260229` (3/3); D02 head `ced8e56` is pushed; CI `40879596677` (18 success, intentional documentation-only skip) and debugger `40879596614` (3/3) succeed. No merge is claimed. Its initially recorded base `carimatics/lang:codex/m4-editor-checked-edits` is now `carimatics/lang:main` because #18 merged. Current DAP work was preserved during base synchronization.
 
-**23 done · 1 doing · 17 todo · 50 remaining pt**
+**24 done · 1 doing · 16 todo · 48 remaining pt**
 
-D03R last executable checkpoint, 2026-10-30 00:37 JST: Windows now proves the actual native source breakpoint at line 2, caller at line 5, stepping and guest exit 0 after matching Python/native-PDB-reader selection. LLVM 20.1.8 still exits abnormally with 0xc0000409, including after corrected pipe shutdown ordering; keep the clean-exit assertion. Remaining: prepare the pinned official LLVM 23.1.4 debugger separately, select its actual Python ABI and prove complete Windows session teardown. Re-audit D03R from 1 to 2 pt before this tool-distribution work. Both macOS probes and existing-link regressions pass; D03 integration and G7 remain open.
+D03 last executable checkpoint, 2026-10-30 01:04 JST: D03R source `99a20de` passes native debugger workflow 40907199433 on macOS 15/26 and Windows 2025 (3/3). The pinned official LLVM 23.1.4 MSI has no Python DLL import; Windows proves source line 2/caller line 5/step/guest exit 0/adapter exit 0. Local VM regressions pass 10 tests, Python debugger validation 4 and repository consistency 6. Remaining D03 conditions: connect private verified SDK/code owners and admitted source authority to lang dap native launch, then exercise that production route on both hosts. G7 remains open.
 
-**Next: M4-D03R — configure the Windows LLVM Python runtime and prove native DAP breakpoints (doing, 2 pt).** Expose the newly proved prerequisite before implementation. Additions +13, retired 66, remaining 50 pt across 41 deliveries. D03 retains 3 pt after reviewing SDK snapshot/source authority/adapter integration and both-host evidence. D04 actual mixed stacks and D05 lifecycle audit remain required. D02 `ced8e56` passes both-host CI/debugger.
+**Next: M4-D03 — native debugger launch and source breakpoints on both tier-1 hosts (doing, 3 pt).** D03R is done at `99a20de`; retire its last 2 pt with no additions. Additions +13, retired 68, remaining 48 pt across 41 deliveries. D04 actual mixed stacks and D05 lifecycle audit remain required.
 
 A04 source `cf6cf5c` passes fmt, full Clippy/doc and checked opt-level 1 full tests (**158 suites / 2,384 passed / 0 failed**), plus 75 focused tests. Final head `75a2041` passes [full CI](https://github.com/carimatics/lang/actions/runs/40810065213) (all 19 jobs: 18 success; intentional documentation-only skip) and [debugger execution](https://github.com/carimatics/lang/actions/runs/40810065278) (3/3). [PR #13](https://github.com/carimatics/lang/pull/13) merged as `58527c2`; main was fast-forwarded, clean and synchronized with 0/0 ahead/behind. Workspace branch creation and its current PR/upstream are recorded above. No preexisting user changes were present.
 
@@ -73,8 +73,8 @@ The [roadmap](roadmap.md#milestone-4-developer-toolchain) retains the original 6
 | M4-C07 | done | 0 | M4-C04,M4-C06 | G5,G6 | End-to-end editor package fixture plus protocol/resource/refusal coverage | 6d16e93 |
 | M4-D01 | done | 0 | M4-A06 | G7 | Accept DAP launch/control/stack/source contract and stop at a VM source breakpoint | `8421298` |
 | M4-D02 | done | 0 | M4-D01 | G7 | VM stepping, frames, locals and evaluation with pause/authority limits | `ced8e56` |
-| M4-D03R | doing | 2 | M4-D02 | G7 | Configure the matching Windows LLVM Python runtime and prove native DAP breakpoints | — |
-| M4-D03 | todo | 3 | M4-D03R | G7 | Native debugger launch and source breakpoints on both tier-1 hosts | — |
+| M4-D03R | done | 0 | M4-D02 | G7 | Configure the matching Windows LLVM Python runtime and prove native DAP breakpoints | `99a20de` |
+| M4-D03 | doing | 3 | M4-D03R | G7 | Native debugger launch and source breakpoints on both tier-1 hosts | — |
 | M4-D04 | todo | 3 | M4-D03 | G7 | Mixed native/VM stack fixture preserves call order, spans and failure cleanup | — |
 | M4-D05 | todo | 3 | M4-D04 | G7 | DAP disconnect/restart/cancel/malformed-input and both-host session evidence | — |
 | M4-E01 | todo | 3 | M4-A06 | G8 | Accept profile/trace schema and report bounded compiler phase costs | — |
@@ -98,9 +98,9 @@ Activation audit, 2026-10-29 JST: 36 observable deliveries, baseline 103 pt. The
 
 | Baseline remaining | Net added/re-estimated | Retired on completion | Remaining |
 | ---: | ---: | ---: | ---: |
-| 103 pt | +13 pt | −66 pt | 50 pt |
+| 103 pt | +13 pt | −68 pt | 48 pt |
 
-**103 + 13 − 66 = 50 pt**
+**103 + 13 − 68 = 48 pt**
 
 Namespace prerequisite audit, 2026-10-29 JST: the existing `ModuleGraph::root()` is always `ModuleId(0)`. A path provider alone cannot give each dependency its own package-root namespace or safely reuse a shared dependency identity. Split the original A02 outcome into an authorized graph (new A02R, 3 pt) and namespace/source execution integration (A02, remaining 3 pt after reviewing its task list). Net addition: +3 pt; 37 deliveries total. A01 and A02R are two prerequisites, so A02 must supply the next source execution fixture before further horizontal scaffolding. No gate is completed or deferred by this audit.
 

@@ -76,15 +76,15 @@ launch は実行前に不変 source／semantic／portable state を取得する�
 - Mixed stacks: D04 は実 trusted native↔VM 境界を実行し、一つの停止 invocation の frame／call-site 順を保持する。証明済み live descriptor／境界 identity と物理 frame を組み合わせ、別実行の結合や symbol 文字列による推測はしない。native backend／tool 選択と bridge は広告前に実行証拠を要する。
 - 任意 JIT registration、広い ownership／task／source-variable profile は別 capability。要求した native session を黙って VM で代替しない。既存 component／C 実行動作は変えない。
 
-### Native launch の具体化（2026-10-29 JST）
+### Native launch の具体化（2026-10-30 JST）
 
-Windows LLVM 20.1.8 の必要 runtime は実 DLL import で特定した。host が `LLDB_PYTHON_RUNTIME` で対応 x64 Python 3.10 executable を選択し、debugger child だけに PATH／PYTHONHOME を適用できる。source/protocol input から runtime executable や debugger command は指定しない。
+tool は信頼済み host 設定だけで選ぶ。`LLDB_DAP_EXECUTABLE` で Windows adapter を指定でき、`LLDB_PYTHON_RUNTIME`／`LLDB_PYTHON_DLL` で対応 Python runtime を指定して、その child だけに PATH／PYTHONHOME を適用できる。公式 LLVM 23.1.4 x64 MSI は Python DLL import なしで Windows breakpoint／caller／step／guest 終了／adapter 終了 0 を証明した。runner の LLVM 20.1.8 は Python 3.10 を必要とし、終了処理が引き続き失敗する。source/protocol input から tool、runtime executable、debugger command は指定しない。
 
 明示 native launch は同じ root／manifest 選択と、absolute `sdk` directory を受け取る。取得済みの許可 Copy program を私有 native package へ compile し、既存 package manifest／SDK snapshot と厳密 Rust release／commit／host を検証して、私有 executable と dSYM／PDB を debug link する。code・object・sidecar の owner は debugger 終了まで保持する。これは既存 format を使う一時的 host state で、新しい永続 artifact schema ではない。通常の `link-native` publication と再現可能 output は変更しない。
 
-macOS の Xcode lldb-dap で実 source breakpoint／caller／step／正常終了が成功し、Windows には LLVM 20.1.8 の lldb-dap.exe が存在する。両 host 実行検証後にこの backend を広告する。adapter は許可 source breakpoint／thread／stack／step／continue／disconnect だけを転送し、shell／debugger command・任意 attach・memory write を受け付けない。source 応答は常に取得済み bytes を使い、物理 native frame の許可範囲外 source location は公開しない。初期 native scope／variable／evaluate は unavailable とし、native launch 時の capability 更新で hover 評価を無効にする。
+macOS の Xcode lldb-dap と Windows の固定 LLVM 23.1.4 MSI で実 source breakpoint／caller／step／正常終了が成功した（D03R source 99a20de、workflow 40907199433、3/3）。production native launch 自体の両 host 実行検証後に広告する。adapter は許可 source breakpoint／thread／stack／step／continue／disconnect だけを転送し、shell／debugger command・任意 attach・memory write を受け付けない。source 応答は常に取得済み bytes を使い、物理 native frame の許可範囲外 source location は公開しない。初期 native scope／variable／evaluate は unavailable とし、native launch 時の capability 更新で hover 評価を無効にする。
 
-この具体化は RFC 0001 の実験委任で採択する。既存の検証 snapshot と SDK／ABI 境界を再利用し、私有 debug file の寿命を明確にするためである。Windows の実行・tool 依存と混在 stack の対応は引き続き未検証条件であり、D03／D04 の gate 根拠に含める。
+この具体化は RFC 0001 の実験委任で採択する。既存の検証 snapshot と SDK／ABI 境界を再利用し、私有 debug file の寿命を明確にするためである。production native launch と実混在 stack の対応は引き続き未検証条件であり、D03／D04 の gate 根拠に含める。公式 LLVM release は2026-10-20公開、MSI size／hash と実 CI 実行は2026-10-30 JST確認。
 
 ## ABI and compatibility
 
