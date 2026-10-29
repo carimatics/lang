@@ -69,12 +69,12 @@ fn dependency_navigation_uses_the_frozen_epoch_and_excludes_shadowing_local_read
         ROOT.find("answer=1").unwrap(),
         ROOT.rfind("answer;").unwrap(),
     ] {
-        assert!(
-            snapshot
-                .definition(Path::new("src/main.lang"), offset, 1)
-                .unwrap()
-                .is_none()
-        );
+        let local = snapshot
+            .definition(Path::new("src/main.lang"), offset, 1)
+            .unwrap()
+            .unwrap();
+        assert_eq!(local.kind, lang::package::editor::SymbolKind::Variable);
+        assert_eq!(local.location.span.start, ROOT.find("answer:i64").unwrap());
     }
     assert_eq!(
         snapshot
@@ -316,5 +316,35 @@ fn logical_index_bytes_accept_the_exact_limit_and_refuse_one_below() {
         .unwrap_err()
         .code,
         "PKG0004"
+    );
+}
+#[test]
+fn input_epoch_owns_unused_and_manifest_bytes_and_refuses_metadata_as_source() {
+    let f = Files::new();
+    f.write("src/unused.lang", "// unused input");
+    let manifest = fs::read(f.0.join("Lang.json")).unwrap();
+    let graph = f.graph();
+    let snapshot = Snapshot::capture(&graph, 1, &[], Default::default()).unwrap();
+    drop(graph);
+    f.write("Lang.json", "changed metadata");
+    f.write("src/unused.lang", "changed unused input");
+    assert_eq!(snapshot.input(Path::new("Lang.json")).unwrap(), manifest);
+    assert_eq!(
+        snapshot.input(Path::new("src/unused.lang")).unwrap(),
+        b"// unused input"
+    );
+    fs::write(f.0.join("Lang.json"), &manifest).unwrap();
+    fs::remove_file(f.0.join("src/main.lang")).unwrap();
+    fs::hard_link(f.0.join("Lang.json"), f.0.join("src/main.lang")).unwrap();
+    let overlays = [Overlay {
+        path: "src/main.lang".into(),
+        version: 1,
+        bytes: Arc::from(b"fn main()->i64{return 42;}".as_slice()),
+    }];
+    assert_eq!(
+        Snapshot::capture(&f.graph(), 2, &overlays, Default::default())
+            .unwrap_err()
+            .code,
+        "PKG0003"
     );
 }

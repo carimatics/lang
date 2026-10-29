@@ -52,6 +52,8 @@ A snapshot owns frozen manifest/source bytes, SourceMap, checked program, module
 
 C01 defaults permit 256 overlays / 16 MiB overlay bytes, 65,536 symbols, 262,144 occurrences, 64 MiB logical owned index name/path bytes and 10,000,000 index/resolution steps. The byte budget supplements count bounds; it is not an exact heap-allocation measurement. Protocol response bounds remain required at integration.
 
+Retain all admitted manifest/source bytes, including unused inputs, in the epoch. Source inputs sharing a manifest's physical identity are refused before overlays: an editor buffer cannot reinterpret package metadata as source. A closed diagnostic URI is retained only while it has findings; send one empty publication when those findings disappear.
+
 Document open/change/close and applicable watched-file changes invalidate dependent semantic answers. Open overlays remain authoritative over disk refresh. Compute from one captured epoch; publish only if the current epoch and relevant document versions still match. Failure invalidates semantic navigation/edit facts, while parser diagnostics and lexical token fallback may remain available. Do not answer from the last successful program as though it described changed input.
 
 ### Symbol identity

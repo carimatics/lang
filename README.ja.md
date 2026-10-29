@@ -101,6 +101,8 @@ source構文・native language ABI・private SDK/package formatは実験段階�
 
 `cargo run -- doc --manifest-path target/my_app/Lang.json --locked --offline` は単独で閲覧できる static API reference を `target/lang/<lock-digest>/doc/index.html` に公開します。public signature と type link は検査済み identity を使い、隣接 `///` text と元 source panel を escape します。source panel は private 実装 text も含みます。生成失敗時は前回 lock／output を保持します。[RFC 0038](docs/ja/rfcs/0038-package-api-documentation.md) を参照してください。
 
+`cargo run -- lsp` は明示 workspace に `Lang.json` があると package definition／references を使います。initialize option の `manifestPath`、`package`、`target` で package を選択し、open source overlay と監視変更で一つの許可 epoch を更新します。dependency item、case、parameter、local、field の元 UTF-16 位置を保持します。dirty manifest は保存／refresh 後に semantic navigation を使います。source 権限と edit 前提は [RFC 0039](docs/ja/rfcs/0039-package-editor-snapshots.md) を参照してください。
+
 ## 開発
 
 `cargo run -- fmt --manifest-path target/my_app/Lang.json --check` は既存 CST formatter の要変更 file を無書込みで報告します。`--check` を省くと、選択 dependency／test を含め検証済みの source を file 単位で置換します。元 comment／span と permission を保持し、stale／不正 input は公開前に拒否します。source 変更後の古い lock は stale に保ち、通常 build／run で再生成します。file 単位公開の境界は [RFC 0036](docs/ja/rfcs/0036-checked-package-formatting.md) を参照してください。

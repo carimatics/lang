@@ -1,8 +1,9 @@
 //! RFC 0039 immutable package editor epochs and resolved navigation.
+pub(crate) mod workspace;
 use super::{ByteSpan, Diagnostic, graph::Graph, source};
 use crate::frontend::{Analysis, CompileLimits};
 use lang_diagnostics::{SourceMap, Span};
-use lang_hir::resolved::{ExpressionKind, StatementKind};
+use lang_hir::resolved::{self as r, BindingKind, DefinitionKind, ExpressionKind, StatementKind};
 use lang_semantics::modules::{ItemKind, ModuleGraph, ResolutionError, ResolvedName};
 use lang_syntax::{SyntaxElement, SyntaxKind, TokenKind};
 use std::{
@@ -57,6 +58,9 @@ pub enum SymbolKind {
     EnumCase,
     Module,
     Import,
+    Parameter,
+    Variable,
+    Field,
 }
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Location {
@@ -87,6 +91,8 @@ pub struct Snapshot {
     symbols: Vec<Symbol>,
     occurrences: Vec<Occurrence>,
     indexed_bytes: usize,
+    inputs: BTreeMap<PathBuf, Arc<[u8]>>,
+    aliases: BTreeMap<PathBuf, PathBuf>,
 }
 fn capacity() -> Diagnostic {
     Diagnostic::error("PKG0004", "editor snapshot resource limit exceeded")
@@ -120,6 +126,18 @@ impl Snapshot {
             return Err(capacity());
         }
         let inputs = graph.inputs()?;
+        let metadata = graph
+            .manifest_inputs()
+            .map(|(p, m)| {
+                source::identity(m, p)
+                    .map_err(|e| Diagnostic::error("PKG0005", e.to_string()).at_path(p))
+            })
+            .collect::<Result<BTreeSet<_>, _>>()?;
+        for (path, file) in &inputs.files {
+            if metadata.contains(&file.identity) {
+                return Err(invalid("editor source shares a manifest identity").at_path(path));
+            }
+        }
         let mut bytes = 0usize;
         let mut versions = BTreeMap::new();
         let mut replacements = BTreeMap::new();
@@ -143,7 +161,30 @@ impl Snapshot {
             }
             replacements.insert(overlay.path.clone(), overlay.bytes.clone());
         }
-        let (analysis, modules) = source::analyze_indexed(graph, &replacements, limits.compiler)?;
+        let mut captured = BTreeMap::new();
+        for (path, bytes) in graph.manifest_files() {
+            captured
+                .entry(path.to_path_buf())
+                .or_insert_with(|| Arc::from(bytes));
+        }
+        let by_identity: BTreeMap<_, _> = replacements
+            .iter()
+            .map(|(p, b)| (inputs.files[p].identity, b))
+            .collect();
+        for (path, file) in &inputs.files {
+            captured.insert(
+                path.clone(),
+                by_identity
+                    .get(&file.identity)
+                    .map(|bytes| (*bytes).clone())
+                    .unwrap_or_else(|| Arc::from(file.bytes.as_slice())),
+            );
+        }
+        let source::Indexed {
+            analysis,
+            modules,
+            aliases,
+        } = source::analyze_indexed(graph, &replacements, limits.compiler)?;
         let mut snapshot = Self {
             epoch,
             versions,
@@ -152,6 +193,8 @@ impl Snapshot {
             symbols: Vec::new(),
             occurrences: Vec::new(),
             indexed_bytes: 0,
+            inputs: captured,
+            aliases,
         };
         if snapshot.analysis.result.is_ok() {
             snapshot.index(limits)?;
@@ -180,6 +223,13 @@ impl Snapshot {
     pub const fn indexed_bytes(&self) -> usize {
         self.indexed_bytes
     }
+    pub fn input(&self, path: &Path) -> Option<&[u8]> {
+        self.inputs.get(path).map(AsRef::as_ref)
+    }
+    /// Original display identity for a captured canonical source alias.
+    pub fn display_path<'a>(&'a self, path: &'a Path) -> &'a Path {
+        self.aliases.get(path).map(PathBuf::as_path).unwrap_or(path)
+    }
     pub fn matches(&self, epoch: u64, versions: &BTreeMap<PathBuf, i32>) -> bool {
         self.epoch == epoch && &self.versions == versions
     }
@@ -192,6 +242,7 @@ impl Snapshot {
         if current_epoch != self.epoch {
             return Err(Diagnostic::error("PKG0007", "editor epoch is stale"));
         }
+        let path = self.display_path(path);
         let file = self
             .analysis
             .sources
@@ -218,12 +269,12 @@ impl Snapshot {
             .modules
             .as_ref()
             .ok_or_else(|| invalid("checked editor module graph is missing"))?;
-        let program = self
+        let checked = self
             .analysis
             .result
             .as_ref()
-            .expect("checked editor program")
-            .source();
+            .expect("checked editor program");
+        let program = checked.source();
         let sources = &self.analysis.sources;
         let mut work = limits.work;
         let mut bytes = limits.index_bytes;
@@ -275,12 +326,140 @@ impl Snapshot {
                 }
             }
         }
+        let mut fields = BTreeMap::new();
+        for (definition, d) in program.definitions.iter().enumerate() {
+            if let DefinitionKind::Record(values) = &d.kind {
+                for (index, field) in values.iter().enumerate() {
+                    spend(&mut work)?;
+                    let qualified = format!("{}::{}", d.qualified_name, field.name.text);
+                    let id = insert_symbol(
+                        &mut self.symbols,
+                        &mut self.occurrences,
+                        sources,
+                        limits,
+                        &mut bytes,
+                        Declaration {
+                            name: &field.name.text,
+                            qualified: &qualified,
+                            kind: SymbolKind::Field,
+                            span: field.name.span,
+                            public: d.public,
+                        },
+                    )?;
+                    fields.insert((definition, index), id);
+                }
+            }
+        }
         let mut local_uses = BTreeSet::new();
-        for function in &program.functions {
-            for expression in &function.expressions {
+        for (function_index, function) in program.functions.iter().enumerate() {
+            let mut locals = BTreeMap::new();
+            for (index, local) in function.locals.iter().enumerate() {
                 spend(&mut work)?;
-                if matches!(expression.kind, ExpressionKind::Local(_)) {
+                if local.kind == BindingKind::ArenaOwner {
+                    continue;
+                }
+                let qualified = format!("{}::{}", function.qualified_name, local.name.text);
+                let kind = if local.kind == BindingKind::Parameter {
+                    SymbolKind::Parameter
+                } else {
+                    SymbolKind::Variable
+                };
+                let id = insert_symbol(
+                    &mut self.symbols,
+                    &mut self.occurrences,
+                    sources,
+                    limits,
+                    &mut bytes,
+                    Declaration {
+                        name: &local.name.text,
+                        qualified: &qualified,
+                        kind,
+                        span: local.name.span,
+                        public: false,
+                    },
+                )?;
+                locals.insert(index, id);
+            }
+            let facts = &checked.functions()[function_index];
+            for (expression_index, expression) in function.expressions.iter().enumerate() {
+                spend(&mut work)?;
+                if let ExpressionKind::Local(local) = expression.kind {
                     local_uses.insert(span_key(expression.span));
+                    if let Some(id) = locals.get(&local.0) {
+                        insert_occurrence(
+                            &mut self.occurrences,
+                            sources,
+                            limits,
+                            &mut bytes,
+                            *id,
+                            expression.span,
+                        )?;
+                    }
+                }
+                if let ExpressionKind::Field { receiver, name } = &expression.kind
+                    && let Some(definition) =
+                        nominal(program, facts.expressions()[receiver.0], &mut work)?
+                    && let Some(index) = facts.field_index(r::ExpressionId(expression_index))
+                    && let Some(id) = fields.get(&(definition.0, index))
+                {
+                    insert_occurrence(
+                        &mut self.occurrences,
+                        sources,
+                        limits,
+                        &mut bytes,
+                        *id,
+                        name.span,
+                    )?;
+                }
+                if let ExpressionKind::Record {
+                    definition,
+                    fields: values,
+                } = &expression.kind
+                    && let Some(order) = facts.record_order(r::ExpressionId(expression_index))
+                {
+                    for (field, index) in values.iter().zip(order) {
+                        spend(&mut work)?;
+                        if let Some(id) = fields.get(&(definition.0, *index)) {
+                            insert_occurrence(
+                                &mut self.occurrences,
+                                sources,
+                                limits,
+                                &mut bytes,
+                                *id,
+                                field.name.span,
+                            )?;
+                        }
+                    }
+                }
+            }
+            for (pattern_index, pattern) in function.patterns.iter().enumerate() {
+                spend(&mut work)?;
+                if let r::PatternKind::Record {
+                    definition,
+                    fields: written,
+                } = &pattern.kind
+                    && let Some(order) = facts.pattern_fields(r::PatternId(pattern_index))
+                {
+                    let mut spans = BTreeMap::new();
+                    for field in written {
+                        spend(&mut work)?;
+                        spans.insert(field.pattern, field.name.span);
+                    }
+                    for (index, pattern) in order.iter().enumerate() {
+                        spend(&mut work)?;
+                        if let Some(span) = spans.get(pattern)
+                            && let Some(id) = fields.get(&(definition.0, index))
+                        {
+                            insert_occurrence(
+                                &mut self.occurrences,
+                                sources,
+                                limits,
+                                &mut bytes,
+                                *id,
+                                *span,
+                            )?;
+                        }
+                    }
                 }
             }
             for block in &function.blocks {
@@ -301,6 +480,16 @@ impl Snapshot {
                             return Err(invalid("unproven local assignment name"));
                         }
                         local_uses.insert(span_key(span));
+                        if let Some(id) = locals.get(&local.0) {
+                            insert_occurrence(
+                                &mut self.occurrences,
+                                sources,
+                                limits,
+                                &mut bytes,
+                                *id,
+                                span,
+                            )?;
+                        }
                     }
                 }
             }
@@ -386,6 +575,43 @@ impl Snapshot {
 }
 fn spend(work: &mut usize) -> Result<(), Diagnostic> {
     *work = work.checked_sub(1).ok_or_else(capacity)?;
+    Ok(())
+}
+fn nominal(
+    program: &r::Program,
+    mut ty: r::Type,
+    work: &mut usize,
+) -> Result<Option<r::DefinitionId>, Diagnostic> {
+    loop {
+        spend(work)?;
+        match ty {
+            r::Type::Nominal(id) => return Ok(Some(id)),
+            r::Type::Constructed(id) => match program.types[id.0].constructor {
+                r::TypeConstructor::Loan(_, inner) => ty = inner,
+                _ => return Ok(None),
+            },
+            _ => return Ok(None),
+        }
+    }
+}
+fn insert_occurrence(
+    occurrences: &mut Vec<Occurrence>,
+    sources: &SourceMap,
+    limits: Limits,
+    bytes: &mut usize,
+    symbol: SymbolId,
+    span: Span,
+) -> Result<(), Diagnostic> {
+    if occurrences.len() == limits.occurrences {
+        return Err(capacity());
+    }
+    let location = location(sources, span)?;
+    spend_bytes(bytes, location.path.as_os_str().as_encoded_bytes().len())?;
+    occurrences.push(Occurrence {
+        symbol,
+        location,
+        declaration: false,
+    });
     Ok(())
 }
 fn spend_bytes(bytes: &mut usize, amount: usize) -> Result<(), Diagnostic> {

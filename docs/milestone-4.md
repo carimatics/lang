@@ -4,13 +4,13 @@
 
 [日本語版](ja/milestone-4.md)
 
-Updated: 2026-10-29 JST. M4 is active. Goal start: clean main/origin/main `af9988f`, remote `git@github.com:carimatics/lang.git`. PRs #9–#16 are merged. Tooling PR #16 merged as `49a0fe8`; main was fast-forwarded, clean and synchronized with 0/0 ahead/behind. Current `codex/m4-editor-navigation` was created from that main; PR base `carimatics/lang:main`. The new branch has no upstream/PR yet and no preexisting working-tree/user changes. C01–C04 form the coherent navigation/references/completion/token outcome.
+Updated: 2026-10-29 JST. M4 is active. Goal start: clean main/origin/main `af9988f`, remote `git@github.com:carimatics/lang.git`. PRs #9–#16 are merged. Tooling PR #16 merged as `49a0fe8`; main was fast-forwarded, clean and synchronized with 0/0 ahead/behind. Current `codex/m4-editor-navigation` was created from that main; PR base `carimatics/lang:main`. Upstream is origin/codex/m4-editor-navigation, [PR #17](https://github.com/carimatics/lang/pull/17); no preexisting working-tree/user changes were present. C01–C04 form the coherent navigation/references/completion/token outcome.
 
-**14 done · 1 doing · 25 todo · 74 remaining pt**
+**15 done · 1 doing · 24 todo · 71 remaining pt**
 
-C01 executable checkpoint, 2026-10-29 16:45 JST, current worktree: all 4 editor fixtures plus 9 graph, 15 source and 6 consistency tests pass (34 total); full Clippy is warning-free. Actual dependency/import/type/enum-case navigation uses original spans; HIR excludes shadowing local reads/assignments. Frozen snapshots survive project rename/provider edits, admitted overlays change only the new epoch, invalid/private source publishes no stale bindings, and stale/non-boundary offsets fail. Overlay/count/work/index-byte limits, including exact/one-below owned bytes, execute. Fmt, source-frozen full tests (**165 suites / 2,429 passed / 0 failed**) and doc pass. Remaining: code evidence and latest-head both-host CI on the coherent editor branch. C01 remains doing at 3 pt.
+C02 executable checkpoint, 2026-10-29 17:53 JST, current worktree: all 57 focused checks, inverse UTF-16 unit, fmt, warning-free full Clippy, source-frozen full baseline (**166 suites / 2,440 passed / 0 failed**) and doc pass. Nine package protocol fixtures include actual stdio and original URI/version/UTF-16 behavior; normal binding/type facts distinguish item/case/parameter/local/field/pattern references. Epochs own all input bytes, reject metadata/source physical aliasing and preserve canonical/display mappings. A late authority-message regression exposed an outside canonical path in a refusal; sanitize that database boundary and rerun the complete baseline above successfully. C01 head `cd37106` passes both-host CI/debugger. Remaining: code evidence and latest-head editor CI/PR lifecycle. C02 remains doing at 3 pt.
 
-**Next: M4-C01 — editor symbol/snapshot/edit contract and real package-dependency navigation (doing, 3 pt).** RFC 0039 is accepted under experimental delegation before implementation. The prototype supports reuse of resolver/HIR and snapshots; the actual task list fits the existing 3 pt. No additions/re-estimates: 74 pt remain (103 + 11 − 40). Tooling head `76c7c9a` passes all 19 CI jobs (18 success, intentional documentation-only skip) and debugger 3/3; PR #16 is merged and main synchronized. G4’s exit audit is complete; G5–G9 remain required.
+**Next: M4-C02 — definition/references across package overlays, edits and watched refresh (doing, 3 pt).** C01 source `cd37106` passes 34 focused checks, full baseline (165 suites / 2,429 tests), fmt/warnings-denied Clippy/doc. Retire its last 3 pt: additions +11, retired 43, remaining 71 pt. C02’s actual task list is package selection, epoch capture from existing document/watch state, bounded UTF-16 location/reference responses and Unicode/version/refresh/refusal fixtures. It fits the existing 3 pt; no delivery/re-estimate is added. Latest editor-head CI and the coherent branch’s PR lifecycle continue; G5–G9 remain open.
 
 A04 source `cf6cf5c` passes fmt, full Clippy/doc and checked opt-level 1 full tests (**158 suites / 2,384 passed / 0 failed**), plus 75 focused tests. Final head `75a2041` passes [full CI](https://github.com/carimatics/lang/actions/runs/40810065213) (all 19 jobs: 18 success; intentional documentation-only skip) and [debugger execution](https://github.com/carimatics/lang/actions/runs/40810065278) (3/3). [PR #13](https://github.com/carimatics/lang/pull/13) merged as `58527c2`; main was fast-forwarded, clean and synchronized with 0/0 ahead/behind. Workspace branch creation and its current PR/upstream are recorded above. No preexisting user changes were present.
 
@@ -64,8 +64,8 @@ The [roadmap](roadmap.md#milestone-4-developer-toolchain) retains the original 6
 | M4-B02 | done | 0 | M4-A04 | G4 | Package fmt/check preserves CST comments and refuses invalid/stale edits | `5010d45` |
 | M4-B03 | done | 0 | M4-B02 | G4 | Accepted lint rules, stable codes and package lint pass/fail/JSON fixture | `99fabc4` |
 | M4-B04 | done | 0 | M4-B03 | G4 | Generate package API documentation with resolved links, source locations and failure-safe output | `4f62c78` |
-| M4-C01 | doing | 3 | M4-A05 | G5,G6 | Accept editor symbol/snapshot/edit contract and navigate a real package dependency | — |
-| M4-C02 | todo | 3 | M4-C01 | G5 | Definition/references across package overlays, edits and watched-file refresh | — |
+| M4-C01 | done | 0 | M4-A05 | G5,G6 | Accept editor symbol/snapshot/edit contract and navigate a real package dependency | `cd37106` |
+| M4-C02 | doing | 3 | M4-C01 | G5 | Definition/references across package overlays, edits and watched-file refresh | — |
 | M4-C03 | todo | 3 | M4-C02 | G5 | Scope/privacy/type-aware completion with UTF-16 and stale-result tests | — |
 | M4-C04 | todo | 3 | M4-C03 | G5 | Semantic tokens and refresh survive Unicode, malformed source and document lifecycle | — |
 | M4-C05 | todo | 3 | M4-C02 | G6 | Prepare/rename across files with collision/privacy checks and versioned atomic edits | — |
@@ -97,9 +97,9 @@ Activation audit, 2026-10-29 JST: 36 observable deliveries, baseline 103 pt. The
 
 | Baseline remaining | Net added/re-estimated | Retired on completion | Remaining |
 | ---: | ---: | ---: | ---: |
-| 103 pt | +11 pt | −40 pt | 74 pt |
+| 103 pt | +11 pt | −43 pt | 71 pt |
 
-**103 + 11 − 40 = 74 pt**
+**103 + 11 − 43 = 71 pt**
 
 Namespace prerequisite audit, 2026-10-29 JST: the existing `ModuleGraph::root()` is always `ModuleId(0)`. A path provider alone cannot give each dependency its own package-root namespace or safely reuse a shared dependency identity. Split the original A02 outcome into an authorized graph (new A02R, 3 pt) and namespace/source execution integration (A02, remaining 3 pt after reviewing its task list). Net addition: +3 pt; 37 deliveries total. A01 and A02R are two prerequisites, so A02 must supply the next source execution fixture before further horizontal scaffolding. No gate is completed or deferred by this audit.
 

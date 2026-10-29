@@ -44,14 +44,20 @@ fn analyze_entry(
     test: Option<&inventory::Declared>,
     limits: CompileLimits,
 ) -> Result<Analysis, Diagnostic> {
-    indexed_entry(graph, test, limits, &BTreeMap::new(), false).map(|(analysis, _)| analysis)
+    indexed_entry(graph, test, limits, &BTreeMap::new(), false).map(|epoch| epoch.analysis)
+}
+
+pub(super) struct Indexed {
+    pub analysis: Analysis,
+    pub modules: Option<ModuleGraph>,
+    pub aliases: BTreeMap<PathBuf, PathBuf>,
 }
 
 pub(super) fn analyze_indexed(
     graph: &Graph,
     overlays: &BTreeMap<PathBuf, Arc<[u8]>>,
     limits: CompileLimits,
-) -> Result<(Analysis, Option<ModuleGraph>), Diagnostic> {
+) -> Result<Indexed, Diagnostic> {
     indexed_entry(graph, None, limits, overlays, true)
 }
 
@@ -61,7 +67,7 @@ fn indexed_entry(
     limits: CompileLimits,
     overlays: &BTreeMap<PathBuf, Arc<[u8]>>,
     retain_graph: bool,
-) -> Result<(Analysis, Option<ModuleGraph>), Diagnostic> {
+) -> Result<Indexed, Diagnostic> {
     let inputs = graph.inputs()?;
     let mut replacements = BTreeMap::new();
     for (path, bytes) in overlays {
@@ -156,7 +162,26 @@ fn indexed_entry(
     } else {
         None
     };
-    Ok((frontend::finish(sources, modules, limits, None), graph))
+    let aliases = if retain_graph {
+        inputs
+            .files
+            .iter()
+            .filter_map(|(path, file)| {
+                provider
+                    .identities
+                    .get(&file.identity)
+                    .and_then(|key| provider.raw.get(key))
+                    .map(|raw| (path.clone(), raw.display.clone()))
+            })
+            .collect()
+    } else {
+        BTreeMap::new()
+    };
+    Ok(Indexed {
+        analysis: frontend::finish(sources, modules, limits, None),
+        modules: graph,
+        aliases,
+    })
 }
 
 fn package_io(error: ModuleLoadError) -> Diagnostic {

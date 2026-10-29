@@ -52,6 +52,8 @@ snapshot は固定 manifest／source bytes、SourceMap、検査済み program、
 
 C01 の既定上限は overlay 256 件／16 MiB、symbol 65,536 件、occurrence 262,144 件、index が所有する name／path の論理 bytes 64 MiB、index／resolution step 10,000,000 件。byte 上限は count 上限を補い、厳密な heap allocation 測定ではない。protocol response 上限は統合時にも必要。
 
+未使用 input を含め、許可 manifest／source bytes 全てを epoch が保持する。manifest と物理 identity を共有する source input は overlay 前に拒否し、editor buffer で package metadata を source として再解釈させない。closed 診断 URI は所見がある間だけ保持し、所見が消えたとき空 publication を一度送る。
+
 文書 open／change／close と該当 watched-file 変更で依存 semantic answer を無効化する。open overlay は disk refresh より優先する。一つの epoch で計算し、現在 epoch と関連文書 version が一致する場合のみ公開する。失敗時は semantic navigation／edit fact を無効化し、parser 診断や lexical token fallback は保持できる。古い成功 program を変更済み input の結果として返さない。
 
 ### symbol identity
