@@ -157,6 +157,7 @@ def event(name):
                 return events.pop(index)
         receive(deadline)
 
+completed = False
 try:
     caps = request("initialize", {"adapterID": "lang-native-probe", "linesStartAt1": True,
         "columnsStartAt1": True, "pathFormat": "path", "supportsRunInTerminalRequest": False})
@@ -195,7 +196,10 @@ try:
         "step_frames": stepped_stack["stackFrames"], "exit_code": exited["body"]["exitCode"]}
     (ROOT / "native-dap-report.json").write_text(json.dumps(report, indent=2)+"\n", encoding="utf-8")
     print(json.dumps({"checkpoint": "native-dap-finished", "report": report}), flush=True)
+    completed = True
 finally:
+    if not completed:
+        print(json.dumps({"pending_native_events": events}), flush=True)
     if process.poll() is None:
         try:
             send("disconnect", {"terminateDebuggee": True})
@@ -216,7 +220,7 @@ finally:
                       "adapter_exit_hex": hex(process.returncode & 0xffffffff)}), flush=True)
     if errors:
         print(json.dumps({"adapter_stderr": errors.decode(errors="replace")[:4096]}), flush=True)
-    if WINDOWS and process.returncode:
+    if WINDOWS and not completed:
         inspector = adapter.parent / "llvm-readobj.exe"
         for binary in [adapter, adapter.parent / "liblldb.dll"]:
             if inspector.is_file() and binary.is_file():
@@ -225,4 +229,13 @@ finally:
                 print(json.dumps({"binary": str(binary), "imports": [line.strip()
                     for line in imports.stdout.splitlines() if line.strip().startswith("Name:")],
                     "inspect_status": imports.returncode}), flush=True)
+        driver = adapter.with_name("lldb.exe")
+        if driver.is_file():
+            for query in ["target modules dump line-table main.lang",
+                          "breakpoint set --file main.lang --line 2",
+                          "image lookup -vrn lang_unit_f"]:
+                metadata = subprocess.run([str(driver), "--batch", "--no-lldbinit", "--file", str(EXE), "-o", query],
+                    cwd=ROOT, env=debugger_environment, capture_output=True, text=True, timeout=20)
+                print(json.dumps({"metadata_query": query, "status": metadata.returncode,
+                    "stdout": metadata.stdout[:16384], "stderr": metadata.stderr[:4096]}), flush=True)
 
