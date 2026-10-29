@@ -1,0 +1,92 @@
+<!-- canonical-language: en; japanese-translation: ../ja/rfcs/0041-bounded-toolchain-profiles.md -->
+
+# RFC 0041: 上限付きtoolchain profile
+
+[English](../../rfcs/0041-bounded-toolchain-profiles.md)
+
+- Status: accepted
+- Authors: project maintainers with Codex
+- Created: 2026-10-30
+- Last updated: 2026-10-30
+- Tracking issue: M4-E01–E04
+- Supersedes: none
+- Superseded by: none
+
+## Summary
+
+`lang profile compile --manifest-path Lang.json`で通常のpackage compilerを観測し、上限とversionを持つJSON reportを返す。runtime profile／allocator trace／rebuild説明は別の検証済みreport kindとして後続する。この採択で実装やG8を完了しない。
+
+## Motivation
+
+既存pipelineは不変package入力、構造化診断、検証済みportable artifactを提供する。2026-10-30 JSTのexact-SDK単独実験はhelloを既存frontendとlower／verifyでcompileし、それぞれ2.684 msと0.212 msを観測した。観測境界の証拠であり、benchmark／overhead推定／高速化ではない。費用比較には再現可能な入力IDと明示的な計測範囲が必要である。
+
+## Goals
+
+- 別compile経路やguest実行なしで実compiler操作を観測する。
+- package権限、診断、意味上の結果、既存上限を保つ。
+- reportのversion／上限を定め、経過時間の観測と決定的counterを区別する。
+
+## Non-goals
+
+- optimizer変更、remote telemetry、source自動送信、統計的性能主張。
+- CPU時間、parser／type checker内部への細分化、compile cacheの主張。
+- 新source構文、実行grant、保存program schema、public C ABI変更。
+
+## Guide-level design
+
+`lang profile compile [--manifest-path FILE] [--package NAME] [--target TRIPLE] [--message-format human|json]`は厳密に`./Lang.json`とhost targetを既定とする。成功時は完全なreport一件をstdoutへ出し、既存code／spanを持つ診断はstderrへ出す。artifact公開、Lang.lock作成／置換、main実行、host import grantは行わない。明示workspace選択は通常package契約に従う。
+
+## Reference semantics
+
+compile reportは`schema: 1`、`kind: "compile"`、`clock: "host_monotonic_elapsed_ns"`、`compiler_id`、`target`、`input_digest`、`source_files`、`source_bytes`、`artifact_bytes`、`elapsed_ns`、`phases`を持つ。各phaseは`name`と`elapsed_ns`を持ち、順序は厳密に`package_capture`、`frontend`、`lower_verify_encode`とする。
+
+captureはgraph admission、入力固定、通常のcanonical lock計算を含む。frontendはpackage module parse／bind／type／ownership解析を含む。lower／verify／encodeは既存の完全portable compilerを呼ぶ。粗い連続境界であり、elapsed_nsはchecked加算で求め、report encodeや無関係な管理処理を含めない。実際に観測した操作より細かい費用を表示しない。input digestは取得したcanonical lock bytesのSHA-256、compiler_idは既存host SDK build identityであり、互換性の観測であって認証ではない。
+
+checked monotonic差分とu64 nanosecond変換／加算を使い、不正な観測を拒否する。0時間は有効で、clock精度を証明しない。reportは最大4 MiB、compile phaseは厳密に3件、sourceは最大4,096 file／32 MiB、artifactは64 MiBとする。これは既存compiler上限に加えるreport policyである。完全JSONを検証してから出力し、compile失敗時に成功した部分reportを出さない。readerは未知／重複field、未対応schema／kind／clock、不正ID／target、phase順序／件数、overflow、上限超過を拒否する。report読込みはsource／実行権限を与えない。
+
+runtime／trace／rebuild kindは実装前にRFC具体化と実行証拠を必要とする。native帰属をVM replayで代用せず、provider counterを架空のallocation eventに置き換えず、不完全な観測を完全traceと呼ばない。rebuild説明はtimingからcache挙動を推測せず、実入力変更を特定する。
+
+## Execution modes
+
+compile profilingは通常portable compilerが受理する全意味profileを、元のentry／preflight規則で使う。VM／native AOT／JIT／component codeは実行しない。runtime modeは明示instrumentation／計測上限を持つE02／E03の要件に残る。
+
+## ABI and compatibility
+
+reportは新しいschema-1 host artifactである。既存source／edition／MIR／bytecode／package／lock／SDK／C／component形式は変更しない。未知の将来report kindをreaderは拒否する。非互換compile report変更には新schemaを必要とし、既存programの移行は不要である。
+
+## Diagnostics and tooling
+
+通常package／source診断を再利用する。CLI usageはexit 2、compile／report検証／観測失敗はexit 1を維持する。source本文や環境中の絶対pathをreportへ出さない。初期CLIは永続profile fileを書かず、呼出側がstdoutをredirectできる。formatter／LSP／DAPの意味は変更しない。
+
+## Performance and cost model
+
+clock読込み、canonical lock IDの保持、report確保、JSON encodeにhost workが増える。timingはinstrumentationとmachine scheduling／I/Oの影響を含み、guest CPU時間と呼ばない。比較にはこのdelivery外の反復制御実験が必要である。通常の非profile commandに新timer／reportを加えない。
+
+## Security and trust boundaries
+
+明示manifest／package／target admissionと上限付き不変sourceを再利用し、editor overlayやancestor探索を使わない。compileはguest capabilityを増やさない。reportは信頼しない観測であり、credentialや実行manifestではない。parser入力を制限し、有限counter／IDを利用前に検証する。
+
+## Alternatives
+
+- 変更なしでは独自benchmarkに利用者向け観測契約がない。
+- 外部process時間は有用だが、単独ではcompiler境界の分離やpackage入力ID固定ができない。
+- 汎用trace frameworkは細かい観測が可能だが、最初の実行可能reportより先に統合とbuffer管理を増やす。
+- 全体stopwatch一件は簡単だがcapture／frontend／lowerの違いを隠す。E01には既存3境界で十分である。
+
+## Implementation plan
+
+E01でcompile report／readerと実package CLI fixtureを実装する。E02で実VM／native runtime workを観測し、E03で実allocator／retirementを上限付きbufferへ記録し、E04で実rebuild入力を説明する。各残成果を実装前に再監査し、全4成果を対応hostで検証するまでG8は未完了とする。
+
+## Test plan
+
+通常／profile compileのartifact長／入力IDを比較し、実宣言依存とworkspace選択をcompileする。source診断と従来出力を保ち、不正version／phase／件数／overflow reportを拒否する。正確なelapsed値をassertしない。実装にはconsistencyと完全baselineを実行し、両host CI証拠を保持する。
+
+## Open questions
+
+2026-10-30 JST、RFC 0001の実験委任で採択する。既存compileと閉じた上限付きreportの再利用により言語の意味を変えない。E01 production統合、platform clock観測、E02–E04の帰属／trace／rebuild契約は未検証である。粗い実験は実現可能性のみを示す。
+
+## Sources
+
+- [Rust 1.99.0 Instant](https://doc.rust-lang.org/1.99.0/std/time/struct.Instant.html): page更新日は非公開、2026-10-30 JST確認。monotonic計測はsteady clockを保証せず、checked差分で不正な観測を検出できる。
+- RFC 0034／0035と現package／frontend／artifact API、2026-10-30 JST確認。codeに埋込更新日はない。report上限／field／CLI挙動はproject判断である。
+- 無視対象`target/m4-e01-compiler-cost-probe.log`、2026-10-30 JST観測。対応SDKとhelloの実compile一回であり、性能比較は主張しない。

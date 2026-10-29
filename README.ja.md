@@ -96,6 +96,7 @@ source構文・native language ABI・private SDK/package formatは実験段階�
 - [RFC 0038: package API 文書（accepted）](docs/ja/rfcs/0038-package-api-documentation.md)
 - [RFC 0039: package editor snapshot と検証付き edit（implemented）](docs/ja/rfcs/0039-package-editor-snapshots.md)
 - [RFC 0040: 上限付き debug adapter session（implemented）](docs/ja/rfcs/0040-bounded-debug-adapter-sessions.md)
+- [RFC 0041: 上限付きtoolchain profile（accepted）](docs/ja/rfcs/0041-bounded-toolchain-profiles.md)
 - [コントリビューションガイド](CONTRIBUTING.ja.md)
 
 `cargo run -- lint --manifest-path target/my_app/Lang.json --deny-warnings --message-format json` は guest code を実行せず、lock／artifact を書かずに選択 package と宣言 test を検査します。`LNT0001` は未読 binding を報告し、`_` で始まる名前はこの rule を抑制します。既存 warning は code を保持します。`--deny-warnings` を省くと warning は失敗にしません。[RFC 0037](docs/ja/rfcs/0037-package-lint-diagnostics.md) を参照してください。
