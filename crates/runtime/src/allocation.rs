@@ -8,6 +8,11 @@
 use std::fmt::{Display, Formatter};
 use std::sync::atomic::{AtomicU64, Ordering};
 
+mod trace;
+pub use trace::{
+    Event, EventKind, FailureKind, MAX_TRACE_EVENTS, Trace, TraceError, TraceSnapshot,
+};
+
 static NEXT_ALLOCATOR: AtomicU64 = AtomicU64::new(1);
 pub const MAX_ALIGNMENT: u64 = 4096;
 
@@ -307,6 +312,7 @@ pub struct Allocator<P: Provider> {
     limits: Limits,
     stats: Stats,
     next_generation: Option<u64>,
+    trace: Option<std::sync::Arc<Trace>>,
 }
 impl<P: Provider> Allocator<P> {
     /// Host/frame setup. Reserve all locator slots before any guest entry.
@@ -341,6 +347,7 @@ impl<P: Provider> Allocator<P> {
             limits,
             stats: Stats::default(),
             next_generation: Some(1),
+            trace: None,
         })
     }
     /// Missing/revoked authority is rejected before symbol lookup or callbacks.
@@ -353,6 +360,32 @@ impl<P: Provider> Allocator<P> {
     }
     pub const fn identity(&self) -> Identity {
         self.id
+    }
+    /// Reserve bounded observation metadata before the first admitted request.
+    /// The returned receipt has no allocator or guest storage authority.
+    pub fn start_trace(&mut self, limit: usize) -> Result<std::sync::Arc<Trace>, TraceError> {
+        if self.trace.is_some() {
+            return Err(TraceError::AlreadyTracing);
+        }
+        let provider = self.provider.as_ref().ok_or(TraceError::MissingAuthority)?;
+        if provider.allocator_view().is_some() {
+            return Err(TraceError::BorrowedAllocator);
+        }
+        if self.stats != Stats::default() {
+            return Err(TraceError::NotFresh);
+        }
+        let trace = std::sync::Arc::new(Trace::new(self.id, limit)?);
+        self.trace = Some(std::sync::Arc::clone(&trace));
+        Ok(trace)
+    }
+    fn trace_event(&self, kind: EventKind, request: Request) {
+        if let Some(trace) = &self.trace {
+            trace.record(Event {
+                kind,
+                request,
+                stats: self.stats,
+            });
+        }
     }
     pub fn provider(&self) -> Option<&P> {
         self.provider.as_ref()
@@ -485,6 +518,10 @@ impl<P: Provider> Allocator<P> {
             else {
                 self.stats.live_bytes -= request.bytes;
                 self.stats.live_allocations -= 1;
+                self.trace_event(
+                    EventKind::AllocationFailed(FailureKind::OutOfMemory),
+                    request,
+                );
                 return Err(Error::OutOfMemory);
             };
             let bytes = region.bytes_mut();
@@ -497,6 +534,10 @@ impl<P: Provider> Allocator<P> {
                     .as_mut()
                     .expect("preflight authority")
                     .deallocate(region, request);
+                self.trace_event(
+                    EventKind::AllocationFailed(FailureKind::InvalidStorage),
+                    request,
+                );
                 return Err(Error::InvalidStorage);
             }
             Some(region)
@@ -511,6 +552,7 @@ impl<P: Provider> Allocator<P> {
         self.stats.allocations += 1;
         self.stats.peak_live_bytes = self.stats.peak_live_bytes.max(live);
         self.stats.peak_live_allocations = self.stats.peak_live_allocations.max(count);
+        self.trace_event(EventKind::Allocated { generation }, request);
         Ok(Handle {
             allocator: self.id,
             slot: slot as u32,
@@ -689,6 +731,12 @@ impl<P: Provider> Allocator<P> {
                 .expect("authority outlives allocations")
                 .deallocate(region, allocation.request);
         }
+        self.trace_event(
+            EventKind::Retired {
+                generation: allocation.generation,
+            },
+            allocation.request,
+        );
     }
     /// Allocate/copy before publication. Failure preserves the old owner/data;
     /// success publishes the replacement before releasing old storage.
@@ -761,6 +809,7 @@ impl<'a> Allocator<Borrowed<'a>> {
             limits,
             stats: Stats::default(),
             next_generation: None,
+            trace: None,
         })
     }
 }

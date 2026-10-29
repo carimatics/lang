@@ -418,6 +418,130 @@ fn runtime_cli_attributes_real_vm_native_and_sampled_points_without_publishing_b
 }
 
 #[test]
+fn allocator_trace_observes_original_vm_native_owners_and_entry_return_counters() {
+    use lang_codegen_clif::owned::{CompiledProgram, runtime};
+    use lang_runtime::{allocation as a, cleanup as c, execution as e, layout};
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("examples/packages/profile_runtime");
+    let limits = frontend::CompileLimits::default();
+    let analysis = frontend::analyze_file(&root.join("main.lang"), &root, limits);
+    let bytes = artifact::compile(
+        analysis.result.unwrap(),
+        &analysis.sources,
+        limits,
+        Default::default(),
+    )
+    .unwrap();
+    let artifact::Program::Ownership(program) =
+        artifact::decode(&bytes, Default::default()).unwrap()
+    else {
+        panic!("owned")
+    };
+    let flow = program.flow();
+    let layouts = layout::Layouts::compile(
+        flow.source()
+            .activity()
+            .moved()
+            .typed()
+            .places()
+            .declarations()
+            .types(),
+        Default::default(),
+    )
+    .unwrap();
+    let native = CompiledProgram::compile(flow, &layouts, Default::default(), 1000).unwrap();
+    let entry = program.entry().unwrap();
+    // Include failures before and after owned storage is admitted, and the
+    // successful call/Vec/cleanup path. Each observation runs its own entry once.
+    for fuel in [0, 1, 8, 16, 1000] {
+        let mut vm_baseline = None;
+        let mut vm_events = None;
+        for machine in [false, true] {
+            let mut baseline = None;
+            for capacity in [None, Some(4096), Some(1)] {
+                let mut instance = c::Instance::default();
+                let mut allocator = a::Allocator::new(a::System, Default::default()).unwrap();
+                let trace = capacity.map(|limit| allocator.start_trace(limit).unwrap());
+                let control = e::Control::with_limits(e::Limits {
+                    fuel: Some(fuel),
+                    host_calls: Some(0),
+                    frames: Some(64),
+                    live_cells: Some(65536),
+                });
+                let observed = if machine {
+                    match runtime::execute_entry(
+                        &native,
+                        entry,
+                        &mut instance,
+                        &mut allocator,
+                        runtime::Config {
+                            control,
+                            ..Default::default()
+                        },
+                    ) {
+                        Ok(o) => (Some(o.value), o.usage, None),
+                        Err(e) => (None, e.usage, e.fault),
+                    }
+                } else {
+                    match lang_vm::unit::owned::execute_function(
+                        flow,
+                        entry,
+                        &mut instance,
+                        Some(&mut allocator),
+                        control,
+                    ) {
+                        Ok(o) => (Some(o.value), o.usage, None),
+                        Err(e) => (None, e.usage, e.fault),
+                    }
+                };
+                let stats = allocator.stats();
+                let result = (observed, stats);
+                if let Some(baseline) = &baseline {
+                    assert_eq!(
+                        &result, baseline,
+                        "fuel={fuel}, native={machine}, capacity={capacity:?}"
+                    );
+                } else {
+                    baseline = Some(result);
+                }
+                if let Some(trace) = trace {
+                    if capacity == Some(1) && stats.allocations + stats.deallocations > 1 {
+                        assert_eq!(trace.snapshot(), Err(a::TraceError::Capacity));
+                    } else {
+                        let snapshot = trace.snapshot().unwrap();
+                        assert_eq!(snapshot.stats, stats);
+                        assert_eq!(snapshot.allocator, allocator.identity());
+                        assert_eq!(
+                            snapshot.events.len() as u64,
+                            stats.requests + stats.deallocations
+                        );
+                        if capacity == Some(4096) {
+                            if machine {
+                                assert_eq!(snapshot.events, *vm_events.as_ref().unwrap());
+                            } else {
+                                vm_events = Some(snapshot.events);
+                            }
+                        }
+                    }
+                }
+            }
+            if machine {
+                assert_eq!(baseline, vm_baseline);
+            } else {
+                vm_baseline = baseline;
+            }
+        }
+        if fuel == 1000 {
+            let ((value, usage, fault), stats) = vm_baseline.unwrap();
+            assert!(value.is_some());
+            assert_eq!(usage.fuel, 23);
+            assert_eq!(fault, None);
+            assert_eq!(stats.live_allocations, 0);
+            assert!(stats.allocations > 0);
+        }
+    }
+}
+
+#[test]
 fn runtime_report_reader_refuses_unproven_points_and_false_sampling_totals() {
     use lang::profile::runtime::Report as RuntimeReport;
     let result = bin()

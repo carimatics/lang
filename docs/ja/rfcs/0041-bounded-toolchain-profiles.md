@@ -62,6 +62,18 @@ runtime schema-1 fieldは`schema`、`kind`、`clock`、`compiler_id`、`target`�
 
 RFC 0001の実験委任で採択する。有限実験が実native codeで共有span、厳密counter、cleanupを示した。観測にはhost lock／memory／timing overheadが増え、deadlineは引き続き実host経過時間を含む。private Rust metadata／layout準備費用は変わり得るが、保存形式とguest fuel／service／provider accountingは変えない。時間やoverheadの同値は主張しない。元結果／usage同値、sample帰属、上限超過、両host証拠をE02で検証する。E03 allocator eventとE04 rebuild説明は別の具体化に残る。
 
+### 論理allocator traceの具体化（2026-10-30 JST）
+
+実行可能な`target/m4-e03-allocator-boundary-probe.log`は、許可request4／論理allocation3／retirement3に対し、providerのattempt3／allocation2／retirement2を観測した。0-size ownerはprovider呼出しなしでも数え、許可済み64-byte OOMは累積要求を112 bytesへ増やすが成功peak48 bytesを増やさない。最終liveは0。RFC 0008（最終更新2026-10-20）がこの意味を既に定めている。provider callbackだけでは完全なcounter traceを提供できない。
+
+E03の残るreport／CLI／reader（3 pt）より前にE03R（2 pt）を公開する。元root Allocatorへの任意の上限付き所有ledgerと最初の実VM／native fixtureを実装する。最初の許可request前に結び、再設定、非fresh状態、borrowed viewは拒否する。borrowed Memory viewは元rootへ転送し、そのrootが一度だけ記録する。元generation ID、要求size／alignment、権威ある操作後Statsを保持する。許可allocation成功、元live返金後の許可OOM／invalid-storage失敗、0-size owner／内部resizeを含む成功retirementを記録する。許可requestを生まない純粋なpreflight拒否／checkはevent列の範囲外。provider callbackから欠落eventを再構成しない。
+
+guest entry前にbufferを予約する（既定4,096、最大16,384 event）。regionやbyte本文を保持せずmetadataだけを持ち、記録中にcallbackや確保を呼ばない。trace errorは別に保持し、request／counter／handle／provider呼出し／guest control／主失敗順／cleanupを変えず、不完全snapshot／公開を拒否する。allocator identityと元borrowed-view権限を保つ。trace設定／metadata保持でhost allocation／layout／lock費用が増えるがguest要求bytes外でありprocess RSSと呼ばない。既存public C／保存program／SDK形式は変更せず、private Rust SDK identityには通常の再buildが必要となる。
+
+E03では厳密なfield／replay契約を具体化した後、別の検証済みreport kindを公開する。境界は元entry returnとし、その時点の元allocator実Statsと完全論理event ledgerを照合し、失敗後に残るlive ownerも含める。cleanupを強制せず、0-size ownerを物理確保として捏造せず、直前chargeからsource／宣言位置を推測せず、host allocator破棄全体を観測したと主張しない。VM／native traceは元engine、同じallocator／control、元failure／retirement経路を使う。
+
+RFC 0001の実験委任でこの前提を採択する。実験が欠けた観測境界を示し、既存RFC 0008がaccounting／cleanup契約を提供する。元操作／identity／counter同値、0／OOM／invalid storage／resize／borrowed転送、有限buffer失敗、両host entry fixtureは未検証実装要件に残る。E03Rの新規2 planning pointはE03の消化やG8完了を意味しない。
+
 ## Execution modes
 
 compile profilingは通常portable compilerが受理する全意味profileを、元のentry／preflight規則で使う。VM／native AOT／JIT／component codeは実行しない。runtime modeは明示instrumentation／計測上限を持つE02／E03の要件に残る。
@@ -99,10 +111,10 @@ E01でcompile report／readerと実package CLI fixtureを実装する。E02で�
 
 ## Open questions
 
-2026-10-30 JST、RFC 0001の実験委任で採択する。E01 compile reportはsource `e2f0c1d`／最終head `4ee6043`の完全local baselineと両host CIで検証した。E02は実VM／nativeの結果／usage／span同値とruntime CLIをlocal検証し、完全baselineと両host受入は未完了である。E03／E04のtrace／rebuild契約と証拠は引き続き必要。単発timingを性能比較に使わない。
+2026-10-30 JST、RFC 0001の実験委任で採択する。E01 compile reportはsource `e2f0c1d`／最終head `4ee6043`の完全local baselineと両host CIで検証した。E02最終head `7baee25`は完全local baseline（170 suite／2,485 test）、全体CI `40951375087`、native CI `40951374893`に成功し、実VM／nativeの結果、usage、元span観測が一致した。E03Rの元allocator trace実装とE03／E04のreport／rebuild契約・証拠は引き続き必要。単発timingを性能比較に使わない。
 
 ## Sources
 
 - [Rust 1.99.0 Instant](https://doc.rust-lang.org/1.99.0/std/time/struct.Instant.html): page更新日は非公開、2026-10-30 JST確認。monotonic計測はsteady clockを保証せず、checked差分で不正な観測を検出できる。
-- RFC 0034／0035と現package／frontend／artifact API、2026-10-30 JST確認。codeに埋込更新日はない。report上限／field／CLI挙動はproject判断である。
+- RFC 0034／0035（ともに最終更新2026-10-29）、RFC 0008（2026-10-20）、現package／frontend／artifact／allocator APIを2026-10-30 JSTに確認。codeに埋込更新日はない。report上限／field／CLI挙動はproject判断である。
 - 無視対象`target/m4-e01-compiler-cost-probe.log`、2026-10-30 JST観測。対応SDKとhelloの実compile一回であり、性能比較は主張しない。

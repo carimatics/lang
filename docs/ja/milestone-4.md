@@ -6,13 +6,13 @@
 
 更新: 2026-10-30 JST。M4 は active。Goal 開始は clean main／origin/main `af9988f`、remote `git@github.com:carimatics/lang.git`。PR #9–#18 は merge 済み。editor PR #18 最終 head `5cdc422` は CI `40864753941`（18 成功、意図した文書専用 skip）と debugger `40864753946`（3/3）に成功し、`0a15fb5` として merge。local main／origin/main ref は ahead／behind 0/0 で一致する。debugger branch `codex/m4-debug-adapter` は clean・upstream 同期済み `codex/m4-editor-checked-edits` head `5cdc422` から、一貫した D01–D05 用に作成した。既存 user 変更はなく、upstream は `origin/codex/m4-debug-adapter`、main 宛 [draft PR #19](https://github.com/carimatics/lang/pull/19)。D01 head `8421298` は CI `40874260252`（18 成功、意図した文書専用 skip）と debugger `40874260229`（3/3）に成功し、D02 head `ced8e56` は push 済みで、CI `40879596677`（18 成功、意図した文書専用 skip）と debugger `40879596614`（3/3）に成功。merge は未実施。初期記録 base `carimatics/lang:codex/m4-editor-checked-edits` は #18 merge により `carimatics/lang:main` へ変更した。base 同期中も DAP 作業を保持した。
 
-**29 done · 1 doing · 12 todo · 36 remaining pt**
+**30 done · 1 doing · 12 todo · 35 remaining pt**
 
 現在のcheckoutは`codex/m4-profiling`。clean・同期済みdebugger branch `10aae50`から作成し、既存user変更はない。upstreamは`origin/codex/m4-profiling`、[draft PR #24](https://github.com/carimatics/lang/pull/24)のscopeはE01–E04。#19が`14a92df`でmergeしたため記録baseを`carimatics/lang:codex/m4-debug-adapter`から`carimatics/lang:main`へ移した。local main／origin/mainは`14a92df`で0/0。別文書PR #20–#23の祖先`be9f77c`も保持した。
 
-E02 の最終実行 checkpoint、2026-10-30 05:25 JST: 作業treeの元charge point recorder、厳格runtime reader、`profile run`が重点6試験／consistency 6試験と全Clippyに成功。公開profile_runtime fixtureは実VM／native JITの両方で42、fuel23／service16／frame2／cell34、元span集計20件が一致し帰属不能0。sample／上限／未対応mode／実行失敗を検証し、観測超過でも元実行結果／usage／cleanupが一致する。最終fmt／docは成功し、全workspace testを実行中。残るE02受入は最終baseline、code commit、両host証拠。E01 final head `4ee6043`は全体CI `40943604146`とnative `40943603843`に成功。G8は未完了。
+E03R の最終実行 checkpoint、2026-10-30 06:12 JST: 元allocatorの任意ledgerはallocator重点15 testと実VM／native entry fixtureに成功。5段階のfuel上限にtraceなし／完全／容量超過を組み合わせた元実行30回で、結果、fault span、usage、実Stats、完全event列が一致した。0-byte所有権、OOM refund、不正provider storage、resize、入れ子borrowed viewの一度の記録、fresh root限定、live ownerを保持するentry-return snapshotを検証。logical request4／allocation3／retirement3とprovider3／2／2、OOM込み累積112 bytes、peak48、最終live0は不変。残るE03R受入は完全local baseline、最新headの両host CIとcode証拠。E02最終source `7baee25`は完全local baselineと全体／native CI `40951375087`／`40951374893`に成功済み。G8は未完了。
 
-**次: M4-E02 — sourceに帰属するruntime観測（doing、3 pt）。** E01は`e2f0c1d`で完了し、追加なしで最終3 ptを消化。追加+15、消化82、42 deliveryの残り36 pt。scope監査で元charge pointへの任意の上限付きobserver、実VM／nativeの帰属report、重点同値／上限試験へ分解し3 ptを維持。runtime／trace契約は実行証拠に基づき実装前に具体化する。
+**次: M4-E03R — 元logical allocator trace前提（doing、2 pt）。** E02の最終3 ptを消化し、新規E03Rの2 ptを別に追加する。0-byteとOOM予約counterをprovider callbackで完全観測できないことを実験で確認し、元allocator ledger（2 pt）と残るE03 report／CLI／reader同値（3 pt）へscopeを分ける。43 delivery、追加+17、消化85、残り35 pt。
 
 A04 source `cf6cf5c` は fmt、全 Clippy／doc、checked opt-level 1 全 test（**158 suite／2,384 成功／0 失敗**）、重点 75 test に成功。最終 head `75a2041` は [全 CI](https://github.com/carimatics/lang/actions/runs/40810065213)（全 19 job、18 成功、意図した文書専用 skip）と [debugger 実行](https://github.com/carimatics/lang/actions/runs/40810065278)（3/3）に成功した。[PR #13](https://github.com/carimatics/lang/pull/13) は `58527c2` として merge、main を fast-forward して clean・同期済み、ahead／behind 0/0。workspace branch 作成と現在の PR／upstream は上記に記録した。既存の user 変更はなかった。
 
@@ -81,8 +81,9 @@ A01 入力修正は Unix の nonblocking open と開いた handle の metadata �
 | M4-D04 | done | 0 | M4-D04B | G7 | native／VM 混在 stack fixture で call 順、span、失敗 cleanup 保持 | `759bae0` |
 | M4-D05 | done | 0 | M4-D04 | G7 | DAP disconnect／restart／cancel／不正 input と両 host session 証拠 | `cf5e27f` |
 | M4-E01 | done | 0 | M4-A06 | G8 | profile／trace schema 採択、上限付き compiler phase cost 出力 | `e2f0c1d` |
-| M4-E02 | doing | 3 | M4-E01 | G8 | sampling／測定限界を明示する source 対応 VM／native runtime profile | — |
-| M4-E03 | todo | 3 | M4-E02 | G8 | 実 allocator counter と整合し buffer 上限を持つ allocation／retirement trace | — |
+| M4-E02 | done | 0 | M4-E01 | G8 | sampling／測定限界を明示する source 対応 VM／native runtime profile | `7baee25` |
+| M4-E03R | doing | 2 | M4-E02 | G8 | 元logical allocatorの0-byte／OOM／resize／retirementを完全な上限付きcounter traceで観測 | — |
+| M4-E03 | todo | 3 | M4-E03R | G8 | 実 allocator counter と整合し buffer 上限を持つ allocation／retirement trace | — |
 | M4-E04 | todo | 3 | M4-E03 | G8 | rebuild 説明が source／dependency／target／toolchain input の変更を特定 | — |
 | M4-F01 | todo | 3 | M4-A01 | G9 | installer trust root、署名 metadata、channel／version 選択、atomic 復旧設計採択 | — |
 | M4-F02 | todo | 3 | M4-F01 | G9 | install 前に署名、期限／rollback／target／digest を検証、改ざん拒否 | — |
@@ -101,9 +102,9 @@ A01 入力修正は Unix の nonblocking open と開いた handle の metadata �
 
 | Baseline remaining | Net added/re-estimated | Retired on completion | Remaining |
 | ---: | ---: | ---: | ---: |
-| 103 pt | +15 pt | −82 pt | 36 pt |
+| 103 pt | +17 pt | −85 pt | 35 pt |
 
-**103 + 15 − 82 = 36 pt**
+**103 + 17 − 85 = 35 pt**
 
 名前空間の前提監査、2026-10-29 JST: 既存 `ModuleGraph::root()` は常に `ModuleId(0)`。path provider だけでは依存ごとの package-root 名前空間や共有 dependency identity の安全な再利用を提供できない。元の A02 を、許可 graph（新規 A02R、3 pt）と名前空間／source 実行の統合（task list を見直した A02、残り 3 pt）へ分割する。純追加 +3 pt、全 37 delivery。A01 と A02R は前提二つとなるため、水平基盤を増やす前に A02 で次の source 実行 fixture を示す。この監査による gate 完了や延期はない。
 

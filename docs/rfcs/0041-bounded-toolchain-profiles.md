@@ -62,6 +62,18 @@ Runtime schema-1 fields are `schema`, `kind`, `clock`, `compiler_id`, `target`, 
 
 Accept under RFC 0001 experimental delegation: the finite probe demonstrates shared spans, exact counters and cleanup with actual native code. Observation adds host locking, memory and timing overhead; deadlines still include real elapsed host work. Private Rust metadata/layout preparation costs may change; persisted formats and guest fuel/service/provider accounting do not. No timing or overhead equivalence is claimed. Original outcome/usage parity, sampled attribution, overflow behavior and both-host evidence remain required E02 tests. E03 allocator events and E04 rebuild explanations remain separate elaborations.
 
+### Logical allocator trace elaboration (2026-10-30 JST)
+
+The executable `target/m4-e03-allocator-boundary-probe.log` observes four authorized requests, three logical allocations and three retirements, while the provider sees only three attempts and two allocations/retirements. A zero-size owner still counts without a provider call; an authorized 64-byte OOM raises cumulative requests to 112 bytes without raising the 48-byte successful peak. Final live storage is zero. RFC 0008 already requires these semantics (last updated 2026-10-20). Provider callbacks alone cannot supply the requested complete counter trace.
+
+Expose E03R (2 pt) before E03's remaining report/CLI/reader work (3 pt). E03R adds an optional bounded owned ledger on the original root Allocator and first actual VM/native fixtures. Bind it before any authorized request; reject reconfiguration, non-fresh state and borrowed views. Borrowed Memory views continue delegating to that original root, which records exactly once. Store original generation identities and requested size/alignment with the authoritative post-operation Stats. Record admitted allocation success, admitted OOM/invalid-storage failure after original live refunds, and successful retirement including zero-size owners and internal resize operations. Pure preflight refusals/checks with no authorized request are outside this event stream. Never reconstruct missing events from provider callbacks.
+
+Reserve the trace buffer before guest entry (default 4,096 events, maximum 16,384). It retains metadata only, no region or byte contents, and invokes no callback or allocation while recording. Trace errors latch separately and never alter requests, counters, handles, provider calls, guest control/failure order or cleanup; incomplete snapshot/publication refuses. Preserve allocator identity and original borrowed-view authority. Trace attachment and retained metadata add host allocation/layout/locking costs; these are outside guest requested bytes and may not be called process RSS. Existing public C and stored program/SDK formats remain unchanged; private Rust SDK identity requires the normal rebuild.
+
+E03 will publish a separately validated report kind after its precise fields/replay contract is elaborated. Its boundary is original entry return: reconcile the complete logical event ledger with that allocator's actual Stats at that boundary, including any still-live owners after failure. Do not force cleanup, invent physical allocations for zero-size owners, infer source/declaration locations from the last charge, or claim all host allocator teardown is captured. VM/native traces must execute the original engines with the same allocator, controls and original failure/retirement path.
+
+Accept this prerequisite under RFC 0001 experimental delegation: the probe exposes a real missing observation boundary and existing RFC 0008 supplies its accounting/cleanup contract. Original operation/identity/counter parity, zero/OOM/invalid storage/resize/borrowed forwarding, bounded-buffer failures and both-host entry fixtures remain unverified implementation obligations. E03R adds two planning points; it does not retire E03 or close G8.
+
 ## Execution modes
 
 Compile profiling uses all semantic profiles already admitted by the ordinary portable compiler, with their original entry/preflight rules. It runs no VM, native AOT, JIT or component code. Runtime modes remain E02/E03 obligations with explicit instrumentation/measurement limits.
@@ -99,10 +111,10 @@ Compare ordinary and profiled artifact size/input identity, compile a real decla
 
 ## Open questions
 
-Accepted under RFC 0001 experimental delegation, 2026-10-30 JST. E01 compile reports are verified at source `e2f0c1d`/final head `4ee6043` with the complete local baseline and both-host CI. E02 actual VM/native result/usage/span parity and runtime CLI pass locally; its full baseline and both-host acceptance remain open. E03/E04 trace/rebuild contracts and evidence remain required. Single timings establish no performance comparison.
+Accepted under RFC 0001 experimental delegation, 2026-10-30 JST. E01 compile reports are verified at source `e2f0c1d`/final head `4ee6043` with the complete local baseline and both-host CI. E02 final head `7baee25` passes the complete local baseline (170 suites / 2,485 tests), full CI `40951375087` and native CI `40951374893`; actual VM/native results, usage and original span observations agree. E03R original allocator trace implementation and E03/E04 report/rebuild contracts and evidence remain required. Single timings establish no performance comparison.
 
 ## Sources
 
 - [Rust 1.99.0 Instant](https://doc.rust-lang.org/1.99.0/std/time/struct.Instant.html): page update date unavailable; verified 2026-10-30 JST. Monotonic measurement does not guarantee a steady clock; checked differences expose invalid observations.
-- RFCs 0034/0035 and current package/frontend/artifact APIs, inspected 2026-10-30 JST; code has no embedded update date. Report bounds, fields and CLI behavior are project decisions.
+- RFCs 0034/0035 (both last updated 2026-10-29), RFC 0008 (2026-10-20) and current package/frontend/artifact/allocator APIs, inspected 2026-10-30 JST; code has no embedded update date. Report bounds, fields and CLI behavior are project decisions.
 - Ignored `target/m4-e01-compiler-cost-probe.log`, observed 2026-10-30 JST, with the matching SDK and one actual hello compilation; no performance comparison is claimed.
