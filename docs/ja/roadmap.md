@@ -18,7 +18,7 @@ M2は完了済みです。18/18ゲート、過去のゲート重み113/113です
 
 ## M3完了後の作業
 
-M3 は完了済みです。M4 の [作業ボード](milestone-4.md) は 42 delivery、**27 done · 1 doing · 14 todo · 42 remaining pt**。editor 最終 head `5cdc422` の両 host CI／debugger 成功と PR #18 merge（`0a15fb5`）を含め G1–G6 を検証済みです。D01 source `8421298` が `lang dap` の保持 VM source-breakpoint／stack／source 実行を実装し、D02 source `ced8e56` の VM step／inspection が全 local baseline に成功し、D03R Windows debugger 前提 `99a20de` は native workflow 40907199433（3/3）に成功し、D03 production native source `39473b1` は workflow 40918693919（3/3）に成功し、D04B source `67f62fa`がtrusted live mixed bridgeを実装し、D04 source `759bae0`がnative-debug CIの3環境に成功し、D05 lifecycle監査がdoingです。native／混在 debug 全体（G7）、profiling（G8）、署名 installer（G9）、最終 journey／機能 guide は引き続き必要です。
+M3は完了済みです。M4の[作業ボード](milestone-4.md)は42 delivery、**28 done · 1 doing · 13 todo · 39 remaining pt**です。G1–G7を検証済みです。DAP source `cf5e27f`が保持VMのstep／inspection、native source debug、実mixed native／VM pause、restart／terminationのID分離を実装し、完全local baseline、全体CI `40937041512`、native-debug `40937041276`の3環境に成功しました。E01 compiler phase profilingがdoingで、runtime／allocation profiling（G8）、署名install（G9）、最終journey／機能guideは引き続き必要です。
 
 PR #9–#18 は merge 済みです。local main／origin/main ref は `0a15fb5` で一致し、ahead／behind 0/0。現在の `codex/m4-debug-adapter` は clean・upstream 同期済み `codex/m4-editor-checked-edits` head `5cdc422` から作成し、既存 user 変更はありません。記録 PR base は #18 merge 後に `carimatics/lang:main` へ移行しました。upstream は `origin/codex/m4-debug-adapter`、[draft PR #19](https://github.com/carimatics/lang/pull/19) の D01 両 host CI／debugger は成功し、現在の証拠と残る条件は board に記録しています。
 
@@ -42,11 +42,11 @@ PR #9–#18 は merge 済みです。local main／origin/main ref は `0a15fb5` 
 | 1 — frontendとbytecodeのvertical slice（完了） | 89 pt | 89 pt | **100.0%** |
 | 2 — ownershipとnative AOT | 113 pt | 113 pt | 100.0% |
 | 3 — concurrencyとembedding（完了） | 96 pt | 96 pt | 100.0% |
-| 4 — developer toolchain | 39 pt | 63 pt | 61.9% |
+| 4 — developer toolchain | 47 pt | 63 pt | 74.6% |
 | 5 — ecosystemとcompatibility | 0 pt | 65 pt | 0.0% |
 | 6 — セルフホスティング | 0 pt | 74 pt | 0.0% |
 | 7 — 追加frontend | 0 pt | 55 pt | 0.0% |
-| **全体** | **546 pt** | **764 pt** | **71.5%** |
+| **全体** | **554 pt** | **764 pt** | **72.5%** |
 
 ## Milestone 0：設計baseline
 
@@ -228,7 +228,7 @@ Exit：Native hostがuser scriptをloadし、typed APIを公開し、scriptをca
 
 ## Milestone 4：developer toolchain
 
-**進捗：39 / 63 pt（61.9%）。**
+**進捗：47 / 63 pt（74.6%）。**
 
 有効化監査（2026-10-29 JST）: 現在の task、実行 checkpoint、積上げ baseline 103 pt は [M4 board](milestone-4.md)で管理します。[RFC 0034](rfcs/0034-package-workspaces-and-cli-diagnostics.md)が manifest／diagnostic と最初の local package 契約を採択しました。厳密な検査、許可 local dependency の実行、lock／offline replay、create／build／run／test fixture の順に進めてから広範な tooling へ進みます。installer は M5 registry より先に toolchain binary を配布するため、trust root、署名 release metadata 検証、atomic update／failure recovery の採択設計を download／install 前に必要とします。M5 signing は registry package 公開／provenance を対象とします。元の九つの gate と weight を維持し、63 pt を残作業予測には使いません。
 
@@ -240,7 +240,7 @@ Exit：Native hostがuser scriptをloadし、typed APIを公開し、scriptをca
 - [x] **P0 — Package、fmt、lint、doc commandをCLIへ統合する。** — 5 pt
 - [x] **P0 — LSP navigation、completion、semantic tokenを実装する。** — 8 pt
 - [x] **P0 — 安全なrename／code actionを実装する。** — 8 pt
-- [ ] **P0 — Mixed native／VM stackを持つDAP adapterを実装する。** — 8 pt
+- [x] **P0 — Mixed native／VM stackを持つDAP adapterを実装する。** — 8 pt
 - [ ] **P1 — Compile-time／runtime profiling、allocation trace、rebuild explanationを追加する。** — 8 pt
 - [ ] **P0 — `rustup` と同じ役割を持つinstall／update／channel toolを構築する。** — 8 pt
 

@@ -18,7 +18,7 @@ Public C v1 and existing generated clients follow stabilized RFC 0033. Source/na
 
 ## Work after M3
 
-M3 is complete. M4’s [live board](milestone-4.md) records **27 done · 1 doing · 14 todo · 42 remaining pt** across 42 deliveries. G1–G6 are verified, including editor final head `5cdc422` with both-host CI/debugger success and merged PR #18 (`0a15fb5`). D01 source `8421298` implements retained VM source-breakpoint/stack/source execution through `lang dap`; D02 source `ced8e56` implements VM stepping/inspection with a full local baseline; D03R Windows debugger prerequisite `99a20de` passes native workflow 40907199433 (3/3); D03 production native source `39473b1` passes workflow 40918693919 (3/3); D04B source `67f62fa` supplies the trusted live mixed bridge; D04 source `759bae0` passes all three native-debug CI hosts; D05 lifecycle audit is doing. Complete native/mixed debugging (G7), profiling (G8), signed installation (G9) and the final journeys/capability guide remain required.
+M3 is complete. M4’s [live board](milestone-4.md) records **28 done · 1 doing · 13 todo · 39 remaining pt** across 42 deliveries. G1–G7 are verified. DAP source `cf5e27f` supplies retained VM stepping/inspection, verified native source debugging, real mixed native/VM pauses and restart/termination identity isolation. It passes the complete local baseline, full CI `40937041512` and all three native-debug environments in `40937041276`. E01 compiler phase profiling is doing; runtime/allocation profiling (G8), signed installation (G9) and the final journeys/capability guide remain required.
 
 PRs #9–#18 are merged. Local main/origin/main refs match `0a15fb5` with 0/0 ahead/behind. Current `codex/m4-debug-adapter` was created from clean, upstream-synchronized `codex/m4-editor-checked-edits` head `5cdc422`; no preexisting user changes. Its recorded PR base transitioned to `carimatics/lang:main` after #18 merged. Upstream is `origin/codex/m4-debug-adapter`, [draft PR #19](https://github.com/carimatics/lang/pull/19); D01 both-host CI/debugger succeeds; the board records current evidence and remaining conditions.
 
@@ -42,11 +42,11 @@ Snapshot of exit-gate weights verified 2026-10-29 JST. Acceptance weights are se
 | 1 — frontend and bytecode vertical slice (complete) | 89 pt | 89 pt | **100.0%** |
 | 2 — ownership and native AOT | 113 pt | 113 pt | 100.0% |
 | 3 — concurrency and embedding (complete) | 96 pt | 96 pt | 100.0% |
-| 4 — developer toolchain | 39 pt | 63 pt | 61.9% |
+| 4 — developer toolchain | 47 pt | 63 pt | 74.6% |
 | 5 — ecosystem and compatibility | 0 pt | 65 pt | 0.0% |
 | 6 — self-hosting | 0 pt | 74 pt | 0.0% |
 | 7 — additional frontends | 0 pt | 55 pt | 0.0% |
-| **Overall** | **546 pt** | **764 pt** | **71.5%** |
+| **Overall** | **554 pt** | **764 pt** | **72.5%** |
 
 ## Milestone 0: design baseline
 
@@ -228,7 +228,7 @@ Exit: a native host can load a user script, expose a typed API, call the script,
 
 ## Milestone 4: developer toolchain
 
-**Progress: 39 / 63 pt (61.9%).**
+**Progress: 47 / 63 pt (74.6%).**
 
 Activation audit (2026-10-29 JST): use the [M4 board](milestone-4.md) for current tasks, executable checkpoints and the bottom-up 103 pt baseline. [RFC 0034](rfcs/0034-package-workspaces-and-cli-diagnostics.md) accepts the manifest/diagnostic and initial local package contract. First validate strict inspection, then execute an authorized local dependency, lock/offline replay and the create/build/run/test fixture before broader tooling. The installer distributes toolchain binaries before M5's registry, so its accepted design must establish trust roots, signed release-metadata verification and atomic update/failure recovery before downloading/installing. M5's signing work covers registry package publication/provenance. The original nine gates and weights remain unchanged; 63 pt is not a remaining-effort forecast.
 
@@ -240,7 +240,7 @@ Sequencing contract (clarified 2026-10-28 JST, retained on activation): the firs
 - [x] **P0 — Integrate package, fmt, lint, and doc commands into the CLI.** — 5 pt
 - [x] **P0 — Implement LSP navigation, completion, and semantic tokens.** — 8 pt
 - [x] **P0 — Implement safe rename and code actions.** — 8 pt
-- [ ] **P0 — Implement a DAP adapter with mixed native/VM stacks.** — 8 pt
+- [x] **P0 — Implement a DAP adapter with mixed native/VM stacks.** — 8 pt
 - [ ] **P1 — Add compile-time/runtime profiling, allocation traces, and rebuild explanations.** — 8 pt
 - [ ] **P0 — Build an install/update/channel tool comparable in role to `rustup`.** — 8 pt
 

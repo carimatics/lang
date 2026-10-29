@@ -4,7 +4,7 @@
 
 [English](../../rfcs/0040-bounded-debug-adapter-sessions.md)
 
-- Status: accepted
+- Status: implemented
 - Authors: project maintainers with Codex
 - Created: 2026-10-29
 - Last updated: 2026-10-30
@@ -143,7 +143,7 @@ D01 で本契約を採択し、最初の実 VM source breakpoint を提供する
 
 ## Open questions
 
-RFC 0001 の実験委任で採択、2026-10-29 JST。検証済み Machine の再利用と明示 snapshot／権限境界は合理的で、有限 fuel 実験が効果前の元 span と入れ子 frame を示した。真の保持再開、source-local sidecar の費用、native debugger／tool、混在境界対応は未検証の delivery 要件として残る。採択で G7 を完了せず、未対応 profile を実装済みと扱わない。
+RFC 0001の実験委任で2026-10-29 JSTに採択し、上限付きD01–D05 profileを`cf5e27f`で実装、2026-10-30 JSTに検証した。local fmt／全Clippy／169 suite・2,477 test／doc／fuzz Clippy、全体CI `40937041512`（18成功、意図したdoc専用skip）、native-debug `40937041276`（3/3）が成功。実native restart、混在frame対応、同一callの継続、owner cleanup、旧ID、不正transportを両hostで検証し、G7を完了した。一般的なnative instruction pause、native値の復元、owned／task debugger session、JIT登録、同期準備や任意の信頼済みcallbackの強制中断は実装profile外に残し、stabilizedや性能改善とは主張しない。
 
 ## Sources
 

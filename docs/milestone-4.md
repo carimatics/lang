@@ -6,11 +6,11 @@
 
 Updated: 2026-10-30 JST. M4 is active. Goal start: clean main/origin/main `af9988f`, remote `git@github.com:carimatics/lang.git`. PRs #9–#18 are merged. Editor PR #18 final head `5cdc422` passes CI `40864753941` (18 success, intentional documentation-only skip) and debugger `40864753946` (3/3), merged as `0a15fb5`; local main/origin/main refs match with 0/0 ahead/behind. Current `codex/m4-debug-adapter` was created from clean, upstream-synchronized `codex/m4-editor-checked-edits` head `5cdc422` for the coherent D01–D05 outcome. No preexisting user changes; upstream `origin/codex/m4-debug-adapter`, [draft PR #19](https://github.com/carimatics/lang/pull/19) against main. D01 head `8421298` passes CI `40874260252` (18 success, intentional documentation-only skip) and debugger `40874260229` (3/3); D02 head `ced8e56` is pushed; CI `40879596677` (18 success, intentional documentation-only skip) and debugger `40879596614` (3/3) succeed. No merge is claimed. Its initially recorded base `carimatics/lang:codex/m4-editor-checked-edits` is now `carimatics/lang:main` because #18 merged. Current DAP work was preserved during base synchronization.
 
-**27 done · 1 doing · 14 todo · 42 remaining pt**
+**28 done · 1 doing · 13 todo · 39 remaining pt**
 
-D05 last executable checkpoint, 2026-10-30 04:05 JST: working-tree restart/terminate/cancel and disjoint target references pass 16 DAP/lifecycle tests, two quota-boundary unit tests and six consistency tests. Independent exact-SDK stdio passes 12 mixed/lifecycle/malformed cases; restart enters/drops two callback owners and returns 43 once, while terminate/EOF/overflow return none and release the original owner. Actual macOS native DAP restarts a paused process, refuses old source/thread IDs, then breaks/steps/exits normally with adapter exit 0. Final fmt and full warnings-denied Clippy pass. Remaining acceptance: final local full test/doc baseline and latest-head both-host CI. D04 source `759bae0` has full CI `40933947721` (18 success, intentional documentation-only skip) and native `40933947573` (3/3); its lock issue is resolved.
+E01 last executable checkpoint: the 2026-10-30 04:14 JST standalone exact-SDK experiment compiles hello through the ordinary frontend/lower/verify path, observing 2.684 ms frontend including input and 0.212 ms lowering/verification. This is one executable observation, not a performance comparison. Remaining E01 acceptance: accepted bounded report schema, package-aware CLI phase reporting and focused validation. D05 source `cf5e27f` passes fmt/full warnings-denied Clippy/169 suites and 2,477 tests/docs/fuzz Clippy, full CI `40937041512` (18 success, intentional documentation-only skip) and native `40937041276` (3/3). Native restart and 12 independent mixed/lifecycle/malformed cases pass on both hosts; G7 is verified. PR #19 final documentation-head CI/merge remains required.
 
-**Next: M4-D05 — debugger lifecycle audit (doing, 3 pt).** D04 is done at `759bae0`; retire its last 3 pt with no additions. Additions +15, retired 76, remaining 42 pt across 42 deliveries. Scope audit: one bounded server lifecycle/target identity change plus focused protocol and both-host fixtures; retain 3 pt after enumerating these tasks. G7 closes only after this audit and latest-head CI.
+**Next: M4-E01 — bounded compiler phase reports (doing, 3 pt).** D05 is done at `cf5e27f`; retire its last 3 pt with no additions. Additions +15, retired 79, remaining 39 pt across 42 deliveries. Rechecked E01 tasks: report/schema contract, timing the existing package/frontend/portable compilation path, actual CLI fixture and bounded reader/error tests; retain 3 pt. E02–E04, signed installation and final journeys/guide remain required.
 
 A04 source `cf6cf5c` passes fmt, full Clippy/doc and checked opt-level 1 full tests (**158 suites / 2,384 passed / 0 failed**), plus 75 focused tests. Final head `75a2041` passes [full CI](https://github.com/carimatics/lang/actions/runs/40810065213) (all 19 jobs: 18 success; intentional documentation-only skip) and [debugger execution](https://github.com/carimatics/lang/actions/runs/40810065278) (3/3). [PR #13](https://github.com/carimatics/lang/pull/13) merged as `58527c2`; main was fast-forwarded, clean and synchronized with 0/0 ahead/behind. Workspace branch creation and its current PR/upstream are recorded above. No preexisting user changes were present.
 
@@ -30,7 +30,7 @@ The A01 input correction refuses FIFO/device/directory inputs with `PKG0005`/exi
 
 ## Exit gates
 
-The [roadmap](roadmap.md#milestone-4-developer-toolchain) retains the original 63 pt acceptance weights. **6/9 gates verified; 39/63 gate weight (61.9%).** Accepting a design does not complete its implementation gates. Every P0 and P1 remains in scope; no work is deferred.
+The [roadmap](roadmap.md#milestone-4-developer-toolchain) retains the original 63 pt acceptance weights. **7/9 gates verified; 47/63 gate weight (74.6%).** Accepting a design does not complete its implementation gates. Every P0 and P1 remains in scope; no work is deferred.
 
 | Gate | Priority | Outcome | Weight | State |
 | --- | --- | --- | ---: | --- |
@@ -40,7 +40,7 @@ The [roadmap](roadmap.md#milestone-4-developer-toolchain) retains the original 6
 | G4 | P0 | Package/fmt/lint/doc CLI integration | 5 | done |
 | G5 | P0 | LSP navigation/completion/semantic tokens | 8 | done |
 | G6 | P0 | Safe rename and code actions | 8 | done |
-| G7 | P0 | DAP adapter with mixed native/VM stacks | 8 | pending |
+| G7 | P0 | DAP adapter with mixed native/VM stacks | 8 | done |
 | G8 | P1 | Compile/runtime profiles, allocation traces and rebuild explanations | 8 | pending |
 | G9 | P0 | Signed install/update/channel tool with recovery | 8 | pending |
 
@@ -77,8 +77,8 @@ The [roadmap](roadmap.md#milestone-4-developer-toolchain) retains the original 6
 | M4-D03 | done | 0 | M4-D03R | G7 | Native debugger launch and source breakpoints on both tier-1 hosts | `39473b1` |
 | M4-D04B | done | 0 | M4-D03 | G7 | Explicitly granted host bridge and bounded native physical stop on the original VM | `67f62fa` |
 | M4-D04 | done | 0 | M4-D04B | G7 | Mixed native/VM stack fixture preserves call order, spans and failure cleanup | `759bae0` |
-| M4-D05 | doing | 3 | M4-D04 | G7 | DAP disconnect/restart/cancel/malformed-input and both-host session evidence | — |
-| M4-E01 | todo | 3 | M4-A06 | G8 | Accept profile/trace schema and report bounded compiler phase costs | — |
+| M4-D05 | done | 0 | M4-D04 | G7 | DAP disconnect/restart/cancel/malformed-input and both-host session evidence | `cf5e27f` |
+| M4-E01 | doing | 3 | M4-A06 | G8 | Accept profile/trace schema and report bounded compiler phase costs | — |
 | M4-E02 | todo | 3 | M4-E01 | G8 | Source-attributed VM/native runtime profile with explicit sampling/measurement limits | — |
 | M4-E03 | todo | 3 | M4-E02 | G8 | Allocation/retirement traces reconcile real allocator counters and bounded buffers | — |
 | M4-E04 | todo | 3 | M4-E03 | G8 | Rebuild explanations identify changed source/dependency/target/toolchain inputs | — |
@@ -99,9 +99,9 @@ Activation audit, 2026-10-29 JST: 36 observable deliveries, baseline 103 pt. The
 
 | Baseline remaining | Net added/re-estimated | Retired on completion | Remaining |
 | ---: | ---: | ---: | ---: |
-| 103 pt | +15 pt | −76 pt | 42 pt |
+| 103 pt | +15 pt | −79 pt | 39 pt |
 
-**103 + 15 − 76 = 42 pt**
+**103 + 15 − 79 = 39 pt**
 
 Namespace prerequisite audit, 2026-10-29 JST: the existing `ModuleGraph::root()` is always `ModuleId(0)`. A path provider alone cannot give each dependency its own package-root namespace or safely reuse a shared dependency identity. Split the original A02 outcome into an authorized graph (new A02R, 3 pt) and namespace/source execution integration (A02, remaining 3 pt after reviewing its task list). Net addition: +3 pt; 37 deliveries total. A01 and A02R are two prerequisites, so A02 must supply the next source execution fixture before further horizontal scaffolding. No gate is completed or deferred by this audit.
 

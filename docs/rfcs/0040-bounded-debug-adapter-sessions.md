@@ -4,7 +4,7 @@
 
 [日本語版](../ja/rfcs/0040-bounded-debug-adapter-sessions.md)
 
-- Status: accepted
+- Status: implemented
 - Authors: project maintainers with Codex
 - Created: 2026-10-29
 - Last updated: 2026-10-30
@@ -143,7 +143,7 @@ Compare ordinary and stopped/resumed execution for exact result, usage, failures
 
 ## Open questions
 
-Accepted under RFC 0001's experimental delegation, 2026-10-29 JST. Reusing the verified Machine and explicit snapshot/authority boundaries is reasonably sound; the finite fuel probe proves original spans and nested frames before effects. True retained resumption, source-local sidecar costs, native debugger/tool choice and mixed-boundary correspondence remain unverified delivery obligations. Acceptance does not close G7 or authorize pretending unsupported profiles are implemented.
+Accepted under RFC 0001's experimental delegation, 2026-10-29 JST; the bounded D01–D05 profile is implemented and verified 2026-10-30 JST at `cf5e27f`. Local fmt/full Clippy/169 suites and 2,477 tests/docs/fuzz Clippy, full CI `40937041512` (18 success, intentional documentation-only skip) and native-debug `40937041276` (3/3) pass. Actual native restart, mixed frame correspondence, one-call continuation, owner cleanup, stale identities and malformed transport are verified on both hosts. G7 is closed. General native instruction pauses, native value recovery, owned/task debugger sessions, JIT registration and interrupting synchronous preparation or arbitrary trusted callbacks remain outside this implemented profile; no stabilization or performance improvement is claimed.
 
 ## Sources
 
