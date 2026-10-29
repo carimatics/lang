@@ -4,13 +4,13 @@
 
 [English](../milestone-4.md)
 
-更新: 2026-10-29 JST。M4 は active。Goal 開始時は clean な `main`／`origin/main` の `af9988f`、remote `git@github.com:carimatics/lang.git`。PR #9–#15 は merge 済み。native PR #15 は `a454e6d` として merge し、local／remote main tip は ahead／behind 0/0。現在の `codex/m4-package-tooling` はその同期済み main から作成し、PR base は `carimatics/lang:main`、upstream はまだない。agent 所有の native checkpoint 日英編集二つを引き継ぎ、既存の user 変更はなかった。
+更新: 2026-10-29 JST。M4 は active。Goal 開始時は clean な `main`／`origin/main` の `af9988f`、remote `git@github.com:carimatics/lang.git`。PR #9–#15 は merge 済み。native PR #15 は `a454e6d` として merge し、local／remote main tip は ahead／behind 0/0。現在の `codex/m4-package-tooling` はその同期済み main から作成し、PR base は `carimatics/lang:main`、upstream は `origin/codex/m4-package-tooling`、[PR #16](https://github.com/carimatics/lang/pull/16)。agent 所有の native checkpoint 日英編集二つを引き継ぎ、既存の user 変更はなかった。
 
-**10 done · 1 doing · 29 todo · 85 remaining pt**
+**11 done · 1 doing · 28 todo · 83 remaining pt**
 
-B01 実行 checkpoint、2026-10-29 15:03 JST、現在 worktree: archive 5/5、既存 command 18/18、manifest 7/7、consistency 6/6 に成功し、全 Clippy は警告なし。信頼した展開後に元 lock で実 sibling の run／test を replay した。独立した Python 標準 `tarfile` reader でも通常 file、固定 uid／gid／mtime／mode／owner metadata、descriptor schema 1 を確認した。root／fuzz Cargo lock は tar 0.4.46／filetime を Cargo が生成し、fuzz-bin check も成功。production source を固定した全 test（161 suite／2,405 成功／0 失敗）と doc が成功した。残る条件は code 証拠と両 host の最新 head CI／PR lifecycle。B01 は doing に保ち、見積追加はない。
+B02 実行 checkpoint、2026-10-29 15:44 JST、現在 worktree: formatter fixture 全 7 件と archive／command／consistency 回帰 29 件が成功。comment 保持、dependency／test 整形、旧 lock 保持、古い manifest／source 拒否、read-only file、staging 失敗時 cleanup、保持 root の rename、Unix permission 保持を実行確認した。fmt、警告なし全 Clippy、source 固定の全 test（**162 suite／2,412 成功／0 失敗**）と doc が成功。初回 baseline は RFC 0037 の索引追加前に compile した README snapshot を検出したが、検証を弱めず修正後の全実行に成功した。残る条件は code 証拠と一貫した tooling branch の最新 head 両 host CI。B02 は review 済み 3 pt の doing に保つ。
 
-**次: M4-B01 — 固定 package input から決定的 source listing／archive を生成（doing、3 pt）。** 実装前に archive profile と alias／拒否契約を review する。A06 は `d66c764` で完了し、macOS／Windows の配置変更前後で元 package file と直接 link／CLI executable 全体が一致する。source 不要起動、native receipt、locked／offline 再利用、旧 output 保持の拒否に成功。最新 head の [CI](https://github.com/carimatics/lang/actions/runs/40821786599) は全 19 job（18 成功、意図した文書専用 skip）、[debugger 実行](https://github.com/carimatics/lang/actions/runs/40821786532) は 3/3 成功した。PR #15 を merge し main を同期。見積追加なしで A06 の最終 3 pt を消化し、G2／G3 の終了条件を満たす。G4–G9 は未完了。
+**次: M4-B02 — 既存 lossless CST による package fmt／check（doing、再見積 3 pt）。** B01 実装 `b150762` は重点 36 件、fmt、警告なし全 Clippy、全 local baseline（161 suite／2,405 test）、doc、fuzz-bin check、独立 Python TAR 検査に成功した。両 host CI は一貫した tooling branch の merge 条件として残す。formatter の task list を見直し、既存 CST formatter を使い、明示 source-snapshot guard、保持 parent capability、file 単位 atomic 置換を追加する。code 前に B02 を 2 から 3 pt に再見積し、純追加 +1、累計 +11 とする。別に B01 の最終 3 pt を消化し、delivery や gate は追加しない。G4–G9 は未完了。
 
 A04 source `cf6cf5c` は fmt、全 Clippy／doc、checked opt-level 1 全 test（**158 suite／2,384 成功／0 失敗**）、重点 75 test に成功。最終 head `75a2041` は [全 CI](https://github.com/carimatics/lang/actions/runs/40810065213)（全 19 job、18 成功、意図した文書専用 skip）と [debugger 実行](https://github.com/carimatics/lang/actions/runs/40810065278)（3/3）に成功した。[PR #13](https://github.com/carimatics/lang/pull/13) は `58527c2` として merge、main を fast-forward して clean・同期済み、ahead／behind 0/0。workspace branch 作成と現在の PR／upstream は上記に記録した。既存の user 変更はなかった。
 
@@ -60,8 +60,8 @@ A01 入力修正は Unix の nonblocking open と開いた handle の metadata �
 | M4-A05W | done | 0 | M4-A04 | G2,G3 | 固定 workspace catalogue／schema 2 整合性と、実 sibling build／run／test 実行 | `183d393` |
 | M4-A05 | done | 0 | M4-A05W | G2,G3 | workspace member 選択と、両 supported target の完全一致 target condition lock | `fc032f5` |
 | M4-A06 | done | 0 | M4-A05 | G2,G3 | 配置変更した locked package から native executable を二度 build、両 host で固定 input digest 比較 | `d66c764` |
-| M4-B01 | doing | 3 | M4-A04 | G4 | 決定的 package source list／archive と逸脱／変更 input の拒否 | — |
-| M4-B02 | todo | 2 | M4-A04 | G4 | package fmt／check が CST comment を保持し、不正／古い edit を拒否 | — |
+| M4-B01 | done | 0 | M4-A04 | G4 | 決定的 package source list／archive と逸脱／変更 input の拒否 | `b150762` |
+| M4-B02 | doing | 3 | M4-A04 | G4 | package fmt／check が CST comment を保持し、不正／古い edit を拒否 | — |
 | M4-B03 | todo | 3 | M4-B02 | G4 | lint rule 採択、安定 code、package lint pass／fail／JSON fixture | — |
 | M4-B04 | todo | 3 | M4-B03 | G4 | 解決済み link、source 位置、失敗時 output 保護を持つ package API doc 生成 | — |
 | M4-C01 | todo | 3 | M4-A05 | G5,G6 | editor symbol／snapshot／edit 契約を採択し、実 package dependency を navigate | — |
@@ -97,9 +97,9 @@ A01 入力修正は Unix の nonblocking open と開いた handle の metadata �
 
 | Baseline remaining | Net added/re-estimated | Retired on completion | Remaining |
 | ---: | ---: | ---: | ---: |
-| 103 pt | +10 pt | −28 pt | 85 pt |
+| 103 pt | +11 pt | −31 pt | 83 pt |
 
-**103 + 10 − 28 = 85 pt**
+**103 + 11 − 31 = 83 pt**
 
 名前空間の前提監査、2026-10-29 JST: 既存 `ModuleGraph::root()` は常に `ModuleId(0)`。path provider だけでは依存ごとの package-root 名前空間や共有 dependency identity の安全な再利用を提供できない。元の A02 を、許可 graph（新規 A02R、3 pt）と名前空間／source 実行の統合（task list を見直した A02、残り 3 pt）へ分割する。純追加 +3 pt、全 37 delivery。A01 と A02R は前提二つとなるため、水平基盤を増やす前に A02 で次の source 実行 fixture を示す。この監査による gate 完了や延期はない。
 
@@ -108,6 +108,8 @@ snapshot lifecycle 監査、2026-10-29 JST: Windows CI は dependency fixture �
 CLI 成果監査、2026-10-29 JST、実装前: 採択した transaction profile で実行可能な成果二つが明確になった。新規 A04B（3 pt）は scaffold／既存 file 互換、全 profile の build／run、不変 generation 公開を、42 を返す実 dependency で示す。A04 は残る test-entry 選択、複数 profile の戻り値検査、構造化した失敗／span fixture を見直して 3 pt とする。公開処理や共有 engine 作業を元の見積に隠さず、元の複合 CLI 成果を縦の delivery に分割する。純追加 +3 pt、累計 +8 pt、全 39 delivery。これと別に、修正 source の両 host CI が API 成果を検証した A03 の最終 2 pt を消化する。CLI 二行は同じ一貫した command 実装 branch とし、lock wire API を review 済み依存とする。独立 local API baseline／PR lifecycle は source を固定した checkout で継続する。gate 完了や延期はない。
 
 ## Delivery note と roadmap review
+
+B01 実行 checkpoint、2026-10-29 15:03 JST、現在 worktree: archive 5/5、既存 command 18/18、manifest 7/7、consistency 6/6 に成功し、全 Clippy は警告なし。信頼した展開後に元 lock で実 sibling の run／test を replay した。独立した Python 標準 `tarfile` reader でも通常 file、固定 uid／gid／mtime／mode／owner metadata、descriptor schema 1 を確認した。root／fuzz Cargo lock は tar 0.4.46／filetime を Cargo が生成し、fuzz-bin check も成功。production source を固定した全 test（161 suite／2,405 成功／0 失敗）と doc が成功した。残る条件は code 証拠と両 host の最新 head CI／PR lifecycle。B01 は doing に保ち、見積追加はない。
 
 A06 Windows 修正、2026-10-29 JST: head `fd11166` の [Windows native job](https://github.com/carimatics/lang/actions/runs/40820496903/job/123271717757) で実 native fixture が失敗。移動後 locked replay は `build.json` の変更を検出し、output を保持して拒否した。RFC 0020 で修正前に MSVC `/Brepro` の明示指定を採択し、cache replay 前に native package file／直接 link digest を比較して PE timestamp を記録する。timestamp／linker metadata は修正後の Windows test 成功まで仮説。重点 local 検査／全 baseline と最新 head CI を再実行する。A06 は review 済み 3 pt の doing に保ち、delivery 完了や新見積を主張しない。
 

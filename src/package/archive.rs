@@ -52,13 +52,13 @@ fn normal(path: &Path) -> Option<PathBuf> {
     }
     Some(result)
 }
-fn canonical_directories(graph: &Graph) -> Result<(), Diagnostic> {
+pub(super) fn canonical_directories(graph: &Graph) -> Result<(), Diagnostic> {
     let inputs = graph.inputs()?;
     for scope in inputs.scopes.values() {
         if let Some(path) = scope.aliases.keys().next() {
             return Err(invalid(
                 path,
-                "archive profile does not admit directory aliases",
+                "source tooling requires canonical directories",
             ));
         }
     }
@@ -67,7 +67,7 @@ fn canonical_directories(graph: &Graph) -> Result<(), Diagnostic> {
             if normal(&entry.path) != normal(&entry.target) {
                 return Err(invalid(
                     &entry.path,
-                    "archive entry/test directory must be canonical",
+                    "source entry/test directory must be canonical",
                 ));
             }
         }
@@ -77,7 +77,7 @@ fn canonical_directories(graph: &Graph) -> Result<(), Diagnostic> {
             if normal(Path::new(member.path())) != normal(member.root()) {
                 return Err(invalid(
                     Path::new(member.path()),
-                    "archive member directory must be canonical",
+                    "source member directory must be canonical",
                 ));
             }
         }
@@ -92,7 +92,7 @@ fn canonical_directories(graph: &Graph) -> Result<(), Diagnostic> {
             if normal(&declared) != normal(target) {
                 return Err(invalid(
                     &declared,
-                    "archive dependency directory must be canonical",
+                    "source dependency directory must be canonical",
                 ));
             }
         }

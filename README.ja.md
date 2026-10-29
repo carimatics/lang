@@ -91,9 +91,13 @@ source構文・native language ABI・private SDK/package formatは実験段階�
 - [RFC 0033: Component C v1の互換性と移行（stabilized）](docs/ja/rfcs/0033-component-v1-compatibility.md)
 - [RFC 0034: パッケージワークスペースと CLI 診断（accepted）](docs/ja/rfcs/0034-package-workspaces-and-cli-diagnostics.md)
 - [RFC 0035: 決定的な source package snapshot（accepted）](docs/ja/rfcs/0035-source-package-snapshots.md)
+- [RFC 0036: 検証付き package formatting（accepted）](docs/ja/rfcs/0036-checked-package-formatting.md)
+- [RFC 0037: package lint 診断（accepted）](docs/ja/rfcs/0037-package-lint-diagnostics.md)
 - [コントリビューションガイド](CONTRIBUTING.ja.md)
 
 ## 開発
+
+`cargo run -- fmt --manifest-path target/my_app/Lang.json --check` は既存 CST formatter の要変更 file を無書込みで報告します。`--check` を省くと、選択 dependency／test を含め検証済みの source を file 単位で置換します。元 comment／span と permission を保持し、stale／不正 input は公開前に拒否します。source 変更後の古い lock は stale に保ち、通常 build／run で再生成します。file 単位公開の境界は [RFC 0036](docs/ja/rfcs/0036-checked-package-formatting.md) を参照してください。
 
 `cargo run -- package --manifest-path target/my_app/Lang.json --list` は予定する固定 source snapshot を無書込みで一覧表示します。`--list` を省くと、元 manifest／source byte、`Lang.lock`、version 付き descriptor の決定的な非圧縮 TAR を公開します。`--locked --offline` は完全一致 replay を検証します。profile 1 は directory alias を拒否し、信頼しない archive の展開や registry 公開は行いません。[RFC 0035](docs/ja/rfcs/0035-source-package-snapshots.md) を参照してください。
 

@@ -2,6 +2,7 @@
 pub mod archive;
 pub mod cli;
 pub mod command;
+pub mod format;
 pub mod graph;
 pub mod lock;
 pub mod manifest;

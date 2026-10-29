@@ -91,9 +91,13 @@ The rationale and unresolved tradeoffs are documented in [the architecture basel
 - [RFC 0033: Component C v1 compatibility and migration (stabilized)](docs/rfcs/0033-component-v1-compatibility.md)
 - [RFC 0034: Package workspaces and CLI diagnostics (accepted)](docs/rfcs/0034-package-workspaces-and-cli-diagnostics.md)
 - [RFC 0035: Deterministic source package snapshots (accepted)](docs/rfcs/0035-source-package-snapshots.md)
+- [RFC 0036: Checked package formatting (accepted)](docs/rfcs/0036-checked-package-formatting.md)
+- [RFC 0037: Package lint diagnostics (accepted)](docs/rfcs/0037-package-lint-diagnostics.md)
 - [Contribution guide](CONTRIBUTING.md)
 
 ## Development
+
+`cargo run -- fmt --manifest-path target/my_app/Lang.json --check` reports files needing the existing CST formatter without edits. Omit `--check` to apply validated per-file source replacements, including selected dependencies/tests. Original comments/spans and permissions are retained; stale or invalid input refuses before publication. Source changes leave the old lock stale; regenerate it through an ordinary build/run. See [RFC 0036](docs/rfcs/0036-checked-package-formatting.md) for the per-file publication boundary.
 
 `cargo run -- package --manifest-path target/my_app/Lang.json --list` lists the planned frozen source snapshot without writing output. Omit `--list` to publish an uncompressed deterministic TAR with original manifests/source bytes, `Lang.lock` and a versioned descriptor. `--locked --offline` verifies exact replay. Profile 1 refuses directory aliases; it does not extract untrusted archives or publish to a registry. See [RFC 0035](docs/rfcs/0035-source-package-snapshots.md).
 

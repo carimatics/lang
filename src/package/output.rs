@@ -127,6 +127,9 @@ impl Prepared {
     }
 }
 impl Output {
+    pub(super) fn directory(&self) -> &Dir {
+        &self.directory
+    }
     fn admit_slot(&self, path: &Path) -> Result<(), Diagnostic> {
         let mut options = OpenOptions::new();
         options.read(true);
