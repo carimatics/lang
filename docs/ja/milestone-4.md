@@ -8,7 +8,7 @@
 
 **24 done · 1 doing · 16 todo · 48 remaining pt**
 
-D03 の最終実行 checkpoint、2026-10-30 01:49 JST: source `9c8f783` の production native probe は macOS 15／26 に成功したが、Windows は initialized 前の 30 秒待ちで timeout。独立 LLVM probe は Windows も成功する。DLL 実一覧は python3.dll import を示し、minor 番号付きだけの検出漏れを修正して Python 3.12 を child に明示し、起動段階 trace を追加した。9c8f783 の local fmt／警告エラー Clippy／167 suite・2,469 test／doc と、URI・0 始まり・空白 path・不変 source・権限外／最大行番号拒否の実 probe は成功済み。残る条件は Windows production timeout の原因修正と最新両 host CI。D03 は残 3 pt、G7 は未完了。
+D03 の最終実行 checkpoint、2026-10-30 02:09 JST: source `4a6c734` の Windows trace は source compile を約9 msで完了し、SDK snapshot 検証／link 中に client の30秒を超えた。native launch 準備だけを既存 link 試験と同じ180秒に分け、通常 DAP 応答30秒と全 assertion は維持する。Windows tool path の同一 URI 正規化試験を追加し、local native URI／0始まり／空白path／不変source／拒否後BP／step／終了0が成功。最終 Rust fmt／警告エラー Clippy／167 suite・2,469 test が成功し、macOS CI 2/2も成功。残る条件は準備待ち分離後の Windows production 実行と最新両 host CI。D03 は残3 pt、G7は未完了。
 
 **次: M4-D03 — 両 tier-1 host の native debugger launch と source breakpoint（doing、3 pt）。** D03R は `99a20de` で完了し、追加なしで最終 2 pt を消化。追加 +13、消化 68、41 delivery の残り 48 pt。D04 実混在 stack と D05 lifecycle 監査は引き続き必要。
 

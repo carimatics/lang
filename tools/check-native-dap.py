@@ -183,8 +183,8 @@ def refused(command, arguments):
         receive(deadline)
     assert responses.pop(sequence)["success"] is False
 
-def event(name):
-    deadline = time.monotonic()+30
+def event(name, timeout=30):
+    deadline = time.monotonic()+timeout
     while True:
         if name == "initialized":
             failures = [r for r in responses.values() if not r["success"]]
@@ -207,8 +207,14 @@ try:
         launch_args = {"program": str(EXE), "cwd": str(ROOT), "stopOnEntry": False,
             "sourceMap": [[".",str(ROOT)]]}
     original_source = SOURCE.read_text(encoding="utf-8")
+    preparation_started = time.monotonic()
     launch = send("launch", launch_args)
-    event("initialized")
+    # Production launch additionally verifies/copies the complete SDK and
+    # invokes rustc. Give preparation the existing link-test budget; ordinary
+    # debugger requests/events retain their 30-second response deadline.
+    event("initialized", timeout=180 if args.adapter == "lang" else 30)
+    print(json.dumps({"checkpoint": "native-dap-prepared",
+        "milliseconds": round((time.monotonic()-preparation_started)*1000)}), flush=True)
     if args.adapter == "lang":
         capabilities = event("capabilities")
         assert capabilities["body"]["capabilities"]["supportsEvaluateForHovers"] is False
