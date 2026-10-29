@@ -95,6 +95,8 @@ The rationale and unresolved tradeoffs are documented in [the architecture basel
 - [RFC 0037: Package lint diagnostics (accepted)](docs/rfcs/0037-package-lint-diagnostics.md)
 - [Contribution guide](CONTRIBUTING.md)
 
+`cargo run -- lint --manifest-path target/my_app/Lang.json --deny-warnings --message-format json` checks the selected package and declared tests without executing guest code or writing lock/artifacts. `LNT0001` reports unread bindings; `_`-prefixed names suppress that rule. Existing warnings retain their codes. Omit `--deny-warnings` to keep warnings non-failing. See [RFC 0037](docs/rfcs/0037-package-lint-diagnostics.md).
+
 ## Development
 
 `cargo run -- fmt --manifest-path target/my_app/Lang.json --check` reports files needing the existing CST formatter without edits. Omit `--check` to apply validated per-file source replacements, including selected dependencies/tests. Original comments/spans and permissions are retained; stale or invalid input refuses before publication. Source changes leave the old lock stale; regenerate it through an ordinary build/run. See [RFC 0036](docs/rfcs/0036-checked-package-formatting.md) for the per-file publication boundary.

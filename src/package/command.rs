@@ -3,7 +3,7 @@ use super::{Diagnostic, manifest};
 use std::io::{self, Write};
 use std::{collections::BTreeSet, ffi::OsString, path::PathBuf};
 
-pub const USAGE: &str = "usage: lang new [--name NAME] [--message-format human|json] DIR\n       lang build [--manifest-path FILE] [--package NAME] [--target TRIPLE] [--native --sdk DIR] [--locked] [--offline] [--message-format human|json]\n       lang run [--manifest-path FILE] [--package NAME] [--target TRIPLE] [--locked] [--offline] [--message-format human|json] [--fuel N] [--service-work N] [--host-calls N] [--frames N] [--cells N]\n       lang test [--manifest-path FILE] [--package NAME] [--target TRIPLE] [--locked] [--offline] [--message-format human|json] [--fuel N] [--service-work N] [--host-calls N] [--frames N] [--cells N]\n       lang package [--list] [--manifest-path FILE] [--package NAME] [--target TRIPLE] [--locked] [--offline] [--message-format human|json]\n       lang fmt [--check] [--manifest-path FILE] [--package NAME] [--target TRIPLE] [--locked] [--offline] [--message-format human|json]\n";
+pub const USAGE: &str = "usage: lang new [--name NAME] [--message-format human|json] DIR\n       lang build [--manifest-path FILE] [--package NAME] [--target TRIPLE] [--native --sdk DIR] [--locked] [--offline] [--message-format human|json]\n       lang run [--manifest-path FILE] [--package NAME] [--target TRIPLE] [--locked] [--offline] [--message-format human|json] [--fuel N] [--service-work N] [--host-calls N] [--frames N] [--cells N]\n       lang test [--manifest-path FILE] [--package NAME] [--target TRIPLE] [--locked] [--offline] [--message-format human|json] [--fuel N] [--service-work N] [--host-calls N] [--frames N] [--cells N]\n       lang package [--list] [--manifest-path FILE] [--package NAME] [--target TRIPLE] [--locked] [--offline] [--message-format human|json]\n       lang fmt [--check] [--manifest-path FILE] [--package NAME] [--target TRIPLE] [--locked] [--offline] [--message-format human|json]\n       lang lint [--deny-warnings] [--manifest-path FILE] [--package NAME] [--target TRIPLE] [--locked] [--offline] [--message-format human|json]\n";
 
 #[derive(Clone, Copy, Default)]
 pub struct ExecutionOptions {
@@ -27,6 +27,7 @@ pub enum Action {
     Test,
     Archive,
     Format,
+    Lint,
 }
 pub enum Command {
     Help,
@@ -44,6 +45,7 @@ pub struct Request {
     pub native_sdk: Option<PathBuf>,
     pub list: bool,
     pub check: bool,
+    pub deny_warnings: bool,
     pub target: String,
     pub locked: bool,
     pub offline: bool,
@@ -72,7 +74,7 @@ pub fn selected(args: &[OsString]) -> bool {
     if first == "package" {
         return args.get(1).is_none_or(|a| a != "check-manifest");
     }
-    if first == "new" || first == "build" || first == "test" || first == "fmt" {
+    if first == "new" || first == "build" || first == "test" || first == "fmt" || first == "lint" {
         return true;
     }
     if first != "run" {
@@ -129,10 +131,14 @@ pub fn parse(args: &[OsString]) -> Result<Command, Diagnostic> {
         Action::Archive
     } else if first == "fmt" {
         Action::Format
+    } else if first == "lint" {
+        Action::Lint
     } else if new {
         Action::Build
     } else {
-        return Err(usage("expected new, build, run, test, package or fmt"));
+        return Err(usage(
+            "expected new, build, run, test, package, fmt or lint",
+        ));
     };
     let (mut directory, mut name) = (None, None);
     let mut native = false;
@@ -143,6 +149,7 @@ pub fn parse(args: &[OsString]) -> Result<Command, Diagnostic> {
         native_sdk: None,
         list: false,
         check: false,
+        deny_warnings: false,
         target: lang_codegen_clif::Triple::host().to_string(),
         locked: false,
         offline: false,
@@ -176,6 +183,10 @@ pub fn parse(args: &[OsString]) -> Result<Command, Diagnostic> {
         }
         if !new && action == Action::Format && flag == "--check" {
             request.check = true;
+            continue;
+        }
+        if !new && action == Action::Lint && flag == "--deny-warnings" {
+            request.deny_warnings = true;
             continue;
         }
         if !new && matches!(flag, "--locked" | "--offline") {
@@ -645,6 +656,19 @@ pub fn run(
             ),
         )?;
         return Ok(0);
+    }
+    if request.action == Action::Lint {
+        let report = match super::lint::Report::capture(
+            &prepared.graph,
+            crate::frontend::CompileLimits::default(),
+        ) {
+            Ok(report) => report,
+            Err(d) => return fail(stderr, format, d),
+        };
+        for d in report.diagnostics() {
+            emit(stderr, format, d)?;
+        }
+        return Ok(u8::from(report.failed(request.deny_warnings)));
     }
     if request.action == Action::Test {
         return run_tests(&request, &prepared, stderr, &mut evaluate);

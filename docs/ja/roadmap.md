@@ -18,7 +18,7 @@ M2は完了済みです。18/18ゲート、過去のゲート重み113/113です
 
 ## M3完了後の作業
 
-M3 は完了済みです。M4 の [作業ボード](milestone-4.md) は 40 delivery、**11 done · 1 doing · 28 todo · 83 remaining pt** です。source `d66c764` が両 host の native package 再現性、全 CI 19 job（18 成功、意図した文書専用 skip）、debugger 全 3 環境、全 local baseline（160 suite／2,400 test）に成功しました。G1–G3 を検証済みで、package／fmt／lint／doc、editor、DAP、profiling、installer gate はすべて維持します。B01 source `b150762` は決定的 source listing／archive を実装し、全 local baseline（161 suite／2,405 test）に成功しました。B02 source formatting は書込み境界を監査して 2→3 pt に再見積し、doing です。純追加は累計 +11 pt、完了で 31 pt を消化し、**103 + 11 − 31 = 83**。完了済み M2／M3 履歴を保ち、M5 は将来作業です。
+M3 は完了済みです。M4 の [作業ボード](milestone-4.md) は 40 delivery、**12 done · 1 doing · 27 todo · 80 remaining pt** です。source `d66c764` が両 host の native package 再現性、全 CI 19 job（18 成功、意図した文書専用 skip）、debugger 全 3 環境、全 local baseline（160 suite／2,400 test）に成功しました。G1–G3 を検証済みで、package／fmt／lint／doc、editor、DAP、profiling、installer gate はすべて維持します。B01 source `b150762` は決定的 source listing／archive を実装し、全 local baseline（161 suite／2,405 test）に成功しました。B02 source `5010d45` は検証付き整形を実装し、全 baseline（162 suite／2,412 test）が成功。B03 lint は RFC 0037 と review 済み 3 pt で doing です。純追加は累計 +11 pt、完了で 34 pt を消化し、**103 + 11 − 34 = 80**。完了済み M2／M3 履歴を保ち、M5 は将来作業です。
 
 PR #9–#15 は merge 済みです。native PR #15 は `a454e6d` として merge、local main を fast-forward し origin/main と ahead／behind 0/0 を確認しました。現在の `codex/m4-package-tooling` はその main から作成し、agent 所有の checkpoint 文書編集二つを引き継ぎました。PR base は `carimatics/lang:main`、upstream は `origin/codex/m4-package-tooling`、[PR #16](https://github.com/carimatics/lang/pull/16) です。現在の証拠と残る条件は board に記録しています。
 

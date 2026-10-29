@@ -6,11 +6,11 @@
 
 Updated: 2026-10-29 JST. M4 is active. Goal start: clean `main`/`origin/main` at `af9988f`, remote `git@github.com:carimatics/lang.git`. PRs #9–#15 are merged. Native PR #15 merged as `a454e6d`; local/remote main tips match with 0/0 ahead/behind. Current `codex/m4-package-tooling` was created from that synchronized main; PR base `carimatics/lang:main`, upstream `origin/codex/m4-package-tooling`, [PR #16](https://github.com/carimatics/lang/pull/16). Two agent-owned bilingual native-checkpoint edits were carried into this branch; no preexisting user changes were present.
 
-**11 done · 1 doing · 28 todo · 83 remaining pt**
+**12 done · 1 doing · 27 todo · 80 remaining pt**
 
-B02 executable checkpoint, 2026-10-29 15:44 JST, current worktree: all 7 formatter fixtures and 29 archive/command/consistency regressions pass. Comment preservation, dependency/test formatting, unchanged old lock, stale manifest/source refusal, read-only files, staging-failure cleanup, retained-root rename and Unix permission preservation execute successfully. Fmt, warning-free full Clippy, source-frozen full tests (**162 suites / 2,412 passed / 0 failed**) and doc pass. The first baseline caught a README snapshot compiled before RFC 0037 was indexed; the corrected complete run passes without weakening validation. Remaining: code evidence and latest-head both-host CI on the coherent tooling branch. B02 remains doing at its reviewed 3 pt.
+B03 executable checkpoint, 2026-10-29 15:55 JST, current worktree: all 110 focused checks and the source-frozen full baseline (**163 suites / 2,419 passed / 0 failed**), fmt, warning-free full Clippy and doc pass. Six real CLI fixtures cover resolved unread bindings, original UTF-8 spans, existing warnings, dependency/test deduplication, denial, no-main/non-executing analysis and unchanged lock/artifact bytes; the library boundary accepts exactly 65,536 unique diagnostics and refuses one more. Formatter head `5010d45` exposed a Windows-only slash-string test assumption in core-1 job `123305175897`; compare native Path values with the same exact span requirement, including the new lint tests. The corrected 19 path/formatter/lint/consistency checks and Clippy pass locally. Remaining: code evidence and corrected latest-head both-host CI/PR lifecycle. B03 remains doing at 3 pt.
 
-**Next: M4-B02 — package fmt/check from the existing lossless CST (doing, re-estimated 3 pt).** B01 implementation `b150762` passes 36 focused checks, fmt, warning-free full Clippy, the full local baseline (161 suites / 2,405 tests), doc, fuzz-bin check and independent Python TAR inspection. Both-host CI remains the coherent tooling branch’s merge gate. After reviewing the formatter task list, retain the existing CST formatter but add explicit source-snapshot guards, retained parent capabilities and atomic per-file replacements. Re-estimate B02 from 2 to 3 pt before code: net +1, cumulative +11. Separately retire B01’s last 3 pt; no new delivery or gate is added. G4–G9 remain open.
+**Next: M4-B03 — accepted lint rules and package analysis (doing, 3 pt).** B02 source `5010d45` passes 36 focused checks, fmt, warning-free full Clippy, full baseline (162 suites / 2,412 tests) and doc. Retire its last 3 pt; additions remain +11, leaving 80 pt. RFC 0037 accepts unread bindings, existing `SRC0019`, deduplication, warning denial and non-executing/non-publishing analysis before implementation. The actual task list fits the existing 3 pt; no delivery or estimate is added. B01 head passed both-host CI; latest tooling-head CI/PR lifecycle continues. G4–G9 remain open.
 
 A04 source `cf6cf5c` passes fmt, full Clippy/doc and checked opt-level 1 full tests (**158 suites / 2,384 passed / 0 failed**), plus 75 focused tests. Final head `75a2041` passes [full CI](https://github.com/carimatics/lang/actions/runs/40810065213) (all 19 jobs: 18 success; intentional documentation-only skip) and [debugger execution](https://github.com/carimatics/lang/actions/runs/40810065278) (3/3). [PR #13](https://github.com/carimatics/lang/pull/13) merged as `58527c2`; main was fast-forwarded, clean and synchronized with 0/0 ahead/behind. Workspace branch creation and its current PR/upstream are recorded above. No preexisting user changes were present.
 
@@ -61,8 +61,8 @@ The [roadmap](roadmap.md#milestone-4-developer-toolchain) retains the original 6
 | M4-A05 | done | 0 | M4-A05W | G2,G3 | Workspace member selection and exact target-condition locks on both supported targets | `fc032f5` |
 | M4-A06 | done | 0 | M4-A05 | G2,G3 | Build a native executable twice from a relocated locked package; compare pinned-input digests on both hosts | `d66c764` |
 | M4-B01 | done | 0 | M4-A04 | G4 | Deterministic package source listing/archive and escaping/changed-input refusal | `b150762` |
-| M4-B02 | doing | 3 | M4-A04 | G4 | Package fmt/check preserves CST comments and refuses invalid/stale edits | — |
-| M4-B03 | todo | 3 | M4-B02 | G4 | Accepted lint rules, stable codes and package lint pass/fail/JSON fixture | — |
+| M4-B02 | done | 0 | M4-A04 | G4 | Package fmt/check preserves CST comments and refuses invalid/stale edits | `5010d45` |
+| M4-B03 | doing | 3 | M4-B02 | G4 | Accepted lint rules, stable codes and package lint pass/fail/JSON fixture | — |
 | M4-B04 | todo | 3 | M4-B03 | G4 | Generate package API documentation with resolved links, source locations and failure-safe output | — |
 | M4-C01 | todo | 3 | M4-A05 | G5,G6 | Accept editor symbol/snapshot/edit contract and navigate a real package dependency | — |
 | M4-C02 | todo | 3 | M4-C01 | G5 | Definition/references across package overlays, edits and watched-file refresh | — |
@@ -97,9 +97,9 @@ Activation audit, 2026-10-29 JST: 36 observable deliveries, baseline 103 pt. The
 
 | Baseline remaining | Net added/re-estimated | Retired on completion | Remaining |
 | ---: | ---: | ---: | ---: |
-| 103 pt | +11 pt | −31 pt | 83 pt |
+| 103 pt | +11 pt | −34 pt | 80 pt |
 
-**103 + 11 − 31 = 83 pt**
+**103 + 11 − 34 = 80 pt**
 
 Namespace prerequisite audit, 2026-10-29 JST: the existing `ModuleGraph::root()` is always `ModuleId(0)`. A path provider alone cannot give each dependency its own package-root namespace or safely reuse a shared dependency identity. Split the original A02 outcome into an authorized graph (new A02R, 3 pt) and namespace/source execution integration (A02, remaining 3 pt after reviewing its task list). Net addition: +3 pt; 37 deliveries total. A01 and A02R are two prerequisites, so A02 must supply the next source execution fixture before further horizontal scaffolding. No gate is completed or deferred by this audit.
 
@@ -108,6 +108,8 @@ Snapshot lifecycle audit, 2026-10-29 JST: Windows CI executes the dependency fix
 CLI outcome audit, 2026-10-29 JST, before implementation: the accepted transaction profile exposes two executable outcomes. A04B (new, 3 pt) covers scaffold/existing-file compatibility, whole-profile build/run and immutable generation publication with a real dependency returning 42. A04 retains 3 pt after reviewing its remaining test-entry selection, multi-profile result checks and structured failure/span fixtures. Split the original combined CLI outcome into these vertical deliveries rather than hiding publication or shared-engine work inside the original estimate. Net addition +3 pt, cumulative +8 pt; 39 deliveries. Separately, retire A03's last 2 pt after corrected-source both-host CI proves its API outcome. Both CLI rows belong to one coherent command implementation branch; the lock wire API is its reviewed dependency. The independent local API baseline/PR lifecycle continues in its frozen checkout. No gate is completed or deferred.
 
 ## Delivery notes and roadmap review
+
+B02 executable checkpoint, 2026-10-29 15:44 JST, current worktree: all 7 formatter fixtures and 29 archive/command/consistency regressions pass. Comment preservation, dependency/test formatting, unchanged old lock, stale manifest/source refusal, read-only files, staging-failure cleanup, retained-root rename and Unix permission preservation execute successfully. Fmt, warning-free full Clippy, source-frozen full tests (**162 suites / 2,412 passed / 0 failed**) and doc pass. The first baseline caught a README snapshot compiled before RFC 0037 was indexed; the corrected complete run passes without weakening validation. Remaining: code evidence and latest-head both-host CI on the coherent tooling branch. B02 remains doing at its reviewed 3 pt.
 
 B01 executable checkpoint, 2026-10-29 15:03 JST, current worktree: archive 5/5, existing command 18/18, manifest 7/7 and consistency 6/6 pass; full Clippy is warning-free. Trusted extraction replays the real sibling run/test with the original lock. Python's independent standard `tarfile` reader confirms ordinary files, fixed uid/gid/mtime/mode/owner metadata and descriptor schema 1. Root/fuzz Cargo locks were generated by Cargo for tar 0.4.46/filetime; fuzz-bin check passes. Full tests (161 suites / 2,405 passed / 0 failed) and doc pass with production source frozen. Remaining: code evidence and both-host latest-head CI/PR lifecycle. B01 remains doing; no extra estimates are added.
 

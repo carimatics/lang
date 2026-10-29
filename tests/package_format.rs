@@ -100,7 +100,9 @@ fn cst_plan_preserves_comments_without_mutating_source_and_refuses_invalid_input
         error
             .diagnostics()
             .iter()
-            .all(|d| d.path.as_deref() == Some("src/main.lang") && d.span.is_some())
+            .all(|d| d.path.as_deref().map(std::path::Path::new)
+                == Some(std::path::Path::new("src/main.lang"))
+                && d.span.is_some())
     );
 }
 fn success(output: Output) -> Output {

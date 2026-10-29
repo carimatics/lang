@@ -95,6 +95,8 @@ source構文・native language ABI・private SDK/package formatは実験段階�
 - [RFC 0037: package lint 診断（accepted）](docs/ja/rfcs/0037-package-lint-diagnostics.md)
 - [コントリビューションガイド](CONTRIBUTING.ja.md)
 
+`cargo run -- lint --manifest-path target/my_app/Lang.json --deny-warnings --message-format json` は guest code を実行せず、lock／artifact を書かずに選択 package と宣言 test を検査します。`LNT0001` は未読 binding を報告し、`_` で始まる名前はこの rule を抑制します。既存 warning は code を保持します。`--deny-warnings` を省くと warning は失敗にしません。[RFC 0037](docs/ja/rfcs/0037-package-lint-diagnostics.md) を参照してください。
+
 ## 開発
 
 `cargo run -- fmt --manifest-path target/my_app/Lang.json --check` は既存 CST formatter の要変更 file を無書込みで報告します。`--check` を省くと、選択 dependency／test を含め検証済みの source を file 単位で置換します。元 comment／span と permission を保持し、stale／不正 input は公開前に拒否します。source 変更後の古い lock は stale に保ち、通常 build／run で再生成します。file 単位公開の境界は [RFC 0036](docs/ja/rfcs/0036-checked-package-formatting.md) を参照してください。
