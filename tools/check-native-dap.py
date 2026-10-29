@@ -16,11 +16,20 @@ args = parser.parse_args()
 SDK = args.sdk.resolve()
 ROOT = args.output.resolve()
 WINDOWS = platform.system() == "Windows"
+debugger_environment = None
 if WINDOWS:
     adapter = Path(os.environ.get("ProgramFiles", r"C:\Program Files")) / "LLVM" / "bin" / "lldb-dap.exe"
     if not adapter.is_file():
         raise RuntimeError(f"required native DAP adapter is unavailable: {adapter}")
     debugger = [str(adapter)]
+    runtime = os.environ.get("LLDB_PYTHON_RUNTIME")
+    if runtime:
+        home = Path(runtime).resolve().parent
+        if not (home / "python310.dll").is_file():
+            raise RuntimeError("LLVM 20 requires an x64 Python 3.10 runtime containing python310.dll")
+        debugger_environment = os.environ.copy()
+        debugger_environment["PYTHONHOME"] = str(home)
+        debugger_environment["PATH"] = str(home) + os.pathsep + debugger_environment.get("PATH", "")
 else:
     debugger = ["xcrun", "lldb-dap"]
 ROOT.mkdir(parents=True, exist_ok=False)
@@ -59,7 +68,8 @@ assert ordinary.returncode == 0 and ordinary.stdout.strip() == "42", ordinary
 print(json.dumps({"checkpoint": "ordinary-native", "result": ordinary.stdout.strip()}), flush=True)
 
 process = subprocess.Popen(debugger, stdin=subprocess.PIPE,
-                           stdout=subprocess.PIPE, stderr=subprocess.PIPE, cwd=ROOT)
+                           stdout=subprocess.PIPE, stderr=subprocess.PIPE, cwd=ROOT,
+                           env=debugger_environment)
 messages = queue.Queue(128)
 errors = bytearray()
 

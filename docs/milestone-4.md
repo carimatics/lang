@@ -4,13 +4,13 @@
 
 [日本語版](ja/milestone-4.md)
 
-Updated: 2026-10-29 JST. M4 is active. Goal start: clean main/origin/main `af9988f`, remote `git@github.com:carimatics/lang.git`. PRs #9–#18 are merged. Editor PR #18 final head `5cdc422` passes CI `40864753941` (18 success, intentional documentation-only skip) and debugger `40864753946` (3/3), merged as `0a15fb5`; local main/origin/main refs match with 0/0 ahead/behind. Current `codex/m4-debug-adapter` was created from clean, upstream-synchronized `codex/m4-editor-checked-edits` head `5cdc422` for the coherent D01–D05 outcome. No preexisting user changes; upstream `origin/codex/m4-debug-adapter`, [draft PR #19](https://github.com/carimatics/lang/pull/19) against main. D01 head `8421298` passes CI `40874260252` (18 success, intentional documentation-only skip) and debugger `40874260229` (3/3); D02 head `ced8e56` is pushed; CI `40879596677` (18 success, intentional documentation-only skip) and debugger `40879596614` (3/3) succeed. No merge is claimed. Its initially recorded base `carimatics/lang:codex/m4-editor-checked-edits` is now `carimatics/lang:main` because #18 merged. Current DAP work was preserved during base synchronization.
+Updated: 2026-10-30 JST. M4 is active. Goal start: clean main/origin/main `af9988f`, remote `git@github.com:carimatics/lang.git`. PRs #9–#18 are merged. Editor PR #18 final head `5cdc422` passes CI `40864753941` (18 success, intentional documentation-only skip) and debugger `40864753946` (3/3), merged as `0a15fb5`; local main/origin/main refs match with 0/0 ahead/behind. Current `codex/m4-debug-adapter` was created from clean, upstream-synchronized `codex/m4-editor-checked-edits` head `5cdc422` for the coherent D01–D05 outcome. No preexisting user changes; upstream `origin/codex/m4-debug-adapter`, [draft PR #19](https://github.com/carimatics/lang/pull/19) against main. D01 head `8421298` passes CI `40874260252` (18 success, intentional documentation-only skip) and debugger `40874260229` (3/3); D02 head `ced8e56` is pushed; CI `40879596677` (18 success, intentional documentation-only skip) and debugger `40879596614` (3/3) succeed. No merge is claimed. Its initially recorded base `carimatics/lang:codex/m4-editor-checked-edits` is now `carimatics/lang:main` because #18 merged. Current DAP work was preserved during base synchronization.
 
-**23 done · 1 doing · 16 todo · 48 remaining pt**
+**23 done · 1 doing · 17 todo · 49 remaining pt**
 
-D03 last executable checkpoint, 2026-10-29 23:24 JST: an actual matching-SDK native Copy executable returns 42 ordinarily. Sandboxed DAP launch reports Resume timed out; authorized execution outside the sandbox hits source line 2, retains its caller at line 5, steps and exits with code 0. The bounded independent CI client `tools/check-native-dap.py` also succeeds on local macOS; the same execution probe is being added to Windows and both macOS runners. D02 logs prove Windows LLDB 20.1.8 exists, but an actual Windows lldb-dap launch is unverified. D02 source `ced8e56` passes its full local baseline and both-host CI above. Remaining: integration into admitted native launch in lang dap, both-host evidence and full checks. D03 stays doing at 3 pt; G7 remains pending.
+D03R last executable checkpoint, 2026-10-30 00:03 JST: native DAP breakpoints/callers/steps/exit succeed on both macOS CI hosts. Windows ordinary native execution returns 42, but lldb-dap exits before initialize with 0xc0000135; actual PE imports require python310.dll. Remaining: configure matching x64 Python 3.10 and prove the same Windows breakpoint fixture. D03 private debug-image preparation compiles; lang dap integration and full checks remain. D03R is the sole doing row; G7 stays pending.
 
-**Next: M4-D03 — native debugger launch and source breakpoints on both tier-1 hosts (doing, 3 pt).** Retire D02’s last 3 pt: additions +11, retired 66, remaining 48 pt. D03 scope review retains 3 pt for a matching-SDK/receipt trusted target, real native source-breakpoint/stack control, bounded protocol/source authority and both-host execution evidence. First run the smallest lldb-dap executable experiment on macOS; verify Windows tool availability before choosing a shared backend. Expose a new prerequisite if that experiment requires one. D04 actual mixed stacks and D05 lifecycle audit remain required; D02 both-host CI succeeds in draft PR #19.
+**Next: M4-D03R — configure the Windows LLVM Python runtime and prove native DAP breakpoints (doing, 1 pt).** Expose the newly proved prerequisite before implementation. Additions +12, retired 66, remaining 49 pt across 41 deliveries. D03 retains 3 pt after reviewing SDK snapshot/source authority/adapter integration and both-host evidence. D04 actual mixed stacks and D05 lifecycle audit remain required. D02 `ced8e56` passes both-host CI/debugger.
 
 A04 source `cf6cf5c` passes fmt, full Clippy/doc and checked opt-level 1 full tests (**158 suites / 2,384 passed / 0 failed**), plus 75 focused tests. Final head `75a2041` passes [full CI](https://github.com/carimatics/lang/actions/runs/40810065213) (all 19 jobs: 18 success; intentional documentation-only skip) and [debugger execution](https://github.com/carimatics/lang/actions/runs/40810065278) (3/3). [PR #13](https://github.com/carimatics/lang/pull/13) merged as `58527c2`; main was fast-forwarded, clean and synchronized with 0/0 ahead/behind. Workspace branch creation and its current PR/upstream are recorded above. No preexisting user changes were present.
 
@@ -73,7 +73,8 @@ The [roadmap](roadmap.md#milestone-4-developer-toolchain) retains the original 6
 | M4-C07 | done | 0 | M4-C04,M4-C06 | G5,G6 | End-to-end editor package fixture plus protocol/resource/refusal coverage | 6d16e93 |
 | M4-D01 | done | 0 | M4-A06 | G7 | Accept DAP launch/control/stack/source contract and stop at a VM source breakpoint | `8421298` |
 | M4-D02 | done | 0 | M4-D01 | G7 | VM stepping, frames, locals and evaluation with pause/authority limits | `ced8e56` |
-| M4-D03 | doing | 3 | M4-D02 | G7 | Native debugger launch and source breakpoints on both tier-1 hosts | — |
+| M4-D03R | doing | 1 | M4-D02 | G7 | Configure the matching Windows LLVM Python runtime and prove native DAP breakpoints | — |
+| M4-D03 | todo | 3 | M4-D03R | G7 | Native debugger launch and source breakpoints on both tier-1 hosts | — |
 | M4-D04 | todo | 3 | M4-D03 | G7 | Mixed native/VM stack fixture preserves call order, spans and failure cleanup | — |
 | M4-D05 | todo | 3 | M4-D04 | G7 | DAP disconnect/restart/cancel/malformed-input and both-host session evidence | — |
 | M4-E01 | todo | 3 | M4-A06 | G8 | Accept profile/trace schema and report bounded compiler phase costs | — |
@@ -97,9 +98,9 @@ Activation audit, 2026-10-29 JST: 36 observable deliveries, baseline 103 pt. The
 
 | Baseline remaining | Net added/re-estimated | Retired on completion | Remaining |
 | ---: | ---: | ---: | ---: |
-| 103 pt | +11 pt | −66 pt | 48 pt |
+| 103 pt | +12 pt | −66 pt | 49 pt |
 
-**103 + 11 − 66 = 48 pt**
+**103 + 12 − 66 = 49 pt**
 
 Namespace prerequisite audit, 2026-10-29 JST: the existing `ModuleGraph::root()` is always `ModuleId(0)`. A path provider alone cannot give each dependency its own package-root namespace or safely reuse a shared dependency identity. Split the original A02 outcome into an authorized graph (new A02R, 3 pt) and namespace/source execution integration (A02, remaining 3 pt after reviewing its task list). Net addition: +3 pt; 37 deliveries total. A01 and A02R are two prerequisites, so A02 must supply the next source execution fixture before further horizontal scaffolding. No gate is completed or deferred by this audit.
 
@@ -153,3 +154,5 @@ Both-host closure, 2026-10-29 JST: source `6d16e93`, final head `5cdc422`, full 
 - Interoperability/execution: `tests/support/lsp_client.rs` independently consumes Content-Length frames and UTF-16 edits with deadlines and atomic version checks. The actual stdio package journey applies both actions and multi-file rename, closes/reopens a dependency, recovers watched metadata and runs client-saved source returning 42. Existing standalone protocol/framing fixtures remain enabled.
 
 This finite audit does not claim arbitrary-client atomicity, external-writer exclusion, performance benchmarks or fuzz coverage. The latest-head both-host CI and PR lifecycle above close G5/G6.
+
+Windows runtime prerequisite audit, 2026-10-30 JST: LLVM 20.1.8 lldb-dap.exe exists but exits with 0xc0000135; liblldb.dll imports require python310.dll. Add D03R (1 pt) for the matching x64 Python 3.10 runtime and actual Windows breakpoint fixture. Review D03’s remaining SDK snapshot/source authority/adapter integration and retain 3 pt; move doing to D03R. Net addition +1, 41 deliveries, 103 +12 −66 =49 pt. No gate closure is claimed.

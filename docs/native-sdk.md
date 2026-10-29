@@ -67,6 +67,8 @@ The optional second argument of `startup/component-producer.rs OUTPUT [HEADER]` 
 
 The M4 native DAP experiment debug-links a Copy executable from the exact matching SDK and verifies actual source breakpoints, callers, stepping and normal exit. Run `python tools/check-native-dap.py --sdk SDK --output FRESH-DIRECTORY` with a fresh output directory. macOS uses Xcode’s `lldb-dap`; Windows uses `lldb-dap.exe` from the LLVM installation. Debugger launch on macOS needs appropriate OS/sandbox execution authorization. Current successful execution evidence is local macOS; Windows execution is being checked in CI. Native mode in `lang dap` is under implementation.
 
+The Windows runner’s LLVM 20.1.8 needs `python310.dll`. Set the experiment client’s `LLDB_PYTHON_RUNTIME` to a matching x64 Python 3.10 executable to configure PATH/PYTHONHOME only for its debugger child. CI obtains that runtime through the commit-pinned official [setup-python action](https://github.com/actions/setup-python/blob/ece7cb06caefa5fff74198d8649806c4678c61a1/action.yml), keeping the ordinary job interpreter unchanged. This living action documentation provides no publication/update date; verified 2026-10-30 JST.
+
 The official [LLDB DAP documentation](https://lldb.llvm.org/use/lldbdap.html) describes obtaining the tool and launch configuration. Publication/update date is not provided; verified 2026-10-29 JST.
 
 ## Sources

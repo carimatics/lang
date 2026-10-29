@@ -67,6 +67,8 @@ SDKのRust facade `component_embedding::gateway`はmode 2、`module_bind_native`
 
 M4 の native DAP 実験は、厳密に対応する SDK から debug link した Copy executable で、実 source breakpoint、caller、step、正常終了を検証します。新規 output directory を指定して `python tools/check-native-dap.py --sdk SDK --output FRESH-DIRECTORY` を実行します。macOS は Xcode の `lldb-dap`、Windows は LLVM installation の `lldb-dap.exe` を使います。macOS の debugger 起動には適切な OS／sandbox の実行許可が必要です。現時点の実行成功根拠は local macOS で、Windows 実行は CI 確認中です。`lang dap` の native mode は実装中です。
 
+Windows runner の LLVM 20.1.8 は `python310.dll` を必要とする。実験 client の `LLDB_PYTHON_RUNTIME` に対応する x64 Python 3.10 executable を指定すると、その debugger child だけの `PATH`／`PYTHONHOME` を設定する。CI は commit を固定した公式 [setup-python action](https://github.com/actions/setup-python/blob/ece7cb06caefa5fff74198d8649806c4678c61a1/action.yml) で runtime を用意し、通常 job interpreter は変更しない。この living action 文書に公開／更新日の記載はなく、2026-10-30 JST 確認。
+
 公式 [LLDB DAP 文書](https://lldb.llvm.org/use/lldbdap.html) は tool 入手方法と起動設定を記載しています。公開／更新日の記載はなく、2026-10-29 JST 確認。
 
 ## Sources

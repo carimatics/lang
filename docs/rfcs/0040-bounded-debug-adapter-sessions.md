@@ -7,7 +7,7 @@
 - Status: accepted
 - Authors: project maintainers with Codex
 - Created: 2026-10-29
-- Last updated: 2026-10-29
+- Last updated: 2026-10-30
 - Tracking issue: M4-D01–D05
 - Supersedes: none
 - Superseded by: none
@@ -75,6 +75,16 @@ Launch captures immutable source/semantic/portable state before execution. Do no
 - Native AOT: explicit `mode: native` grants trusted execution of the selected compiled package through the matching SDK/receipt and an OS debugger. D03 must prove real source breakpoints on macOS and Windows. Existing ordinary Copy native execution remains its trusted unmetered profile; VM instruction budgets are not attributed to it.
 - Mixed stacks: D04 must execute a real trusted native↔VM boundary and preserve actual frame/call-site order in one stopped invocation. Compose proven live descriptors/boundary identities with physical frames; never concatenate unrelated runs or guess from symbol text. Native backend/tool selection and bridge mechanics require executable evidence before advertisement.
 - Optional JIT registration and broader ownership/task/source-variable profiles are separate capabilities; no silent VM fallback supplies a requested native session. Existing component/C execution behavior is unchanged.
+
+### Native launch elaboration (2026-10-29 JST)
+
+Actual DLL imports identify the required Windows LLVM 20.1.8 runtime. The host may select a matching x64 Python 3.10 executable through LLDB_PYTHON_RUNTIME, applying PATH/PYTHONHOME only to the debugger child. Source/protocol inputs cannot select runtime executables or debugger commands.
+
+Explicit native launch takes the same root/manifest selection plus an absolute `sdk` directory. Compile the captured admitted Copy program into a private native package, validate its existing package manifest/SDK snapshots and exact Rust release/commit/host, then debug-link a private executable and dSYM/PDB. Retain code/object/sidecar owners until the debugger exits. This is temporary host state using existing formats, not a new persistent artifact schema. Ordinary link-native publication and reproducible outputs remain unchanged.
+
+Actual source breakpoints/callers/stepping/normal exit succeed with Xcode lldb-dap on macOS; Windows has LLVM 20.1.8 lldb-dap.exe. Advertise this backend after both-host execution validation. Forward only admitted source breakpoints/threads/stacks/stepping/continue/disconnect; no shell/debugger commands, arbitrary attach or memory writes. Source responses always use captured bytes; physical native frames do not publish source locations outside admission. Initial native scopes/variables/evaluate are unavailable, with a capability update disabling hover evaluation on native launch.
+
+Accept this elaboration under RFC 0001 experimental delegation because it reuses existing validated snapshots and SDK/ABI boundaries while making private debug-file ownership explicit. Actual Windows execution/tool dependencies and live mixed-stack correspondence remain unverified conditions for D03/D04 gate evidence.
 
 ## ABI and compatibility
 
