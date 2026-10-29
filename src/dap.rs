@@ -1,10 +1,11 @@
 //! Bounded, source-snapshot DAP host for retained VM execution (RFC 0040).
+mod inspect;
 mod target;
 
 use crate::lsp::{uri, wire};
 use serde_json::{Value, json};
 use std::{io, sync::mpsc, time::Duration};
-use target::{Event, Target};
+use target::{Event, StepKind, Target};
 
 const WIRE: wire::Limits = wire::Limits {
     header_bytes: 8192,
@@ -114,7 +115,9 @@ impl Server {
                 uri,
             };
             self.initialized = true;
-            return Ok(json!({"supportsConfigurationDoneRequest":true}));
+            return Ok(
+                json!({"supportsConfigurationDoneRequest":true,"supportsEvaluateForHovers":true}),
+            );
         }
         if !self.initialized {
             return Err("initialize is required".into());
@@ -143,9 +146,23 @@ impl Server {
                 target.resume()?;
                 Ok(json!({"allThreadsContinued":true}))
             }
+            "stepIn" | "next" | "stepOut" => {
+                target.step(
+                    args,
+                    match command {
+                        "stepIn" => StepKind::Into,
+                        "next" => StepKind::Over,
+                        _ => StepKind::Out,
+                    },
+                )?;
+                Ok(json!({}))
+            }
             "threads" => Ok(json!({"threads":target.threads()})),
             "stackTrace" => target.stack(args, self.coordinates),
             "source" => target.source(args),
+            "scopes" => target.scopes(args),
+            "variables" => target.variables(args),
+            "evaluate" => target.evaluate(args),
             _ => Err("unsupported DAP command".into()),
         }
     }
@@ -154,8 +171,8 @@ impl Server {
             return vec![];
         };
         match event {
-            Event::Paused { entry, .. } => vec![self.event("stopped", json!({
-                "reason":if entry {"entry"} else {"breakpoint"},"threadId":1,"allThreadsStopped":true}))],
+            Event::Paused { reason, .. } => vec![self.event("stopped", json!({
+                "reason":reason.name(),"threadId":1,"allThreadsStopped":true}))],
             Event::Exited { value, fuel } => vec![
                 self.event("output", json!({"category":"console","output":format!("{value}\n"),"data":{"fuel":fuel}})),
                 self.event("exited", json!({"exitCode":0})),

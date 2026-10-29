@@ -1,4 +1,7 @@
+use super::inspect::{self, Preview, Query};
 use super::{Coordinates, uri};
+use lang_semantics::program_lowering::DebugInfo;
+mod inspection;
 use crate::{
     frontend,
     package::editor::{Limits, workspace::Config},
@@ -69,8 +72,58 @@ impl Source {
 
 struct Run {
     breakpoints: BTreeSet<Key>,
-    entry: bool,
+    stop: Stop,
     skip: Option<DebugPoint>,
+}
+enum Command {
+    Run(Run),
+    Inspect {
+        frame: usize,
+        query: Query,
+        reply: mpsc::SyncSender<Result<Vec<Preview>, String>>,
+    },
+}
+#[derive(Clone)]
+enum Reference {
+    Locals(usize),
+    Value(usize, Vec<String>),
+}
+impl Reference {
+    fn bytes(&self) -> usize {
+        match self {
+            Self::Locals(_) => size_of::<Self>(),
+            Self::Value(_, path) => path.iter().fold(size_of::<Self>(), |n, s| {
+                n.saturating_add(size_of::<String>())
+                    .saturating_add(s.len())
+            }),
+        }
+    }
+}
+#[derive(Clone, Copy)]
+pub(super) enum StepKind {
+    Into,
+    Over,
+    Out,
+}
+enum Stop {
+    Continue,
+    Entry,
+    Step(StepKind, DebugPoint),
+}
+#[derive(Clone, Copy)]
+pub(super) enum StopReason {
+    Entry,
+    Breakpoint,
+    Step,
+}
+impl StopReason {
+    pub fn name(self) -> &'static str {
+        match self {
+            Self::Entry => "entry",
+            Self::Breakpoint => "breakpoint",
+            Self::Step => "step",
+        }
+    }
 }
 struct Point {
     key: Key,
@@ -81,7 +134,7 @@ pub(super) enum Event {
     Paused {
         point: DebugPoint,
         stack: Vec<StackFrame>,
-        entry: bool,
+        reason: StopReason,
     },
     Exited {
         value: i64,
@@ -102,7 +155,7 @@ pub(super) struct Target {
     functions: Vec<String>,
     points: Vec<Point>,
     breakpoints: BTreeMap<usize, BTreeSet<Key>>,
-    sender: Option<mpsc::SyncSender<Run>>,
+    sender: Option<mpsc::SyncSender<Command>>,
     receiver: mpsc::Receiver<Event>,
     interruption: Arc<InterruptionFlag>,
     worker: Option<JoinHandle<()>>,
@@ -111,6 +164,9 @@ pub(super) struct Target {
     point: Option<DebugPoint>,
     frames: Vec<(u32, StackFrame)>,
     next_reference: u32,
+    references: BTreeMap<u32, Reference>,
+    index_bytes: usize,
+    reference_bytes: usize,
 }
 impl Drop for Target {
     fn drop(&mut self) {
@@ -131,8 +187,9 @@ fn relative(path: &Path) -> bool {
 }
 fn worker(
     program: Program,
+    debug: DebugInfo,
     flag: Arc<InterruptionFlag>,
-    receive: mpsc::Receiver<Run>,
+    receive: mpsc::Receiver<Command>,
     send: mpsc::Sender<Event>,
     ready: mpsc::SyncSender<Result<(), String>>,
 ) {
@@ -153,21 +210,59 @@ fn worker(
     if ready.send(Ok(())).is_err() {
         return;
     }
-    while let Ok(run) = receive.recv() {
+    while let Ok(command) = receive.recv() {
+        let run = match command {
+            Command::Run(run) => run,
+            Command::Inspect {
+                frame,
+                query,
+                reply,
+            } => {
+                let _ = reply.send(inspect::query(&program, &debug, &session, frame, query));
+                continue;
+            }
+        };
         let mut first = true;
+        let mut reason = StopReason::Breakpoint;
         let event = session.resume_until(|point| {
             let initial = first;
             first = false;
             if initial && run.skip == Some(*point) {
                 return false;
             }
-            run.entry || run.breakpoints.contains(&key(point))
+            if run.breakpoints.contains(&key(point)) {
+                reason = StopReason::Breakpoint;
+                return true;
+            }
+            match run.stop {
+                Stop::Continue => false,
+                Stop::Entry => {
+                    reason = StopReason::Entry;
+                    true
+                }
+                Stop::Step(kind, base) => {
+                    let depth = match kind {
+                        StepKind::Into => true,
+                        StepKind::Over => point.depth <= base.depth,
+                        StepKind::Out => point.depth < base.depth,
+                    };
+                    if depth
+                        && point.span.is_some()
+                        && (point.span != base.span || point.depth != base.depth || *point == base)
+                    {
+                        reason = StopReason::Step;
+                        true
+                    } else {
+                        false
+                    }
+                }
+            }
         });
         let event = match event {
             Ok(DebugEvent::Paused(point)) => Event::Paused {
                 point,
                 stack: session.stack().collect(),
-                entry: run.entry,
+                reason,
             },
             Ok(DebugEvent::Exited(outcome)) => Event::Exited {
                 value: outcome.value.as_i64().unwrap_or_default(),
@@ -227,8 +322,9 @@ impl Target {
             .map_err(|_| "package has source errors")?;
         let typed = frontend::copy_executable(checked)
             .map_err(|_| "debugger requires the Copy source profile")?;
-        let program = frontend::compile_script(typed, &analysis.sources, Default::default())
-            .map_err(|_| "debug lowering failed")?;
+        let (program, debug) =
+            frontend::compile_script_debug(typed, &analysis.sources, Default::default())
+                .map_err(|_| "debug lowering failed")?;
         let unit = program.verified().unit();
         if unit.entry.is_none() || !unit.imports.is_empty() {
             return Err("debug target needs an entry and cannot acquire host imports".into());
@@ -240,7 +336,7 @@ impl Target {
         if unit.sources.len() > REFERENCES as usize {
             return Err("debug source reference limit exceeded".into());
         }
-        let mut bytes = 0usize;
+        let mut bytes = debug.bytes();
         let mut work = 0usize;
         let mut sources = Vec::new();
         for source in &unit.sources {
@@ -348,8 +444,9 @@ impl Target {
         let flag = interruption.clone();
         let worker = std::thread::Builder::new()
             .name("lang-dap-vm".into())
-            .spawn(move || worker(program, flag, commands, events, ready))
+            .spawn(move || worker(program, debug, flag, commands, events, ready))
             .map_err(|_| "cannot start debug worker")?;
+        let next_reference = sources.len() as u32 + 1;
         let target = Self {
             sources,
             functions,
@@ -363,7 +460,10 @@ impl Target {
             stop_on_entry,
             point: None,
             frames: vec![],
-            next_reference: 1,
+            next_reference,
+            references: BTreeMap::new(),
+            index_bytes: bytes,
+            reference_bytes: 0,
         };
         prepared
             .recv_timeout(std::time::Duration::from_secs(5))
@@ -383,18 +483,20 @@ impl Target {
             json!([{"id":1,"name":"Lang VM"}])
         }
     }
-    fn run(&mut self, entry: bool) -> Result<(), String> {
+    fn run(&mut self, stop: Stop) -> Result<(), String> {
         let run = Run {
             breakpoints: self.breakpoints.values().flatten().copied().collect(),
-            entry,
+            stop,
             skip: self.point,
         };
         self.sender
             .as_ref()
             .ok_or("debug worker unavailable")?
-            .try_send(run)
+            .try_send(Command::Run(run))
             .map_err(|_| "debug worker unavailable")?;
         self.frames.clear();
+        self.references.clear();
+        self.reference_bytes = 0;
         self.point = None;
         self.state = State::Running;
         Ok(())
@@ -403,13 +505,32 @@ impl Target {
         if self.state != State::Configuring {
             return Err("target already configured".into());
         }
-        self.run(self.stop_on_entry)
+        self.run(if self.stop_on_entry {
+            Stop::Entry
+        } else {
+            Stop::Continue
+        })
     }
     pub fn resume(&mut self) -> Result<(), String> {
         if self.state != State::Paused {
             return Err("target is not paused".into());
         }
-        self.run(false)
+        self.run(Stop::Continue)
+    }
+    pub fn step(&mut self, args: &Value, kind: StepKind) -> Result<(), String> {
+        self.thread(args)?;
+        if self.state != State::Paused {
+            return Err("target is not paused".into());
+        }
+        if args.get("targetId").is_some()
+            || args.get("granularity").is_some_and(|v| v != "statement")
+        {
+            return Err("unsupported step target or granularity".into());
+        }
+        self.run(Stop::Step(
+            kind,
+            self.point.ok_or("missing paused location")?,
+        ))
     }
     pub fn poll(&mut self) -> Option<Event> {
         let event = match self.receiver.try_recv() {
@@ -421,6 +542,8 @@ impl Target {
             Err(_) => return None,
         };
         self.frames.clear();
+        self.references.clear();
+        self.reference_bytes = 0;
         match &event {
             Event::Paused { point, stack, .. } => {
                 if self.next_reference.saturating_add(stack.len() as u32) > REFERENCES {

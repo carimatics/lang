@@ -61,6 +61,8 @@ frame は最内側を先にし、caller は進んだ PC ではなく child の�
 
 evaluate の初期範囲は証明済み可視 identifier／field と上限付き scalar／Copy preview。guest／host function call、値変更、capability 発行、未初期化 cell の公開を許さない。paused state は所有 thread に置き、adapter は上限付き owned snapshot／command を交換し、同期 component／owner session を thread 間移動しない。別の pause flag は実行 safe point で止められ、cancel は元 control／cleanup 経路を使う。
 
+VM 実装は検査済み lowering 環境を任意のメモリ内 sidecar に取得し、通常／debug lowering は同じ検証 MIR を生成する。初期化済み register の追跡は保持 debug frame だけで行い、caller の未返却 destination より前の停止 call 点を問い合わせる。scope／variable／evaluate query は元 worker で処理する。query ごとの上限は値 1,024 件、値ごとの copy cell 1,024、合計 copy cell 16,384、論理 preview text 1 MiB、visit 一千万回。評価 path は最大 32 component・4,096 bytes。source／frame／variable reference は target の reference 上限を共有し、生存 reference path も論理 debug index 32 MiB 上限に含める。拒否時に成功した variable list の一部を返さない。
+
 ### Protocol and lifecycle
 
 DAP の Content-Length／ASCII header／UTF-8 body と seq／type／command／request_seq envelope を使い、LSP method envelope は使わない。全応答を対応付け、adapter message 番号を単調増加させる。configuration／step／inspection／restart／cancel／native capability は実装分だけ広告し、未対応 request は上限付き unsuccessful response にする。D01 は initialize／launch／configuration／source breakpoint／threads／stack／source／continue／disconnect を提供し、後続 capability は fixture と共に追加する。

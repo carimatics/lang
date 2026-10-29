@@ -18,9 +18,9 @@ Public C v1 and existing generated clients follow stabilized RFC 0033. Source/na
 
 ## Work after M3
 
-M3 is complete. M4’s [live board](milestone-4.md) records **21 done · 1 doing · 18 todo · 54 remaining pt** across 40 deliveries. G1–G6 are verified, including editor final head `5cdc422` with both-host CI/debugger success and merged PR #18 (`0a15fb5`). D01 is validating retained VM source-breakpoint/stack/source execution through `lang dap`. Complete native/mixed debugging (G7), profiling (G8), signed installation (G9) and the final journeys/capability guide remain required.
+M3 is complete. M4’s [live board](milestone-4.md) records **22 done · 1 doing · 17 todo · 51 remaining pt** across 40 deliveries. G1–G6 are verified, including editor final head `5cdc422` with both-host CI/debugger success and merged PR #18 (`0a15fb5`). D01 source `8421298` implements retained VM source-breakpoint/stack/source execution through `lang dap`; D02 stepping/inspection is doing. Complete native/mixed debugging (G7), profiling (G8), signed installation (G9) and the final journeys/capability guide remain required.
 
-PRs #9–#18 are merged. Local main/origin/main refs match `0a15fb5` with 0/0 ahead/behind. Current `codex/m4-debug-adapter` was created from clean, upstream-synchronized `codex/m4-editor-checked-edits` head `5cdc422`; no preexisting user changes. Its recorded PR base transitioned to `carimatics/lang:main` after #18 merged. Upstream/PR are not yet created; the board records current evidence and remaining conditions.
+PRs #9–#18 are merged. Local main/origin/main refs match `0a15fb5` with 0/0 ahead/behind. Current `codex/m4-debug-adapter` was created from clean, upstream-synchronized `codex/m4-editor-checked-edits` head `5cdc422`; no preexisting user changes. Its recorded PR base transitioned to `carimatics/lang:main` after #18 merged. Upstream is `origin/codex/m4-debug-adapter`, [draft PR #19](https://github.com/carimatics/lang/pull/19); D01 both-host CI/debugger succeeds; the board records current evidence and remaining conditions.
 
 Do not expand the completed M2 board for maintenance or reviews. Record fixes in their scoped checklist, and keep code, documentation and validation in the same change. New language/ABI/format choices still require an explicit RFC decision; experimental delegation avoids a separate owner-approval wait.
 

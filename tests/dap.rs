@@ -132,6 +132,172 @@ fn dap_vm_breakpoints_retain_nested_stack_and_captured_source() {
     dap(&mut server, "disconnect", json!({}));
 }
 
+#[test]
+fn dap_source_steps_enter_skip_and_leave_the_original_guest_call() {
+    use serde_json::json;
+    let source =
+        "fn child(n:i64)->i64 {\n return n+1;\n}\nfn main()->i64 {\n return child(41);\n}\n";
+    let package = Package::new(source);
+    for enter in [true, false] {
+        let mut server = lang::dap::Server::default();
+        dap(&mut server, "initialize", json!({}));
+        dap(
+            &mut server,
+            "launch",
+            json!({"root":package.0,"manifestPath":"Lang.json","mode":"vm","stopOnEntry":true}),
+        );
+        dap(&mut server, "configurationDone", json!({}));
+        assert_eq!(events(&mut server)[0]["body"]["reason"], "entry");
+        let mut reached = false;
+        for _ in 0..16 {
+            dap(
+                &mut server,
+                if enter { "stepIn" } else { "next" },
+                json!({"threadId":1}),
+            );
+            let event = events(&mut server);
+            if event[0]["event"] == "output" {
+                assert!(!enter, "stepIn must enter child");
+                assert_eq!(event[0]["body"]["output"], "42\n");
+                reached = true;
+                break;
+            }
+            assert_eq!(event[0]["body"]["reason"], "step");
+            let stack = dap(&mut server, "stackTrace", json!({"threadId":1}));
+            let frames = stack["stackFrames"].as_array().unwrap();
+            if enter && frames.len() == 2 {
+                dap(&mut server, "stepOut", json!({"threadId":1}));
+                assert_eq!(events(&mut server)[0]["body"]["reason"], "step");
+                assert_eq!(
+                    dap(&mut server, "stackTrace", json!({"threadId":1}))["totalFrames"],
+                    1
+                );
+                dap(&mut server, "continue", json!({"threadId":1}));
+                assert_eq!(events(&mut server)[0]["body"]["output"], "42\n");
+                reached = true;
+                break;
+            }
+            if !enter {
+                assert_eq!(frames.len(), 1, "next must skip the child");
+            }
+        }
+        assert!(reached);
+        dap(&mut server, "disconnect", json!({}));
+    }
+}
+
+#[test]
+fn debug_lowering_matches_ordinary_mir_and_inspects_only_initialized_source_bindings() {
+    let source = "fn child(n:i64)->i64{let mut value:i64=n+1;return value;}fn main()->i64{let mut result:i64=child(41);return result;}";
+    let analysis = frontend::analyze_virtual(
+        SourceMap::new(),
+        Path::new("debug.lang"),
+        source.as_bytes(),
+        None,
+        CompileLimits::default(),
+        None,
+    );
+    let typed = frontend::copy_executable(analysis.result.as_ref().unwrap()).unwrap();
+    let ordinary =
+        frontend::compile_script(typed, &analysis.sources, CompileLimits::default()).unwrap();
+    let (program, debug) =
+        frontend::compile_script_debug(typed, &analysis.sources, CompileLimits::default()).unwrap();
+    assert_eq!(
+        program.verified(),
+        ordinary.verified(),
+        "debug metadata must not change portable instructions"
+    );
+    assert!(debug.bytes() > 0 && debug.bytes() <= 32 * 1024 * 1024);
+    let hosts = HostFunctionRegistry::new();
+    let bindings = HostBindings::new();
+    let expected = vm::execute_entry(&program, &hosts, &bindings, Control::default()).unwrap();
+    let mut session = DebugSession::entry(&program, &hosts, &bindings, Control::default()).unwrap();
+    assert!(session.frame_point(0).is_none());
+    assert!(
+        session
+            .inspect_register(0, lang_mir::unit::Register(0), 8)
+            .unwrap()
+            .is_none()
+    );
+    let mut seen = [false; 3];
+    let mut first = true;
+    let mut finished = false;
+    for _ in 0..1024 {
+        let mut skip = !first;
+        first = false;
+        match session
+            .resume_until(|_| !std::mem::take(&mut skip))
+            .unwrap()
+        {
+            DebugEvent::Exited(outcome) => {
+                assert_eq!(outcome, expected);
+                finished = true;
+                break;
+            }
+            DebugEvent::Paused(point) => {
+                for frame in 0..point.depth {
+                    let location = session.frame_point(frame).unwrap();
+                    if frame > 0 {
+                        let call = &program.verified().unit().functions
+                            [location.function.0 as usize]
+                            .blocks[location.block.0 as usize]
+                            .instructions[location.instruction];
+                        assert!(matches!(call.op, lang_mir::unit::Op::Call { .. }));
+                        assert!(
+                            session
+                                .inspect_register(frame, call.op.destination(), 8)
+                                .unwrap()
+                                .is_none(),
+                            "pending return cannot expose an initialized value"
+                        );
+                    }
+                    if let Some((locals, location)) =
+                        debug.location(location.function, location.block, location.instruction)
+                    {
+                        for binding in &location.bindings {
+                            let name = &locals[binding.local].name;
+                            let value = session
+                                .inspect_register(frame, binding.register, 8)
+                                .unwrap()
+                                .expect("lowering proves initialization");
+                            match name.as_str() {
+                                "n" => {
+                                    assert_eq!(value.as_i64(), Some(41));
+                                    seen[0] = true;
+                                }
+                                "value" => {
+                                    assert_eq!(value.as_i64(), Some(42));
+                                    seen[1] = true;
+                                }
+                                "result" => {
+                                    assert_eq!(frame, 0, "pending caller result is out of scope");
+                                    assert_eq!(value.as_i64(), Some(42));
+                                    seen[2] = true;
+                                }
+                                _ => panic!("unexpected binding"),
+                            }
+                            assert!(
+                                session
+                                    .inspect_register(frame, binding.register, 0)
+                                    .unwrap()
+                                    .is_none()
+                            );
+                        }
+                    }
+                }
+            }
+        }
+    }
+    assert!(finished && seen.into_iter().all(|b| b));
+    assert!(session.frame_point(0).is_none());
+    assert!(
+        session
+            .inspect_register(0, lang_mir::unit::Register(0), 8)
+            .unwrap()
+            .is_none()
+    );
+}
+
 fn compile(source: &str) -> Program {
     let analysis = frontend::analyze_virtual(
         SourceMap::new(),
@@ -143,6 +309,131 @@ fn compile(source: &str) -> Program {
     );
     let typed = frontend::copy_executable(analysis.result.as_ref().unwrap()).unwrap();
     frontend::compile_script(typed, &analysis.sources, CompileLimits::default()).unwrap()
+}
+
+#[test]
+fn dap_read_only_locals_fields_and_evaluation_are_scoped_to_one_live_pause() {
+    use serde_json::json;
+    let source = "struct Pair{number:i64,flag:bool}\nfn child(pair:Pair)->i64{\n let mut result:i64=pair.number;\n return result;\n}\nfn main()->i64{\n let mut pair:Pair=Pair{number:42,flag:true};\n let mut result:i64=child(pair);\n return result;\n}\n";
+    let package = Package::new(source);
+    let mut server = lang::dap::Server::default();
+    dap(&mut server, "initialize", json!({}));
+    dap(
+        &mut server,
+        "launch",
+        json!({"root":package.0,"manifestPath":"Lang.json","mode":"vm"}),
+    );
+    let path = package.0.join("main.lang");
+    dap(
+        &mut server,
+        "setBreakpoints",
+        json!({"source":{"path":path},"breakpoints":[{"line":4}]}),
+    );
+    let unavailable = server.handle(
+        json!({"seq":2,"type":"request","command":"evaluate","arguments":{"expression":"42"}}),
+    );
+    assert_eq!(unavailable[0]["success"], false);
+    dap(&mut server, "configurationDone", json!({}));
+    assert_eq!(events(&mut server)[0]["event"], "stopped");
+    let frames = dap(&mut server, "stackTrace", json!({"threadId":1}))["stackFrames"]
+        .as_array()
+        .unwrap()
+        .clone();
+    assert_eq!(frames.len(), 2);
+    let child = frames[0]["id"].clone();
+    let caller = frames[1]["id"].clone();
+    let scope =
+        dap(&mut server, "scopes", json!({"frameId":child}))["scopes"][0]["variablesReference"]
+            .clone();
+    let vars = dap(
+        &mut server,
+        "variables",
+        json!({"variablesReference":scope}),
+    );
+    let vars = vars["variables"].as_array().unwrap();
+    assert_eq!(vars.len(), 2);
+    assert_eq!(
+        vars.iter().find(|v| v["name"] == "result").unwrap()["value"],
+        "42"
+    );
+    let pair = vars.iter().find(|v| v["name"] == "pair").unwrap();
+    assert!(pair["variablesReference"].as_u64().unwrap() > 0);
+    let fields = dap(
+        &mut server,
+        "variables",
+        json!({"variablesReference":pair["variablesReference"]}),
+    );
+    assert_eq!(fields["variables"][0]["name"], "number");
+    assert_eq!(fields["variables"][0]["value"], "42");
+    assert_eq!(fields["variables"][1]["value"], "true");
+    assert_eq!(
+        dap(
+            &mut server,
+            "evaluate",
+            json!({"frameId":child,"expression":"pair.number","context":"hover"})
+        )["result"],
+        "42"
+    );
+    assert_eq!(
+        dap(
+            &mut server,
+            "evaluate",
+            json!({"frameId":child,"expression":"false"})
+        )["result"],
+        "false"
+    );
+    let caller_scope =
+        dap(&mut server, "scopes", json!({"frameId":caller}))["scopes"][0]["variablesReference"]
+            .clone();
+    let caller_vars = dap(
+        &mut server,
+        "variables",
+        json!({"variablesReference":caller_scope}),
+    );
+    assert_eq!(
+        caller_vars["variables"].as_array().unwrap().len(),
+        1,
+        "pending return value must not appear"
+    );
+    assert_eq!(caller_vars["variables"][0]["name"], "pair");
+    for (frame, expression) in [
+        (caller, "result"),
+        (child.clone(), "child(pair)"),
+        (child.clone(), "pair.number=0"),
+        (child.clone(), "pair.missing"),
+    ] {
+        let reply=server.handle(json!({"seq":3,"type":"request","command":"evaluate","arguments":{"frameId":frame,"expression":expression}}));
+        assert_eq!(reply[0]["success"], false, "{reply:?}");
+    }
+    dap(&mut server, "stepOut", json!({"threadId":1}));
+    let running=server.handle(json!({"seq":4,"type":"request","command":"variables","arguments":{"variablesReference":scope}}));
+    assert_eq!(running[0]["success"], false);
+    assert_eq!(events(&mut server)[0]["body"]["reason"], "step");
+    for (command, args) in [
+        ("variables", json!({"variablesReference":scope})),
+        ("scopes", json!({"frameId":child})),
+        ("evaluate", json!({"frameId":child,"expression":"result"})),
+    ] {
+        assert_eq!(
+            server.handle(json!({"seq":5,"type":"request","command":command,"arguments":args}))[0]
+                ["success"],
+            false
+        );
+    }
+    let fresh =
+        dap(&mut server, "stackTrace", json!({"threadId":1}))["stackFrames"][0]["id"].clone();
+    assert_ne!(fresh, child);
+    assert_eq!(
+        dap(
+            &mut server,
+            "evaluate",
+            json!({"frameId":fresh,"expression":"result"})
+        )["result"],
+        "42"
+    );
+    dap(&mut server, "continue", json!({"threadId":1}));
+    assert_eq!(events(&mut server)[0]["body"]["output"], "42\n");
+    dap(&mut server, "disconnect", json!({}));
 }
 
 struct DapClient {
@@ -282,7 +573,7 @@ impl Drop for DapClient {
 #[test]
 fn independent_stdio_dap_client_configures_before_execution_and_maps_utf16() {
     use serde_json::json;
-    let source = "/*😀*/fn main()->i64{return 42;}";
+    let source = "/*😀*/fn main()->i64{let mut value:i64=42;return value;}";
     let package = Package::new(source);
     let mut client = DapClient::new();
     client.request("initialize", json!({"adapterID":"lang"}));
@@ -305,11 +596,119 @@ fn independent_stdio_dap_client_configures_before_execution_and_maps_utf16() {
         client.request("source", json!({"sourceReference":reference}))["content"],
         source
     );
+    client.request("next", json!({"threadId":1}));
+    assert_eq!(client.receive()["body"]["reason"], "step");
+    let frame = client.request("stackTrace", json!({"threadId":1}))["stackFrames"][0]["id"].clone();
+    let scope =
+        client.request("scopes", json!({"frameId":frame}))["scopes"][0]["variablesReference"]
+            .clone();
+    let vars = client.request("variables", json!({"variablesReference":scope}));
+    assert_eq!(vars["variables"][0]["name"], "value");
+    assert_eq!(vars["variables"][0]["value"], "42");
+    assert_eq!(
+        client.request(
+            "evaluate",
+            json!({"frameId":frame,"expression":"value","context":"hover"})
+        )["result"],
+        "42"
+    );
     client.request("continue", json!({"threadId":1}));
     assert_eq!(client.receive()["body"]["output"], "42\n");
     assert_eq!(client.receive()["event"], "exited");
     assert_eq!(client.receive()["event"], "terminated");
     client.finish();
+}
+
+#[test]
+fn dap_locals_follow_loop_arguments_and_hide_completed_block_bindings() {
+    use serde_json::json;
+    let source = "fn main()->i64{\n let mut number:i64=0;\n while number<3{number=number+1;}\n if true{let mut temporary:i64=99;temporary=temporary+1;}\n return number;\n}\n";
+    let package = Package::new(source);
+    let mut server = lang::dap::Server::default();
+    dap(&mut server, "initialize", json!({}));
+    dap(
+        &mut server,
+        "launch",
+        json!({"root":package.0,"manifestPath":"Lang.json","mode":"vm"}),
+    );
+    dap(
+        &mut server,
+        "setBreakpoints",
+        json!({"source":{"path":package.0.join("main.lang")},"breakpoints":[{"line":5}]}),
+    );
+    dap(&mut server, "configurationDone", json!({}));
+    assert_eq!(events(&mut server)[0]["event"], "stopped");
+    let frame =
+        dap(&mut server, "stackTrace", json!({"threadId":1}))["stackFrames"][0]["id"].clone();
+    let scope =
+        dap(&mut server, "scopes", json!({"frameId":frame}))["scopes"][0]["variablesReference"]
+            .clone();
+    let values = dap(
+        &mut server,
+        "variables",
+        json!({"variablesReference":scope}),
+    );
+    assert_eq!(values["variables"].as_array().unwrap().len(), 1);
+    assert_eq!(values["variables"][0]["name"], "number");
+    assert_eq!(values["variables"][0]["value"], "3");
+    assert_eq!(
+        dap(
+            &mut server,
+            "evaluate",
+            json!({"frameId":frame,"expression":"number"})
+        )["result"],
+        "3"
+    );
+    dap(&mut server, "continue", json!({"threadId":1}));
+    assert_eq!(events(&mut server)[0]["body"]["output"], "3\n");
+    dap(&mut server, "disconnect", json!({}));
+}
+#[test]
+fn dap_enum_preview_reads_only_the_active_payload() {
+    use serde_json::json;
+    let source = "enum E{Some(i64),None}\nfn leaf(value:E)->i64{\n match value{E::Some(number)=>{return number;},E::None=>{return 0;},}\n}\nfn main()->i64{return leaf(E::Some(42));}";
+    let package = Package::new(source);
+    let mut server = lang::dap::Server::default();
+    dap(&mut server, "initialize", json!({}));
+    dap(
+        &mut server,
+        "launch",
+        json!({"root":package.0,"manifestPath":"Lang.json","mode":"vm"}),
+    );
+    dap(
+        &mut server,
+        "setBreakpoints",
+        json!({"source":{"path":package.0.join("main.lang")},"breakpoints":[{"line":3}]}),
+    );
+    dap(&mut server, "configurationDone", json!({}));
+    assert_eq!(events(&mut server)[0]["event"], "stopped");
+    let frame =
+        dap(&mut server, "stackTrace", json!({"threadId":1}))["stackFrames"][0]["id"].clone();
+    let value = dap(
+        &mut server,
+        "evaluate",
+        json!({"frameId":frame,"expression":"value"}),
+    );
+    assert!(value["result"].as_str().unwrap().contains("E::Some"));
+    assert_eq!(value["namedVariables"], 1);
+    let payload = dap(
+        &mut server,
+        "variables",
+        json!({"variablesReference":value["variablesReference"]}),
+    );
+    assert_eq!(payload["variables"][0]["name"], "0");
+    assert_eq!(payload["variables"][0]["value"], "42");
+    assert_eq!(
+        dap(
+            &mut server,
+            "evaluate",
+            json!({"frameId":frame,"expression":"value.0"})
+        )["result"],
+        "42"
+    );
+    dap(&mut server, "continue", json!({"threadId":1}));
+    assert_eq!(events(&mut server)[0]["body"]["output"], "42\n");
+    dap(&mut server, "disconnect", json!({}));
 }
 #[test]
 fn dap_refuses_invalid_envelopes_escaping_manifests_and_ungranted_imports() {

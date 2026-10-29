@@ -111,7 +111,9 @@ Read-only revision 1のdebug descriptorで、dispatch時にallocationせずowned
 
 この根拠ではsourceを残した手動のmatching-SDK debug linkを使っています。既定の`link-native`はdebugger sidecarを公開しません。Source variable location、論理continuation step、最適化後のstep、JIT debugger登録、VM/native混在stackは別作業です。
 
-[RFC 0040](rfcs/0040-bounded-debug-adapter-sessions.md) は上限付き stdio framing と許可済み不変 package snapshot を使う `lang dap` を追加します。Copy VM debugger は通常 interpreter を所有 worker に保持し、instruction の効果・課金前で停止して、元 control と caller span を保ちます。初期 source breakpoint、stack／source query、entry stop、continue、disconnect を実装し、inspection／step、native launch、混在 stack は M4 の進行中作業です。launch で host import は許可しません。
+[RFC 0040](rfcs/0040-bounded-debug-adapter-sessions.md) は上限付き stdio framing と許可済み不変 package snapshot を使う `lang dap` を追加します。Copy VM debugger は通常 interpreter を所有 worker に保持し、instruction の効果・課金前で停止して、元 control と caller span を保ちます。初期 source breakpoint、stack／source query、entry stop、continue、disconnect を実装し、native launch、混在 stack は M4 の進行中作業です。launch で host import は許可しません。
+
+VM adapter は source step-in／over／out と、上限付き read-only scope／variable／identifier・field・scalar 評価にも対応します。通常 lowering は検証 MIR や portable bytes を変更せず、target 非依存の local／register 環境を追加取得できます。初期化済み register の追跡は保持 debug frame だけで行い、caller は停止した call 点から検査します。query は元 worker で処理し、再開時に frame／variable reference を無効化します。実 native／混在 debug は引き続き必要です。
 
 [M2 source/Rust/C測定](benchmarks.md)は名前付きの不変revisionに結び付き、大きな性能差を示しています。測定完了の根拠であり、native同等性能や速度保証ではありません。今後の最適化判断にはこのworkloadを使い、過去のscalar microbenchmarkでsource programの費用を代用しません。
 

@@ -4,13 +4,13 @@
 
 [日本語版](ja/milestone-4.md)
 
-Updated: 2026-10-29 JST. M4 is active. Goal start: clean main/origin/main `af9988f`, remote `git@github.com:carimatics/lang.git`. PRs #9–#18 are merged. Editor PR #18 final head `5cdc422` passes CI `40864753941` (18 success, intentional documentation-only skip) and debugger `40864753946` (3/3), merged as `0a15fb5`; local main/origin/main refs match with 0/0 ahead/behind. Current `codex/m4-debug-adapter` was created from clean, upstream-synchronized `codex/m4-editor-checked-edits` head `5cdc422` for the coherent D01–D05 outcome. No preexisting user changes; upstream/PR not yet created. Its initially recorded base `carimatics/lang:codex/m4-editor-checked-edits` is now `carimatics/lang:main` because #18 merged. Current DAP work was preserved during base synchronization.
+Updated: 2026-10-29 JST. M4 is active. Goal start: clean main/origin/main `af9988f`, remote `git@github.com:carimatics/lang.git`. PRs #9–#18 are merged. Editor PR #18 final head `5cdc422` passes CI `40864753941` (18 success, intentional documentation-only skip) and debugger `40864753946` (3/3), merged as `0a15fb5`; local main/origin/main refs match with 0/0 ahead/behind. Current `codex/m4-debug-adapter` was created from clean, upstream-synchronized `codex/m4-editor-checked-edits` head `5cdc422` for the coherent D01–D05 outcome. No preexisting user changes; upstream `origin/codex/m4-debug-adapter`, [draft PR #19](https://github.com/carimatics/lang/pull/19) against main. D01 head `8421298` passes CI `40874260252` (18 success, intentional documentation-only skip) and debugger `40874260229` (3/3); no merge is claimed. Its initially recorded base `carimatics/lang:codex/m4-editor-checked-edits` is now `carimatics/lang:main` because #18 merged. Current DAP work was preserved during base synchronization.
 
-**21 done · 1 doing · 18 todo · 54 remaining pt**
+**22 done · 1 doing · 17 todo · 51 remaining pt**
 
-D01 executable checkpoint, 2026-10-29 21:32 JST: final candidate passes fmt, warning-free full Clippy, checked opt-level 1 full baseline (167 suites / 2,464 passed / 0 failed) and doc. Five debugger tests include independent stdio configuration/entry stop, actual package source breakpoints, nested original callers, retained UTF-16/CRLF source after disk mutation, cumulative usage/one original callback and interruption precedence. Invalid/oversized breakpoint replacements preserve the previous breakpoint; escaping manifests, unadmitted source, native mode and ungranted imports refuse. Local URI identity handles localhost/Windows disk prefixes without disk reads. Launch awaits worker preparation. Remaining: code commit/evidence and both-host CI; D01 stays doing at 3 pt until its code checkpoint is recorded. No estimates added; G7 remains pending.
+D02 last executable checkpoint, 2026-10-29 22:10 JST: fmt, warning-free full Clippy, checked opt-level 1 full baseline (167 suites / 2,469 passed / 0 failed) and doc pass. Ten focused debugger tests execute step-in/over/out, a MIR-identical lowering sidecar, initialized locals/record fields/active enum payloads, loop arguments and expired block bindings, pending-caller/stale-reference/effectful-expression refusal and independent stdio local evaluation. Cumulative reference-byte and response bounds are included in the verified source. Existing SRC0003 duplicate-name refusal is preserved; the fixture uses admitted block locals. Remaining: code commit/evidence and both-host CI. D02 stays doing at 3 pt with no added estimate. D01 source `8421298` passes both-host CI above; G7 remains pending.
 
-**Next: M4-D01 — accept the DAP launch/control/stack/source contract and stop at a VM source breakpoint (doing, 3 pt).** C07 source `6d16e93` passes 57 focused checks, fmt/Clippy/doc and the full baseline (166 suites / 2,459 tests), including independent stdio edits and actual client-saved execution returning 42. Retire its last 2 pt: additions +11, retired 60, remaining 54 pt. All C01–C07 implementation deliveries are done; G5/G6 are verified: final editor head `5cdc422` passes both-host CI/debugger and PR #18 merged as `0a15fb5`. D01 begins with the accepted-source contracts and smallest VM debugger experiment before broader adapter design; the coherent D01–D05 branch and its transition to main are recorded above. Keep its reviewed 3 pt; no estimates are added.
+**Next: M4-D02 — VM stepping, frames, locals and evaluation with pause/authority limits (doing, 3 pt).** D01 source `8421298` implements retained VM launch/configuration/source-breakpoint/stack/source/continue/disconnect and passes the local baseline above. Retire its last 3 pt: additions +11, retired 63, remaining 51 pt. D02 scope review retains 3 pt for source-step execution, an in-memory target-neutral lowering sidecar, initialized/live bounded read-only inspection and stale-pause/effectful-evaluation refusals. Start with an executable step fixture before broader inspection. D03–D05 and G7 remain open; both-host D01 CI succeeds in draft PR #19.
 
 A04 source `cf6cf5c` passes fmt, full Clippy/doc and checked opt-level 1 full tests (**158 suites / 2,384 passed / 0 failed**), plus 75 focused tests. Final head `75a2041` passes [full CI](https://github.com/carimatics/lang/actions/runs/40810065213) (all 19 jobs: 18 success; intentional documentation-only skip) and [debugger execution](https://github.com/carimatics/lang/actions/runs/40810065278) (3/3). [PR #13](https://github.com/carimatics/lang/pull/13) merged as `58527c2`; main was fast-forwarded, clean and synchronized with 0/0 ahead/behind. Workspace branch creation and its current PR/upstream are recorded above. No preexisting user changes were present.
 
@@ -71,8 +71,8 @@ The [roadmap](roadmap.md#milestone-4-developer-toolchain) retains the original 6
 | M4-C05 | done | 0 | M4-C02 | G6 | Prepare/rename across files with collision/privacy checks and versioned atomic edits | 3cd27e2 |
 | M4-C06 | done | 0 | M4-C05 | G6 | Accepted code actions produce checked fixes and reject stale/ambiguous edits | 503912f |
 | M4-C07 | done | 0 | M4-C04,M4-C06 | G5,G6 | End-to-end editor package fixture plus protocol/resource/refusal coverage | 6d16e93 |
-| M4-D01 | doing | 3 | M4-A06 | G7 | Accept DAP launch/control/stack/source contract and stop at a VM source breakpoint | — |
-| M4-D02 | todo | 3 | M4-D01 | G7 | VM stepping, frames, locals and evaluation with pause/authority limits | — |
+| M4-D01 | done | 0 | M4-A06 | G7 | Accept DAP launch/control/stack/source contract and stop at a VM source breakpoint | `8421298` |
+| M4-D02 | doing | 3 | M4-D01 | G7 | VM stepping, frames, locals and evaluation with pause/authority limits | — |
 | M4-D03 | todo | 3 | M4-D02 | G7 | Native debugger launch and source breakpoints on both tier-1 hosts | — |
 | M4-D04 | todo | 3 | M4-D03 | G7 | Mixed native/VM stack fixture preserves call order, spans and failure cleanup | — |
 | M4-D05 | todo | 3 | M4-D04 | G7 | DAP disconnect/restart/cancel/malformed-input and both-host session evidence | — |
@@ -97,9 +97,9 @@ Activation audit, 2026-10-29 JST: 36 observable deliveries, baseline 103 pt. The
 
 | Baseline remaining | Net added/re-estimated | Retired on completion | Remaining |
 | ---: | ---: | ---: | ---: |
-| 103 pt | +11 pt | −60 pt | 54 pt |
+| 103 pt | +11 pt | −63 pt | 51 pt |
 
-**103 + 11 − 60 = 54 pt**
+**103 + 11 − 63 = 51 pt**
 
 Namespace prerequisite audit, 2026-10-29 JST: the existing `ModuleGraph::root()` is always `ModuleId(0)`. A path provider alone cannot give each dependency its own package-root namespace or safely reuse a shared dependency identity. Split the original A02 outcome into an authorized graph (new A02R, 3 pt) and namespace/source execution integration (A02, remaining 3 pt after reviewing its task list). Net addition: +3 pt; 37 deliveries total. A01 and A02R are two prerequisites, so A02 must supply the next source execution fixture before further horizontal scaffolding. No gate is completed or deferred by this audit.
 

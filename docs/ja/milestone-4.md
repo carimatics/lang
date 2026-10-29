@@ -4,13 +4,13 @@
 
 [English](../milestone-4.md)
 
-更新: 2026-10-29 JST。M4 は active。Goal 開始は clean main／origin/main `af9988f`、remote `git@github.com:carimatics/lang.git`。PR #9–#18 は merge 済み。editor PR #18 最終 head `5cdc422` は CI `40864753941`（18 成功、意図した文書専用 skip）と debugger `40864753946`（3/3）に成功し、`0a15fb5` として merge。local main／origin/main ref は ahead／behind 0/0 で一致する。現在の `codex/m4-debug-adapter` は clean・upstream 同期済み `codex/m4-editor-checked-edits` head `5cdc422` から、一貫した D01–D05 用に作成した。既存 user 変更はなく、upstream／PR は未作成。初期記録 base `carimatics/lang:codex/m4-editor-checked-edits` は #18 merge により `carimatics/lang:main` へ変更した。base 同期中も DAP 作業を保持した。
+更新: 2026-10-29 JST。M4 は active。Goal 開始は clean main／origin/main `af9988f`、remote `git@github.com:carimatics/lang.git`。PR #9–#18 は merge 済み。editor PR #18 最終 head `5cdc422` は CI `40864753941`（18 成功、意図した文書専用 skip）と debugger `40864753946`（3/3）に成功し、`0a15fb5` として merge。local main／origin/main ref は ahead／behind 0/0 で一致する。現在の `codex/m4-debug-adapter` は clean・upstream 同期済み `codex/m4-editor-checked-edits` head `5cdc422` から、一貫した D01–D05 用に作成した。既存 user 変更はなく、upstream は `origin/codex/m4-debug-adapter`、main 宛 [draft PR #19](https://github.com/carimatics/lang/pull/19)。D01 head `8421298` は CI `40874260252`（18 成功、意図した文書専用 skip）と debugger `40874260229`（3/3）に成功し、merge は未実施。初期記録 base `carimatics/lang:codex/m4-editor-checked-edits` は #18 merge により `carimatics/lang:main` へ変更した。base 同期中も DAP 作業を保持した。
 
-**21 done · 1 doing · 18 todo · 54 remaining pt**
+**22 done · 1 doing · 17 todo · 51 remaining pt**
 
-D01 実行 checkpoint、2026-10-29 21:32 JST: 最終候補は fmt、警告なし全 Clippy、checked opt-level 1 全 baseline（167 suite／2,464 成功／0 失敗）、doc に成功。debugger 5 test は独立 stdio configuration／entry stop、実 package source breakpoint、入れ子の元 caller、disk 変更後の固定 UTF-16／CRLF source、累積 usage／元 callback 一回、interruption 優先を検証する。不正／過大 breakpoint 置換でも元設定を保持し、逸脱 manifest、未許可 source、native mode、未許可 import を拒否する。local URI identity は disk 再読込なしで localhost／Windows disk prefix に対応し、launch は worker 準備を待つ。残る条件は code commit／evidence と両 host CI。code checkpoint 記録までは D01 を 3 pt doing に保つ。見積追加はなく G7 は pending。
+D02 の最終実行 checkpoint、2026-10-29 22:10 JST: fmt、警告なし全 Clippy、checked opt-level 1 全 baseline（167 suite／2,469 成功／0 失敗）、doc に成功。重点 debugger 10 test は step-in／over／out、MIR 不変の lowering sidecar、初期化済み local／record field／enum active payload、loop 引数と終了 block の非公開、未返却 caller 結果・古い参照・効果付き式の拒否、独立 stdio local 評価を検証する。参照の累積 byte と応答上限も検証対象に含む。既存 SRC0003 の重複名拒否を維持し、有効な block-local fixture を使う。残る条件は code commit／evidence と両 host CI。D02 は 3 pt doing、見積追加なし。D01 source `8421298` は上記両 host CI に成功し、G7 は pending。
 
-**次: M4-D01 — DAP launch／control／stack／source 契約の採択と VM source breakpoint 停止（doing、3 pt）。** C07 source `6d16e93` は重点 57 件、fmt／Clippy／doc、全 baseline（166 suite／2,459 test）に成功し、独立 stdio edit と client 保存後に 42 を返す実行も検証した。最終 2 pt を消化し、追加 +11、消化 60、残り 54 pt。C01–C07 の実装 delivery は全て done で、editor 最終 head `5cdc422` が両 host CI／debugger に成功し、PR #18 は `0a15fb5` として merge したため G5／G6 は検証済み。D01 は既存 source 契約と最小 VM debugger 実験から始め、広い adapter 設計の前に実行する。一貫した D01–D05 branch と main への base 遷移は上記に記録した。review 済み 3 pt を保持し、見積追加はない。
+**次: M4-D02 — pause／authority 上限付き VM stepping、frame、local、evaluation（doing、3 pt）。** D01 source `8421298` は保持 VM launch／configuration／source-breakpoint／stack／source／continue／disconnect を実装し、上記 local baseline に成功した。最終 3 pt を消化し、追加 +11、消化 63、残り 51 pt。D02 の scope を再確認し、source-step 実行、メモリ内 target 非依存 lowering sidecar、初期化済み・生存中の上限付き read-only inspection、古い pause／効果付き evaluate の拒否に 3 pt を保持する。広い inspection の前に実行 step fixture を示す。D03–D05 と G7 は未完了で、D01 両 host CI は draft PR #19 で成功。
 
 A04 source `cf6cf5c` は fmt、全 Clippy／doc、checked opt-level 1 全 test（**158 suite／2,384 成功／0 失敗**）、重点 75 test に成功。最終 head `75a2041` は [全 CI](https://github.com/carimatics/lang/actions/runs/40810065213)（全 19 job、18 成功、意図した文書専用 skip）と [debugger 実行](https://github.com/carimatics/lang/actions/runs/40810065278)（3/3）に成功した。[PR #13](https://github.com/carimatics/lang/pull/13) は `58527c2` として merge、main を fast-forward して clean・同期済み、ahead／behind 0/0。workspace branch 作成と現在の PR／upstream は上記に記録した。既存の user 変更はなかった。
 
@@ -71,8 +71,8 @@ A01 入力修正は Unix の nonblocking open と開いた handle の metadata �
 | M4-C05 | done | 0 | M4-C02 | G6 | 衝突／privacy 検査と version 付き atomic edit を持つ複数 file prepare／rename | 3cd27e2 |
 | M4-C06 | done | 0 | M4-C05 | G6 | 採択 code action が検証済み fix を生成し stale／曖昧 edit を拒否 | 503912f |
 | M4-C07 | done | 0 | M4-C04,M4-C06 | G5,G6 | editor package の end-to-end fixture と protocol／resource／refusal coverage | 6d16e93 |
-| M4-D01 | doing | 3 | M4-A06 | G7 | DAP launch／control／stack／source 契約採択、VM source breakpoint で停止 | — |
-| M4-D02 | todo | 3 | M4-D01 | G7 | pause／authority 上限付き VM stepping、frame、local、evaluation | — |
+| M4-D01 | done | 0 | M4-A06 | G7 | DAP launch／control／stack／source 契約採択、VM source breakpoint で停止 | `8421298` |
+| M4-D02 | doing | 3 | M4-D01 | G7 | pause／authority 上限付き VM stepping、frame、local、evaluation | — |
 | M4-D03 | todo | 3 | M4-D02 | G7 | 両 tier-1 host で native debugger launch と source breakpoint | — |
 | M4-D04 | todo | 3 | M4-D03 | G7 | native／VM 混在 stack fixture で call 順、span、失敗 cleanup 保持 | — |
 | M4-D05 | todo | 3 | M4-D04 | G7 | DAP disconnect／restart／cancel／不正 input と両 host session 証拠 | — |
@@ -97,9 +97,9 @@ A01 入力修正は Unix の nonblocking open と開いた handle の metadata �
 
 | Baseline remaining | Net added/re-estimated | Retired on completion | Remaining |
 | ---: | ---: | ---: | ---: |
-| 103 pt | +11 pt | −60 pt | 54 pt |
+| 103 pt | +11 pt | −63 pt | 51 pt |
 
-**103 + 11 − 60 = 54 pt**
+**103 + 11 − 63 = 51 pt**
 
 名前空間の前提監査、2026-10-29 JST: 既存 `ModuleGraph::root()` は常に `ModuleId(0)`。path provider だけでは依存ごとの package-root 名前空間や共有 dependency identity の安全な再利用を提供できない。元の A02 を、許可 graph（新規 A02R、3 pt）と名前空間／source 実行の統合（task list を見直した A02、残り 3 pt）へ分割する。純追加 +3 pt、全 37 delivery。A01 と A02R は前提二つとなるため、水平基盤を増やす前に A02 で次の source 実行 fixture を示す。この監査による gate 完了や延期はない。
 

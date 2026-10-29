@@ -18,9 +18,9 @@ M2は完了済みです。18/18ゲート、過去のゲート重み113/113です
 
 ## M3完了後の作業
 
-M3 は完了済みです。M4 の [作業ボード](milestone-4.md) は 40 delivery、**21 done · 1 doing · 18 todo · 54 remaining pt**。editor 最終 head `5cdc422` の両 host CI／debugger 成功と PR #18 merge（`0a15fb5`）を含め G1–G6 を検証済みです。D01 は `lang dap` による保持 VM source-breakpoint／stack／source 実行を検証中です。native／混在 debug 全体（G7）、profiling（G8）、署名 installer（G9）、最終 journey／機能 guide は引き続き必要です。
+M3 は完了済みです。M4 の [作業ボード](milestone-4.md) は 40 delivery、**22 done · 1 doing · 17 todo · 51 remaining pt**。editor 最終 head `5cdc422` の両 host CI／debugger 成功と PR #18 merge（`0a15fb5`）を含め G1–G6 を検証済みです。D01 source `8421298` が `lang dap` の保持 VM source-breakpoint／stack／source 実行を実装し、D02 step／inspection が doing です。native／混在 debug 全体（G7）、profiling（G8）、署名 installer（G9）、最終 journey／機能 guide は引き続き必要です。
 
-PR #9–#18 は merge 済みです。local main／origin/main ref は `0a15fb5` で一致し、ahead／behind 0/0。現在の `codex/m4-debug-adapter` は clean・upstream 同期済み `codex/m4-editor-checked-edits` head `5cdc422` から作成し、既存 user 変更はありません。記録 PR base は #18 merge 後に `carimatics/lang:main` へ移行しました。upstream／PR は未作成で、現在の証拠と残る条件は board に記録しています。
+PR #9–#18 は merge 済みです。local main／origin/main ref は `0a15fb5` で一致し、ahead／behind 0/0。現在の `codex/m4-debug-adapter` は clean・upstream 同期済み `codex/m4-editor-checked-edits` head `5cdc422` から作成し、既存 user 変更はありません。記録 PR base は #18 merge 後に `carimatics/lang:main` へ移行しました。upstream は `origin/codex/m4-debug-adapter`、[draft PR #19](https://github.com/carimatics/lang/pull/19) の D01 両 host CI／debugger は成功し、現在の証拠と残る条件は board に記録しています。
 
 保守やレビューのために完了済みM2ボードを拡大しません。修正はscopeを限定したchecklistに記録し、code、文書、検証を同じ変更にまとめます。新たな言語／ABI／形式の選択には引き続き明示的RFC判断が必要ですが、実験段階の委任により個別owner承認待ちは不要です。
 
