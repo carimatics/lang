@@ -1,8 +1,11 @@
 //! Host-only package metadata; parsing never follows dependency paths.
 pub mod cli;
+pub mod command;
 pub mod graph;
 pub mod lock;
 pub mod manifest;
+mod output;
+mod scaffold;
 pub mod source;
 
 use serde::Serialize;

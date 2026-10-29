@@ -178,7 +178,7 @@ impl Drop for Stage {
         let _ = fs::remove_dir_all(&self.0);
     }
 }
-mod publish;
+pub(crate) mod publish;
 
 pub fn compile(
     program: Program,

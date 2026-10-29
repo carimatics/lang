@@ -20,6 +20,8 @@ M2は完了済みです。18/18ゲート、過去のゲート重み113/113です
 
 M3の実装・両host適合・C安定化・最終guideは完了しました。M4 は 2026-10-29 JST に active とし、[作業ボード](milestone-4.md)は **5 done · 1 doing · 33 todo · 97 remaining pt** です。観測可能な 1–3 pt の 39 delivery は P1 profiling を含む元の九つの gate を網羅します。A01／A02R／A02S／A02／A03 の manifest 検査、上限付き graph、不変入力取得、分離 dependency 実行、canonical lock replay で 14 pt を消化しました。実 dependency fixture は VM／native JIT で 42 を返し、取得 handle を閉じた後の project rename も両 host で成功します。名前空間／snapshot の前提で 6 pt 追加、inventory 再利用で A03 を 1 pt 減らし、CLI 監査で作成／build／run（A04B）と test-entry／診断統合（A04）を分けて 3 pt 追加し、収支は **103 + 8 − 14 = 97**。PR #9／#10 は merge 済みで、local main は `260e67a` に同期済みです。A03 の API 成果は修正 head の両 host 全 CI に成功し、独立した local baseline／doc と PR lifecycle は source 不変の checkout で継続します。実装 doing は A04B のみです。採択した CLI transaction profile は不変 generation を公開してから最後に lock を commit します。G1 以外の実装 gate は未完了です。M5 以降は将来作業です。完了済み M3 の履歴と最終見積収支を保持します。
 
+A03 の検証と merge は完了しました。最終 head `6e11460` で local fmt／Clippy／全 test（2,364 成功）／doc と両 host CI／debugger 検査が成功しています。PR #11 は `3f06a70` として merge し、元 checkout は clean・同期済み `main`／`origin/main`、ahead／behind 0/0 です。上の A03 lifecycle 未完了 checkpoint をこの記録で更新します。A04B は別の `codex/m4-package-commands` で継続し、依存 merge 後の PR base は `carimatics/lang:main`、実行 checkpoint と残る受入条件は board に記録しています。
+
 保守やレビューのために完了済みM2ボードを拡大しません。修正はscopeを限定したchecklistに記録し、code、文書、検証を同じ変更にまとめます。新たな言語／ABI／形式の選択には引き続き明示的RFC判断が必要ですが、実験段階の委任により個別owner承認待ちは不要です。
 
 [2026-10-28のrepositoryレビュー](review-2026-10-28.md)で、古いRFC follow-upを完了済みM2／M3証拠と照合し、保守修正を別途記録しています。日付付きcheckpointに残る「Windows未検証」などの過去記述で完了済み成果を再開しません。M4～M7のgate重みは変更せず、残作業の見積もりとも扱いません。

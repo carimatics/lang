@@ -75,7 +75,10 @@ fn input_error(path: &Path, message: impl Into<String>) -> ModuleLoadError {
 
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
 pub(crate) struct Identity(u64, u64);
-fn identity(metadata: &cap_std::fs::Metadata, path: &Path) -> Result<Identity, ModuleLoadError> {
+pub(super) fn identity(
+    metadata: &cap_std::fs::Metadata,
+    path: &Path,
+) -> Result<Identity, ModuleLoadError> {
     #[cfg(unix)]
     {
         use cap_std::fs::MetadataExt;

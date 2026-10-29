@@ -4,22 +4,13 @@ use lang::{
     run_prototype_add,
 };
 use lang_runtime::HostFunctionRegistry;
-use lang_vm::unit::{self as vm, Control, HostBindings, Limits};
+use lang_vm::unit::{self as vm, HostBindings};
 use std::ffi::{OsStr, OsString};
 use std::io::{self, BufRead, IsTerminal, Read, Write};
 use std::path::PathBuf;
 use std::process::ExitCode;
 
-#[derive(Clone, Copy, Default)]
-struct ExecutionOptions {
-    limits: Limits,
-    service_work: Option<u64>,
-}
-impl ExecutionOptions {
-    fn control(self) -> Control<'static> {
-        Control::with_limits(self.limits).and_service_work(self.service_work)
-    }
-}
+use lang::package::command::ExecutionOptions;
 
 const USAGE: &str = "usage: lang check [--source-root DIR] FILE\n       lang compile [--source-root DIR] --output ARTIFACT SOURCE\n       lang native [--source-root DIR] [--target TRIPLE] --output DIR SOURCE\n       lang link-native --sdk SDK --package DIR [--host HOST.rs [--object HOST.o ...]] --output EXE\n       lang run [--source-root DIR] [--fuel N] [--service-work N] [--host-calls N] [--frames N] [--cells N] FILE\n       lang run --artifact [--fuel N] [--service-work N] [--host-calls N] [--frames N] [--cells N] ARTIFACT\n       lang repl [--source-root DIR] [--fuel N] [--service-work N] [--host-calls N] [--frames N] [--cells N]\n       lang lsp\n       lang <left> <right>\n\nArtifact schemas: Copy/ownership/C 1-4; tasks/channels/services 5. Component artifacts require explicit host bindings.\n";
 enum Command {
@@ -342,6 +333,15 @@ fn compile_native(
 }
 fn run() -> Result<u8, CliError> {
     let arguments: Vec<_> = std::env::args_os().skip(1).collect();
+    if lang::package::command::selected(&arguments) {
+        return lang::package::command::run(
+            &arguments,
+            &mut io::stdout().lock(),
+            &mut io::stderr().lock(),
+            package_evaluate,
+        )
+        .map_err(failure);
+    }
     if arguments
         .first()
         .is_some_and(|argument| argument == "package")
@@ -352,6 +352,7 @@ fn run() -> Result<u8, CliError> {
         Command::Help => {
             print!("{USAGE}");
             println!("       lang package check-manifest [--message-format human|json] FILE");
+            print!("{}", lang::package::command::USAGE);
             Ok(0)
         }
         Command::Lsp => lang::lsp::serve(
@@ -386,6 +387,153 @@ fn run() -> Result<u8, CliError> {
         }
         Command::RunArtifact { file, limits } => run_artifact(file, limits),
         Command::Repl { root, limits } => run_repl(root, limits),
+    }
+}
+
+fn package_runtime(
+    message: impl std::fmt::Display,
+    location: Option<(String, usize, usize)>,
+) -> lang::package::Diagnostic {
+    let mut diagnostic = lang::package::Diagnostic::error("CLI0002", message.to_string());
+    if let Some((path, start, end)) = location {
+        diagnostic.path = Some(path);
+        diagnostic.span = Some(lang::package::ByteSpan { start, end });
+    }
+    diagnostic
+}
+// This adapter invokes the same engines and allocator/control contracts as the
+// explicit-file helpers below. It returns structured data before publication;
+// it does not interpret source or grant host capabilities to guest code.
+fn package_evaluate(
+    program: &lang::artifact::Program,
+    limits: ExecutionOptions,
+) -> Result<i64, lang::package::Diagnostic> {
+    match program {
+        lang::artifact::Program::Copy(program) => {
+            let unit = program.verified().unit();
+            let entry = unit
+                .entry
+                .ok_or_else(|| package_runtime("artifact has no script entry", None))?;
+            let signature = &unit.functions[entry.0 as usize].signature;
+            if !signature.parameters.is_empty() || signature.result != lang_mir::unit::Type::I64 {
+                return Err(package_runtime(
+                    "script entry must have zero parameters and return i64",
+                    None,
+                ));
+            }
+            vm::execute_entry(
+                program,
+                &HostFunctionRegistry::new(),
+                &HostBindings::new(),
+                limits.control(),
+            )
+            .map(|o| o.value.as_i64().expect("verified script result"))
+            .map_err(|e| {
+                let location = e.stack.iter().find_map(|f| f.span).and_then(|s| {
+                    unit.sources
+                        .get(s.source.0 as usize)
+                        .map(|source| (source.path.clone(), s.start as usize, s.end as usize))
+                });
+                package_runtime(
+                    format!(
+                        "{:?} (fuel {}, host calls {}) (service work {})",
+                        e.reason, e.usage.fuel, e.usage.host_calls, e.usage.service_work
+                    ),
+                    location,
+                )
+            })
+        }
+        lang::artifact::Program::Ownership(program) => {
+            let entry = program
+                .entry()
+                .ok_or_else(|| package_runtime("artifact has no script entry", None))?;
+            let mut instance = lang_runtime::cleanup::Instance::default();
+            let mut allocator = lang_runtime::allocation::Allocator::new(
+                lang_runtime::allocation::System,
+                Default::default(),
+            )
+            .map_err(|e| package_runtime(e, None))?;
+            vm::owned::execute_function(
+                program.flow(),
+                entry,
+                &mut instance,
+                Some(&mut allocator),
+                limits.control(),
+            )
+            .map(|o| o.value)
+            .map_err(|e| {
+                let sources = &program
+                    .flow()
+                    .source()
+                    .activity()
+                    .moved()
+                    .typed()
+                    .places()
+                    .declarations()
+                    .types()
+                    .table()
+                    .sources;
+                let span = e.fault.or_else(|| e.stack.iter().find_map(|f| f.span));
+                let location = span.and_then(|s| {
+                    sources
+                        .get(s.source.0 as usize)
+                        .map(|source| (source.path.clone(), s.start as usize, s.end as usize))
+                });
+                package_runtime(
+                    format!(
+                        "{e} (fuel {}, host calls {}) (service work {})",
+                        e.usage.fuel, e.usage.host_calls, e.usage.service_work
+                    ),
+                    location,
+                )
+            })
+        }
+        lang::artifact::Program::Tasks(program) => {
+            let entry = program
+                .entry()
+                .ok_or_else(|| package_runtime("artifact has no script entry", None))?;
+            let mut allocator = lang_runtime::allocation::Allocator::new(
+                lang_runtime::allocation::System,
+                Default::default(),
+            )
+            .map_err(|e| package_runtime(e, None))?;
+            match vm::tasks::execute_function(
+                program.proof(),
+                entry,
+                &mut allocator,
+                limits.control(),
+                Default::default(),
+            ) {
+                Ok(o) if o.poisoned || o.report.is_some() => Err(package_runtime(
+                    "task cleanup failed; execution instance is poisoned",
+                    None,
+                )),
+                Ok(o) => Ok(o.value),
+                Err(e) => {
+                    let sources = &program
+                        .proof()
+                        .typed()
+                        .places()
+                        .declarations()
+                        .types()
+                        .table()
+                        .sources;
+                    let location = e.span.and_then(|s| {
+                        sources
+                            .get(s.source.0 as usize)
+                            .map(|source| (source.path.clone(), s.start as usize, s.end as usize))
+                    });
+                    Err(package_runtime(
+                        format!("{e} (fuel {}, tasks {})", e.usage.fuel, e.tasks.admitted),
+                        location,
+                    ))
+                }
+            }
+        }
+        lang::artifact::Program::Component(_) => Err(package_runtime(
+            "component artifacts require explicit host bindings",
+            None,
+        )),
     }
 }
 

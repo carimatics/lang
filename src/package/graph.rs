@@ -47,6 +47,7 @@ pub struct Snapshot {
     manifest_path: PathBuf,
     manifest: Manifest,
     manifest_bytes: Vec<u8>,
+    pub(super) manifest_metadata: cap_std::fs::Metadata,
     entry_path: PathBuf,
     entry_bytes: Vec<u8>,
     pub(super) entry_metadata: cap_std::fs::Metadata,
@@ -118,9 +119,37 @@ impl Graph {
         let root = std::fs::canonicalize(parent.join(".")).map_err(|e| io(parent, e))?;
         let directory = Dir::open_ambient_dir(root.join("."), cap_std::ambient_authority())
             .map_err(|e| io(&root, e))?;
+        Self::resolve_in(directory, root, Path::new(name), target, limits)
+    }
+
+    /// Resolve through the caller's exact capability. `display` is diagnostic
+    /// data only; it is never reopened. The caller may separately retain a
+    /// clone as output authority while capture consumes this read capability.
+    pub fn resolve_in(
+        directory: Dir,
+        display: PathBuf,
+        name: &Path,
+        target: &str,
+        limits: Limits,
+    ) -> Result<Self, Diagnostic> {
+        if !TARGETS.contains(&target) {
+            return Err(Diagnostic::error("PKG0003", "unsupported package target"));
+        }
+        if limits.packages == 0 {
+            return Err(limit("package count limit exceeded"));
+        }
+        let mut components = name.components();
+        if !matches!(components.next(), Some(std::path::Component::Normal(_)))
+            || components.next().is_some()
+        {
+            return Err(Diagnostic::error(
+                "PKG0003",
+                "manifest filename must be one normal component",
+            ));
+        }
         let mut resolver = Resolver {
             directory,
-            display: root.clone(),
+            display: display.clone(),
             target,
             limits,
             states: BTreeMap::new(),
@@ -129,9 +158,9 @@ impl Graph {
             source_bytes: 0,
         };
         let package_root = resolver.canonical_directory(Path::new("."))?;
-        resolver.visit(package_root, Path::new(name), None)?;
+        resolver.visit(package_root, name, None)?;
         Ok(Self {
-            authority_root: root,
+            authority_root: display,
             target: target.into(),
             packages: resolver.packages,
             directory: Mutex::new(Some(resolver.directory)),
@@ -332,7 +361,8 @@ impl Resolver<'_> {
             return Err(limit("package count limit exceeded").at_path(&self.display.join(&root)));
         }
         let manifest_path = input_path(&root, name);
-        let manifest_bytes = self.read(&manifest_path, MAX_BYTES)?.bytes;
+        let input = self.read(&manifest_path, MAX_BYTES)?;
+        let manifest_bytes = input.bytes;
         let manifest = Manifest::parse(&manifest_bytes)
             .map_err(|e| e.at_path(&self.display.join(&manifest_path)))?;
         let package = manifest.package.as_ref().ok_or_else(|| {
@@ -379,6 +409,7 @@ impl Resolver<'_> {
             manifest_path,
             manifest,
             manifest_bytes,
+            manifest_metadata: input.metadata,
             entry_path,
             entry_bytes,
             entry_metadata: entry.metadata,

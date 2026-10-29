@@ -139,7 +139,9 @@ M4 は 2026-10-29 JST に開始しました。[RFC 0034](rfcs/0034-package-works
 
 `lock::validate_encoding` は上限付きの構造／schema admission のみで、checksum や replay の正当性を保証しません。`package_metadata` fuzz target は filesystem access や code 実行なしで、この reader と `Manifest::parse` を検査します。実際の lock replay には引き続き、取得済み graph に対する `Lock::verify`／`check` が必要です。
 
-package build／run／test コマンド、navigation／completion／rename、DAP、installer は [live board](milestone-4.md)に残ります。registry、WebAssembly component、追加 backend、self-hosting、別 frontend は後続 milestone で、実装済みではありません。async REPL、detached task、非同期 foreign callback stack も現在の実行範囲外です。
+`package::command` は排他的な `new` と package 対応の portable `build`／`run` を実装します。`Graph::resolve_in` は呼出元が output 用 clone を保持する同じ directory capability を消費し、source の表示 path を開き直しません。`package::output` は source／output alias を検査し、全 output を 64 MiB に制限して、不変な `target/lang/<lock-sha256>/build/{inputs.lock,main.lbc}` generation を stage 化し、再利用時は期待する全 byte を比較してから最後に `Lang.lock` を公開します。locked mode は型検査前に検証し、lock を書き換えません。compile は固定 provider、実行は既存の Copy／ownership／task VM engine と control を使います。schema 1 JSON の source 診断は元 code、path、UTF-8 offset を保持します。従来の file 明示形式は既存 parser と実行経路を使います。CLI fixture は 42 を返す実 dependency、古い input／改変 cache／runtime の拒否、output alias、profile 選択を実行します。
+
+package test-entry 統合、workspace 選択／native executable、navigation／completion／rename、DAP、installer は [live board](milestone-4.md)に残ります。registry、WebAssembly component、追加 backend、self-hosting、別 frontend は後続 milestone で、実装済みではありません。async REPL、detached task、非同期 foreign callback stack も現在の実行範囲外です。
 
 ## 検証と保守
 
