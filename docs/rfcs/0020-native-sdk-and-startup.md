@@ -7,7 +7,7 @@
 - Status: implemented
 - Authors: Codex, under the owner's experimental delegation
 - Created: 2026-10-20
-- Last updated: 2026-10-28
+- Last updated: 2026-10-29
 - Tracking issue: M2-P08, M2-P09, M2-P11, M2-P10, M2-P07, M2-P12, M2-P02
 - Supersedes: none; extends RFCs 0008/0011/0015/0017/0018/0019
 - Superseded by: none
@@ -60,6 +60,16 @@ A Copy/ordinary-owned package selects the actual checked zero-parameter i64 sour
 A C unit produces a library package with no automatic executable entry, even if it contains a private function named main. Its generated header and Rust bindings expose existing profile-1 exports. Use an explicit Rust host and, when needed, separately compiled C host objects. The Rust host keeps the binding active while a real C caller creates/calls/queries/destroys contexts. C imports still require actual host bindings/grants. No synthetic C export or MIR wrapper is added to run a private main.
 
 The initial SDK explicitly requires its exact pinned Rust release/commit, a native linker and a C11 toolchain for C host objects. Rust SDK/host builds use panic unwinding to retain the accepted host-panic containment/poison contract; SDK assembly refuses abort builds. The effective panic policy participates in build identity. `link-native` drives rustc with bundled libraries; it does not run Cargo, fetch dependencies or consult repository paths. This Rust host requirement is an experimental distribution choice. A future C-only bootstrap requires a separate reviewed change.
+
+### Reproducible startup paths
+
+Accepted under experimental delegation, 2026-10-29 JST, before the M4-A06 linker correction. The executable probe produces identical semantic, native-record, object, bindings, main and package-manifest bytes after source relocation, yet two successful executables differ. Their Rust startup embeds the unique private snapshot's absolute `main.rs` path. Compile the verified snapshot using its stable relative `main.rs` or `host.rs` filename and the existing snapshot working directory. Keep exclusive randomized staging and every input/toolchain check; no stage name becomes a reusable public path. This changes host-generated path strings, not original language source spans or native debug records.
+
+The next probe removes that startup path but exposes absolute SDK archive paths in Mach-O debug-map symbols. Link orchestration therefore creates fixed `sdk` and `program` snapshot children inside its unique private stage, using crate-internal snapshot entry points; public snapshot APIs retain their unique naming. Pass source, libraries, native objects and trusted host objects with stable paths relative to the program working directory. On macOS, additionally pass the private stage prefix to `-oso_prefix`, because the linker canonicalizes archive paths before recording OSO symbols. Preserve every debug symbol and original object rather than stripping metadata. The outer stage remains unique and exclusively owned; stable child names do not share files between operations.
+
+Vendor reference: [Apple ld64 manual, `-oso_prefix`](https://github.com/apple-oss-distributions/ld64/blob/main/doc/man/man1/ld-classic.1) documents removing the prefix from OSO debug-map symbols to help identical builds. No document update date is published; the file's latest repository commit is 2025-04-30, verified 2026-10-29 JST. The local probe uses Apple ld 27037.1 / LLVM 21.0.0; actual executable comparison remains the acceptance test.
+
+Compared with retaining absolute paths, relative tool arguments remove observed nondeterministic inputs. A path-remapping layer is an alternative if further compiler paths require it; modifying the finished binary would hide the input defect and cannot establish full-byte reproducibility. Keep the matching SDK and pinned Rust/native linker inputs fixed, compare complete executable digests, and verify actual startup. Windows reproducibility and any remaining platform linker inputs are unverified until its real-host test passes. Native trust, source semantics, artifact/manifest revisions and ABI remain unchanged; rebuilding adopts the new compiler identity.
 
 ## Reference semantics
 

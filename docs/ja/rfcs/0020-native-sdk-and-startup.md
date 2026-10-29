@@ -7,7 +7,7 @@
 - Status: implemented
 - Authors: Codex, under the owner's experimental delegation
 - Created: 2026-10-20
-- Last updated: 2026-10-28
+- Last updated: 2026-10-29
 - Tracking issue: M2-P08, M2-P09, M2-P11, M2-P10, M2-P07, M2-P12, M2-P02
 - Supersedes: none; extends RFCs 0008/0011/0015/0017/0018/0019
 - Superseded by: none
@@ -60,6 +60,16 @@ Copy／通常owned packageでは、実際に検査した引数なしi64のsource
 C unitはprivateなmainを含んでも自動実行entryを持たないlibrary packageです。生成header／Rust bindingで既存profile-1 exportを公開します。明示Rust hostと、必要なら別途compileしたC host objectを指定します。実C callerがcontextを生成／呼出し／照会／破棄する間、Rust hostはbindingを保持します。C importには実hostのbinding／grantが必要で、private mainを動かすために仮のC export／MIR wrapperは作りません。
 
 初期SDKは正確に対応する固定Rust release／commit、native linker、C host用C11 toolchainを明示要件とします。Rust SDK／host buildは受理済みhost panicの包含／poison契約を保つためpanic unwindを使い、SDK組立はabort buildを拒否します。実効panic policyはbuild identityに含めます。`link-native`は同梱libraryでrustcを実行し、Cargo、依存download、repository pathを使いません。Rust host要件は実験段階の配布判断です。将来Cだけでbootstrapする場合は別のreview済み変更が必要です。
+
+### 再現可能な startup path
+
+M4-A06 linker 修正前の 2026-10-29 JST、実験段階の委任で採択する。実行 probe は source 配置変更後も semantic、native record、object、binding、main、package manifest の byte が一致する一方、二つの実行成功 executable が異なる。その Rust startup は一意な private snapshot の絶対 `main.rs` path を埋め込む。既存 snapshot 作業 directory で、検証済み snapshot の安定した相対 filename `main.rs` または `host.rs` を compile する。排他的かつ一意な staging と全 input／toolchain 検査を維持し、stage 名を再利用可能な公開 path にしない。変更対象は host 生成 path 文字列であり、元言語 source span や native debug record ではない。
+
+次の probe で startup path は除去されたが、Mach-O debug-map symbol に SDK archive の絶対 path が残った。link orchestration は一意な private stage の内部に固定名 `sdk`／`program` の snapshot child を作る crate 内部 entry point を使い、公開 snapshot API は一意名を維持する。source、library、native object、trusted host object の tool 引数を program 作業 directory からの安定した相対 path にする。macOS linker は OSO symbol 記録前に archive path を canonicalize するため、追加で private stage prefix を `-oso_prefix` に渡す。metadata を strip せず、全 debug symbol と元 object を保持する。外側 stage は一意・排他的に所有し、固定 child 名で操作間の file を共有しない。
+
+vendor 出典: [Apple ld64 manual の `-oso_prefix`](https://github.com/apple-oss-distributions/ld64/blob/main/doc/man/man1/ld-classic.1) は、同一 build を支援するため OSO debug-map symbol から prefix を除くと説明する。文書更新日は非公開で、file の最新 repository commit は 2025-04-30、確認日は 2026-10-29 JST。local probe は Apple ld 27037.1／LLVM 21.0.0 を使い、実 executable の比較を受入検証とする。
+
+絶対 path を保持する場合と比べ、相対 tool 引数は観測済みの非決定 input を除く。別の compiler path が必要なら path remap が代案となる。完成 binary の変更は input の欠陥を隠し、全 byte の再現性を示せない。対応 SDK と固定した Rust／native linker input を保ち、executable 全体の digest と実 startup を検証する。Windows の再現性と残る platform linker input は実 host test の成功まで未検証。native 信頼、source 意味論、artifact／manifest revision、ABI は維持し、再 build で新しい compiler identity を採用する。
 
 ## Reference semantics
 

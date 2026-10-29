@@ -3,7 +3,7 @@ use super::{Diagnostic, manifest};
 use std::io::{self, Write};
 use std::{collections::BTreeSet, ffi::OsString, path::PathBuf};
 
-pub const USAGE: &str = "usage: lang new [--name NAME] [--message-format human|json] DIR\n       lang build [--manifest-path FILE] [--package NAME] [--target TRIPLE] [--locked] [--offline] [--message-format human|json]\n       lang run [--manifest-path FILE] [--package NAME] [--target TRIPLE] [--locked] [--offline] [--message-format human|json] [--fuel N] [--service-work N] [--host-calls N] [--frames N] [--cells N]\n       lang test [--manifest-path FILE] [--package NAME] [--target TRIPLE] [--locked] [--offline] [--message-format human|json] [--fuel N] [--service-work N] [--host-calls N] [--frames N] [--cells N]\n";
+pub const USAGE: &str = "usage: lang new [--name NAME] [--message-format human|json] DIR\n       lang build [--manifest-path FILE] [--package NAME] [--target TRIPLE] [--native --sdk DIR] [--locked] [--offline] [--message-format human|json]\n       lang run [--manifest-path FILE] [--package NAME] [--target TRIPLE] [--locked] [--offline] [--message-format human|json] [--fuel N] [--service-work N] [--host-calls N] [--frames N] [--cells N]\n       lang test [--manifest-path FILE] [--package NAME] [--target TRIPLE] [--locked] [--offline] [--message-format human|json] [--fuel N] [--service-work N] [--host-calls N] [--frames N] [--cells N]\n";
 
 #[derive(Clone, Copy, Default)]
 pub struct ExecutionOptions {
@@ -39,6 +39,7 @@ pub struct Request {
     pub action: Action,
     pub manifest: PathBuf,
     pub package: Option<String>,
+    pub native_sdk: Option<PathBuf>,
     pub target: String,
     pub locked: bool,
     pub offline: bool,
@@ -123,10 +124,12 @@ pub fn parse(args: &[OsString]) -> Result<Command, Diagnostic> {
         return Err(usage("expected new, build, run or test"));
     };
     let (mut directory, mut name) = (None, None);
+    let mut native = false;
     let mut request = Request {
         action,
         manifest: PathBuf::from("Lang.json"),
         package: None,
+        native_sdk: None,
         target: lang_codegen_clif::Triple::host().to_string(),
         locked: false,
         offline: false,
@@ -150,6 +153,10 @@ pub fn parse(args: &[OsString]) -> Result<Command, Diagnostic> {
         if !seen.insert(flag.to_string()) {
             return Err(usage(format!("duplicate option {flag}")));
         }
+        if !new && action == Action::Build && flag == "--native" {
+            native = true;
+            continue;
+        }
         if !new && matches!(flag, "--locked" | "--offline") {
             if flag == "--locked" {
                 request.locked = true;
@@ -161,6 +168,7 @@ pub fn parse(args: &[OsString]) -> Result<Command, Diagnostic> {
         let permitted = flag == "--message-format"
             || (new && flag == "--name")
             || (!new && matches!(flag, "--manifest-path" | "--package" | "--target"))
+            || (!new && action == Action::Build && flag == "--sdk")
             || (!new
                 && matches!(action, Action::Run | Action::Test)
                 && matches!(
@@ -195,6 +203,7 @@ pub fn parse(args: &[OsString]) -> Result<Command, Diagnostic> {
                 }
             }
             "--manifest-path" => request.manifest = PathBuf::from(value),
+            "--sdk" => request.native_sdk = Some(PathBuf::from(value)),
             "--package" => {
                 let name = number()?;
                 if !manifest::valid_name(name) {
@@ -241,6 +250,15 @@ pub fn parse(args: &[OsString]) -> Result<Command, Diagnostic> {
     }
     if !manifest::TARGETS.contains(&request.target.as_str()) {
         return Err(Diagnostic::error("PKG0003", "unsupported package target"));
+    }
+    if native != request.native_sdk.is_some() {
+        return Err(usage("--native and --sdk must be supplied together"));
+    }
+    if native && request.target != lang_codegen_clif::Triple::host().to_string() {
+        return Err(Diagnostic::error(
+            "PKG0003",
+            "native executable target must match the host",
+        ));
     }
     Ok(Command::Package(request))
 }
@@ -447,7 +465,11 @@ fn run_tests(
     }
     let files: Vec<_> = files
         .iter()
-        .map(|(path, bytes)| super::output::File { path, bytes })
+        .map(|(path, bytes)| super::output::File {
+            path,
+            bytes,
+            executable: false,
+        })
         .collect();
     match prepared.output.publish(
         &prepared.lock,
@@ -510,6 +532,55 @@ pub fn run(
         Ok(a) => a,
         Err(d) => return fail(stderr, format, d),
     };
+    if request.native_sdk.is_some() {
+        let Some((program, sources)) = checked(analysis, format, stderr)? else {
+            return Ok(1);
+        };
+        let target = match crate::native::target(&request.target) {
+            Ok(target) => target,
+            Err(error) => return fail(stderr, format, tool(error)),
+        };
+        let package = match crate::native::compile(program, &sources, limits, target) {
+            Ok(package) => package,
+            Err(crate::native::Error::Entry(crate::frontend::ScriptError::Entry(d))) => {
+                source_diagnostic(stderr, format, &d, &sources)?;
+                return Ok(1);
+            }
+            Err(error) => return fail(stderr, format, tool(error)),
+        };
+        let built = match super::native::build(package, &request, &prepared.lock) {
+            Ok(built) => built,
+            Err(d) => return fail(stderr, format, d),
+        };
+        if let Err(d) = prepared.output.publish(
+            &prepared.lock,
+            super::output::Generation::Native(&built.generation),
+            &built.files(),
+            request.locked,
+        ) {
+            return fail(stderr, format, d);
+        }
+        if format == Format::Json {
+            #[derive(serde::Serialize)]
+            struct Artifact<'a> {
+                schema: u32,
+                kind: &'static str,
+                path: &'a str,
+            }
+            serde_json::to_writer(
+                &mut *stdout,
+                &Artifact {
+                    schema: 1,
+                    kind: "artifact",
+                    path: &built.relative_path,
+                },
+            )?;
+            writeln!(stdout)?;
+        } else {
+            writeln!(stdout, "{}", built.relative_path)?;
+        }
+        return Ok(0);
+    }
     let Some(bytes) = compile_analysis(analysis, format, limits, stderr)? else {
         return Ok(1);
     };
@@ -527,6 +598,7 @@ pub fn run(
         &[super::output::File {
             path: "main.lbc",
             bytes: &bytes,
+            executable: false,
         }],
         request.locked,
     ) {

@@ -382,6 +382,15 @@ fn compiler(selected: Option<&OsStr>) -> Result<OsString, Error> {
 /// The output must be fresh. Rust hosts are standalone roots beside bindings.rs;
 /// their code and explicit native objects are trusted build inputs, not a sandbox.
 pub fn link(request: &Request, limits: Limits) -> Result<(), Error> {
+    link_recorded(request, limits).map(|_| ())
+}
+
+pub(crate) struct Inputs {
+    pub sdk_manifest: Vec<u8>,
+    pub rustc_release: String,
+    pub rustc_commit: String,
+}
+pub(crate) fn link_recorded(request: &Request, limits: Limits) -> Result<Inputs, Error> {
     if request.host.is_none() && !request.objects.is_empty() {
         return Err(Error::ObjectsRequireHost);
     }
@@ -392,8 +401,13 @@ pub fn link(request: &Request, limits: Limits) -> Result<(), Error> {
     )?;
     let mut stage = Stage::new(&request.output).map_err(Error::Native)?;
     stage.0 = fs::canonicalize(&stage.0).map_err(|e| io("staging root", &stage.0, e))?;
-    let sdk =
-        m::SdkSnapshot::open(&request.sdk, &stage.0, limits.manifests).map_err(Error::Manifest)?;
+    let sdk = m::SdkSnapshot::open_named(&request.sdk, &stage.0, limits.manifests)
+        .map_err(Error::Manifest)?;
+    let inputs = Inputs {
+        sdk_manifest: sdk.manifest_bytes().to_vec(),
+        rustc_release: sdk.manifest().rustc_release().into(),
+        rustc_commit: sdk.manifest().rustc_commit().into(),
+    };
     let host = lang_codegen_clif::Triple::host().to_string();
     if sdk.manifest().target().text() != host {
         return Err(Error::Target {
@@ -401,8 +415,9 @@ pub fn link(request: &Request, limits: Limits) -> Result<(), Error> {
             host,
         });
     }
-    let package = m::ProgramSnapshot::open(&request.package, &stage.0, &sdk, limits.manifests)
-        .map_err(Error::Manifest)?;
+    let package =
+        m::ProgramSnapshot::open_named(&request.package, &stage.0, &sdk, limits.manifests)
+            .map_err(Error::Manifest)?;
     if matches!(
         package.manifest().profile(),
         Profile::C | Profile::Component
@@ -415,6 +430,23 @@ pub fn link(request: &Request, limits: Limits) -> Result<(), Error> {
         "--crate-name=lang_native_startup".into(),
         "-Cpanic=unwind".into(),
     ];
+    #[cfg(target_os = "macos")]
+    {
+        // Keep OSO debug maps while excluding this operation's private prefix.
+        // Separate -Xlinker arguments preserve commas and spaces in the path.
+        arguments.extend([
+            "-C".into(),
+            "link-arg=-Xlinker".into(),
+            "-C".into(),
+            "link-arg=-oso_prefix".into(),
+            "-C".into(),
+            "link-arg=-Xlinker".into(),
+        ]);
+        let mut prefix = OsString::from("link-arg=");
+        prefix.push(&stage.0);
+        prefix.push(std::path::MAIN_SEPARATOR_STR);
+        arguments.extend(["-C".into(), prefix]);
+    }
     let source = if let Some(host) = &request.host {
         let path = package.root().join("host.rs");
         copy(host, &path, limits.host_bytes.min(limits.host_total))?;
@@ -422,7 +454,10 @@ pub fn link(request: &Request, limits: Limits) -> Result<(), Error> {
     } else {
         package.root().join("main.rs")
     };
-    arguments.push(source.into_os_string());
+    // The verified source is in the compiler's snapshot working directory.
+    // An absolute staging path would leak its random identity into file!()
+    // and produce different executables from identical admitted inputs.
+    arguments.push(source.file_name().expect("fixed snapshot source").into());
     let executable = stage.0.join(if cfg!(windows) {
         "application.exe"
     } else {
@@ -437,7 +472,7 @@ pub fn link(request: &Request, limits: Limits) -> Result<(), Error> {
         .filter(|f| matches!(f.role(), Role::Runtime | Role::Dependency))
     {
         directories.insert(
-            sdk.root()
+            Path::new("../sdk")
                 .join(f.path())
                 .parent()
                 .expect("SDK component parent")
@@ -459,14 +494,14 @@ pub fn link(request: &Request, limits: Limits) -> Result<(), Error> {
     ] {
         let file = library(sdk.manifest(), name)?;
         let mut arg = OsString::from(format!("{name}="));
-        arg.push(sdk.root().join(file.path()));
+        arg.push(Path::new("../sdk").join(file.path()));
         arguments.extend([OsString::from("--extern"), arg]);
     }
     if package.manifest().profile() == Profile::Component {
         for name in ["lang", "lang_diagnostics", "lang_vm", "serde_json"] {
             let file = library(sdk.manifest(), name)?;
             let mut arg = OsString::from(format!("{name}="));
-            arg.push(sdk.root().join(file.path()));
+            arg.push(Path::new("../sdk").join(file.path()));
             arguments.extend([OsString::from("--extern"), arg]);
         }
     }
@@ -475,7 +510,7 @@ pub fn link(request: &Request, limits: Limits) -> Result<(), Error> {
         .file(Role::Object)
         .expect("verified program object");
     let mut arg = OsString::from("link-arg=");
-    arg.push(package.root().join(object.path()));
+    arg.push(object.path());
     arguments.extend([OsString::from("-C"), arg]);
     let mut total = if request.host.is_some() {
         fs::metadata(package.root().join("host.rs"))
@@ -500,7 +535,7 @@ pub fn link(request: &Request, limits: Limits) -> Result<(), Error> {
                 maximum: limits.host_total,
             })?;
         let mut arg = OsString::from("link-arg=");
-        arg.push(path);
+        arg.push(Path::new("..").join(path.file_name().expect("fixed host object")));
         arguments.extend([OsString::from("-C"), arg]);
     }
     // rustc response files use one UTF-8 argument per line, without shell quoting.
@@ -539,5 +574,5 @@ pub fn link(request: &Request, limits: Limits) -> Result<(), Error> {
     bound("executable bytes", metadata.len(), limits.executable)?;
     publish::rename(&executable, &request.output)
         .map_err(|e| io("exclusive executable publication", &request.output, e))?;
-    Ok(())
+    Ok(inputs)
 }
