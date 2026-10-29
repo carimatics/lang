@@ -107,6 +107,8 @@ Package completion returns public module/import/enum names, scoped bindings and 
 
 Full semantic tokens use a fixed legend and the current binding index, with lexical fallback for malformed source. Tokens split at CR/LF, use non-overlapping UTF-16 delta encoding and carry an epoch result ID. Clients advertising semantic-token refresh support receive refresh requests after source/overlay/watch invalidation; range and delta requests are unsupported.
 
+Prepare/rename proposes checked source identifier edits, including across dependency files. Every edited file must be open and versioned; clients need `workspaceEdit.documentChanges`, and multi-file edits additionally require `transactional` or `textOnlyTransactional` failure handling. The server rechecks all admitted input bytes, reanalyzes replacements and verifies complete resolved-HIR/type correspondence. Collisions, import aliases, modules, external ABI declarations and stale inputs are refused; the server never writes the proposal to disk.
+
 ## Development
 
 `cargo run -- fmt --manifest-path target/my_app/Lang.json --check` reports files needing the existing CST formatter without edits. Omit `--check` to apply validated per-file source replacements, including selected dependencies/tests. Original comments/spans and permissions are retained; stale or invalid input refuses before publication. Source changes leave the old lock stale; regenerate it through an ordinary build/run. See [RFC 0036](docs/rfcs/0036-checked-package-formatting.md) for the per-file publication boundary.

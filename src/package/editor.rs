@@ -1,5 +1,6 @@
 //! RFC 0039 immutable package editor epochs and resolved navigation.
 pub(crate) mod completion;
+pub(crate) mod edits;
 pub(crate) mod workspace;
 use super::{ByteSpan, Diagnostic, graph::Graph, source};
 use crate::frontend::{Analysis, CompileLimits};

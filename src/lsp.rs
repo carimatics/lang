@@ -1,5 +1,6 @@
 //! Small stdio LSP 3.18 profile using the shared source query database.
 //! Official source/update dates are recorded in docs/architecture.md.
+mod edits;
 mod package;
 mod tokens;
 pub mod uri;
@@ -129,6 +130,8 @@ pub struct Server {
     versions: bool,
     watch: bool,
     token_refresh: bool,
+    edit_document_changes: bool,
+    edit_transactional: bool,
     package: Option<package::Config>,
     package_view: Option<Result<package::View, crate::package::Diagnostic>>,
     package_epoch: u64,
@@ -145,6 +148,8 @@ impl Server {
             versions: false,
             watch: false,
             token_refresh: false,
+            edit_document_changes: false,
+            edit_transactional: false,
             package: None,
             package_view: None,
             package_epoch: 0,
@@ -238,6 +243,16 @@ impl Server {
                 .unwrap_or_default();
         }
         if let Some(id) = id {
+            if self.package.is_some()
+                && matches!(method, "textDocument/prepareRename" | "textDocument/rename")
+            {
+                return vec![match self
+                    .checked_rename(params, method == "textDocument/prepareRename")
+                {
+                    Ok(result) => response(id, result),
+                    Err(e) => response_error(id, e.code, &e.message),
+                }];
+            }
             if self.package.is_some() && method == "textDocument/semanticTokens/full" {
                 return vec![match self.semantic_tokens(params) {
                     Ok(result) => response(id, result),
@@ -332,6 +347,16 @@ impl Server {
             .pointer("/capabilities/workspace/semanticTokens/refreshSupport")
             .and_then(Value::as_bool)
             .unwrap_or(false);
+        self.edit_document_changes = params
+            .pointer("/capabilities/workspace/workspaceEdit/documentChanges")
+            .and_then(Value::as_bool)
+            .unwrap_or(false);
+        self.edit_transactional = matches!(
+            params
+                .pointer("/capabilities/workspace/workspaceEdit/failureHandling")
+                .and_then(Value::as_str),
+            Some("transactional" | "textOnlyTransactional")
+        );
         self.db = Some(db);
         self.phase = Phase::Awaiting;
         let mut result = json!({"capabilities":{"positionEncoding":"utf-16","textDocumentSync":{"openClose":true,"change":1},"documentFormattingProvider":true},"serverInfo":{"name":"lang prototype","version":env!("CARGO_PKG_VERSION")}});
@@ -341,6 +366,7 @@ impl Server {
             result["capabilities"]["completionProvider"] =
                 json!({"triggerCharacters":[".",":"],"resolveProvider":false});
             result["capabilities"]["semanticTokensProvider"] = json!({"legend":{"tokenTypes":tokens::LEGEND,"tokenModifiers":[]},"full":true,"range":false});
+            result["capabilities"]["renameProvider"] = json!({"prepareProvider":true});
         }
         Ok(result)
     }

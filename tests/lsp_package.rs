@@ -319,6 +319,398 @@ fn token_query(s: &mut Server, uri: &str) -> Value {
     ))
     .remove(0)
 }
+
+#[test]
+fn checked_rename_reanalyzes_a_real_dependency_and_returns_versioned_original_ranges() {
+    let f = Files::new();
+    let root = f.uri("src/main.lang");
+    let helper = f.uri("helper/src/main.lang");
+    let mut s = Server::new(Default::default());
+    let init=s.handle(request("initialize",json!({"rootUri":uri::file(&f.0).unwrap(),"capabilities":{"workspace":{"workspaceEdit":{"documentChanges":true,"failureHandling":"textOnlyTransactional"}}}})));
+    assert_eq!(
+        init[0]["result"]["capabilities"]["renameProvider"]["prepareProvider"],
+        true
+    );
+    s.handle(note("initialized", json!({})));
+    open(&mut s, &root, ROOT);
+    open(&mut s, &helper, HELPER);
+    let prepare = s.handle(request(
+        "textDocument/prepareRename",
+        json!({"textDocument":{"uri":root},"position":position()}),
+    ));
+    assert_eq!(prepare[0]["result"]["placeholder"], "answer", "{prepare:?}");
+    let renamed = s.handle(request(
+        "textDocument/rename",
+        json!({"textDocument":{"uri":root},"position":position(),"newName":"solution"}),
+    ));
+    let changes = renamed[0]["result"]["documentChanges"]
+        .as_array()
+        .unwrap_or_else(|| panic!("{renamed:?}"));
+    assert_eq!(changes.len(), 2, "{renamed:?}");
+    let mut updated = std::collections::BTreeMap::new();
+    for change in changes {
+        let uri = change["textDocument"]["uri"].as_str().unwrap();
+        assert_eq!(change["textDocument"]["version"], 1);
+        let original = if uri == root {
+            ROOT
+        } else {
+            assert_eq!(uri, helper);
+            HELPER
+        };
+        let mut text = original.to_string();
+        for edit in change["edits"].as_array().unwrap().iter().rev() {
+            let offset = |end: &str| {
+                lang_lsp::text_offset(
+                    original,
+                    edit["range"][end]["line"].as_u64().unwrap() as u32,
+                    edit["range"][end]["character"].as_u64().unwrap() as u32,
+                    original.len(),
+                )
+                .unwrap()
+            };
+            let start = offset("start");
+            let end = offset("end");
+            assert_eq!(&original[start..end], "answer");
+            text.replace_range(start..end, edit["newText"].as_str().unwrap());
+        }
+        updated.insert(uri.to_string(), text);
+    }
+    change(&mut s, &root, 2, &updated[&root]);
+    let diagnostics_after = change(&mut s, &helper, 2, &updated[&helper]);
+    assert!(
+        diagnostics(&diagnostics_after, &root).is_empty(),
+        "{diagnostics_after:?}"
+    );
+    assert!(
+        diagnostics(&diagnostics_after, &helper).is_empty(),
+        "{diagnostics_after:?}"
+    );
+    assert_eq!(fs::read_to_string(f.0.join("src/main.lang")).unwrap(), ROOT);
+    assert_eq!(
+        fs::read_to_string(f.0.join("helper/src/main.lang")).unwrap(),
+        HELPER
+    );
+    assert!(!f.0.join("Lang.lock").exists());
+    assert!(!f.0.join("target").exists());
+}
+
+fn rename_server(f: &Files, handling: &str) -> Server {
+    rename_server_limits(f, handling, Default::default())
+}
+fn rename_server_limits(f: &Files, handling: &str, limits: Limits) -> Server {
+    let mut s = Server::new(limits);
+    let r=s.handle(request("initialize",json!({"rootUri":uri::file(&f.0).unwrap(),"capabilities":{"workspace":{"workspaceEdit":{"documentChanges":true,"failureHandling":handling}}}})));
+    assert!(r[0]["error"].is_null(), "{r:?}");
+    s.handle(note("initialized", json!({})));
+    s
+}
+fn rename_query(s: &mut Server, uri: &str, source: &str, offset: usize, name: &str) -> Value {
+    let before = &source[..offset];
+    let line = before.bytes().filter(|b| *b == b'\n').count();
+    let character = before.rsplit('\n').next().unwrap().encode_utf16().count();
+    s.handle(request("textDocument/rename",json!({"textDocument":{"uri":uri},"position":{"line":line,"character":character},"newName":name}))).remove(0)
+}
+
+#[test]
+fn checked_rename_preserves_parameters_assignments_fields_cases_types_loans_and_async_calls() {
+    let f = Files::new();
+    let root = f.uri("src/main.lang");
+    for (source, needle, new_name, count) in [
+        (
+            "fn id(value:i64)->i64{return value;}fn main()->i64{return id(42);}",
+            "return value",
+            "parameter",
+            2,
+        ),
+        (
+            "fn main()->i64{let mut value:i64=1;value=42;return value;}",
+            "return value",
+            "amount",
+            3,
+        ),
+        (
+            "struct Pair{value:i64}fn main()->i64{let mut p:Pair=Pair{value:41};p.value=42;match p{Pair{value:copy}=>{return copy;},}}",
+            "p.value",
+            "amount",
+            4,
+        ),
+        (
+            "enum E{Yes,No}fn main()->i64{let mut e:E=E::Yes;match e{E::Yes=>{return 42;},E::No=>{return 0;},}}",
+            "E::Yes",
+            "Accepted",
+            3,
+        ),
+        (
+            "struct Pair{value:i64}fn main()->i64{let mut p:Pair=Pair{value:42};return p.value;}",
+            "p:Pair",
+            "Tuple",
+            3,
+        ),
+        (
+            "fn main()->i64{let mut value:i64=41;if true{let mut pointer:&mut i64=&mut value;(*pointer)=42;}return value;}",
+            "return value",
+            "amount",
+            3,
+        ),
+        (
+            "async fn answer()->i64{return 42;}async fn main()->i64{return core::result_unwrap::<i64,core::TaskError>(await answer());}",
+            "await answer",
+            "solution",
+            2,
+        ),
+    ] {
+        let mut s = rename_server(&f, "transactional");
+        let messages = open(&mut s, &root, source);
+        assert!(
+            diagnostics(&messages, &root).is_empty(),
+            "source={source}: {messages:?}"
+        );
+        let start = source.find(needle).unwrap();
+        let offset = start
+            + if needle.starts_with("return ") {
+                7
+            } else if needle.starts_with("await ") {
+                6
+            } else if needle.starts_with("E::") {
+                3
+            } else {
+                2
+            };
+        let r = rename_query(&mut s, &root, source, offset, new_name);
+        let changes = r["result"]["documentChanges"]
+            .as_array()
+            .unwrap_or_else(|| panic!("source={source}: {r:?}"));
+        assert_eq!(changes.len(), 1, "{r:?}");
+        assert_eq!(
+            changes[0]["edits"].as_array().unwrap().len(),
+            count,
+            "source={source}: {r:?}"
+        );
+    }
+}
+
+#[test]
+fn checked_rename_refuses_capture_collisions_invalid_names_aliases_and_missing_client_guarantees() {
+    let f = Files::new();
+    let root = f.uri("src/main.lang");
+    let helper = f.uri("helper/src/main.lang");
+    let source = "fn main()->i64{let mut first:i64=1;if true{let mut second:i64=2;return first+second;}return first;}";
+    let mut s = rename_server(&f, "transactional");
+    open(&mut s, &root, source);
+    for name in ["second", "fn", "_", "two words", ""] {
+        let r = rename_query(
+            &mut s,
+            &root,
+            source,
+            source.find("return first").unwrap() + 7,
+            name,
+        );
+        assert!(r.get("error").is_some(), "{name}: {r:?}");
+        assert!(r.get("result").is_none());
+        if name == "second" {
+            assert!(
+                r["error"]["message"]
+                    .as_str()
+                    .unwrap()
+                    .contains("would invalidate"),
+                "{r:?}"
+            );
+        }
+    }
+    let imported = "mod helper;use helper::answer;fn main()->i64{return answer();}";
+    change(&mut s, &root, 2, imported);
+    open(&mut s, &helper, HELPER);
+    let r = rename_query(
+        &mut s,
+        &root,
+        imported,
+        imported.find("return answer").unwrap() + 7,
+        "solution",
+    );
+    assert!(
+        r["error"]["message"].as_str().unwrap().contains("alias"),
+        "{r:?}"
+    );
+    let mut closed = rename_server(&f, "transactional");
+    open(&mut closed, &root, ROOT);
+    let r = rename_query(
+        &mut closed,
+        &root,
+        ROOT,
+        ROOT.find("helper::answer").unwrap() + 8,
+        "solution",
+    );
+    assert!(
+        r["error"]["message"]
+            .as_str()
+            .unwrap()
+            .contains("must be open"),
+        "{r:?}"
+    );
+    let mut non_atomic = rename_server(&f, "undo");
+    open(&mut non_atomic, &root, ROOT);
+    open(&mut non_atomic, &helper, HELPER);
+    let r = rename_query(
+        &mut non_atomic,
+        &root,
+        ROOT,
+        ROOT.find("helper::answer").unwrap() + 8,
+        "solution",
+    );
+    assert!(
+        r["error"]["message"]
+            .as_str()
+            .unwrap()
+            .contains("transactional"),
+        "{r:?}"
+    );
+    let mut unsupported = f.ready(Default::default(), json!({}));
+    open(&mut unsupported, &root, ROOT);
+    open(&mut unsupported, &helper, HELPER);
+    let r = rename_query(
+        &mut unsupported,
+        &root,
+        ROOT,
+        ROOT.find("helper::answer").unwrap() + 8,
+        "solution",
+    );
+    assert!(
+        r["error"]["message"]
+            .as_str()
+            .unwrap()
+            .contains("documentChanges"),
+        "{r:?}"
+    );
+}
+
+#[test]
+fn checked_rename_rechecks_closed_inputs_metadata_versions_and_response_limits() {
+    let f = Files::new();
+    let root = f.uri("src/main.lang");
+    let helper = f.uri("helper/src/main.lang");
+    let source = "fn main()->i64{let mut value:i64=42;return value;}";
+    let offset = source.find("return value").unwrap() + 7;
+    let mut s = rename_server(&f, "transactional");
+    open(&mut s, &root, source);
+    f.write("helper/src/main.lang", "pub fn answer()->i64{return 43;}");
+    let stale = rename_query(&mut s, &root, source, offset, "amount");
+    assert!(
+        stale["error"]["message"]
+            .as_str()
+            .unwrap()
+            .contains("refresh"),
+        "{stale:?}"
+    );
+    watch(&mut s, &helper);
+    let r = rename_query(&mut s, &root, source, offset, "amount");
+    assert_eq!(
+        r["result"]["documentChanges"][0]["textDocument"]["version"], 1,
+        "{r:?}"
+    );
+    change(&mut s, &root, 5, source);
+    assert!(change(&mut s, &root, 4, "broken").is_empty());
+    let r = rename_query(&mut s, &root, source, offset, "amount");
+    assert_eq!(
+        r["result"]["documentChanges"][0]["textDocument"]["version"], 5,
+        "{r:?}"
+    );
+    f.write("Lang.json", &format!("{MANIFEST}\n"));
+    let stale = rename_query(&mut s, &root, source, offset, "amount");
+    assert!(
+        stale["error"]["message"]
+            .as_str()
+            .unwrap()
+            .contains("refresh"),
+        "{stale:?}"
+    );
+    let mut bounded = rename_server_limits(
+        &f,
+        "transactional",
+        Limits {
+            mapping: lang_lsp::Limits {
+                output_bytes: 96,
+                ..Limits::default().mapping
+            },
+            ..Default::default()
+        },
+    );
+    open(&mut bounded, &root, source);
+    let r = rename_query(&mut bounded, &root, source, offset, "amount");
+    assert!(
+        r["error"]["message"]
+            .as_str()
+            .unwrap()
+            .contains("byte limit"),
+        "{r:?}"
+    );
+    assert!(r.get("result").is_none());
+    assert_eq!(fs::read_to_string(f.0.join("src/main.lang")).unwrap(), ROOT);
+    assert!(!f.0.join("Lang.lock").exists());
+    assert!(!f.0.join("target").exists());
+}
+
+#[test]
+fn checked_rename_refuses_module_and_external_abi_declarations() {
+    let f = Files::new();
+    let root = f.uri("src/main.lang");
+    for (source, needle) in [
+        (ROOT, "helper"),
+        (
+            "extern \"C\" fn external(x:i64)->i64;fn main()->i64{return 42;}",
+            "external",
+        ),
+        (
+            "pub extern \"C\" fn exported(x:i64)->i64{return x;}fn main()->i64{return 42;}",
+            "exported",
+        ),
+    ] {
+        let mut s = rename_server(&f, "transactional");
+        let messages = open(&mut s, &root, source);
+        assert!(diagnostics(&messages, &root).is_empty(), "{messages:?}");
+        let r = rename_query(
+            &mut s,
+            &root,
+            source,
+            source.find(needle).unwrap(),
+            "changed",
+        );
+        assert!(r.get("error").is_some(), "{r:?}");
+        assert!(r.get("result").is_none());
+    }
+}
+
+#[test]
+fn checked_rename_bounds_repeated_utf16_mapping_before_returning_any_edit() {
+    let f = Files::new();
+    let root = f.uri("src/main.lang");
+    let mut source = format!(
+        "/*{}*/fn answer()->i64{{return 42;}}fn main()->i64{{",
+        "x".repeat(40_000)
+    );
+    for i in 0..100 {
+        source.push_str(&format!("let mut local{i}:i64=answer();"));
+    }
+    source.push_str("return 0;}");
+    let mut s = rename_server(&f, "transactional");
+    let messages = open(&mut s, &root, &source);
+    assert!(diagnostics(&messages, &root).is_empty(), "{messages:?}");
+    let r = rename_query(
+        &mut s,
+        &root,
+        &source,
+        source.find("fn answer").unwrap() + 3,
+        "reply",
+    );
+    assert!(
+        r["error"]["message"]
+            .as_str()
+            .unwrap()
+            .contains("mapping work limit"),
+        "{r:?}"
+    );
+    assert!(r.get("result").is_none());
+    assert_eq!(fs::read_to_string(f.0.join("src/main.lang")).unwrap(), ROOT);
+}
 fn decoded_tokens(source: &str, result: &Value) -> Vec<(String, u64)> {
     let data = result["result"]["data"]
         .as_array()

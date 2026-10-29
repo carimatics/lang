@@ -107,6 +107,8 @@ package completion は公開 module／import／enum 名、scope 内 binding、�
 
 full semantic token は固定 legend と現在の binding index を使い、不正 source には字句 fallback を使います。CR／LF で分割し、非重複 UTF-16 delta と epoch result ID を返します。semantic-token refresh 対応を宣言した client には source／overlay／watch 無効化後に refresh を要求し、range／delta request は未対応です。
 
+prepare／rename は dependency file を含む source 識別子の検証 edit を提案します。編集する全 file が open・version 付きであることと、client の `workspaceEdit.documentChanges`、複数 file では `transactional`／`textOnlyTransactional` の failure handling が必要です。許可済み全 input bytes の再確認、置換後の再解析、resolved HIR 全体と型の対応検証を行い、衝突、import alias、module、外部 ABI 宣言、古い input を拒否します。提案を disk に直接書き込みません。
+
 ## 開発
 
 `cargo run -- fmt --manifest-path target/my_app/Lang.json --check` は既存 CST formatter の要変更 file を無書込みで報告します。`--check` を省くと、選択 dependency／test を含め検証済みの source を file 単位で置換します。元 comment／span と permission を保持し、stale／不正 input は公開前に拒否します。source 変更後の古い lock は stale に保ち、通常 build／run で再生成します。file 単位公開の境界は [RFC 0036](docs/ja/rfcs/0036-checked-package-formatting.md) を参照してください。
