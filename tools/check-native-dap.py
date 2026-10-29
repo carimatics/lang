@@ -2,7 +2,6 @@
 import argparse
 import os
 import platform
-import shutil
 import json
 import queue
 import subprocess
@@ -30,11 +29,20 @@ SOURCE.write_text("fn answer()->i64 {\n    return 41+1;\n}\nfn main()->i64 {\n  
 PACKAGE = ROOT / "program"
 EXE = PACKAGE / ("debuggee.exe" if WINDOWS else "debuggee")
 manifest = json.loads((SDK / "sdk.json").read_text())
+selected = subprocess.run(["rustup", "which", "--toolchain", manifest["rustc"]["release"], "rustc"],
+                          capture_output=True, text=True, timeout=20, check=True)
+rustc = selected.stdout.strip()
+version = subprocess.run([rustc, "-vV"], capture_output=True, text=True, timeout=20, check=True)
+rustc_fields = dict(line.split(": ", 1) for line in version.stdout.splitlines() if ": " in line)
+if (rustc_fields.get("release") != manifest["rustc"]["release"]
+        or rustc_fields.get("commit-hash") != manifest["rustc"]["commit"]
+        or rustc_fields.get("host") != manifest["target"]):
+    raise RuntimeError(f"rustc does not match the native SDK: {version.stdout}")
 compiler = SDK / next(f["path"] for f in manifest["files"] if f["role"] == "compiler")
 produced = subprocess.run([str(compiler), "native", "--output", str(PACKAGE), str(SOURCE)], capture_output=True, text=True, timeout=60)
 assert produced.returncode == 0, produced.stderr
 libraries = [SDK / f["path"] for f in manifest["files"] if f["path"].endswith(".rlib")]
-command = ["rustc", "--edition=2024", "--crate-name=lang_native_dap_probe",
+command = [rustc, "--edition=2024", "--crate-name=lang_native_dap_probe",
            "-Cpanic=unwind", "-Cdebuginfo=2", "-Csplit-debuginfo=packed",
            str(PACKAGE / "main.rs"), "-o", str(EXE)]
 for directory in sorted({p.parent for p in libraries}):
@@ -172,7 +180,7 @@ try:
     assert exited["body"]["exitCode"] == 0, exited
     request("disconnect", {"terminateDebuggee": True})
     report = {"version": 1, "os": platform.system(), "architecture": platform.machine(),
-        "sdk_build_id": manifest["build_id"], "debugger": debugger,
+        "sdk_build_id": manifest["build_id"], "debugger": debugger, "rustc": rustc_fields,
         "breakpoints": breakpoints["breakpoints"], "frames": guest_frames,
         "step_frames": stepped_stack["stackFrames"], "exit_code": exited["body"]["exitCode"]}
     (ROOT / "native-dap-report.json").write_text(json.dumps(report, indent=2)+"\n", encoding="utf-8")
