@@ -129,6 +129,10 @@ native DAP backend は同じ package admission を使い、検証した private 
 
 `lang profile rebuild`は現在の不変package／workspace入力と過去のcanonical lockを比較します。native比較では現在の独立SDK snapshotと選択rustcも検証し、過去世代receiptを保持lock／SDK bytesと照合します。構造化相対keyでsource／dependencyの来歴、追加／削除、workspace選択、target／compiler identity、SDK／rustc変化を保持します。閉じた4 MiB readerは上限付きsnapshotから全差分を独立に導出します。この読取専用観測はpackageの型検査／実行／公開、過去recordの認証、cache出力再利用の保証を行いません。
 
+## Signed toolchain distribution
+
+[RFC 0042](rfcs/0042-signed-toolchain-installation.md)は固定local trust設定、上限付きthreshold署名channel catalogue、expiry、commit済みrollback floorを持つ明示root managerを採択します。metadata認証をpayload読取より先に行い、正確なfileとcompiler／SDK identityをactivation前に確認します。不変generationとatomic state置換は失敗時に旧active版を保持し、認証済みmetadata floorは転送前に進み得ます。root置換は新しい明示trust installationを要求し、初期formatはTUF互換を主張しません。F02–F05の実装／復旧／両host配布は未完了で、設計採択だけでG9を完了したりguest capabilityを増やしたりしません。
+
 ## 診断、REPL、editor tooling
 
 CLI は check、source/artifact 実行、portable compile、native package/link、transactional REPL、同期 LSP prototype を備えます。format は共通 CST API と LSP document formatting から利用できます。[RFC 0010](rfcs/0010-owned-repl-previews.md) と [RFC 0016](rfcs/0016-indirect-repl-previews.md) が有界 result preview を定めます。output 公開前に result を retire し、session は source 定義を保持しても mutable guest owner を保持しません。

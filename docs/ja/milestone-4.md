@@ -8,7 +8,7 @@
 
 **33 done · 1 doing · 9 todo · 27 remaining pt**
 
-現在のcheckoutは`codex/m4-profiling`。clean・同期済みdebugger branch `10aae50`から作成し、既存user変更はない。upstreamは`origin/codex/m4-profiling`、[PR #24](https://github.com/carimatics/lang/pull/24)のscopeはE01–E04。#19が`14a92df`でmergeしたため記録baseを`carimatics/lang:codex/m4-debug-adapter`から`carimatics/lang:main`へ移した。local main／origin/mainは`14a92df`で0/0。別文書PR #20–#23の祖先`be9f77c`も保持した。
+現在のcheckoutは`codex/m4-toolchain-installer`。cleanなprofiling文書head `84b17f6`から作成し、既存user変更はない。先行[PR #24](https://github.com/carimatics/lang/pull/24)がmergeするまで、記録remote PR baseは`carimatics/lang:codex/m4-profiling`。F01–F05を一貫したinstaller成果とする。installer PR／upstreamはまだない。profiling最終head CI／mergeは別に追跡し、検証済み実装証拠は`356fdca`。最後に確認したlocal main／origin/mainは`14a92df`で0/0、別文書PR #20–#23も保持する。
 
 F01の最終実行checkpoint、2026-10-30 09:37 JST: 直前のE04 source `356fdca`は完全local baseline（171 suite／2,500 test）、全体CI `40979050495`（18成功、意図したdoc専用skip）、native CI `40979050348`（3/3）に成功。独立した署名実験は公開RFC 8032 vectorの受理、改変／不正scalar／弱い鍵の拒否、macOSのnonblocking file lockを確認した。F01の残条件はtrust root／renewal、署名metadata／channel／version、上限付きtransport、atomic install／update／recoveryの具体的契約と日英RFC採択。実験はinstaller実装やG9完了を意味しない。
 

@@ -129,6 +129,10 @@ Optional host point recorders participate in execution Control/configuration ide
 
 `lang profile rebuild` compares current immutable package/workspace inputs with a prior canonical lock. Native comparison additionally validates the current independent SDK snapshot and selected rustc, and reconciles the prior generation receipt with its retained lock/SDK bytes. Structured relative keys retain source/dependency provenance, additions/removals, workspace selection, target/compiler identity and SDK/rustc changes. The closed 4 MiB reader independently derives every difference from bounded snapshots. This read-only observation does not type-check, execute or publish the package, authenticate historical records, or promise cached output reuse.
 
+## Signed toolchain distribution
+
+[RFC 0042](rfcs/0042-signed-toolchain-installation.md) accepts an explicit-root manager with a pinned local trust configuration, bounded threshold-signed channel catalogues, expiry and committed rollback floors. Authenticating metadata precedes payload reads; exact files and compiler/SDK identities precede activation. Immutable generations and atomic state replacement preserve the old active version on failure, while an authenticated metadata floor may advance before transfer. Root replacement requires a fresh explicitly trusted installation; this initial format does not claim TUF compatibility. F02–F05 implementation, recovery and both-host distribution remain open; design acceptance does not complete G9 or add guest capabilities.
+
 ## Diagnostics, REPL and editor tooling
 
 The CLI supports checking, source/artifact execution, portable compilation, native packages/linking, transactional REPL and a synchronous LSP prototype. Formatting is available through the shared CST API and LSP document formatting. [RFC 0010](rfcs/0010-owned-repl-previews.md) and [RFC 0016](rfcs/0016-indirect-repl-previews.md) define bounded returned-value previews. Results retire before output publication; sessions retain source definitions, not mutable guest owners.
