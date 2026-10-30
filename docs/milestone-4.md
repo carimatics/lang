@@ -4,15 +4,21 @@
 
 [日本語版](ja/milestone-4.md)
 
-Updated: 2026-10-30 JST. M4 is active. Goal start: clean main/origin/main `af9988f`, remote `git@github.com:carimatics/lang.git`. PRs #9–#19 are merged. Debugger PR #19 merged as `14a92df`, preserving independent documentation PRs #20–#23 (`be9f77c` ancestor). Last verified local main/origin/main match `14a92df`, 0/0 ahead/behind. The full M4 outcome and installer remain unfinished.
+Updated: 2026-10-30 JST. M4 is active. Goal start: clean main/origin/main `af9988f`, remote `git@github.com:carimatics/lang.git`. PRs #9–#24 are merged. Profiling PR #24 merged as `fa271b1`, preserving independent documentation PRs #20–#23 (`be9f77c` ancestor). Last verified local main/origin/main match `fa271b1`, 0/0 ahead/behind. The full M4 outcome and installer remain unfinished.
 
-**33 done · 1 doing · 9 todo · 27 remaining pt**
+**38 done · 1 doing · 5 todo · 14 remaining pt**
 
-Current checkout: `codex/m4-profiling`, created from clean synchronized debugger branch `10aae50`; no preexisting user changes. Upstream `origin/codex/m4-profiling`, [PR #24](https://github.com/carimatics/lang/pull/24), scope E01–E04. After #19 merged as `14a92df`, its recorded base moved from `carimatics/lang:codex/m4-debug-adapter` to `carimatics/lang:main`. Local main/origin/main match `14a92df`, 0/0; independent documentation PRs #20–#23 (`be9f77c` ancestor) are preserved.
+Current checkout: `codex/m4-toolchain-installer`, created from clean profiling documentation head `84b17f6`; no preexisting user changes. Its recorded remote PR base is now `carimatics/lang:main` after predecessor [PR #24](https://github.com/carimatics/lang/pull/24) merged. F01–F06 form one coherent installer outcome. Upstream is `origin/codex/m4-toolchain-installer`, [PR #25](https://github.com/carimatics/lang/pull/25). Profiling final head `84b17f6` passes [full CI](https://github.com/carimatics/lang/actions/runs/40981001066) (18 success, intentional documentation-only skip) and [native debugger execution](https://github.com/carimatics/lang/actions/runs/40981000915) (3/3). Local main/origin/main match merge `fa271b1`, 0/0. F06 proceeds on this branch in an isolated worktree; the original worktree preserves Z01 changes on `codex/m4-final-developer-journey`.
 
-F01 last executable checkpoint, 2026-10-30 09:37 JST: preceding E04 source `356fdca` passes the full local baseline (171 suites / 2,500 tests), full CI `40979050495` (18 success, intentional docs-only skip) and native CI `40979050348` (3/3). An independent signature experiment accepts the public RFC 8032 vector, refuses tampering/noncanonical scalars/weak keys and exercises macOS nonblocking file locks. Remaining F01 acceptance: concrete trust-root/renewal, signed metadata/channel/version, bounded transport and atomic install/update/recovery contracts, with a bilingual accepted RFC. The experiment does not implement the installer or complete G9.
+F06 last executable checkpoint, 2026-10-30 15:38 JST: the ownership guard passes a deterministic live-duplicate regression for successful completion and validation-error return. The existing recovery test that failed latest-head macOS 26 CI `123918665908` also passes locally; the actual signed-distribution/SDK fixture is running. Explicit unlock replaces close-only release without retrying genuine contention. Remaining acceptance: complete focused/full local checks and corrected both-host CI. Z01’s successful installed-tool journey is retained; its interrupted full baseline (exit 143) is not a pass.
 
-**Next: M4-F01 — signed installer design (doing, 3 pt).** Retire E04’s last 3 pt with zero additions. Re-audit F01 against the contracts above and the executable experiment; retain 3 pt. Across 43 deliveries: additions +17, retired 93, remaining 27 pt.
+Local checkpoint: 1 new lock regression and 17 focused tests pass, including the real signed-distribution/SDK fixture (74.20 s); fmt and full workspace Clippy with warnings denied pass. The complete local baseline is running; corrected-head CI remains required.
+
+Z01 last executable checkpoint, 2026-10-30 15:17 JST: one installed-compiler/SDK journey passes package creation, local dependency, LSP definition/references/completion/tokens/rename/code action, stale-lock refusal, fmt/lint/build/test/doc/package, DAP breakpoint/stack/locals/evaluation, native execution and identical binary bytes after relocation. The real-install suite passes 6 tests; existing shared-client LSP (27), DAP (12) and consistency (6) checks also pass. Fixture-only corrections use supported addition with a negative literal and the DAP canonical authority spelling for macOS temporary-root aliases; compiler semantics and assertions are unchanged. Remaining Z01 acceptance: complete local baseline/doc, code evidence and macOS CI. The bounded integration scope is unchanged, retaining 3 pt. Z02 retains the same Windows journey and full-baseline audit.
+
+F04 source `d2fb67b` passes fmt/full Clippy, 16 focused tests, the full local baseline (**173 suites / 2,512 passed / 0 failed**) and doc; root/fuzz fmt and fuzz Clippy passed for the implementation. The [Windows workspace failure](https://github.com/carimatics/lang/actions/runs/41001376849/job/123886372813) at `52555ff` was a cfg-specific needless closure, fixed by separate Unix/non-Unix status expressions without suppression or truncation. Corrected-head [full CI](https://github.com/carimatics/lang/actions/runs/41001783236) passes 18 jobs plus the intentional documentation-only skip; [native-debug CI](https://github.com/carimatics/lang/actions/runs/41001783129) passes 3/3. Retire F04’s 3 pt with zero additions.
+
+**Next: M4-F06 — release the owned installation lock before closing its file (doing, 2 pt).** Expose the newly reproduced lock-lifetime prerequisite before changing code. Z01 returns to todo with its successful executable checkpoint preserved; do not retry the CI failure or weaken nonblocking contention assertions. Across 44 deliveries: additions +19, retired 108, remaining 14 pt. G9 reopens until corrected both-host evidence is available.
 
 A04 source `cf6cf5c` passes fmt, full Clippy/doc and checked opt-level 1 full tests (**158 suites / 2,384 passed / 0 failed**), plus 75 focused tests. Final head `75a2041` passes [full CI](https://github.com/carimatics/lang/actions/runs/40810065213) (all 19 jobs: 18 success; intentional documentation-only skip) and [debugger execution](https://github.com/carimatics/lang/actions/runs/40810065278) (3/3). [PR #13](https://github.com/carimatics/lang/pull/13) merged as `58527c2`; main was fast-forwarded, clean and synchronized with 0/0 ahead/behind. Workspace branch creation and its current PR/upstream are recorded above. No preexisting user changes were present.
 
@@ -31,6 +37,10 @@ Final head `c0784fc` passed [full CI](https://github.com/carimatics/lang/actions
 The A01 input correction refuses FIFO/device/directory inputs with `PKG0005`/exit 1 using nonblocking Unix open and opened-handle metadata. It adds no planning points or completed delivery; its full validation and merge are recorded above.
 
 ## Exit gates
+
+F02 source `eb4243d` passes fmt, full Clippy/doc, the local baseline (**172 suites / 2,505 passed / 0 failed**), six consistency checks, all fuzz-bin Clippy and 10,000 uninstrumented fuzz smoke runs. [Full CI](https://github.com/carimatics/lang/actions/runs/40984177066) has all 19 jobs: 18 success and the intentional documentation-only skip for a source change. [Native-debug](https://github.com/carimatics/lang/actions/runs/40984177058) passes 3/3. F02 retires 3 pt with zero additions; G9 remains unfinished.
+
+F03 source `28bc8df` passes 15 focused tests, fmt, full/fuzz Clippy, doc and the complete local baseline (**173 suites / 2,509 passed / 0 failed**). [Full CI](https://github.com/carimatics/lang/actions/runs/40988434179) has 18 successes and the intentional documentation-only skip; [native-debug CI](https://github.com/carimatics/lang/actions/runs/40988434180) passes 3/3. Both hosts verify real signed compiler/SDK installation, source execution, tampering/rollback refusal, five failure boundaries, old active preservation after process interruption and retry. Retire F03’s 3 pt with zero additions.
 
 The [roadmap](roadmap.md#milestone-4-developer-toolchain) retains the original 63 pt acceptance weights. **8/9 gates verified; 55/63 gate weight (87.3%).** Accepting a design does not complete its implementation gates. Every P0 and P1 remains in scope; no work is deferred.
 
@@ -85,12 +95,13 @@ The [roadmap](roadmap.md#milestone-4-developer-toolchain) retains the original 6
 | M4-E03R | done | 0 | M4-E02 | G8 | Observe original logical zero-byte/OOM/resize/retirement boundaries in a complete bounded counter trace | `b715b7a` |
 | M4-E03 | done | 0 | M4-E03R | G8 | Allocation/retirement traces reconcile real allocator counters and bounded buffers | `546ae69` |
 | M4-E04 | done | 0 | M4-E03 | G8 | Rebuild explanations identify changed source/dependency/target/toolchain inputs | `356fdca` |
-| M4-F01 | doing | 3 | M4-A01 | G9 | Accept installer trust roots, signed metadata, channel/version selection and atomic recovery design | — |
-| M4-F02 | todo | 3 | M4-F01 | G9 | Verify signatures, expiry/rollback/target/digests before any install; tamper refusals | — |
-| M4-F03 | todo | 3 | M4-F02 | G9 | Install verified tools in an isolated root; failed/interrupted installs preserve active version | — |
-| M4-F04 | todo | 3 | M4-F03 | G9 | Channel update/select/list/uninstall with atomic activation and recovery | — |
-| M4-F05 | todo | 3 | M4-F04 | G9 | Signed release/distribution fixture installs and updates on both hosts | — |
-| M4-Z01 | todo | 3 | M4-B01,M4-B04,M4-C07,M4-D05,M4-E04,M4-F05 | G1,G2,G3,G4,G5,G6,G7,G8,G9 | New-developer install/create/editor/test/debug/reproducible-binary journey on macOS | — |
+| M4-F01 | done | 0 | M4-A01 | G9 | Accept installer trust roots, signed metadata, channel/version selection and atomic recovery design | `3a58363` |
+| M4-F02 | done | 0 | M4-F01 | G9 | Verify signatures, expiry/rollback/target/digests before any install; tamper refusals | `eb4243d` |
+| M4-F03 | done | 0 | M4-F02 | G9 | Install verified tools in an isolated root; failed/interrupted installs preserve active version | `28bc8df` |
+| M4-F04 | done | 0 | M4-F03 | G9 | Channel update/select/list/uninstall with atomic activation and recovery | `d2fb67b` |
+| M4-F05 | done | 0 | M4-F04 | G9 | Signed release/distribution fixture installs and updates on both hosts | `bf14faf` |
+| M4-F06 | doing | 2 | M4-F05 | G9 | Release the owned lock with a live duplicate descriptor, including failure paths and both hosts | — |
+| M4-Z01 | todo | 3 | M4-B01,M4-B04,M4-C07,M4-D05,M4-E04,M4-F05,M4-F06 | G1,G2,G3,G4,G5,G6,G7,G8,G9 | New-developer install/create/editor/test/debug/reproducible-binary journey on macOS | — |
 | M4-Z02 | todo | 3 | M4-Z01 | G1,G2,G3,G4,G5,G6,G7,G8,G9 | Same complete journey and full baseline on Windows; diagnose any divergence | — |
 | M4-Z03 | todo | 2 | M4-Z02 | G1,G2,G3,G4,G5,G6,G7,G8,G9 | Audit every roadmap exit requirement against latest code, both-host evidence and limitations | — |
 | M4-Z04 | todo | 2 | M4-Z03 | G1,G2,G3,G4,G5,G6,G7,G8,G9 | Publish bilingual M4 capability guide with runnable commands and final reconciliation | — |
@@ -102,9 +113,9 @@ Activation audit, 2026-10-29 JST: 36 observable deliveries, baseline 103 pt. The
 
 | Baseline remaining | Net added/re-estimated | Retired on completion | Remaining |
 | ---: | ---: | ---: | ---: |
-| 103 pt | +17 pt | −93 pt | 27 pt |
+| 103 pt | +19 pt | −108 pt | 14 pt |
 
-**103 + 17 − 93 = 27 pt**
+**103 + 19 − 108 = 14 pt**
 
 Namespace prerequisite audit, 2026-10-29 JST: the existing `ModuleGraph::root()` is always `ModuleId(0)`. A path provider alone cannot give each dependency its own package-root namespace or safely reuse a shared dependency identity. Split the original A02 outcome into an authorized graph (new A02R, 3 pt) and namespace/source execution integration (A02, remaining 3 pt after reviewing its task list). Net addition: +3 pt; 37 deliveries total. A01 and A02R are two prerequisites, so A02 must supply the next source execution fixture before further horizontal scaffolding. No gate is completed or deferred by this audit.
 
@@ -114,7 +125,13 @@ CLI outcome audit, 2026-10-29 JST, before implementation: the accepted transacti
 
 ## Delivery notes and roadmap review
 
+F06 scope addition, 2026-10-30 JST: documentation head `408eed1` exposes nondeterministic lock contention in the existing recovery test after owner drop. A duplicate-descriptor experiment reproduces the close/unlock distinction. Add 2 pt, preserve F05’s historical completion and Z01’s executable checkpoint, and reopen G9. Reconciliation is 103 + 19 − 108 = 14 pt.
+
+F05/G9 complete, verified 2026-10-30 14:57 JST: source `bf14faf` passes 17 focused checks, root/fuzz fmt, warning-free workspace/fuzz Clippy, doc and the complete local baseline (**174 suites / 2,513 passed / 0 failed**, one unchanged ignored timing test). [Full CI](https://github.com/carimatics/lang/actions/runs/41009253145) passes 18 jobs plus the intentional documentation-only skip; [native-debug CI](https://github.com/carimatics/lang/actions/runs/41009253195) passes 3/3. Both hosts execute the two-key producer, ordinary-installer pre-publication validation, all three channels/shared generations, installed-SDK native linking, historical expiry and update while the old compiler serves LSP. Windows also verifies live-executable uninstall refusal/deferred cleanup and recovery after exit. The update changes actual SDK packaging bytes while retaining compiler identity; it is not a different compiler build. Retire F05’s last 3 pt with zero additions, mark RFC 0042 implemented and G9 done. M4 still requires Z01–Z05's combined journey, exit audit, guide and final lifecycle.
+
 E04/G8 complete, 2026-10-30 JST: strict rebuild reader/CLI source `3db6cb3`, corrected for checkout bytes at `356fdca`, is verified on both hosts. Actual source/dependency/target/historical compiler, workspace selection/inactive membership, real SDK-header changes, SDK/rustc/receipt refusals and retained old outputs pass. Git attributes fix Windows CRLF conversion of the historical LF fixture; an additional assertion still detects an actual CRLF source edit. Fmt, warning-free full Clippy, 171 suites / 2,500 tests, doc, ten focused/consistency checks, fuzz fmt/Clippy and 10,000 uninstrumented smoke runs with four actual report kinds pass. Full CI `40979050495` has 18 successes plus the intentional docs-only skip; native CI `40979050348` passes 3/3. Retire E04’s 3 pt with zero additions and mark RFC 0041 implemented. E01–E04’s verified observation contracts complete G8; G9 and the final journeys/guide remain open.
+
+F01 complete, 2026-10-30 JST: RFC 0042 at `3a58363` is accepted under RFC 0001 experimental delegation. It defines explicit bootstrap trust, threshold signatures, closed bounded metadata, expiry/rollback floors, local/HTTPS authority, actual compiler/SDK reconciliation, atomic activation/recovery and explicit root-renewal limits. Public signature-vector/file-lock experiments, equivalent bilingual headings and six consistency tests pass. Retire 3 pt with zero additions. Windows/HTTPS/actual transactions remain explicit F02–F05 validation assumptions; G9 is not completed.
 
 B03 executable checkpoint, 2026-10-29 15:55 JST, current worktree: all 110 focused checks and the source-frozen full baseline (**163 suites / 2,419 passed / 0 failed**), fmt, warning-free full Clippy and doc pass. Six real CLI fixtures cover resolved unread bindings, original UTF-8 spans, existing warnings, dependency/test deduplication, denial, no-main/non-executing analysis and unchanged lock/artifact bytes; the library boundary accepts exactly 65,536 unique diagnostics and refuses one more. Formatter head `5010d45` exposed a Windows-only slash-string test assumption in core-1 job `123305175897`; compare native Path values with the same exact span requirement, including the new lint tests. The corrected 19 path/formatter/lint/consistency checks and Clippy pass locally. Remaining: code evidence and corrected latest-head both-host CI/PR lifecycle. B03 remains doing at 3 pt.
 

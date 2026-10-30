@@ -98,7 +98,14 @@ source構文・native language ABI・private SDK/package formatは実験段階�
 - [RFC 0039: package editor snapshot と検証付き edit（implemented）](docs/ja/rfcs/0039-package-editor-snapshots.md)
 - [RFC 0040: 上限付き debug adapter session（implemented）](docs/ja/rfcs/0040-bounded-debug-adapter-sessions.md)
 - [RFC 0041: 上限付きtoolchain profile（implemented）](docs/ja/rfcs/0041-bounded-toolchain-profiles.md)
+- [RFC 0042: 署名付きtoolchain installation（implemented）](docs/ja/rfcs/0042-signed-toolchain-installation.md)
 - [コントリビューションガイド](CONTRIBUTING.ja.md)
+
+`cargo run -- toolchain verify --trust-root root.json --metadata channel.json --channel stable --message-format json` は現在のhost向けの上限付き署名metadataを検証し、JSON概要を出力します。rootは別経路で信頼を確認してください。この読取専用検査は新規trust contextを使い、既存installのrollback floorを参照せず、payloadの読取やinstallも行いません。[RFC 0042](docs/ja/rfcs/0042-signed-toolchain-installation.md)を参照してください。
+
+`cargo run -- toolchain init --root target/tools --trust-root root.json` は明示的に信頼したrootを使って新しい分離installationを初期化します。`cargo run -- toolchain install --root target/tools --source distribution --channel stable` はlocal署名distributionからinstallし、active identityをJSONで報告します。activation前にcompiler／SDKの正確なbytesとidentityを検査し、転送失敗で認証済みmetadata floorが進む場合もactive版を保持します。`cargo run -- toolchain identity` はこのcompiler自身のversion、target、build IDを報告します。sourceには明示的に信頼したHTTPS baseも指定でき、TLS検証、redirect／復号なし、有限の転送上限を要求します。署名current bundleへは`toolchain update --root target/tools --source distribution --channel stable`、確認には`list`／`which --root target/tools`、既存bundle選択には`select --root target/tools --channel stable --version 0.1.0`、検証済みcompilerへの引数転送には`run --root target/tools -- run --manifest-path app/Lang.json`を使います。`uninstall`はinactiveのchannel／versionを指定し、`recover --root target/tools`はfloorをresetせず既知の中断処理を解決します。
+
+配布作成者は`cargo run --example toolchain-release -- --sdk target/sdk --output distribution --trust-root root.json --channel stable --version 0.1.0 --sequence 1 --issued UNIX_SECONDS --expires UNIX_SECONDS`を実行し、別途用意した署名情報をstdinへ渡せます。入力はschema-1 JSONで、`signing_keys`に小文字16進Ed25519 seed（各64文字）の配列を指定します。時刻のplaceholderはRFC 0042を満たすUnix秒へ置き換えます。秘密情報をcommand引数、環境変数、logに含めないでください。producerは既存SDKと署名を検証し、private stagingで通常installerを実行してから、channel metadataとcontent-addressed objectだけを含む新規destinationをatomicに公開します。鍵生成やtrust確立は行いません。両hostのinstall／update／失敗journeyは`bf14faf`で検証済みで、M4の完全な新規開発者journeyは作業ボードで継続管理します。
 
 `cargo run -- lint --manifest-path target/my_app/Lang.json --deny-warnings --message-format json` は guest code を実行せず、lock／artifact を書かずに選択 package と宣言 test を検査します。`LNT0001` は未読 binding を報告し、`_` で始まる名前はこの rule を抑制します。既存 warning は code を保持します。`--deny-warnings` を省くと warning は失敗にしません。[RFC 0037](docs/ja/rfcs/0037-package-lint-diagnostics.md) を参照してください。
 

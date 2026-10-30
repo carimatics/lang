@@ -129,6 +129,12 @@ native DAP backend は同じ package admission を使い、検証した private 
 
 `lang profile rebuild`は現在の不変package／workspace入力と過去のcanonical lockを比較します。native比較では現在の独立SDK snapshotと選択rustcも検証し、過去世代receiptを保持lock／SDK bytesと照合します。構造化相対keyでsource／dependencyの来歴、追加／削除、workspace選択、target／compiler identity、SDK／rustc変化を保持します。閉じた4 MiB readerは上限付きsnapshotから全差分を独立に導出します。この読取専用観測はpackageの型検査／実行／公開、過去recordの認証、cache出力再利用の保証を行いません。
 
+## Signed toolchain distribution
+
+[RFC 0042](rfcs/0042-signed-toolchain-installation.md)は固定local trust設定、上限付きthreshold署名channel catalogue、expiry、commit済みrollback floorを持つ明示root managerを採択します。metadata認証をpayload読取より先に行い、正確なfileとcompiler／SDK identityをactivation前に確認します。不変generationとatomic state置換は失敗時に旧active版を保持し、認証済みmetadata floorは転送前に進み得ます。root置換は新しい明示trust installationを要求し、初期formatはTUF互換を主張しません。F02の厳密verifier／読取専用CLIは両hostで検証済みです。F03のlocal installは保存receiptを再認証し、payloadをstream／hash、SDK表と上限付きcompiler identity subprocessを照合してatomic activationします。両hostの実SDK fixtureでinstall後のsource実行、失敗／process中断後の旧active保持と同sequence retryを確認しました。F03は`28bc8df`で完全local baselineと両host CIに成功し、F04は上限付き検証済みHTTPS、channel操作、検証付きrun／which、marker付きuninstall／復旧を追加し、実TLS、installed compiler中断fixture、完全local baselineに成功しました。F04の両host全体／native CIは`d2fb67b`で成功し、F05の配布生成／journeyは`bf14faf`で全体／native CIに成功してG9を完了しました。最終統合journeyとM4終了監査は未完了で、guest capabilityは変更しません。
+
+信頼済みrelease producerは既存host SDK、別経路で信頼したroot、上限付き署名入力を受け取ります。正確なchannel payload bytesへ署名し、各source fileをstream／hash、private stagingで通常installerを再利用してSDK／compiler identityを確認してから非置換公開します。公開物はmetadataとobjectのみで、署名情報を生成・保存しません。同一compiler identityを保つ2種類のSDK直列化によって、実際にbundle generationを更新します。local journeyでは導入済みSDKでのnative link、3 channel間のgeneration共有、旧compiler実行中のupdate／uninstall、期限切れ保存receiptも検証し、Windows CIでは実行中exeのuninstall拒否／cleanup延期と終了後の復旧を検証しました。
+
 ## 診断、REPL、editor tooling
 
 CLI は check、source/artifact 実行、portable compile、native package/link、transactional REPL、同期 LSP prototype を備えます。format は共通 CST API と LSP document formatting から利用できます。[RFC 0010](rfcs/0010-owned-repl-previews.md) と [RFC 0016](rfcs/0016-indirect-repl-previews.md) が有界 result preview を定めます。output 公開前に result を retire し、session は source 定義を保持しても mutable guest owner を保持しません。
