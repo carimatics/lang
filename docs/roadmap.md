@@ -252,7 +252,9 @@ Exit: a new developer can install one tool, create a package, develop in an edit
 
 Activated 2026-10-30 JST. The [M5 board](milestone-5.md) retains all ten gates, 39 observable deliveries and a 112 pt remaining-work baseline. Start with the [edition/compatibility policy](rfcs/0043-editions-and-compatibility.md) and executable compatibility/migration fixtures. Threat modeling must precede registry uploads; signed toolchain installation is not registry provenance. Both P1 gates remain in scope. Completion includes both-host ecosystem journeys and a bilingual capability guide.
 
-**2 done · 0 doing · 37 todo · 107 remaining pt**
+**2 done · 1 doing · 37 todo · 110 remaining pt**
+
+The B01 audit adds one 3 pt historical scalar migration prerequisite to the 39-delivery baseline (40 total deliveries; 112 + 3 − 5 = 110 remaining pt). [RFC 0044](rfcs/0044-checked-source-migration.md) accepts the checked-fix and migration contract; implementation and G2 remain open.
 
 **Progress: 5 / 65 pt (7.7%).**
 
