@@ -6,17 +6,17 @@
 
 2026-10-30 JST、`3b676c5`から開始。[ロードマップ](roadmap.md#milestone-5ecosystemとcompatibility)のM5全範囲（P1の2ゲートを含む）を追跡する。M4のinstallerとlocal packageは前提条件であり、registry完了を意味しない。
 
-**1 done · 1 doing · 37 todo · 110 remaining pt**
+**2 done · 0 doing · 37 todo · 107 remaining pt**
 
-**次: M5-A02 — 互換性CLIを実装し既存consumerを検証する。**
+**次: M5-B01 — 検証付きfixと旧仕様移行recipeを採択する。**
 
-現在のcheckpoint: 開始時はcleanな`main`、追跡先`origin/main`、remoteは`git@github.com:carimatics/lang.git`。作業branchは`codex/m5-editions-and-migration`、PR baseは`main`。ユーザー変更なし。2026-10-30 JST確認。A01はRFC 0043（`b654ae7`）で採択済み。A02作業ツリーの最終実行checkpoint（2026-10-30 22:17 JST確認）: 実CLI `lang compatibility --message-format json`が成功し、compatibility・manifest・source・lock・repositoryのfocused test 45件が成功。全baselineは未検証。最初の観測はtimeoutし、後に最終結果を保持できないままprocessが終了した。代わりのprocessは稼働中で、その終了後に順次実行するrunnerがignoreされた`target/m5-validation/`へ全logと終了codeを保存する。残る受入条件は全baselineの結果確認、code commit、PR最新headの両host CI、merge。timeoutや保存state fileだけを成功とせず、実processと保持結果を確認する。
+現在のcheckpoint（2026-10-30 JST確認）: A01・A02でRFC 0043を実装した。code `a473cc0`で実互換性CLI、focused test 45件、fmt、Clippy、workspace test 2,522件、分離targetのrustdocが成功。両host CI `41064851495`とnative-debug CI `41064851345`も同codeで成功した。[PR #29](https://github.com/carimatics/lang/pull/29)のbaseは`main`。この文書記録の公開には最新head checkとremote mergeが残る。開始branchはcleanな`main`、追跡先`origin/main`、remoteは`git@github.com:carimatics/lang.git`、作業branchは`codex/m5-editions-and-migration`。ユーザー変更なし。B01の日英草案は採択RFC集合の外に置く。M5は継続中で9ゲートがopen。
 
 ## Exit gates
 
 | Gate | 必須成果 | State |
 | --- | --- | --- |
-| G1 | edition・非推奨方針・互換性表 | open |
+| G1 | edition・非推奨方針・互換性表 | done |
 | G2 | edition移行と機械適用可能な修正 | open |
 | G3 | upload前のregistry脅威モデル採択 | open |
 | G4 | storage・index・download・immutable version | open |
@@ -27,14 +27,14 @@
 | G9 | 文書hostingとmetadata検索（P1） | open |
 | G10 | 公開LLVM release backend評価（P1） | open |
 
-ゲート完了: **0/10; 0/65 historical gate weight**。以下は残作業見積りであり、実時間やロードマップのゲート重みではない。
+ゲート完了: **1/10; 5/65 historical gate weight**。以下は残作業見積りであり、実時間やロードマップのゲート重みではない。
 
 ## Deliveries
 
 | ID | State | Remaining | Needs | Gates | 観測可能な受入条件 | Evidence |
 | --- | --- | ---: | --- | --- | --- | --- |
 | M5-A01 | done | 0 | — | G1 | edition・非推奨方針と領域別互換性表を採択 | `b654ae7` |
-| M5-A02 | doing | 3 | M5-A01 | G1 | CLIで互換性を表示し未知editionと旧consumer境界を検証 | — |
+| M5-A02 | done | 0 | M5-A01 | G1 | CLIで互換性を表示し未知editionと旧consumer境界を検証 | `a473cc0` |
 | M5-B01 | todo | 2 | M5-A01 | G2 | 移行レシピ・適用可能性・書込みトランザクション契約を採択 | — |
 | M5-B02 | todo | 3 | M5-B01 | G2 | 元spanを保持した実ソース修正previewと意味再検査 | — |
 | M5-B03 | todo | 3 | M5-B02 | G2 | 修正適用とstale・競合・部分書込み拒否fixture | — |
@@ -75,11 +75,11 @@
 
 ## 見積り照合
 
-**112 + 0 − 2 = 110 pt**
+**112 + 0 − 5 = 107 pt**
 
 | 基準残作業 | 純追加・再見積り | 完了時に除去 | 残作業 |
 | ---: | ---: | ---: | ---: |
-| 112 pt | +0 pt | −2 pt | 110 pt |
+| 112 pt | +0 pt | −5 pt | 107 pt |
 
 ## Delivery noteとロードマップ監査
 
@@ -95,7 +95,7 @@ A01完了（2026-10-30 JST）: 日英RFC 0043を委任採択し、既存edition�
 
 B01準備（2026-10-30 JST、delivery完了への変更なし）: 2 moduleのstandalone sourceと、同じbytesにedition-2026 manifestを付けたpackageはどちらも42を返した。これはpackage化であり、edition間移行の証拠ではなく、これだけでG2を完了できない。実stdio LSPは`unused`だけを`_unused`へ変更するversion付き`LNT0001` quickfixを返し、適用後もinitializerを保持して42を返し、lintが解消した。次のfix CLIでは既存の意味rename証明を再利用する。現editor snapshotはroot entryを扱うため、B02では宣言testのcoverageを明示的に扱う必要がある。契約案はB01レビューまで採択RFC集合の外に置く。見積り・exitゲートの変更なし。
 
-A02公開checkpoint: 実装`a473cc0`を`main`ベースの[draft PR #29](https://github.com/carimatics/lang/pull/29)へpushした。最新headのCI `41064851495`とnative-debug CI `41064851345`を開始し、全適用checkと保持された全local結果が揃うまでmergeしない。以前のbackground観測wrapperはCargo子process終了後も残っていたため、idle wrapperを終了してから順次実行の保存付き検証を開始した。保存したfmt・Clippyは成功。workspace testとdocは未確定。観測timeoutだけを理由に稼働中のCargo子processを再起動しない。
+A02完了（2026-10-30 JST）: 実装`a473cc0`は上限付きhuman・JSON互換性reportを公開し、manifestと有限edition受入を共有する。保持した直接終了codeでfmt・Clippy、全workspace test 2,522件（177 suite、失敗0）を確認した。最初のrustdocは古い依存metadataを参照して`NativeContext`・`Method`のAPI不一致になったが、同じsourceが分離targetの`cargo doc --workspace --no-deps`で成功した。detached再試行では観測用一時directoryの消失も確認し、永続する`/private/tmp`で解消した。logと実終了codeはignoreされた`target/m5-validation/`に保持し、観測timeoutは成功と数えない。実装headのCI `41064851495`とnative-debug `41064851345`は旧consumer境界を含め成功。3 ptを除去し、追加なし。G1を完了（gate重み5/65）とし、他9ゲートと全P1成果は維持する。文書公開もそのPR最新headのcheck成功後にmergeする。
 
 B01の歴史的移行証拠: [保持したprobe](../evidence/2026-10-30-m5-legacy-source-probe.json)は架空の後継editionではなく、実在する`69b1c4d`（2026-10-17）のRFC 0006 sourceを使う。`shared`・`weak`識別子はlockを固定した旧compilerで42を返すが、現compilerでは`SRC0024`が4件出る。その旧libraryから生成した315 byteのartifactは現compilerでも42を返す。これを旧profileから2026への実移行fixtureとする。B01は明示profile受入を定義し、capture・renameの前提作業を実装前に明示・再見積りする。通常compilerの現予約語拒否は維持する。この実験はG2完了ではない。
 

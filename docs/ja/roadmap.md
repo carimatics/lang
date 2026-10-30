@@ -45,10 +45,10 @@ lock寿命の修正を含むinstallerは、2026-10-30 JSTに[PR #25](https://git
 | 2 — ownershipとnative AOT | 113 pt | 113 pt | 100.0% |
 | 3 — concurrencyとembedding（完了） | 96 pt | 96 pt | 100.0% |
 | 4 — developer toolchain | 63 pt | 63 pt | 100.0% |
-| 5 — ecosystemとcompatibility | 0 pt | 65 pt | 0.0% |
+| 5 — ecosystemとcompatibility | 5 pt | 65 pt | 7.7% |
 | 6 — セルフホスティング | 0 pt | 74 pt | 0.0% |
 | 7 — 追加frontend | 0 pt | 55 pt | 0.0% |
-| **全体** | **570 pt** | **764 pt** | **74.6%** |
+| **全体** | **575 pt** | **764 pt** | **75.3%** |
 
 ## Milestone 0：設計baseline
 
@@ -252,11 +252,11 @@ Exit：新しいdeveloperが1つのtoolをinstallし、packageを作成し、edi
 
 2026-10-30 JST開始。[M5 board](milestone-5.md)に全10ゲート、39件の観測可能delivery、残作業基準112 ptを保持する。[edition・互換性方針](rfcs/0043-editions-and-compatibility.md)と実行可能な互換性・移行fixtureから開始する。registry upload前に脅威モデルを定め、署名toolchain導入をregistry provenanceと混同しない。P1の2ゲートも範囲内。完了には両host ecosystem journeyと日英能力guideを含める。
 
-**1 done · 1 doing · 37 todo · 110 remaining pt**
+**2 done · 0 doing · 37 todo · 107 remaining pt**
 
-**進捗：0 / 65 pt（0.0%）。**
+**進捗：5 / 65 pt（7.7%）。**
 
-- [ ] **P0 — Edition、deprecation policy、compatibility matrixを定義する。** — 5 pt
+- [x] **P0 — Edition、deprecation policy、compatibility matrixを定義する。** — 5 pt
 - [ ] **P0 — Edition migration／machine-applicable fix toolを構築する。** — 8 pt
 - [ ] **P0 — Upload受付前にpublic-registry threat modelを完成させる。** — 8 pt
 - [ ] **P0 — Registry package storage、indexing、download、immutable-version ruleを実装する。** — 5 pt

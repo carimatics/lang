@@ -4,7 +4,7 @@
 
 [English](../../rfcs/0043-editions-and-compatibility.md)
 
-- ステータス: accepted
+- ステータス: implemented
 - Authors: ownerの実験段階委任に基づくCodex
 - 作成日: 2026-10-30
 - 最終更新日: 2026-10-30

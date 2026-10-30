@@ -4,7 +4,7 @@
 
 [日本語版](../ja/rfcs/0043-editions-and-compatibility.md)
 
-- Status: accepted
+- Status: implemented
 - Authors: Codex under the owner's experimental delegation
 - Created: 2026-10-30
 - Last updated: 2026-10-30

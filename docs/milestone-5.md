@@ -6,17 +6,17 @@
 
 Activated 2026-10-30 JST from `3b676c5`. This board tracks the entire M5 scope in [the roadmap](roadmap.md#milestone-5-ecosystem-and-compatibility), including both P1 gates. M4's installer and local packages are prerequisites, not registry completion.
 
-**1 done · 1 doing · 37 todo · 110 remaining pt**
+**2 done · 0 doing · 37 todo · 107 remaining pt**
 
-**Next: M5-A02 — execute the compatibility CLI and validate existing consumers.**
+**Next: M5-B01 — accept checked fix and historical migration recipes.**
 
-Current checkpoint: clean starting `main` tracking `origin/main`, `git@github.com:carimatics/lang.git`; work branch `codex/m5-editions-and-migration`, PR base `main`. No user changes. Verified 2026-10-30 JST. A01 is accepted in RFC 0043 (`b654ae7`). Last executable A02 working-tree checkpoint, verified 2026-10-30 22:17 JST: the real `lang compatibility --message-format json` succeeds and 45 focused compatibility/manifest/source/lock/repository tests pass. The full baseline is still unverified: the first observation timed out and its process later ended without a retained final result. The replacement process remains live; a sequential runner will retain complete logs and exit codes in ignored `target/m5-validation/` after that process exits. Remaining acceptance: verified full baseline, code commit, both-host latest-head PR CI and merge. Do not count a timeout or a saved state file alone as a pass; inspect the live process and retained results.
+Current checkpoint, verified 2026-10-30 JST: A01/A02 implement RFC 0043. Code `a473cc0` passes the real compatibility CLI, 45 focused tests, fmt, Clippy, 2,522 workspace tests and isolated-target rustdoc. Both-host CI `41064851495` and native-debug CI `41064851345` succeeded for that code. [PR #29](https://github.com/carimatics/lang/pull/29) targets `main`; publication of these documentation records still requires latest-head checks and remote merge. Starting branch is clean `main` tracking `origin/main`, remote `git@github.com:carimatics/lang.git`; work branch `codex/m5-editions-and-migration`. No user changes. B01's bilingual draft remains outside the accepted RFC set. M5 remains active with nine gates open.
 
 ## Exit gates
 
 | Gate | Required outcome | State |
 | --- | --- | --- |
-| G1 | Editions, deprecation policy, compatibility matrix | open |
+| G1 | Editions, deprecation policy, compatibility matrix | done |
 | G2 | Edition migration and machine-applicable fixes | open |
 | G3 | Registry threat model accepted before uploads | open |
 | G4 | Storage, indexing, download, immutable versions | open |
@@ -27,14 +27,14 @@ Current checkpoint: clean starting `main` tracking `origin/main`, `git@github.co
 | G9 | Documentation hosting and metadata search (P1) | open |
 | G10 | Published LLVM release-backend evaluation (P1) | open |
 
-Gate completion: **0/10; 0/65 historical gate weight**. Delivery points below are remaining work estimates, not elapsed time or the roadmap's gate weights.
+Gate completion: **1/10; 5/65 historical gate weight**. Delivery points below are remaining work estimates, not elapsed time or the roadmap's gate weights.
 
 ## Deliveries
 
 | ID | State | Remaining | Needs | Gates | Observable acceptance | Evidence |
 | --- | --- | ---: | --- | --- | --- | --- |
 | M5-A01 | done | 0 | — | G1 | Accept edition/deprecation policy and domain compatibility matrix | `b654ae7` |
-| M5-A02 | doing | 3 | M5-A01 | G1 | Expose supported compatibility in CLI; test unknown editions and old consumer boundaries | — |
+| M5-A02 | done | 0 | M5-A01 | G1 | Expose supported compatibility in CLI; test unknown editions and old consumer boundaries | `a473cc0` |
 | M5-B01 | todo | 2 | M5-A01 | G2 | Accept migration recipes, applicability and write transaction contract | — |
 | M5-B02 | todo | 3 | M5-B01 | G2 | Preview real source fixes with original spans and semantic recheck | — |
 | M5-B03 | todo | 3 | M5-B02 | G2 | Apply checked fixes; stale/conflicting/partial-write refusal fixtures | — |
@@ -75,11 +75,11 @@ Gate completion: **0/10; 0/65 historical gate weight**. Delivery points below ar
 
 ## Estimate reconciliation
 
-**112 + 0 − 2 = 110 pt**
+**112 + 0 − 5 = 107 pt**
 
 | Baseline remaining | Net additions/re-estimates | Retired at completion | Remaining |
 | ---: | ---: | ---: | ---: |
-| 112 pt | +0 pt | −2 pt | 110 pt |
+| 112 pt | +0 pt | −5 pt | 107 pt |
 
 ## Delivery notes and roadmap audits
 
@@ -95,7 +95,7 @@ A01 completed (2026-10-30 JST): bilingual RFC 0043 accepted under delegation, de
 
 B01 preparation, 2026-10-30 JST (no delivery retired): a two-module standalone source and the same bytes under an explicit edition-2026 manifest both execute to 42. This is package adoption, not cross-edition migration evidence, and cannot by itself close G2. The real stdio LSP returns a versioned `LNT0001` quickfix that changes only `unused` to `_unused`; applying it preserves the initializer, returns 42 and clears the lint. Reuse the existing semantic rename proof for the next fix CLI. The current editor snapshot captures the root entry; declared-test coverage must be handled explicitly in B02. The draft contract remains outside the accepted RFC set until B01 review. No estimates or exit gates change.
 
-A02 publication checkpoint: implementation `a473cc0` is pushed in [draft PR #29](https://github.com/carimatics/lang/pull/29), based on `main`. Latest-head CI `41064851495` and native-debug CI `41064851345` were started; merge remains gated on all applicable checks and retained full local results. The old background observation wrapper stayed alive after its Cargo child exited, so its idle wrapper was terminated before the sequential durable run began. Retained fmt and Clippy results are successful; workspace tests and docs remain pending. Do not restart a still-running Cargo child based only on an observation timeout.
+A02 completed (2026-10-30 JST): implementation `a473cc0` exposes bounded human/JSON compatibility reports and shares finite edition admission with manifests. Retained direct exits confirm fmt/Clippy and all 2,522 workspace tests (177 suites, no failures). Initial rustdoc used stale dependency metadata (`NativeContext`/`Method` API mismatches); the unchanged source passes `cargo doc --workspace --no-deps` with an isolated target. A detached retry also exposed an expired observation temporary directory; using persistent `/private/tmp` resolved it. Logs and actual exit codes are retained in ignored `target/m5-validation/`; observation timeouts are not counted as passes. CI `41064851495` and native-debug `41064851345` succeeded for the implementation head, including existing old-consumer boundaries. Retire 3 pt, no additions. G1 closes (5/65 gate weight); the other nine gates and all P1 outcomes remain required. Documentation publication must still pass checks for its own latest PR head before merge.
 
 B01 historical migration evidence: [the retained probe](evidence/2026-10-30-m5-legacy-source-probe.json) uses the real RFC 0006 source at `69b1c4d` (2026-10-17), not a synthetic successor edition. Its `shared`/`weak` identifiers execute to 42 with the locked historical compiler but receive four `SRC0024` diagnostics now. A 315-byte artifact produced through that historical library still executes to 42 in the current compiler. This supplies a real historical-profile-to-2026 migration fixture. B01 must define explicit profile admission and expose/re-estimate its capture/rename prerequisite before implementation; the ordinary compiler must retain current keyword refusal. This experiment does not complete G2.
 

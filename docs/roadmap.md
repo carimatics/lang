@@ -45,10 +45,10 @@ Snapshot of exit-gate weights verified 2026-10-30 JST. Acceptance weights are se
 | 2 — ownership and native AOT | 113 pt | 113 pt | 100.0% |
 | 3 — concurrency and embedding (complete) | 96 pt | 96 pt | 100.0% |
 | 4 — developer toolchain | 63 pt | 63 pt | 100.0% |
-| 5 — ecosystem and compatibility | 0 pt | 65 pt | 0.0% |
+| 5 — ecosystem and compatibility | 5 pt | 65 pt | 7.7% |
 | 6 — self-hosting | 0 pt | 74 pt | 0.0% |
 | 7 — additional frontends | 0 pt | 55 pt | 0.0% |
-| **Overall** | **570 pt** | **764 pt** | **74.6%** |
+| **Overall** | **575 pt** | **764 pt** | **75.3%** |
 
 ## Milestone 0: design baseline
 
@@ -252,9 +252,11 @@ Exit: a new developer can install one tool, create a package, develop in an edit
 
 Activated 2026-10-30 JST. The [M5 board](milestone-5.md) retains all ten gates, 39 observable deliveries and a 112 pt remaining-work baseline. Start with the [edition/compatibility policy](rfcs/0043-editions-and-compatibility.md) and executable compatibility/migration fixtures. Threat modeling must precede registry uploads; signed toolchain installation is not registry provenance. Both P1 gates remain in scope. Completion includes both-host ecosystem journeys and a bilingual capability guide.
 
-**Progress: 0 / 65 pt (0.0%).**
+**2 done · 0 doing · 37 todo · 107 remaining pt**
 
-- [ ] **P0 — Define editions, deprecation policy, and the compatibility matrix.** — 5 pt
+**Progress: 5 / 65 pt (7.7%).**
+
+- [x] **P0 — Define editions, deprecation policy, and the compatibility matrix.** — 5 pt
 - [ ] **P0 — Build the edition migration and machine-applicable fix tool.** — 8 pt
 - [ ] **P0 — Complete the public-registry threat model before accepting uploads.** — 8 pt
 - [ ] **P0 — Implement registry package storage, indexing, download, and immutable-version rules.** — 5 pt

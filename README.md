@@ -103,7 +103,7 @@ The rationale and unresolved tradeoffs are documented in [the architecture basel
 - [RFC 0040: Bounded debug adapter sessions (implemented)](docs/rfcs/0040-bounded-debug-adapter-sessions.md)
 - [RFC 0041: Bounded toolchain profiles (implemented)](docs/rfcs/0041-bounded-toolchain-profiles.md)
 - [RFC 0042: Signed toolchain installation (implemented)](docs/rfcs/0042-signed-toolchain-installation.md)
-- [RFC 0043: Editions and compatibility policy (accepted)](docs/rfcs/0043-editions-and-compatibility.md)
+- [RFC 0043: Editions and compatibility policy (implemented)](docs/rfcs/0043-editions-and-compatibility.md)
 - [Contribution guide](CONTRIBUTING.md)
 
 `cargo run -- toolchain verify --trust-root root.json --metadata channel.json --channel stable --message-format json` verifies bounded signed metadata for the current host and emits a JSON summary. The root must be trusted out of band. This read-only check uses a fresh trust context: it neither consults an installed rollback floor nor reads or installs payloads. See [RFC 0042](docs/rfcs/0042-signed-toolchain-installation.md).
