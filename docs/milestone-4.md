@@ -6,13 +6,13 @@
 
 Updated: 2026-10-30 JST. M4 is active. Goal start: clean main/origin/main `af9988f`, remote `git@github.com:carimatics/lang.git`. PRs #9–#24 are merged. Profiling PR #24 merged as `fa271b1`, preserving independent documentation PRs #20–#23 (`be9f77c` ancestor). Last verified local main/origin/main match `fa271b1`, 0/0 ahead/behind. The full M4 outcome and installer remain unfinished.
 
-**34 done · 1 doing · 8 todo · 24 remaining pt**
+**35 done · 1 doing · 7 todo · 21 remaining pt**
 
 Current checkout: `codex/m4-toolchain-installer`, created from clean profiling documentation head `84b17f6`; no preexisting user changes. Its recorded remote PR base is now `carimatics/lang:main` after predecessor [PR #24](https://github.com/carimatics/lang/pull/24) merged. F01–F05 form one coherent installer outcome. Upstream is `origin/codex/m4-toolchain-installer`, [draft PR #25](https://github.com/carimatics/lang/pull/25). Profiling final head `84b17f6` passes [full CI](https://github.com/carimatics/lang/actions/runs/40981001066) (18 success, intentional documentation-only skip) and [native debugger execution](https://github.com/carimatics/lang/actions/runs/40981000915) (3/3). Local main/origin/main match merge `fa271b1`, 0/0.
 
-F02 last executable checkpoint, 2026-10-30 10:09 JST: bounded strict root/envelope/payload verification and the read-only CLI pass five focused tests plus six repository consistency checks. Fmt, warning-free full Clippy, checked opt-level 1 full workspace tests (**172 suites / 2,505 passed / 0 failed**) and doc pass with assertions/overflow checks enabled. Root/fuzz fmt and all fuzz-bin Clippy pass; 10,000 uninstrumented metadata fuzz smoke runs complete, without a coverage/sanitizer claim. Tests exercise threshold signatures, expiry/clock/prior-admission floors, target/digest/path/count limits, tampering and nonblocking invalid-file refusal. Remaining F02 acceptance: both-host CI for the implementation commit. Installer transactions remain F03–F05; G9 is open.
+F03 last executable checkpoint, 2026-10-30 10:51 JST: a real compiler/SDK installs from a local signed distribution and the installed compiler executes source returning 42. Payload tampering, rollback, failures at every commit boundary and real process interruption preserve old active execution; same-sequence retry succeeds. Changed existing generations and malformed state refuse. Fifteen focused tests, root/fuzz fmt, warning-free full/fuzz Clippy, checked opt-level 1 full workspace tests (**173 suites / 2,509 passed / 0 failed**) with assertions/overflow checks, and doc pass. Remaining F03 acceptance: both-host CI for the implementation commit. G9 remains open.
 
-**Next: M4-F02 — signed release verification (doing, 3 pt).** Retire F01’s last 3 pt with zero additions. Re-audit F02 as strict verifier/read-only CLI/malformed-input and prior-admission checks; retain 3 pt. Across 43 deliveries: additions +17, retired 96, remaining 24 pt.
+**Next: M4-F03 — isolated verified installation (doing, 3 pt).** Retire F02’s last 3 pt with zero additions. Re-audit F03 as finite state, local transfer, actual SDK/compiler reconciliation and failure-preserving activation; retain 3 pt. HTTPS/channel/recovery remain F04, both-host journeys F05. Across 43 deliveries: additions +17, retired 99, remaining 21 pt.
 
 A04 source `cf6cf5c` passes fmt, full Clippy/doc and checked opt-level 1 full tests (**158 suites / 2,384 passed / 0 failed**), plus 75 focused tests. Final head `75a2041` passes [full CI](https://github.com/carimatics/lang/actions/runs/40810065213) (all 19 jobs: 18 success; intentional documentation-only skip) and [debugger execution](https://github.com/carimatics/lang/actions/runs/40810065278) (3/3). [PR #13](https://github.com/carimatics/lang/pull/13) merged as `58527c2`; main was fast-forwarded, clean and synchronized with 0/0 ahead/behind. Workspace branch creation and its current PR/upstream are recorded above. No preexisting user changes were present.
 
@@ -31,6 +31,8 @@ Final head `c0784fc` passed [full CI](https://github.com/carimatics/lang/actions
 The A01 input correction refuses FIFO/device/directory inputs with `PKG0005`/exit 1 using nonblocking Unix open and opened-handle metadata. It adds no planning points or completed delivery; its full validation and merge are recorded above.
 
 ## Exit gates
+
+F02 source `eb4243d` passes fmt, full Clippy/doc, the local baseline (**172 suites / 2,505 passed / 0 failed**), six consistency checks, all fuzz-bin Clippy and 10,000 uninstrumented fuzz smoke runs. [Full CI](https://github.com/carimatics/lang/actions/runs/40984177066) has all 19 jobs: 18 success and the intentional documentation-only skip for a source change. [Native-debug](https://github.com/carimatics/lang/actions/runs/40984177058) passes 3/3. F02 retires 3 pt with zero additions; G9 remains unfinished.
 
 The [roadmap](roadmap.md#milestone-4-developer-toolchain) retains the original 63 pt acceptance weights. **8/9 gates verified; 55/63 gate weight (87.3%).** Accepting a design does not complete its implementation gates. Every P0 and P1 remains in scope; no work is deferred.
 
@@ -86,8 +88,8 @@ The [roadmap](roadmap.md#milestone-4-developer-toolchain) retains the original 6
 | M4-E03 | done | 0 | M4-E03R | G8 | Allocation/retirement traces reconcile real allocator counters and bounded buffers | `546ae69` |
 | M4-E04 | done | 0 | M4-E03 | G8 | Rebuild explanations identify changed source/dependency/target/toolchain inputs | `356fdca` |
 | M4-F01 | done | 0 | M4-A01 | G9 | Accept installer trust roots, signed metadata, channel/version selection and atomic recovery design | `3a58363` |
-| M4-F02 | doing | 3 | M4-F01 | G9 | Verify signatures, expiry/rollback/target/digests before any install; tamper refusals | — |
-| M4-F03 | todo | 3 | M4-F02 | G9 | Install verified tools in an isolated root; failed/interrupted installs preserve active version | — |
+| M4-F02 | done | 0 | M4-F01 | G9 | Verify signatures, expiry/rollback/target/digests before any install; tamper refusals | `eb4243d` |
+| M4-F03 | doing | 3 | M4-F02 | G9 | Install verified tools in an isolated root; failed/interrupted installs preserve active version | — |
 | M4-F04 | todo | 3 | M4-F03 | G9 | Channel update/select/list/uninstall with atomic activation and recovery | — |
 | M4-F05 | todo | 3 | M4-F04 | G9 | Signed release/distribution fixture installs and updates on both hosts | — |
 | M4-Z01 | todo | 3 | M4-B01,M4-B04,M4-C07,M4-D05,M4-E04,M4-F05 | G1,G2,G3,G4,G5,G6,G7,G8,G9 | New-developer install/create/editor/test/debug/reproducible-binary journey on macOS | — |
@@ -102,9 +104,9 @@ Activation audit, 2026-10-29 JST: 36 observable deliveries, baseline 103 pt. The
 
 | Baseline remaining | Net added/re-estimated | Retired on completion | Remaining |
 | ---: | ---: | ---: | ---: |
-| 103 pt | +17 pt | −96 pt | 24 pt |
+| 103 pt | +17 pt | −99 pt | 21 pt |
 
-**103 + 17 − 96 = 24 pt**
+**103 + 17 − 99 = 21 pt**
 
 Namespace prerequisite audit, 2026-10-29 JST: the existing `ModuleGraph::root()` is always `ModuleId(0)`. A path provider alone cannot give each dependency its own package-root namespace or safely reuse a shared dependency identity. Split the original A02 outcome into an authorized graph (new A02R, 3 pt) and namespace/source execution integration (A02, remaining 3 pt after reviewing its task list). Net addition: +3 pt; 37 deliveries total. A01 and A02R are two prerequisites, so A02 must supply the next source execution fixture before further horizontal scaffolding. No gate is completed or deferred by this audit.
 

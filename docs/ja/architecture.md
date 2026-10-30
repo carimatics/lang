@@ -131,7 +131,7 @@ native DAP backend は同じ package admission を使い、検証した private 
 
 ## Signed toolchain distribution
 
-[RFC 0042](rfcs/0042-signed-toolchain-installation.md)は固定local trust設定、上限付きthreshold署名channel catalogue、expiry、commit済みrollback floorを持つ明示root managerを採択します。metadata認証をpayload読取より先に行い、正確なfileとcompiler／SDK identityをactivation前に確認します。不変generationとatomic state置換は失敗時に旧active版を保持し、認証済みmetadata floorは転送前に進み得ます。root置換は新しい明示trust installationを要求し、初期formatはTUF互換を主張しません。F02–F05の実装／復旧／両host配布は未完了で、設計採択だけでG9を完了したりguest capabilityを増やしたりしません。
+[RFC 0042](rfcs/0042-signed-toolchain-installation.md)は固定local trust設定、上限付きthreshold署名channel catalogue、expiry、commit済みrollback floorを持つ明示root managerを採択します。metadata認証をpayload読取より先に行い、正確なfileとcompiler／SDK identityをactivation前に確認します。不変generationとatomic state置換は失敗時に旧active版を保持し、認証済みmetadata floorは転送前に進み得ます。root置換は新しい明示trust installationを要求し、初期formatはTUF互換を主張しません。F02の厳密verifier／読取専用CLIは両hostで検証済みです。F03のlocal installは保存receiptを再認証し、payloadをstream／hash、SDK表と上限付きcompiler identity subprocessを照合してatomic activationします。macOSの実SDK fixtureでinstall後のsource実行、失敗／process中断後の旧active保持と同sequence retryを確認しました。F03は完全local baselineに成功し、その両host CIとF04–F05のHTTPS／channel／復旧／両host配布は継続中で、G9は未完了、guest capabilityは変更しません。
 
 ## 診断、REPL、editor tooling
 

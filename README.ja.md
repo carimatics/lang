@@ -102,6 +102,8 @@ source構文・native language ABI・private SDK/package formatは実験段階�
 
 `cargo run -- toolchain verify --trust-root root.json --metadata channel.json --channel stable --message-format json` は現在のhost向けの上限付き署名metadataを検証し、JSON概要を出力します。rootは別経路で信頼を確認してください。この読取専用検査は新規trust contextを使い、既存installのrollback floorを参照せず、payloadの読取やinstallも行いません。[RFC 0042](docs/ja/rfcs/0042-signed-toolchain-installation.md)を参照してください。
 
+`cargo run -- toolchain init --root target/tools --trust-root root.json` は明示的に信頼したrootを使って新しい分離installationを初期化します。`cargo run -- toolchain install --root target/tools --source distribution --channel stable` はlocal署名distributionからinstallし、active identityをJSONで報告します。activation前にcompiler／SDKの正確なbytesとidentityを検査し、転送失敗で認証済みmetadata floorが進む場合もactive版を保持します。`cargo run -- toolchain identity` はこのcompiler自身のversion、target、build IDを報告します。HTTPS、channel選択、復旧commandは開発中です。
+
 `cargo run -- lint --manifest-path target/my_app/Lang.json --deny-warnings --message-format json` は guest code を実行せず、lock／artifact を書かずに選択 package と宣言 test を検査します。`LNT0001` は未読 binding を報告し、`_` で始まる名前はこの rule を抑制します。既存 warning は code を保持します。`--deny-warnings` を省くと warning は失敗にしません。[RFC 0037](docs/ja/rfcs/0037-package-lint-diagnostics.md) を参照してください。
 
 `cargo run -- doc --manifest-path target/my_app/Lang.json --locked --offline` は単独で閲覧できる static API reference を `target/lang/<lock-digest>/doc/index.html` に公開します。public signature と type link は検査済み identity を使い、隣接 `///` text と元 source panel を escape します。source panel は private 実装 text も含みます。生成失敗時は前回 lock／output を保持します。[RFC 0038](docs/ja/rfcs/0038-package-api-documentation.md) を参照してください。

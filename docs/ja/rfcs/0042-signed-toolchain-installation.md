@@ -77,13 +77,27 @@ stateはadmission成功時刻のfloorを保持し、新metadata admissionでは�
 
 ### Publication, concurrency and recovery
 
-installation rootは呼出userが所有する信頼済みlocal stateであり、一時／最終fileを同じfilesystemへ置く。専用regular lock fileとstable標準libraryのnonblocking exclusive file lockを使い、競合は無制限待機せず明示拒否する。state変更操作とchild executableの選択／検証中にlockを保持し、child終了を待つ前に解放する。実行中executableによりWindowsの後続削除が失敗した場合、失敗を報告して整合したinstallation recordを保つ。
+installation rootは呼出userが所有する信頼済みlocal stateであり、一時／最終fileを同じfilesystemへ置く。専用regular lock fileとstable標準libraryのnonblocking exclusive file lockを使い、競合は無制限待機せず明示拒否する。state変更操作とchild executableの選択／検証中にlockを保持し、`run`ではchildをspawnしてから終了を待つ前に解放する。上限付きcandidate identity検証はinstall transactionの一部としてlock下で行う。実行中executableによりWindowsの後続削除が失敗した場合、失敗を報告して整合したinstallation recordを保つ。
 
 排他的private staging directoryを作り、payloadをstream／hashし、完全manifestと対応SDKを検査してから公開する。型付きreleaseのcanonical compact JSON表現のSHA-256で不変generationを命名する。既存generationは全bytes／permissionを比較し、名前だけをcache真正性検査にしない。署名metadata／receipt証拠をgenerationと共に保存する。local stateは1 MiB、installed releaseは64件以下。容量到達時はactive／installed versionを暗黙evictせず拒否する。
 
 閉じたschema-1 stateはrepository／root digest／host target、3 channel floor、installed release identity、任意active identityをbindする。完全な一時stateをwrite／syncして同一filesystem上で既存state fileをatomic置換する。置換失敗は旧stateを保持し、generation公開をactivationより先に行う。activation前のprocess中断では旧active stateと、場合により未参照candidateが残る。recoveryはlock取得後に認識済み未参照manager staging／generationだけを削除し、未署名の残骸を採用しない。不正stateはrollback floorをresetせず拒否する。state／receiptの正確なfieldはF03で実装前に、この上限／不変条件内で詳細化する。
 
 uninstallはinactive generationをbytesを変えずprivate trashへ移動し、stateからの削除をcommitしてからtrashを削除する。state commit失敗では元directoryを復元し、recoveryは上限付きtransaction markerに従って参照済みtrashを復元、未参照trashを破棄できる。Windows rename失敗はstateを変えない。markerは元generationと意図operationをbindし、markerの任意pathへ追従しない。正確なmarker／失敗checkpointはF03／F04で実装前に定める。契約は注入失敗とprocess中断を対象とし、成功したsync／atomic操作以上のfilesystem／hardware電源断挙動を保証しない。
+
+### Installed state and receipts
+
+F03詳細化、2026-10-30 JSTに同じ実験委任で採択: 閉じたschema-1 stateのfieldは`schema`、`root_sha256`、`repository`、`target`、`time_floor`、`channels`、`installed`、`active`とする。初期arrayは両方空、time_floorは0、activeはnull。channelsは異なる`{channel, receipt}`を最大3件持つ。installedは異なるchannel／versionの`{channel, version, generation, receipt}`を最大64件持つ。activeはnullまたはinstalledに正確に存在する一つの`{channel, version, generation}` identity。閉じたreceiptは`{schema: 1, metadata_sha256, admitted_at}`。時刻とhashはmetadataの上限を維持し、任意filesystem pathを指定するstate fieldは設けない。
+
+正確なenvelopeを`metadata/<metadata_sha256>.json`、固定rootを`root.json`へ保持する。state読込時に全参照content hashを検査し、receiptのadmitted_at時刻でenvelopeを再認証する。未検証rollback値をdeserializeせず、検証済みenvelopeからchannelの過去Admissionを復元する。全receipt時刻はtime_floor以下とし、各installed releaseは認証済みgenerationと一致し、そのsequenceはchannelの現floor以下、同sequenceならpayload hashも同じでなければならない。新admissionでは全体time floorも検査する。記録時刻での過去検証により既存installed toolは期限後も使えるが、production userがadmission時刻を上書きすることはできない。
+
+manager所有layoutは`lock`、`state.json`、`root.json`、`metadata/`、`generations/`、`staging/`、`trash/`とする。state／root入力はregular fileを要求し、所有stateのsymlinkを拒否する。lock下で排他的な一つの`staging/install` directoryと`state.next` fileを確保する。state.nextをwrite／sync／closeしてからatomic置換する。中断した一時fileやstaging directoryがある場合は、復旧前に次の変更操作を開始しない。metadataをwrite／syncしてからstateで参照し、既存metadataは正確なdigest一致を要求する。metadata／generation directoryはそれぞれ最大128 entryとし、容量制限で拒否した場合は復旧後に再試行する。未知entryは任意名へ追従／削除せず拒否する。installed receiptと現channel floorで保持metadataを決定し、無制限履歴は設けない。
+
+generationは署名済みfileと必要な親directoryだけを含む。元の上限付きSDK manifestのtarget／build IDと全file表を署名済みSDK fileへ照合し、compilerのplatform formatとpermissionを検証してからidentity subprocessを呼ぶ。subprocessは10秒、出力はstreamごとに64 KiBまで。閉じたschema-1 identityはcanonicalなcompiler versionと、署名済みtarget／build IDの正確な一致を要求する。compiler buildを跨いで更新できるよう、manager自身のbuild IDとcandidateの一致は要求しない。distribution version labelは署名bundleを識別し、compiler bytesが同じでもSDK文書やpackagingの変更で変わり得る。identity.versionはdistribution labelではなくcompiler crate versionを報告する。異なるlabelだけで異なるcompiler codeとは主張しない。
+
+既存channel／versionが別generationへbindされている場合は置換を拒否し、同一retryは全検証後に許可する。generationはchannel間で共有できるため、uninstallは最後のinstalled参照が消えた場合だけfileを削除し、active identityは削除しない。library失敗checkpointはfloor commit前後、payload検証後、generation公開後、activation commit前を対象とする。失敗やprocess終了の注入だけを行い、通常CLI optionに検証bypassは設けない。macOSのtransaction実験では置換失敗、中断一時file拒否、commit済みfloor保持、activation前のprocess終了、lock解放を確認した。Windowsと実installerの検証は引き続き必要。
+
+install／initおよび後続state操作の成功は、`schema`、`kind`、`operation`、`root_sha256`、`repository`、`target`、`active`、`installed`、`floor_advanced`を持つ閉じたschema-1 `toolchain_operation` recordとする。activeはnullまたは`{channel, version, compiler_build_id, generation}`概要、installedはその概要array。操作失敗のJSON modeは閉じた`{schema: 1, kind: "toolchain_failure", diagnostic, floor_advanced}` recordで、diagnosticは通常の構造化diagnostic。booleanは失敗前に今回操作が新sequenceまたはadmission時刻floorをcommitしたかを示す。human modeも同じ事実を示す。CLI misuseと読取専用verifyは通常diagnostic recordを維持する。出力は1 MiB以下とし署名秘密情報を含めない。
 
 ## Execution modes
 

@@ -1,4 +1,5 @@
 use super::*;
+mod management;
 use crate::package::{Diagnostic, command as cli, lock::explain::read_record};
 use cap_std::fs::Dir;
 use std::{
@@ -8,7 +9,7 @@ use std::{
     time::{SystemTime, UNIX_EPOCH},
 };
 
-pub const USAGE: &str = "       lang toolchain verify --trust-root FILE --metadata FILE --channel stable|beta|nightly [--message-format human|json]\n";
+pub const USAGE: &str = "       lang toolchain identity [--message-format human|json]\n       lang toolchain init --root DIR --trust-root FILE [--message-format human|json]\n       lang toolchain verify --trust-root FILE --metadata FILE --channel stable|beta|nightly [--message-format human|json]\n       lang toolchain install --root DIR --source DIRECTORY --channel stable|beta|nightly [--version X.Y.Z] [--message-format human|json]\n";
 struct Options {
     root: PathBuf,
     metadata: PathBuf,
@@ -172,6 +173,12 @@ pub fn run(args: &[OsString], stdout: &mut impl Write, stderr: &mut impl Write) 
     if args.iter().any(|arg| arg == "--help" || arg == "-h") {
         stdout.write_all(USAGE.as_bytes())?;
         return Ok(0);
+    }
+    if args
+        .first()
+        .is_some_and(|arg| matches!(arg.to_str(), Some("identity" | "init" | "install")))
+    {
+        return management::run(args, stdout, stderr);
     }
     let options = match parse(args) {
         Ok(o) => o,

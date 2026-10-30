@@ -1,6 +1,7 @@
 //! Authenticated, bounded host toolchain inputs (RFC 0042).
 //! No verification operation opens payloads or changes installation state.
 pub mod command;
+pub mod installation;
 use ed25519_dalek::{Signature, VerifyingKey};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
@@ -86,6 +87,15 @@ pub enum Channel {
     Stable,
     Beta,
     Nightly,
+}
+impl Channel {
+    pub fn text(self) -> &'static str {
+        match self {
+            Self::Stable => "stable",
+            Self::Beta => "beta",
+            Self::Nightly => "nightly",
+        }
+    }
 }
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub enum Target {

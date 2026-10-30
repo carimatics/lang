@@ -6,13 +6,13 @@
 
 更新: 2026-10-30 JST。M4はactive。Goal開始はclean main／origin/main `af9988f`、remote `git@github.com:carimatics/lang.git`。PR #9–#24はmerge済み。profiling PR #24は`fa271b1`としてmergeし、別文書PR #20–#23の祖先`be9f77c`も保持した。最後に確認したlocal main／origin/mainは`fa271b1`でahead／behind 0/0。M4全体とinstallerは未完了。
 
-**34 done · 1 doing · 8 todo · 24 remaining pt**
+**35 done · 1 doing · 7 todo · 21 remaining pt**
 
 現在のcheckoutは`codex/m4-toolchain-installer`。cleanなprofiling文書head `84b17f6`から作成し、既存user変更はない。先行[PR #24](https://github.com/carimatics/lang/pull/24)のmerge後、記録remote PR baseは`carimatics/lang:main`へ変更した。F01–F05を一貫したinstaller成果とする。upstreamは`origin/codex/m4-toolchain-installer`、[draft PR #25](https://github.com/carimatics/lang/pull/25)。profiling最終head `84b17f6`は[全体CI](https://github.com/carimatics/lang/actions/runs/40981001066)（18成功、文書専用jobの意図したskip）と[native debugger実行](https://github.com/carimatics/lang/actions/runs/40981000915)（3/3）に成功した。local main／origin/mainはmerge `fa271b1`で一致し、ahead／behindは0/0。
 
-F02の最終実行checkpoint、2026-10-30 10:09 JST: 上限付きの厳密root／envelope／payload検証と読取専用CLIは重点5 testとrepository整合性6 testに成功した。fmt、警告なしの全体Clippy、assertion／overflow検査を有効にしたopt-level 1の全workspace test（**172 suite／2,505成功／0失敗**）、docを通過した。root／fuzz fmtと全fuzz-bin Clippyも成功し、計測なしのmetadata fuzz smokeを10,000回完了した。coverage／sanitizer検証とは主張しない。threshold署名、expiry／clock／過去admission floor、target／digest／path／件数制限、改ざん、不正fileの非blocking拒否を検査する。残るF02受入条件は実装commitの両host CI。installer transactionはF03–F05、G9は未完了。
+F03の最終実行checkpoint、2026-10-30 10:51 JST: 実compiler／SDKのlocal署名install後、installed compilerがsourceを実行して42を返した。payload改ざん、rollback、全commit境界の失敗、実process中断で旧active実行を保持し、同sequence retryが成功した。既存generationの改変と不正stateも拒否する。重点15 test、root／fuzz fmt、警告なしの全体／fuzz Clippy、assertion／overflow検査を有効にしたopt-level 1の全workspace test（**173 suite／2,509成功／0失敗**）、docが成功。残るF03受入条件は実装commitの両host CI。G9は未完了。
 
-**次: M4-F02 — 署名release検証（doing、3 pt）。** F01の最終3 ptを消化し、追加は0。F02は厳密verifier／読取専用CLI／不正入力と過去admission検査へ再確認して3 ptを維持する。43 delivery、追加+17、消化96、残り24 pt。
+**次: M4-F03 — 分離した検証済みinstallation（doing、3 pt）。** F02の最終3 ptを消化し追加0。F03を有限state、local転送、実SDK／compiler照合、失敗時に保持するactivationとして再確認し3 ptを維持する。HTTPS／channel／復旧はF04、両host journeyはF05。43 delivery、追加+17、消化99、残り21 pt。
 
 A04 source `cf6cf5c` は fmt、全 Clippy／doc、checked opt-level 1 全 test（**158 suite／2,384 成功／0 失敗**）、重点 75 test に成功。最終 head `75a2041` は [全 CI](https://github.com/carimatics/lang/actions/runs/40810065213)（全 19 job、18 成功、意図した文書専用 skip）と [debugger 実行](https://github.com/carimatics/lang/actions/runs/40810065278)（3/3）に成功した。[PR #13](https://github.com/carimatics/lang/pull/13) は `58527c2` として merge、main を fast-forward して clean・同期済み、ahead／behind 0/0。workspace branch 作成と現在の PR／upstream は上記に記録した。既存の user 変更はなかった。
 
@@ -31,6 +31,8 @@ local 検証: source 13/13、graph 9/9、manifest／CLI 7/7、consistency 6/6。
 A01 入力修正は Unix の nonblocking open と開いた handle の metadata を使い、FIFO／device／directory を `PKG0005`／exit 1 で拒否する。計画 point や完了 delivery は増やさず、全検証と merge は上記のとおり完了した。
 
 ## 終了 gate
+
+F02 source `eb4243d`はfmt、全体Clippy／doc、local baseline（**172 suite／2,505成功／0失敗**）、整合性6 test、全fuzz-bin Clippy、計測なし10,000回fuzz smokeに成功した。[全体CI](https://github.com/carimatics/lang/actions/runs/40984177066)は全19 job中18成功、source変更に対応する文書専用jobの意図したskip。[native-debug](https://github.com/carimatics/lang/actions/runs/40984177058)も3/3成功。F02の3 ptを消化し追加0、G9は未完了。
 
 [roadmap](roadmap.md#milestone-4developer-toolchain)の元の採択 weight 63 pt を維持する。**検証済み 8/9 gate、55/63 gate weight（87.3%）。** 設計採択は実装 gate の完了を意味しない。P0／P1 はすべて scope 内に残し、延期はない。
 
@@ -86,8 +88,8 @@ A01 入力修正は Unix の nonblocking open と開いた handle の metadata �
 | M4-E03 | done | 0 | M4-E03R | G8 | 実 allocator counter と整合し buffer 上限を持つ allocation／retirement trace | `546ae69` |
 | M4-E04 | done | 0 | M4-E03 | G8 | rebuild 説明が source／dependency／target／toolchain input の変更を特定 | `356fdca` |
 | M4-F01 | done | 0 | M4-A01 | G9 | installer trust root、署名 metadata、channel／version 選択、atomic 復旧設計採択 | `3a58363` |
-| M4-F02 | doing | 3 | M4-F01 | G9 | install 前に署名、期限／rollback／target／digest を検証、改ざん拒否 | — |
-| M4-F03 | todo | 3 | M4-F02 | G9 | isolated root に検証済み tool を install、失敗／中断で active version 保持 | — |
+| M4-F02 | done | 0 | M4-F01 | G9 | install 前に署名、期限／rollback／target／digest を検証、改ざん拒否 | `eb4243d` |
+| M4-F03 | doing | 3 | M4-F02 | G9 | isolated root に検証済み tool を install、失敗／中断で active version 保持 | — |
 | M4-F04 | todo | 3 | M4-F03 | G9 | atomic activation／復旧付き channel update／select／list／uninstall | — |
 | M4-F05 | todo | 3 | M4-F04 | G9 | 両 host で署名 release／distribution fixture を install／update | — |
 | M4-Z01 | todo | 3 | M4-B01,M4-B04,M4-C07,M4-D05,M4-E04,M4-F05 | G1,G2,G3,G4,G5,G6,G7,G8,G9 | macOS の新規開発者 install／create／editor／test／debug／再現可能 binary journey | — |
@@ -102,9 +104,9 @@ A01 入力修正は Unix の nonblocking open と開いた handle の metadata �
 
 | Baseline remaining | Net added/re-estimated | Retired on completion | Remaining |
 | ---: | ---: | ---: | ---: |
-| 103 pt | +17 pt | −96 pt | 24 pt |
+| 103 pt | +17 pt | −99 pt | 21 pt |
 
-**103 + 17 − 96 = 24 pt**
+**103 + 17 − 99 = 21 pt**
 
 名前空間の前提監査、2026-10-29 JST: 既存 `ModuleGraph::root()` は常に `ModuleId(0)`。path provider だけでは依存ごとの package-root 名前空間や共有 dependency identity の安全な再利用を提供できない。元の A02 を、許可 graph（新規 A02R、3 pt）と名前空間／source 実行の統合（task list を見直した A02、残り 3 pt）へ分割する。純追加 +3 pt、全 37 delivery。A01 と A02R は前提二つとなるため、水平基盤を増やす前に A02 で次の source 実行 fixture を示す。この監査による gate 完了や延期はない。
 
