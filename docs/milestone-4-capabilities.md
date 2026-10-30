@@ -4,7 +4,7 @@
 
 [日本語版](ja/milestone-4-capabilities.md)
 
-Updated and verified: 2026-10-30 JST. This guide describes the implementation verified at `0b6591d`. The [delivery board](milestone-4.md) tracks final publication and merge separately. Language, concurrency and embedding capabilities from earlier milestones remain documented in the [M2](milestone-2-capabilities.md) and [M3](milestone-3-capabilities.md) guides.
+Updated and verified: 2026-10-30 JST. This guide describes the implementation verified at `0b6591d`. M4 is complete: [PR #26](https://github.com/carimatics/lang/pull/26) published the workflow/guide after final-head CI, and the [completed board](milestone-4.md) records 44/44 deliveries. Language, concurrency and embedding capabilities from earlier milestones remain documented in the [M2](milestone-2-capabilities.md) and [M3](milestone-3-capabilities.md) guides.
 
 The supported native hosts are Apple Silicon macOS (`aarch64-apple-darwin`) and Windows x64 MSVC (`x86_64-pc-windows-msvc`). Validation covers macOS 15/26 and Windows Server 2025. These tooling contracts are implemented and experimental; neither the language/native ABI nor every tooling schema is declared stabilized.
 
@@ -147,4 +147,4 @@ The [bilingual board audit](milestone-4.md#z03-exit-audit-2026-10-30-jst) maps e
 - Contracts: [RFC 0034](rfcs/0034-package-workspaces-and-cli-diagnostics.md), [0035](rfcs/0035-source-package-snapshots.md), [0036](rfcs/0036-checked-package-formatting.md), [0037](rfcs/0037-package-lint-diagnostics.md), [0038](rfcs/0038-package-api-documentation.md), [0039](rfcs/0039-package-editor-snapshots.md), [0040](rfcs/0040-bounded-debug-adapter-sessions.md), [0041](rfcs/0041-bounded-toolchain-profiles.md) and [0042](rfcs/0042-signed-toolchain-installation.md); project contracts updated/audited 2026-10-30 JST.
 - Package metadata fuzzing covers manifest and lock readers. The recorded A03 run is 10,000 uninstrumented smoke inputs, not a coverage-guided sanitizer campaign. Finite tests do not establish exhaustive security, external-writer race exclusion or performance improvements.
 
-Final guide/merge evidence follows the delivery board; successful CI for an earlier commit does not satisfy a later head's merge gate.
+Final publication: head `01f89ff` passes [CI `41023185791`](https://github.com/carimatics/lang/actions/runs/41023185791) on 2026-10-30 (all 18 applicable jobs; intentional documentation-only skip). PR #26 merged as `e7fa5ab`; starting main was restored clean and matched origin/main with 0/0 ahead/behind at 17:17 JST. This completion record changes documentation only.

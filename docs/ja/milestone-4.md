@@ -4,11 +4,11 @@
 
 [English](../milestone-4.md)
 
-更新: 2026-10-30 JST。M4はactive。Goal開始はclean main／origin/main `af9988f`、remote `git@github.com:carimatics/lang.git`。PR #9–#25はmerge済み。installer PR #25は`54992c0`としてmergeし、local main／origin/mainは同commitで一致、ahead／behind 0/0。既存の独立文書変更も保持した。G1–G9、最終journey、終了監査、能力guideは検証済み。最新head CI、remote公開、開始branchの最終同期が残る。
+更新: 2026-10-30 17:17 JST。M4は完了。Goal開始はclean main／origin/main `af9988f`、remote `git@github.com:carimatics/lang.git`。PR #9–#26はmerge済み。最終head `01f89ff`の全体CI `41023185791`成功後、[PR #26](https://github.com/carimatics/lang/pull/26)を`e7fa5ab`としてmergeした。開始branch mainへ戻り、local main／origin/mainの同commit一致、clean、ahead／behind 0/0を確認した。G1–G9、新規開発者exit、監査、英日guideを完了した。
 
-**43 done · 1 doing · 0 todo · 2 remaining pt**
+**44 done · 0 doing · 0 todo · 0 remaining pt**
 
-現在のcheckoutは`codex/m4-final-developer-journey`。clean installer文書head `408eed1`から作成し、既存user変更はない。先行[PR #25](https://github.com/carimatics/lang/pull/25)のmerge後、F06修正とmain `54992c0`をfast-forwardし、Z01のRust変更6 fileが保全stashとbyte一致することを確認した。記録PR baseは`carimatics/lang:main`へ変更する。最終journey、終了監査、能力guideを一貫した成果とし、最終完了時はGoal開始branch mainへ戻る。 upstreamは`origin/codex/m4-final-developer-journey`、[draft PR #26](https://github.com/carimatics/lang/pull/26)。
+完了記録branchは`codex/m4-completion-record`で、上記検証後のclean main `e7fa5ab`から作成した。既存user変更はなく、remote PR baseは`carimatics/lang:main`。これは達成済みZ05の文書記録であり、M4 deliveryを再開しない。実装branch `codex/m4-final-developer-journey`の変更はPR #26へmerge済み。完了記録にも通常の検査／PR／main同期手順を適用する。
 
 F06完了、2026-10-30 16:08 JST: `76c3698`が正常／error returnの明示unlockと複製descriptor回帰を実装。重点17件、fmt／全Clippy、174 suite／2,514 local test（失敗0、既存ignore 1件）、doc、[全体CI](https://github.com/carimatics/lang/actions/runs/41015803408)（18成功、意図した文書job skip）、[native-debug CI](https://github.com/carimatics/lang/actions/runs/41015803370)（3/3）に成功した。macOS／Windows双方のlogで新回帰と実installerを確認し、G9を閉じ、F06の2 ptを消化する。
 
@@ -16,7 +16,7 @@ Z01／Z02完了、2026-10-30 16:36 JST: `0b6591d`の実署名導入toolによる
 
 F04 source `d2fb67b`はfmt／全Clippy、重点16 test、完全local baseline（**173 suite／2,512成功／0失敗**）、docに成功し、実装のroot／fuzz fmtとfuzz Clippyも成功した。`52555ff`の[Windows workspace失敗](https://github.com/carimatics/lang/actions/runs/41001376849/job/123886372813)はcfg固有の不要closureで、Unix／非Unixのstatus式を分け、抑制や切詰めなしで修正した。修正版の[全体CI](https://github.com/carimatics/lang/actions/runs/41001783236)は18成功と意図した文書専用skip、[native-debug CI](https://github.com/carimatics/lang/actions/runs/41001783129)は3/3成功。F04の3 ptを消化し追加0。
 
-**次: M4-Z05 — 最新head CI、PR merge、開始branch同期（doing、2 pt）。** Z04 guideは`03b707e`で作成し、基本10／profile 5 command、英日code block一致、相対link、文書整合性6件に成功した。guideの2 ptを消化し、最終検証／remote merge／同期に2 ptを維持する。44 delivery、追加+19、消化120、残り2 pt。
+**次: none — 全44件のM4 deliveryとexit gateが完了し、残り0 pt。** Z05は`01f89ff`の最新head CI（18成功、意図した文書専用skip）、PR #26のremote merge、開始mainのclean同期を確認して完了した。最後の2 ptを消化し、103 + 19 − 122 = 0 pt。M5はこの完了によって自動的に有効化しない。
 
 A04 source `cf6cf5c` は fmt、全 Clippy／doc、checked opt-level 1 全 test（**158 suite／2,384 成功／0 失敗**）、重点 75 test に成功。最終 head `75a2041` は [全 CI](https://github.com/carimatics/lang/actions/runs/40810065213)（全 19 job、18 成功、意図した文書専用 skip）と [debugger 実行](https://github.com/carimatics/lang/actions/runs/40810065278)（3/3）に成功した。[PR #13](https://github.com/carimatics/lang/pull/13) は `58527c2` として merge、main を fast-forward して clean・同期済み、ahead／behind 0/0。workspace branch 作成と現在の PR／upstream は上記に記録した。既存の user 変更はなかった。
 
@@ -103,7 +103,7 @@ F03 source `28bc8df`は重点15 test、fmt、全体／fuzz Clippy、doc、完全
 | M4-Z02 | done | 0 | M4-Z01 | G1,G2,G3,G4,G5,G6,G7,G8,G9 | Windows の同一 journey と全 baseline、差異の原因解決 | `0b6591d` |
 | M4-Z03 | done | 0 | M4-Z02 | G1,G2,G3,G4,G5,G6,G7,G8,G9 | 全 roadmap 終了条件を最新 code／両 host 証拠／限界に照らして監査 | `0b6591d` |
 | M4-Z04 | done | 0 | M4-Z03 | G1,G2,G3,G4,G5,G6,G7,G8,G9 | 実行コマンドと最終照合を持つ日英 M4 capability guide 公開 | `03b707e` |
-| M4-Z05 | doing | 2 | M4-Z04 | G1,G2,G3,G4,G5,G6,G7,G8,G9 | 最新 head CI、PR merge、開始 branch 同期、clean な最終完了監査 | — |
+| M4-Z05 | done | 0 | M4-Z04 | G1,G2,G3,G4,G5,G6,G7,G8,G9 | 最新 head CI、PR merge、開始 branch 同期、clean な最終完了監査 | `01f89ff` |
 
 ## 見積照合
 
@@ -111,9 +111,9 @@ F03 source `28bc8df`は重点15 test、fmt、全体／fuzz Clippy、doc、完全
 
 | Baseline remaining | Net added/re-estimated | Retired on completion | Remaining |
 | ---: | ---: | ---: | ---: |
-| 103 pt | +19 pt | −120 pt | 2 pt |
+| 103 pt | +19 pt | −122 pt | 0 pt |
 
-**103 + 19 − 120 = 2 pt**
+**103 + 19 − 122 = 0 pt**
 
 名前空間の前提監査、2026-10-29 JST: 既存 `ModuleGraph::root()` は常に `ModuleId(0)`。path provider だけでは依存ごとの package-root 名前空間や共有 dependency identity の安全な再利用を提供できない。元の A02 を、許可 graph（新規 A02R、3 pt）と名前空間／source 実行の統合（task list を見直した A02、残り 3 pt）へ分割する。純追加 +3 pt、全 37 delivery。A01 と A02R は前提二つとなるため、水平基盤を増やす前に A02 で次の source 実行 fixture を示す。この監査による gate 完了や延期はない。
 
@@ -141,7 +141,7 @@ CLI 成果監査、2026-10-29 JST、実装前: 採択した transaction profile 
 
 新規開発者exitは[導入tool fixture](../../tests/support/toolchain_developer_journey.rs)でinstall済みcompilerからpackage作成、依存、editor編集、test、debug、native生成、移動後の全executable byte一致まで一続きで実行した。macOS 15／Windowsの成功logを保持する。package metadata fuzz targetはmanifest／lockの両readerを検査するが、A03の10,000件は非instrumented smokeであり、coverage／sanitizer campaignではない。
 
-監査判定: RFC 0001の既存実験委任で受入。残るZ04は利用可能機能と制限のbilingual guide、Z05は最新head CI／remote merge／開始branch同期。対象headの全体CI `41019002147`は全適用job成功。後続文書headもmerge前に自身の適用検査を必要とする。
+監査判定: RFC 0001の既存実験委任で受入。Z04は`03b707e`で機能／制限のbilingual guideを公開し、Z05は`01f89ff`／merge `e7fa5ab`で最終head CI／remote merge／開始branch同期を完了した。対象headの全体CI `41019002147`は全適用job成功。後続文書headもmerge前に自身の適用検査を必要とする。
 
 F06追加監査、2026-10-30 JST: 文書head `408eed1`のCIで、既存recovery testのdrop後再openが非決定的なlock競合を検出した。descriptor複製実験はcloseとunlockの差を再現する。2 ptを追加し、F05の完了記録とZ01の実行checkpointを保持、G9をpendingへ戻す。新計算は103 + 19 − 108 = 14 pt。
 
