@@ -4,7 +4,7 @@
 
 [English](../milestone-4-capabilities.md)
 
-更新・確認: 2026-10-30 JST。このguideは`0b6591d`で検証した実装を説明します。最終公開とmergeは[作業ボード](milestone-4.md)で別に追跡します。以前のmilestoneの言語、並行処理、埋込み機能は[M2](milestone-2-capabilities.md)と[M3](milestone-3-capabilities.md)のguideを参照してください。
+更新・確認: 2026-10-30 JST。このguideは`0b6591d`で検証した実装を説明します。M4は完了し、[PR #26](https://github.com/carimatics/lang/pull/26)で最終head CI成功後にworkflow／guideを公開しました。[完了ボード](milestone-4.md)は44/44 deliveryを記録します。以前のmilestoneの言語、並行処理、埋込み機能は[M2](milestone-2-capabilities.md)と[M3](milestone-3-capabilities.md)のguideを参照してください。
 
 対応native hostはApple Silicon macOS（`aarch64-apple-darwin`）とWindows x64 MSVC（`x86_64-pc-windows-msvc`）です。macOS 15／26とWindows Server 2025で検証しています。これらのtooling契約は実装済みの実験的機能であり、言語／native ABIや全tooling schemaの安定化を宣言するものではありません。
 
@@ -147,4 +147,4 @@ release作成者は、外部から供給する鍵を上限付きstdinで渡すtr
 - 契約: [RFC 0034](rfcs/0034-package-workspaces-and-cli-diagnostics.md)、[0035](rfcs/0035-source-package-snapshots.md)、[0036](rfcs/0036-checked-package-formatting.md)、[0037](rfcs/0037-package-lint-diagnostics.md)、[0038](rfcs/0038-package-api-documentation.md)、[0039](rfcs/0039-package-editor-snapshots.md)、[0040](rfcs/0040-bounded-debug-adapter-sessions.md)、[0041](rfcs/0041-bounded-toolchain-profiles.md)、[0042](rfcs/0042-signed-toolchain-installation.md)。project契約は2026-10-30 JSTに更新・監査しています。
 - package metadata fuzzingはmanifestとlockのreaderを対象にします。A03で記録した実行は10,000件の非instrumented smokeで、coverage-guided sanitizer campaignではありません。有限testは網羅的security、外部writer raceの排除、性能改善を証明しません。
 
-guideの最終公開／merge証拠は作業ボードに記録します。古いcommitのCI成功は、後続headのmerge gateを満たしません。
+最終公開: head `01f89ff`は2026-10-30に[CI `41023185791`](https://github.com/carimatics/lang/actions/runs/41023185791)へ成功しました（適用18 job、意図した文書専用skip）。PR #26は`e7fa5ab`としてmergeし、17:17 JSTに開始mainへ戻ってclean、origin/mainとのahead／behind 0/0一致を確認しました。この完了記録は文書のみを変更します。

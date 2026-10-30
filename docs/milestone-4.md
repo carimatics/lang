@@ -4,11 +4,11 @@
 
 [日本語版](ja/milestone-4.md)
 
-Updated: 2026-10-30 JST. M4 is active. Goal start: clean main/origin/main `af9988f`, remote `git@github.com:carimatics/lang.git`. PRs #9–#25 are merged. Installer PR #25 merged as `54992c0`; local main/origin/main match that commit, 0/0 ahead/behind. Independent documentation changes are preserved. G1–G9, the final journey, exit audit and capability guide are verified. Latest-head CI, remote publication and final starting-branch synchronization remain.
+Updated: 2026-10-30 17:17 JST. M4 is complete. Goal start: clean main/origin/main `af9988f`, remote `git@github.com:carimatics/lang.git`. PRs #9–#26 are merged. After final head `01f89ff` passed full CI `41023185791`, [PR #26](https://github.com/carimatics/lang/pull/26) merged as `e7fa5ab`. Returned to starting branch main and verified local main/origin/main at that commit, clean, 0/0 ahead/behind. G1–G9, the new-developer exit, audit and bilingual guide are complete.
 
-**43 done · 1 doing · 0 todo · 2 remaining pt**
+**44 done · 0 doing · 0 todo · 0 remaining pt**
 
-Current checkout: `codex/m4-final-developer-journey`, created from clean installer documentation head `408eed1` with no preexisting user changes. After predecessor [PR #25](https://github.com/carimatics/lang/pull/25) merged, fast-forwarded the F06 fix and main `54992c0`; all six restored Z01 Rust files match their preservation stash byte-for-byte. The recorded PR base is now `carimatics/lang:main`. The final journey, exit audit and capability guide form one coherent outcome; return to the Goal’s starting main branch at completion. Upstream is `origin/codex/m4-final-developer-journey`, [draft PR #26](https://github.com/carimatics/lang/pull/26).
+The completion-record branch `codex/m4-completion-record` was created from the verified clean main `e7fa5ab` above, with no preexisting user changes and remote PR base `carimatics/lang:main`. It records already achieved Z05 evidence without reopening an M4 delivery. The implementation branch `codex/m4-final-developer-journey` is merged through PR #26. Normal checks/PR/main synchronization also apply to publication of this record.
 
 F06 complete, 2026-10-30 16:08 JST: `76c3698` implements explicit unlock on normal/error returns and the live-duplicate regression. It passes 17 focused checks, fmt/full Clippy, 174 suites / 2,514 local tests (zero failures, one unchanged ignored test), doc, [full CI](https://github.com/carimatics/lang/actions/runs/41015803408) (18 success, intentional documentation skip) and [native-debug CI](https://github.com/carimatics/lang/actions/runs/41015803370) (3/3). Both-host logs confirm the new regression and actual installer. Close G9 and retire F06’s 2 pt.
 
@@ -16,7 +16,7 @@ Z01/Z02 complete, 2026-10-30 16:36 JST: `0b6591d` passes the actual signed insta
 
 F04 source `d2fb67b` passes fmt/full Clippy, 16 focused tests, the full local baseline (**173 suites / 2,512 passed / 0 failed**) and doc; root/fuzz fmt and fuzz Clippy passed for the implementation. The [Windows workspace failure](https://github.com/carimatics/lang/actions/runs/41001376849/job/123886372813) at `52555ff` was a cfg-specific needless closure, fixed by separate Unix/non-Unix status expressions without suppression or truncation. Corrected-head [full CI](https://github.com/carimatics/lang/actions/runs/41001783236) passes 18 jobs plus the intentional documentation-only skip; [native-debug CI](https://github.com/carimatics/lang/actions/runs/41001783129) passes 3/3. Retire F04’s 3 pt with zero additions.
 
-**Next: M4-Z05 — latest-head CI, PR merge and starting-branch synchronization (doing, 2 pt).** The Z04 guide at `03b707e` passes ten basic/five profile commands, matching bilingual code blocks, relative links and six repository checks. Retire the guide’s 2 pt; retain 2 pt for final verification, remote merge and synchronization. Across 44 deliveries: additions +19, retired 120, remaining 2 pt.
+**Next: none — all 44 M4 deliveries and exit gates are complete; 0 remaining pt.** Z05 confirms latest-head CI at `01f89ff` (18 success, intentional documentation-only skip), PR #26’s remote merge and clean synchronization of starting main. Retire the final 2 pt: 103 + 19 − 122 = 0 pt. Completing M4 does not automatically activate M5.
 
 A04 source `cf6cf5c` passes fmt, full Clippy/doc and checked opt-level 1 full tests (**158 suites / 2,384 passed / 0 failed**), plus 75 focused tests. Final head `75a2041` passes [full CI](https://github.com/carimatics/lang/actions/runs/40810065213) (all 19 jobs: 18 success; intentional documentation-only skip) and [debugger execution](https://github.com/carimatics/lang/actions/runs/40810065278) (3/3). [PR #13](https://github.com/carimatics/lang/pull/13) merged as `58527c2`; main was fast-forwarded, clean and synchronized with 0/0 ahead/behind. Workspace branch creation and its current PR/upstream are recorded above. No preexisting user changes were present.
 
@@ -103,7 +103,7 @@ The [roadmap](roadmap.md#milestone-4-developer-toolchain) retains the original 6
 | M4-Z02 | done | 0 | M4-Z01 | G1,G2,G3,G4,G5,G6,G7,G8,G9 | Same complete journey and full baseline on Windows; diagnose any divergence | `0b6591d` |
 | M4-Z03 | done | 0 | M4-Z02 | G1,G2,G3,G4,G5,G6,G7,G8,G9 | Audit every roadmap exit requirement against latest code, both-host evidence and limitations | `0b6591d` |
 | M4-Z04 | done | 0 | M4-Z03 | G1,G2,G3,G4,G5,G6,G7,G8,G9 | Publish bilingual M4 capability guide with runnable commands and final reconciliation | `03b707e` |
-| M4-Z05 | doing | 2 | M4-Z04 | G1,G2,G3,G4,G5,G6,G7,G8,G9 | Latest-head CI, PR merge, start-branch synchronization and clean final completion audit | — |
+| M4-Z05 | done | 0 | M4-Z04 | G1,G2,G3,G4,G5,G6,G7,G8,G9 | Latest-head CI, PR merge, start-branch synchronization and clean final completion audit | `01f89ff` |
 
 ## Estimate reconciliation
 
@@ -111,9 +111,9 @@ Activation audit, 2026-10-29 JST: 36 observable deliveries, baseline 103 pt. The
 
 | Baseline remaining | Net added/re-estimated | Retired on completion | Remaining |
 | ---: | ---: | ---: | ---: |
-| 103 pt | +19 pt | −120 pt | 2 pt |
+| 103 pt | +19 pt | −122 pt | 0 pt |
 
-**103 + 19 − 120 = 2 pt**
+**103 + 19 − 122 = 0 pt**
 
 Namespace prerequisite audit, 2026-10-29 JST: the existing `ModuleGraph::root()` is always `ModuleId(0)`. A path provider alone cannot give each dependency its own package-root namespace or safely reuse a shared dependency identity. Split the original A02 outcome into an authorized graph (new A02R, 3 pt) and namespace/source execution integration (A02, remaining 3 pt after reviewing its task list). Net addition: +3 pt; 37 deliveries total. A01 and A02R are two prerequisites, so A02 must supply the next source execution fixture before further horizontal scaffolding. No gate is completed or deferred by this audit.
 
@@ -141,7 +141,7 @@ Reconcile `0b6591d` with accepted contracts and observable roadmap requirements.
 
 The new-developer exit executes the [installed-tool fixture](../tests/support/toolchain_developer_journey.rs) continuously from the installed compiler through package creation, dependency/editor edits, testing, debugging, native generation and full executable-byte comparison after relocation. Retain the macOS 15/Windows success logs. The package metadata fuzz target exercises both manifest/lock readers, but A03’s 10,000 inputs are an uninstrumented smoke run, not a coverage/sanitizer campaign.
 
-Audit outcome: accepted under RFC 0001’s existing experimental delegation. Z04 remains the bilingual capability/limits guide; Z05 remains latest-head CI, remote merge and starting-branch synchronization. Exact-head full CI `41019002147` now passes all applicable jobs. Any later documentation head still requires its own applicable checks before merge.
+Audit outcome: accepted under RFC 0001’s existing experimental delegation. Z04 publishes the bilingual capability/limits guide at `03b707e`; Z05 completes final-head CI, remote merge and starting-branch synchronization at `01f89ff` / merge `e7fa5ab`. Exact-head full CI `41019002147` now passes all applicable jobs. Any later documentation head still requires its own applicable checks before merge.
 
 F06 scope addition, 2026-10-30 JST: documentation head `408eed1` exposes nondeterministic lock contention in the existing recovery test after owner drop. A duplicate-descriptor experiment reproduces the close/unlock distinction. Add 2 pt, preserve F05’s historical completion and Z01’s executable checkpoint, and reopen G9. Reconciliation is 103 + 19 − 108 = 14 pt.
 

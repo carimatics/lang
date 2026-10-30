@@ -18,7 +18,7 @@ M2は完了済みです。18/18ゲート、過去のゲート重み113/113です
 
 ## M3完了後の作業
 
-M3は完了済みです。M4の[作業ボード](milestone-4.md)は44 delivery、**43 done · 1 doing · 0 todo · 2 remaining pt**です。F06のlock lifetime修正後、G1–G9は検証済みで、M4はactiveです。DAP source `cf5e27f`が保持VMのstep／inspection、native source debug、実mixed native／VM pause、restart／terminationのID分離を実装し、完全local baseline、全体CI `40937041512`、native-debug `40937041276`の3環境に成功しました。E01 compile reportは`e2f0c1d`で実装し、E02 runtime観測は`7baee25`で検証し、E03R論理allocator traceは`b715b7a`で検証済み、E03 allocation reportは`546ae69`で検証済み、E04 rebuild説明は`356fdca`で全体CI `40979050495`とnative CI `40979050348`に成功しました。G8は完了し、F01署名installer設計は`3a58363`で採択し、F02署名release検証は`eb4243d`で完了し、F03分離installationは`28bc8df`で検証済み、F04のHTTPS／channel／復旧は`d2fb67b`で検証済み、F05の配布生成／journeyとG9は`bf14faf`で全体CI `41009253145`とnative CI `41009253195`に成功しました。F06 `76c3698`はlocal 2,514 test、全体CI `41015803408`、native CI `41015803370`に成功しました。PR #25は`54992c0`としてmergeし、mainは同期済み。Z01／Z02 journeyは`0b6591d`でmacOS／Windowsに成功し、Z03監査と全体CI `41019002147`は成功し、guideは`03b707e`で検証済み。Z05がdoingで、最新head CI、merge、最終同期が残ります。
+M4は2026-10-30 JSTに完了しました。[完了ボード](milestone-4.md)は44 delivery、**44 done · 0 doing · 0 todo · 0 remaining pt**、103 + 19 − 122 = 0 ptです。G1–G9とmacOS／Windowsの連続新規開発者journey、全契約監査、[英日能力guide](milestone-4-capabilities.md)を完了しました。source `0b6591d`はlocal 2,514 testと全体CI `41019002147`、最終文書head `01f89ff`は全体CI `41023185791`に成功しました。[PR #26](https://github.com/carimatics/lang/pull/26)は`e7fa5ab`としてmergeし、開始mainへ戻ってremoteとのclean一致、ahead／behind 0/0を確認しました。M5はまだ有効化していません。
 
 実行可能なcommand、全tooling機能、互換性境界と両host証拠は[M4能力guide](milestone-4-capabilities.md)を参照してください。
 
