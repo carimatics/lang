@@ -18,7 +18,7 @@ M2は完了済みです。18/18ゲート、過去のゲート重み113/113です
 
 ## M3完了後の作業
 
-M3は完了済みです。M4の[作業ボード](milestone-4.md)は43 delivery、**33 done · 1 doing · 9 todo · 27 remaining pt**です。G1–G8を検証済みです。DAP source `cf5e27f`が保持VMのstep／inspection、native source debug、実mixed native／VM pause、restart／terminationのID分離を実装し、完全local baseline、全体CI `40937041512`、native-debug `40937041276`の3環境に成功しました。E01 compile reportは`e2f0c1d`で実装し、E02 runtime観測は`7baee25`で検証し、E03R論理allocator traceは`b715b7a`で検証済み、E03 allocation reportは`546ae69`で検証済み、E04 rebuild説明は`356fdca`で全体CI `40979050495`とnative CI `40979050348`に成功しました。G8は完了し、F01署名installer設計がdoingです。署名install（G9）と最終journey／機能guideは引き続き必要です。
+M3は完了済みです。M4の[作業ボード](milestone-4.md)は43 delivery、**34 done · 1 doing · 8 todo · 24 remaining pt**です。G1–G8を検証済みです。DAP source `cf5e27f`が保持VMのstep／inspection、native source debug、実mixed native／VM pause、restart／terminationのID分離を実装し、完全local baseline、全体CI `40937041512`、native-debug `40937041276`の3環境に成功しました。E01 compile reportは`e2f0c1d`で実装し、E02 runtime観測は`7baee25`で検証し、E03R論理allocator traceは`b715b7a`で検証済み、E03 allocation reportは`546ae69`で検証済み、E04 rebuild説明は`356fdca`で全体CI `40979050495`とnative CI `40979050348`に成功しました。G8は完了し、F01署名installer設計は`3a58363`で採択し、F02署名release検証がdoingです。署名install（G9）と最終journey／機能guideは引き続き必要です。
 
 PR #9–#19はmerge済みです。最後に確認したlocal main／origin/mainは`14a92df`でahead／behind 0/0。現在の`codex/m4-profiling`は同期済みdebugger head `10aae50`から作成し、既存user変更はありません。upstreamは`origin/codex/m4-profiling`、記録baseは`carimatics/lang:main`、[PR #24](https://github.com/carimatics/lang/pull/24)です。実装head `356fdca`の両host CIは成功し、最終文書commitのCI／mergeは未完了です。
 
