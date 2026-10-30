@@ -75,6 +75,8 @@ source editionは`2026`のままで、旧profileは別に識別する。bytecode
 
 ## Diagnostics and tooling
 
+reportのpath文字列はpackage診断と同じくOS標準の区切り文字を保持し、native path APIで解釈する。両host fixtureはnative pathを使い、rootのidentityと順序を厳密に比較する。
+
 schema-1 JSON reportにoperation、profile・edition、対象root・file、順序付きedit（元byte span・replacement・diagnostic/recipe identity）、適用可能性、変更・適用件数、outcomeを含める。authority相対canonical path、元byte offsetの順で並べる。pathは既存package diagnostic規則で符号化する。human出力も同じcoverageと拒否を伝える。使用法errorは`CLI0001`・exit 2、操作拒否は構造化したmigration/fix diagnostic・exit 1、no-opを含む成功preview/applyはexit 0。実装時に固有diagnostic IDを割り当て、無関係なcodeを再利用しない。
 
 通常parser recoveryと既存LSP動作は維持する。editor quickfixとbatch fixは証明logicを共有し、batch coverageと公開を明示する。format・debugger data・文書は編集後sourceから通常どおり再生成し、cache済みIRやdebug artifactをpatchしない。

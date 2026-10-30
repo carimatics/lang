@@ -97,7 +97,10 @@ fn preview_composes_original_spans_and_preserves_entry_test_and_dependency_execu
     assert_eq!(report["changed"], 3);
     assert_eq!(
         report["roots"],
-        serde_json::json!(["src/main.lang", "tests/check.lang"])
+        serde_json::json!([
+            PathBuf::from("src").join("main.lang"),
+            PathBuf::from("tests").join("check.lang")
+        ])
     );
     for edit in preview.edits() {
         let original = fs::read_to_string(files.0.join(&edit.path)).unwrap();

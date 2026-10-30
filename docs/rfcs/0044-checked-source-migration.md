@@ -75,6 +75,8 @@ Source edition stays `2026`; the historical profile is identified separately. By
 
 ## Diagnostics and tooling
 
+Report path strings retain the platform's native separators, as package diagnostics do; use native path APIs to interpret them. Both-host fixtures compare exact root identities and order with native paths.
+
 Use schema-1 JSON reports with operation, profile/edition, covered roots/files, ordered edits (original byte spans, replacement and diagnostic/recipe identity), applicability, changed/applied counts and outcome. Order by authority-relative canonical path then original byte offset. Encode paths with the established package diagnostic rules. Human output conveys the same coverage and refusals. Usage errors follow `CLI0001`/exit 2; operational refusals use structured migration/fix diagnostics and exit 1; successful preview/apply, including no-op, exits 0. Reserve exact diagnostic identifiers during implementation without reusing unrelated codes.
 
 Ordinary parser recovery and existing LSP behavior stay unchanged. Editor quickfixes and batch fixes share proof logic, while batch coverage/publication is explicit. Formatting, debugger data and documentation are regenerated from the edited source normally; the tool does not patch cached IR or debug artifacts.
