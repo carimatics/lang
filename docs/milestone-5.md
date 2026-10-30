@@ -6,11 +6,11 @@
 
 Activated 2026-10-30 JST from `3b676c5`. This board tracks the entire M5 scope in [the roadmap](roadmap.md#milestone-5-ecosystem-and-compatibility), including both P1 gates. M4's installer and local packages are prerequisites, not registry completion.
 
-**0 done · 1 doing · 38 todo · 112 remaining pt**
+**1 done · 1 doing · 37 todo · 110 remaining pt**
 
-**Next: M5-A01 — accept compatibility policy, then execute M5-A02.**
+**Next: M5-A02 — execute the compatibility CLI and validate existing consumers.**
 
-Current checkpoint: clean starting `main` tracking `origin/main`, `git@github.com:carimatics/lang.git`; work branch `codex/m5-editions-and-migration`, PR base `main`. No user changes. Verified 2026-10-30 JST. A01 has no new executable checkpoint yet; remaining acceptance is the bilingual delegated RFC decision. A02 must produce the next executable fixture before further horizontal planning.
+Current checkpoint: clean starting `main` tracking `origin/main`, `git@github.com:carimatics/lang.git`; work branch `codex/m5-editions-and-migration`, PR base `main`. No user changes. Verified 2026-10-30 JST. A01 is accepted in RFC 0043 (`b654ae7`). Last executable A02 working-tree checkpoint, verified 2026-10-30 22:17 JST: the real `lang compatibility --message-format json` succeeds and 45 focused compatibility/manifest/source/lock/repository tests pass. The full baseline is still unverified: the first observation timed out and its process later ended without a retained final result. The replacement process remains live; a sequential runner will retain complete logs and exit codes in ignored `target/m5-validation/` after that process exits. Remaining acceptance: verified full baseline, code commit, both-host latest-head PR CI and merge. Do not count a timeout or a saved state file alone as a pass; inspect the live process and retained results.
 
 ## Exit gates
 
@@ -33,8 +33,8 @@ Gate completion: **0/10; 0/65 historical gate weight**. Delivery points below ar
 
 | ID | State | Remaining | Needs | Gates | Observable acceptance | Evidence |
 | --- | --- | ---: | --- | --- | --- | --- |
-| M5-A01 | doing | 2 | — | G1 | Accept edition/deprecation policy and domain compatibility matrix | — |
-| M5-A02 | todo | 3 | M5-A01 | G1 | Expose supported compatibility in CLI; test unknown editions and old consumer boundaries | — |
+| M5-A01 | done | 0 | — | G1 | Accept edition/deprecation policy and domain compatibility matrix | `b654ae7` |
+| M5-A02 | doing | 3 | M5-A01 | G1 | Expose supported compatibility in CLI; test unknown editions and old consumer boundaries | — |
 | M5-B01 | todo | 2 | M5-A01 | G2 | Accept migration recipes, applicability and write transaction contract | — |
 | M5-B02 | todo | 3 | M5-B01 | G2 | Preview real source fixes with original spans and semantic recheck | — |
 | M5-B03 | todo | 3 | M5-B02 | G2 | Apply checked fixes; stale/conflicting/partial-write refusal fixtures | — |
@@ -75,11 +75,11 @@ Gate completion: **0/10; 0/65 historical gate weight**. Delivery points below ar
 
 ## Estimate reconciliation
 
-**112 + 0 − 0 = 112 pt**
+**112 + 0 − 2 = 110 pt**
 
 | Baseline remaining | Net additions/re-estimates | Retired at completion | Remaining |
 | ---: | ---: | ---: | ---: |
-| 112 pt | +0 pt | −0 pt | 112 pt |
+| 112 pt | +0 pt | −2 pt | 110 pt |
 
 ## Delivery notes and roadmap audits
 
@@ -89,4 +89,9 @@ Gate completion: **0/10; 0/65 historical gate weight**. Delivery points below ar
 - Completion requires the bilingual `milestone-5-capabilities.md` guide, exact CI head evidence, merged PRs and restored/synchronized starting branch. This activation is not completion of an exit gate.
 
 Sources: repository roadmap, architecture and accepted RFCs; verified 2026-10-30 JST. Source files without embedded update dates have no asserted publication date.
+
+
+A01 completed (2026-10-30 JST): bilingual RFC 0043 accepted under delegation, defining existing-only edition admission, deprecation procedure and per-domain compatibility. Repository consistency 7/7 passes. Retire the last 2 pt with no additions/re-estimates. Roadmap audit retains all ten required gates.
+
+B01 preparation, 2026-10-30 JST (no delivery retired): a two-module standalone source and the same bytes under an explicit edition-2026 manifest both execute to 42. This is package adoption, not cross-edition migration evidence, and cannot by itself close G2. The real stdio LSP returns a versioned `LNT0001` quickfix that changes only `unused` to `_unused`; applying it preserves the initializer, returns 42 and clears the lint. Reuse the existing semantic rename proof for the next fix CLI. The current editor snapshot captures the root entry; declared-test coverage must be handled explicitly in B02. The draft contract remains outside the accepted RFC set until B01 review. No estimates or exit gates change.
 

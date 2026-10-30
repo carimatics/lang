@@ -128,6 +128,8 @@ literal code action は同じ input／version guard と package linter の rule 
 
 ## 開発
 
+`cargo run -- compatibility --message-format json` はprojectを読まずに対応source editionと独立した互換性方針を表示します。editionは`2026`のみで、packageには明示が必要です。公開component C v1は安定化していますが、source・bytecode・package/tooling format・private native linkageはそれぞれの実験契約を維持します。[RFC 0043](docs/ja/rfcs/0043-editions-and-compatibility.md)が非推奨と将来移行の要件を定義し、[M5進捗](docs/ja/milestone-5.md)で実装状況を確認できます。
+
 `cargo run -- fmt --manifest-path target/my_app/Lang.json --check` は既存 CST formatter の要変更 file を無書込みで報告します。`--check` を省くと、選択 dependency／test を含め検証済みの source を file 単位で置換します。元 comment／span と permission を保持し、stale／不正 input は公開前に拒否します。source 変更後の古い lock は stale に保ち、通常 build／run で再生成します。file 単位公開の境界は [RFC 0036](docs/ja/rfcs/0036-checked-package-formatting.md) を参照してください。
 
 `cargo run -- package --manifest-path target/my_app/Lang.json --list` は予定する固定 source snapshot を無書込みで一覧表示します。`--list` を省くと、元 manifest／source byte、`Lang.lock`、version 付き descriptor の決定的な非圧縮 TAR を公開します。`--locked --offline` は完全一致 replay を検証します。profile 1 は directory alias を拒否し、信頼しない archive の展開や registry 公開は行いません。[RFC 0035](docs/ja/rfcs/0035-source-package-snapshots.md) を参照してください。

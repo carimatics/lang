@@ -6,11 +6,11 @@
 
 2026-10-30 JST、`3b676c5`から開始。[ロードマップ](roadmap.md#milestone-5ecosystemとcompatibility)のM5全範囲（P1の2ゲートを含む）を追跡する。M4のinstallerとlocal packageは前提条件であり、registry完了を意味しない。
 
-**0 done · 1 doing · 38 todo · 112 remaining pt**
+**1 done · 1 doing · 37 todo · 110 remaining pt**
 
-**次: M5-A01 — 互換性方針を採択し、M5-A02を実行する。**
+**次: M5-A02 — 互換性CLIを実装し既存consumerを検証する。**
 
-現在のcheckpoint: 開始時はcleanな`main`、追跡先`origin/main`、remoteは`git@github.com:carimatics/lang.git`。作業branchは`codex/m5-editions-and-migration`、PR baseは`main`。ユーザー変更なし。2026-10-30 JST確認。A01の新しい実行checkpointはまだない。残る受入条件は日英RFCの委任採択。A02で次の実行fixtureを作ってから横断的な計画を追加する。
+現在のcheckpoint: 開始時はcleanな`main`、追跡先`origin/main`、remoteは`git@github.com:carimatics/lang.git`。作業branchは`codex/m5-editions-and-migration`、PR baseは`main`。ユーザー変更なし。2026-10-30 JST確認。A01はRFC 0043（`b654ae7`）で採択済み。A02作業ツリーの最終実行checkpoint（2026-10-30 22:17 JST確認）: 実CLI `lang compatibility --message-format json`が成功し、compatibility・manifest・source・lock・repositoryのfocused test 45件が成功。全baselineは未検証。最初の観測はtimeoutし、後に最終結果を保持できないままprocessが終了した。代わりのprocessは稼働中で、その終了後に順次実行するrunnerがignoreされた`target/m5-validation/`へ全logと終了codeを保存する。残る受入条件は全baselineの結果確認、code commit、PR最新headの両host CI、merge。timeoutや保存state fileだけを成功とせず、実processと保持結果を確認する。
 
 ## Exit gates
 
@@ -33,8 +33,8 @@
 
 | ID | State | Remaining | Needs | Gates | 観測可能な受入条件 | Evidence |
 | --- | --- | ---: | --- | --- | --- | --- |
-| M5-A01 | doing | 2 | — | G1 | edition・非推奨方針と領域別互換性表を採択 | — |
-| M5-A02 | todo | 3 | M5-A01 | G1 | CLIで互換性を表示し未知editionと旧consumer境界を検証 | — |
+| M5-A01 | done | 0 | — | G1 | edition・非推奨方針と領域別互換性表を採択 | `b654ae7` |
+| M5-A02 | doing | 3 | M5-A01 | G1 | CLIで互換性を表示し未知editionと旧consumer境界を検証 | — |
 | M5-B01 | todo | 2 | M5-A01 | G2 | 移行レシピ・適用可能性・書込みトランザクション契約を採択 | — |
 | M5-B02 | todo | 3 | M5-B01 | G2 | 元spanを保持した実ソース修正previewと意味再検査 | — |
 | M5-B03 | todo | 3 | M5-B02 | G2 | 修正適用とstale・競合・部分書込み拒否fixture | — |
@@ -75,11 +75,11 @@
 
 ## 見積り照合
 
-**112 + 0 − 0 = 112 pt**
+**112 + 0 − 2 = 110 pt**
 
 | 基準残作業 | 純追加・再見積り | 完了時に除去 | 残作業 |
 | ---: | ---: | ---: | ---: |
-| 112 pt | +0 pt | −0 pt | 112 pt |
+| 112 pt | +0 pt | −2 pt | 110 pt |
 
 ## Delivery noteとロードマップ監査
 
@@ -89,4 +89,9 @@
 - 完了には日英`milestone-5-capabilities.md`、正確なCI head証拠、PR merge、開始branchへの復帰・同期を要する。この開始記録はexitゲート完了ではない。
 
 出典: repositoryのroadmap・architecture・採択済みRFC。2026-10-30 JST確認。更新日を持たないソースファイルの公開日は推測しない。
+
+
+A01完了（2026-10-30 JST）: 日英RFC 0043を委任採択し、既存editionのみを受入れる方針、非推奨手順、領域別互換性を定義。repository consistency 7/7成功。最終見積り2 ptを除去し、追加・再見積りなし。ロードマップの全10ゲートは引き続き必要。
+
+B01準備（2026-10-30 JST、delivery完了への変更なし）: 2 moduleのstandalone sourceと、同じbytesにedition-2026 manifestを付けたpackageはどちらも42を返した。これはpackage化であり、edition間移行の証拠ではなく、これだけでG2を完了できない。実stdio LSPは`unused`だけを`_unused`へ変更するversion付き`LNT0001` quickfixを返し、適用後もinitializerを保持して42を返し、lintが解消した。次のfix CLIでは既存の意味rename証明を再利用する。現editor snapshotはroot entryを扱うため、B02では宣言testのcoverageを明示的に扱う必要がある。契約案はB01レビューまで採択RFC集合の外に置く。見積り・exitゲートの変更なし。
 

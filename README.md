@@ -128,6 +128,8 @@ Literal code actions reuse those input/version guards and the package linter rul
 
 ## Development
 
+`cargo run -- compatibility --message-format json` reports supported source editions and independent compatibility policies without reading a project. The only edition is `2026`; packages must specify it explicitly. Public component C v1 is stabilized, while source, bytecode, package/tooling formats and private native linkage retain their separate experimental contracts. [RFC 0043](docs/rfcs/0043-editions-and-compatibility.md) defines deprecation and future migration requirements; [M5 progress](docs/milestone-5.md) tracks the implementation.
+
 `cargo run -- fmt --manifest-path target/my_app/Lang.json --check` reports files needing the existing CST formatter without edits. Omit `--check` to apply validated per-file source replacements, including selected dependencies/tests. Original comments/spans and permissions are retained; stale or invalid input refuses before publication. Source changes leave the old lock stale; regenerate it through an ordinary build/run. See [RFC 0036](docs/rfcs/0036-checked-package-formatting.md) for the per-file publication boundary.
 
 `cargo run -- package --manifest-path target/my_app/Lang.json --list` lists the planned frozen source snapshot without writing output. Omit `--list` to publish an uncompressed deterministic TAR with original manifests/source bytes, `Lang.lock` and a versioned descriptor. `--locked --offline` verifies exact replay. Profile 1 refuses directory aliases; it does not extract untrusted archives or publish to a registry. See [RFC 0035](docs/rfcs/0035-source-package-snapshots.md).

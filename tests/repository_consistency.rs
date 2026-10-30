@@ -322,7 +322,10 @@ fn m5_delivery_evidence_estimates_dependencies_and_translations_agree() {
         include_str!("../docs/roadmap.md"),
         include_str!("../docs/ja/roadmap.md"),
     ] {
-        assert!(roadmap.contains(&summary), "active roadmap matches M5 board");
+        assert!(
+            roadmap.contains(&summary),
+            "active roadmap matches M5 board"
+        );
     }
     let gates: BTreeSet<_> = english
         .iter()
