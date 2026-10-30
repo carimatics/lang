@@ -6,11 +6,13 @@
 
 Activated 2026-10-30 JST from `3b676c5`. This board tracks the entire M5 scope in [the roadmap](roadmap.md#milestone-5-ecosystem-and-compatibility), including both P1 gates. M4's installer and local packages are prerequisites, not registry completion.
 
-**4 done · 1 doing · 35 todo · 105 remaining pt**
+**5 done · 0 doing · 35 todo · 102 remaining pt**
 
-**Next: M5-B03 — publish checked source fixes through the CLI.**
+**Next: M5-B05 — preview a checked migration of the historical scalar fixture.**
 
-B03 executable checkpoint, verified 2026-10-31 JST: `lang fix` previews by default and `--apply` recomputes a private checked plan, using the formatter's frozen-input validation, complete staging and per-file replacement. Fix tests 11/11, formatter 7/7, repository consistency 7/7, the late-replacement unit fixture and strict workspace Clippy pass. Fixtures cover entry/test VM execution before/after, stale source/dependency/manifest and foreign-authority refusal, read-only/alias refusal, cleaned staging failures, exact committed-prefix reporting, idempotent replay, CLI diagnostics and the successful-apply report size boundary. A hardlink outside the captured inventory exposed a missed existing no-alias requirement; both live validation passes now check the opened file's link count, with RFC 0036 clarified in both languages. This is within B03's audited 3 pt, with no new prerequisite. Remaining acceptance: frozen full baseline, code evidence and latest-head CI/PR publication. B04 retains historical migration integration.
+Publication checkpoint, 2026-10-31 JST: code `01b425e` passed CI `41085682122` (18 successful jobs; documentation-only intentionally skipped under full routing) and native-debug `41085682104`. Its full local baseline completed with 2,536 passing tests in 178 suites, fmt, strict Clippy and rustdoc; all child exits are 0 and the source fingerprint is unchanged. Logs are retained under `/private/tmp/lang-m5-fixes-target/m5-b03-validation-authorized/`. The first sandboxed attempt refused loopback listeners in two HTTPS fixtures; authorized execution used identical frozen source. No failed or cancelled run is counted as success. Final documentation-head CI and PR #30 merge remain pending.
+
+B03 completed, verified 2026-10-31 JST: `lang fix` previews by default and `--apply` recomputes a private checked plan, using the formatter's frozen-input validation, complete staging and per-file replacement. Fixtures cover entry/test VM execution before/after, stale source/dependency/manifest and foreign-authority refusal, read-only/alias refusal, cleaned staging failures, exact committed-prefix reporting, idempotent replay, CLI diagnostics and the successful-apply report size boundary. A hardlink outside the captured inventory exposed a missed existing no-alias requirement; both live validation passes now check the opened file's link count, with RFC 0036 clarified in both languages. Implementation and both-host CI are complete; final documentation publication remains separately gated above. B04 retains historical migration integration.
 
 B02 completed locally, verified 2026-10-31 JST: implementation `2a3aca1` composes original spans and proves entry plus all declared tests after each rename. The frozen full baseline passed 2,529 tests in 178 suites, fmt, strict Clippy and rustdoc, with actual exits retained under `/private/tmp/lang-m5-fixes-target/m5-validation/`. Correction `5e2b593` replaces a POSIX-only test expectation with exact native paths; focused preview/consistency/fmt/Clippy checks pass. Publication remains subject to latest-head CI; checked application and historical migration are separate B03/B05/B04 outcomes.
 
@@ -43,7 +45,7 @@ Gate completion: **1/10; 5/65 historical gate weight**. Delivery points below ar
 | M5-A02 | done | 0 | M5-A01 | G1 | Expose supported compatibility in CLI; test unknown editions and old consumer boundaries | `a473cc0` |
 | M5-B01 | done | 0 | M5-A01 | G2 | Accept migration recipes, applicability and write transaction contract | `1ab1201` |
 | M5-B02 | done | 0 | M5-B01 | G2 | Preview real source fixes with original spans and semantic recheck | `2a3aca1` |
-| M5-B03 | doing | 3 | M5-B02 | G2 | Apply checked fixes through CLI; stale/conflicting/partial-write refusal fixtures | — |
+| M5-B03 | done | 0 | M5-B02 | G2 | Apply checked fixes through CLI; stale/conflicting/partial-write refusal fixtures | `01b425e` |
 | M5-B05 | todo | 3 | M5-B01 | G2 | Admit historical scalar syntax, prove fresh renames and preview the real old-source fixture | — |
 | M5-B04 | todo | 3 | M5-B03,M5-B05 | G2 | Edition migration CLI and both-host before/after execution journey | — |
 | M5-C01 | todo | 3 | M5-A01 | G3 | Threat model: identities, namespace, authority, abuse and adversaries | — |
@@ -82,15 +84,17 @@ Gate completion: **1/10; 5/65 historical gate weight**. Delivery points below ar
 
 ## Estimate reconciliation
 
-**112 + 3 − 10 = 105 pt**
+**112 + 3 − 13 = 102 pt**
 
 | Baseline remaining | Net additions/re-estimates | Retired at completion | Remaining |
 | ---: | ---: | ---: | ---: |
-| 112 pt | +3 pt | −10 pt | 105 pt |
+| 112 pt | +3 pt | −13 pt | 102 pt |
 
 ## Delivery notes and roadmap audits
 
-- Historical admission preparation, 2026-10-31 JST (no delivery retired): eight [pinned-producer probes](evidence/2026-10-31-m5-scalar-admission.json) establish lexical block scope plus function-wide name uniqueness, immutable parameters, explicit local types, local/callable shadowing, unreachable-name validation, required return paths and forward recursion. RFC 0044 records these existing requirements in both languages. This validates B05's planned resolved-name/type proof without introducing another prerequisite or changing its 3 pt estimate; B03 remains the sole doing row while its full local run finishes.
+- B03 completed, 2026-10-31 JST: code `01b425e`, full local baseline 2,536/2,536 plus fmt/Clippy/rustdoc, and both-host CI successful. Retire the last 3 pt with no additions/re-estimates. G2 remains open until B05/B04's historical admission, checked migration CLI and actual old-producer/current-VM/native journey on both hosts succeed. B05 is next; all other gates and P1 outcomes remain required.
+
+- Historical admission preparation, 2026-10-31 JST (no delivery retired): eleven [pinned-producer probes](evidence/2026-10-31-m5-scalar-admission.json) establish lexical block scope plus function-wide name uniqueness, immutable parameters, explicit local types/`mut`, local/callable shadowing, unreachable-name validation, required return paths, forward recursion, optional `else` and trailing parameter/argument commas. RFC 0044 records these existing requirements in both languages. This validates B05's planned resolved-name/type proof without introducing another prerequisite or changing its 3 pt estimate; B03 remains the sole doing row while its full local run finishes.
 
 - B02 completed locally, 2026-10-31 JST: implementation `2a3aca1` passes the frozen full baseline (2,529 tests, fmt, strict Clippy and rustdoc); correction `5e2b593` preserves exact native path assertions and passes focused checks. Retire its last 3 pt, no additions/re-estimates; G2 remains open. Latest-head CI and PR merge are publication gates still pending. B03 is the sole doing row; its fresh-plan CLI and shared writer are one coherent continuation on `codex/m5-checked-source-fixes`.
 

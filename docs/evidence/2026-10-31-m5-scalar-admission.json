@@ -54,6 +54,26 @@
       "source": "fn shared(weak:bool)->i64{if weak{return 42;}else{}}\nfn main()->i64{return shared(true);}\n",
       "exit": 1,
       "diagnostics": ["SRC0007"]
+    },
+    {
+      "name": "optional-else",
+      "source": "fn main()->i64{if false{return 1;}return 42;}\n",
+      "exit": 0,
+      "stdout": "42\n",
+      "diagnostics": []
+    },
+    {
+      "name": "mutable-local-keyword-required",
+      "source": "fn main()->i64{let shared:i64=42;return shared;}\n",
+      "exit": 1,
+      "diagnostics": ["SRC0012"]
+    },
+    {
+      "name": "trailing-parameter-and-argument-commas",
+      "source": "fn shared(weak:i64,)->i64{return weak;}\nfn main()->i64{return shared(42,);}\n",
+      "exit": 0,
+      "stdout": "42\n",
+      "diagnostics": []
     }
   ],
   "scope": "Executable observations of the pinned historical compiler for the accepted RFC 0044 scalar profile. These are admission requirements, not an implemented migration reader, automatic rename, native journey or closed M5 gate."

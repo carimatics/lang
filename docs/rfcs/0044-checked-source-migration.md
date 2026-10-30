@@ -61,6 +61,8 @@ There is no allocation, destruction, cancellation, unwinding, unsafe/FFI or conc
 
 The [pinned-producer admission probes](../evidence/2026-10-31-m5-scalar-admission.json), verified 2026-10-31 JST, make the historical rules concrete: locals need explicit types, parameters are immutable, block locals do not escape, and local names remain unique across the entire function even in disjoint branches. A local binding shadows a same-named callable and cannot be called. Unreachable names are still resolved, all required return paths are checked, and forward/recursive private calls are admitted. B05 must preserve these conditions before rewriting; successful parsing under the current grammar cannot replace them.
 
+The same probes admit an omitted `else` and trailing parameter/argument commas, while requiring `mut` on local declarations. These are part of the existing historical scalar grammar, not extensions or optional simplifications for the migration reader.
+
 ### Plans and publication
 
 Freeze manifests, source bytes and filesystem identities used by every analysis, including unmodified dependencies/tests. Plans have private constructors and ordered original byte spans; JSON serialization exposes information, not write authority. Validate semantic proofs and encoded output limits before staging writes.
@@ -127,7 +129,7 @@ Accepted under RFC 0001's experimental delegation on 2026-10-30 JST. Rationale: 
 
 - [RFC 0006](0006-source-frontend-and-portable-programs.md), current update 2026-10-30; historical revision at the pinned commit updated 2026-10-17: source lexical, scalar and module rules.
 - [RFC 0007](0007-source-ownership-and-core-values.md), updated 2026-10-21: reserved ownership names and migration diagnostics.
-- [RFC 0036](0036-checked-package-formatting.md), updated 2026-10-29: checked publication and committed-prefix limits.
+- [RFC 0036](0036-checked-package-formatting.md), updated 2026-10-31: checked publication and committed-prefix limits.
 - [RFC 0039](0039-package-editor-snapshots.md), updated 2026-10-30: rename and quickfix proofs.
 - [RFC 0043](0043-editions-and-compatibility.md), updated 2026-10-30: editions and independent compatibility domains.
 - [Cargo Book: cargo fix](https://doc.rust-lang.org/cargo/commands/cargo-fix.html), publication/update date unavailable; verified 2026-10-30 JST. Source-first migration and analysis coverage are sourced facts; this RFC's grammar, proof and write guarantees are project decisions.

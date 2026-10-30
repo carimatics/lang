@@ -61,6 +61,8 @@ module・import・qualified path、公開・foreign宣言、aggregate・pattern�
 
 [固定producerの受入probe](../../evidence/2026-10-31-m5-scalar-admission.json)（2026-10-31 JST確認）で旧規則を具体化した。localには明示型が必要で、parameterは不変、block localは外へ漏れず、分離したbranchを含む関数全体でlocal名を一意とする。local bindingは同名callableを隠し、callできない。到達不能な名前も解決し、必要な全return経路を検査する。前方・再帰private callは受け入れる。B05はrewrite前にこれらを維持し、現grammarでのparse成功で代用しない。
 
+同probeは`else`の省略とparameter・argument末尾のcommaを受け入れ、local宣言の`mut`は必須とする。これらは既存の旧scalar grammarの一部であり、移行readerの拡張や省略可能な簡略化ではない。
+
 ### Planと公開
 
 未変更の依存・testも含め、各解析が使うmanifest・source bytes・filesystem identityをfreezeする。planのconstructorをprivateとし、元byte span順に整列する。JSONは情報を公開し、書込み権限は渡さない。staging前に意味証明と符号化output上限を検証する。
@@ -127,7 +129,7 @@ frontend/editor証明adapter、package/format公開、CLI・test・文書を変�
 
 - [RFC 0006](0006-source-frontend-and-portable-programs.md)、現更新2026-10-30、固定commitの旧版更新2026-10-17: source字句・scalar・module規則。
 - [RFC 0007](0007-source-ownership-and-core-values.md)、更新2026-10-21: ownership予約名と移行diagnostic。
-- [RFC 0036](0036-checked-package-formatting.md)、更新2026-10-29: 検証付き公開とcommit済みprefixの制限。
+- [RFC 0036](0036-checked-package-formatting.md)、更新2026-10-31: 検証付き公開とcommit済みprefixの制限。
 - [RFC 0039](0039-package-editor-snapshots.md)、更新2026-10-30: rename・quickfix証明。
 - [RFC 0043](0043-editions-and-compatibility.md)、更新2026-10-30: editionと独立した互換性領域。
 - [Cargo Book: cargo fix](https://doc.rust-lang.org/cargo/commands/cargo-fix.html)、公開・更新日なし、2026-10-30 JST確認。source先行移行と解析coverageは出典事実、本RFCのgrammar・証明・write保証はproject判断。
