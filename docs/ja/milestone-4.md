@@ -4,13 +4,13 @@
 
 [English](../milestone-4.md)
 
-更新: 2026-10-30 JST。M4はactive。Goal開始はclean main／origin/main `af9988f`、remote `git@github.com:carimatics/lang.git`。PR #9–#19はmerge済み。debugger PR #19は`14a92df`としてmergeし、別文書PR #20–#23の祖先`be9f77c`も保持した。最後に確認したlocal main／origin/mainは`14a92df`でahead／behind 0/0。M4全体とinstallerは未完了。
+更新: 2026-10-30 JST。M4はactive。Goal開始はclean main／origin/main `af9988f`、remote `git@github.com:carimatics/lang.git`。PR #9–#24はmerge済み。profiling PR #24は`fa271b1`としてmergeし、別文書PR #20–#23の祖先`be9f77c`も保持した。最後に確認したlocal main／origin/mainは`fa271b1`でahead／behind 0/0。M4全体とinstallerは未完了。
 
 **34 done · 1 doing · 8 todo · 24 remaining pt**
 
-現在のcheckoutは`codex/m4-toolchain-installer`。cleanなprofiling文書head `84b17f6`から作成し、既存user変更はない。先行[PR #24](https://github.com/carimatics/lang/pull/24)がmergeするまで、記録remote PR baseは`carimatics/lang:codex/m4-profiling`。F01–F05を一貫したinstaller成果とする。upstreamは`origin/codex/m4-toolchain-installer`、[draft PR #25](https://github.com/carimatics/lang/pull/25)。profiling最終head CI／mergeは別に追跡し、検証済み実装証拠は`356fdca`。最後に確認したlocal main／origin/mainは`14a92df`で0/0、別文書PR #20–#23も保持する。
+現在のcheckoutは`codex/m4-toolchain-installer`。cleanなprofiling文書head `84b17f6`から作成し、既存user変更はない。先行[PR #24](https://github.com/carimatics/lang/pull/24)のmerge後、記録remote PR baseは`carimatics/lang:main`へ変更した。F01–F05を一貫したinstaller成果とする。upstreamは`origin/codex/m4-toolchain-installer`、[draft PR #25](https://github.com/carimatics/lang/pull/25)。profiling最終head `84b17f6`は[全体CI](https://github.com/carimatics/lang/actions/runs/40981001066)（18成功、文書専用jobの意図したskip）と[native debugger実行](https://github.com/carimatics/lang/actions/runs/40981000915)（3/3）に成功した。local main／origin/mainはmerge `fa271b1`で一致し、ahead／behindは0/0。
 
-F01の最終実行checkpoint、2026-10-30 09:37 JST: 直前のE04 source `356fdca`は完全local baseline（171 suite／2,500 test）、全体CI `40979050495`（18成功、意図したdoc専用skip）、native CI `40979050348`（3/3）に成功。独立した署名実験は公開RFC 8032 vectorの受理、改変／不正scalar／弱い鍵の拒否、macOSのnonblocking file lockを確認した。F01の残条件はtrust root／renewal、署名metadata／channel／version、上限付きtransport、atomic install／update／recoveryの具体的契約と日英RFC採択。実験はinstaller実装やG9完了を意味しない。
+F02の最終実行checkpoint、2026-10-30 10:09 JST: 上限付きの厳密root／envelope／payload検証と読取専用CLIは重点5 testとrepository整合性6 testに成功した。fmt、警告なしの全体Clippy、assertion／overflow検査を有効にしたopt-level 1の全workspace test（**172 suite／2,505成功／0失敗**）、docを通過した。root／fuzz fmtと全fuzz-bin Clippyも成功し、計測なしのmetadata fuzz smokeを10,000回完了した。coverage／sanitizer検証とは主張しない。threshold署名、expiry／clock／過去admission floor、target／digest／path／件数制限、改ざん、不正fileの非blocking拒否を検査する。残るF02受入条件は実装commitの両host CI。installer transactionはF03–F05、G9は未完了。
 
 **次: M4-F02 — 署名release検証（doing、3 pt）。** F01の最終3 ptを消化し、追加は0。F02は厳密verifier／読取専用CLI／不正入力と過去admission検査へ再確認して3 ptを維持する。43 delivery、追加+17、消化96、残り24 pt。
 

@@ -95,6 +95,8 @@ Root, channel envelope/payload, state and receipts are independently versioned n
 
 ## Diagnostics and tooling
 
+The F02 verification result is a schema-1 JSON record with `schema`, `kind: "toolchain_metadata"`, `scope: "fresh_trust_context"`, `root_sha256`, `repository`, `channel`, `target`, `sequence`, `payload_sha256`, `current_version` and `releases`. Each release summary has `version`, `compiler_build_id`, `generation`, `files` and `bytes`; generation identifies the signed typed release, not a verified installed directory. The result is bounded to 1 MiB and omits payload bytes and local absolute paths. `TLC0001` identifies admission/input failures and `TLC0002` CLI misuse. No partial successful result is emitted on failure.
+
 Use structured installer diagnostics with ordinary exit 2 for misuse and exit 1 for admission/transaction failure. Do not print signing secrets. JSON output reports exact repository/channel/version/target/generation identity and active state, including whether an authenticated floor advanced on a failed transfer. LSP/DAP and compiler diagnostics are unaffected. `run` preserves child arguments/output/status and reports spawn failures separately. Provide a release-fixture producer that takes externally supplied signing material; no private keys enter version control or published fixture roots.
 
 ## Performance and cost model

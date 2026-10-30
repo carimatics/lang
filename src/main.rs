@@ -342,6 +342,14 @@ fn compile_native(
 }
 fn run() -> Result<u8, CliError> {
     let arguments: Vec<_> = std::env::args_os().skip(1).collect();
+    if arguments.first().is_some_and(|arg| arg == "toolchain") {
+        return lang::toolchain::command::run(
+            &arguments[1..],
+            &mut io::stdout().lock(),
+            &mut io::stderr().lock(),
+        )
+        .map_err(failure);
+    }
     if arguments.first().is_some_and(|arg| arg == "profile") {
         return lang::profile::run(
             &arguments[1..],
@@ -371,6 +379,7 @@ fn run() -> Result<u8, CliError> {
             println!("       lang package check-manifest [--message-format human|json] FILE");
             print!("{}", lang::package::command::USAGE);
             print!("{}", lang::profile::USAGE);
+            print!("{}", lang::toolchain::command::USAGE);
             Ok(0)
         }
         Command::Dap => lang::dap::serve_stdio().map_err(failure),

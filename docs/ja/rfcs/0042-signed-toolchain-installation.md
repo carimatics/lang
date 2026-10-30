@@ -95,6 +95,8 @@ root、channel envelope／payload、state、receiptは独立にversionを持つ�
 
 ## Diagnostics and tooling
 
+F02の検証結果はschema-1 JSON recordとし、`schema`、`kind: "toolchain_metadata"`、`scope: "fresh_trust_context"`、`root_sha256`、`repository`、`channel`、`target`、`sequence`、`payload_sha256`、`current_version`、`releases`を持つ。release summaryは`version`、`compiler_build_id`、`generation`、`files`、`bytes`を持ち、generationは署名された型付きreleaseのidentityであり検証済みinstalled directoryを意味しない。結果は1 MiB以下とし、payload bytesやlocal絶対pathを含めない。`TLC0001`はadmission／入力失敗、`TLC0002`はCLI誤用を表す。失敗時にpartialな成功結果を出力しない。
+
 構造化installer診断を使い、誤用は通常のexit 2、admission／transaction失敗はexit 1とする。signing secretを出力しない。JSONは正確なrepository／channel／version／target／generation identity、active state、転送失敗時に認証済みfloorが進んだかを報告する。LSP／DAP／compiler診断は変更しない。`run`はchildのargument／output／statusを保持し、spawn失敗を別に報告する。外部指定signing materialを使うrelease-fixture producerを提供し、private keyをversion管理や公開fixture rootへ入れない。
 
 ## Performance and cost model

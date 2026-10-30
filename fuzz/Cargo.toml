@@ -23,6 +23,8 @@ bench = false
 
 [dependencies]
 libfuzzer-sys = "0.4"
+ed25519-dalek = "=3.0.0"
+serde_json = "1.0"
 lang = { path = ".." }
 lang-runtime = { path = "../crates/runtime" }
 lang-diagnostics = { path = "../crates/diagnostics" }
@@ -32,6 +34,13 @@ lang-bytecode = { path = "../crates/bytecode" }
 lang-mir = { path = "../crates/mir" }
 lang-vm = { path = "../crates/vm" }
 lang-codegen-clif = { path = "../crates/codegen-clif" }
+
+[[bin]]
+name = "toolchain_metadata"
+path = "fuzz_targets/toolchain_metadata.rs"
+test = false
+doc = false
+bench = false
 
 [[bin]]
 name = "core_buffers"

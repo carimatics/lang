@@ -25,6 +25,7 @@ pub mod native;
 pub mod package;
 pub mod profile;
 pub mod repl;
+pub mod toolchain;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct ExecutionResults {

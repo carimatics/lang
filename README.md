@@ -100,6 +100,8 @@ The rationale and unresolved tradeoffs are documented in [the architecture basel
 - [RFC 0042: Signed toolchain installation (accepted)](docs/rfcs/0042-signed-toolchain-installation.md)
 - [Contribution guide](CONTRIBUTING.md)
 
+`cargo run -- toolchain verify --trust-root root.json --metadata channel.json --channel stable --message-format json` verifies bounded signed metadata for the current host and emits a JSON summary. The root must be trusted out of band. This read-only check uses a fresh trust context: it neither consults an installed rollback floor nor reads or installs payloads. See [RFC 0042](docs/rfcs/0042-signed-toolchain-installation.md).
+
 `cargo run -- lint --manifest-path target/my_app/Lang.json --deny-warnings --message-format json` checks the selected package and declared tests without executing guest code or writing lock/artifacts. `LNT0001` reports unread bindings; `_`-prefixed names suppress that rule. Existing warnings retain their codes. Omit `--deny-warnings` to keep warnings non-failing. See [RFC 0037](docs/rfcs/0037-package-lint-diagnostics.md).
 
 `cargo run -- doc --manifest-path target/my_app/Lang.json --locked --offline` publishes a detached static API reference at `target/lang/<lock-digest>/doc/index.html`. Public signatures and type links use checked identities; adjacent `///` text and original source panels are escaped. The source panels include private implementation text. Generation failures preserve the previous lock/output. See [RFC 0038](docs/rfcs/0038-package-api-documentation.md).
