@@ -2,6 +2,7 @@
 pub mod archive;
 pub mod cli;
 pub mod command;
+pub mod compatibility;
 pub mod doc;
 pub mod editor;
 pub mod format;

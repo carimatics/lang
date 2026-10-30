@@ -1,0 +1,45 @@
+{
+  "schema": 1,
+  "kind": "historical-source-migration-probe",
+  "verified_date": "2026-10-30",
+  "timezone": "Asia/Tokyo",
+  "historical_commit": "69b1c4dc66d04a4a103d4eb843232df22e52eac0",
+  "historical_commit_date": "2026-10-17T15:57:44+09:00",
+  "current_commit": "a473cc0d490faa3c867d761a5a09dd8781463009",
+  "host": "aarch64-apple-darwin",
+  "rust_toolchain": "1.99.0",
+  "source": {
+    "display_name": "lang-m5-legacy-probe.lang",
+    "text": "fn main() -> i64 {\n    let mut shared: i64 = 40;\n    let mut weak: i64 = 2;\n    return shared + weak;\n}\n",
+    "sha256": "c992b676ff94f018e4678d5db3cfe83902207f83c7ec3d4e75de8119c812aa36"
+  },
+  "observations": {
+    "historical_locked_cli_run": {
+      "exit": 0,
+      "stdout": "42\n"
+    },
+    "current_source_check": {
+      "exit": 1,
+      "diagnostic": "SRC0024",
+      "count": 4
+    },
+    "current_historical_artifact_run": {
+      "exit": 0,
+      "stdout": "42\n"
+    }
+  },
+  "artifact": {
+    "bytes": 315,
+    "sha256": "77a4fc049cea560885c1eddfd4c3a2407c73b8563b31dd01659781fc3c1b045f",
+    "hex": "4c414e4742430000010000002b01000001000000190000006c616e672d6d352d6c65676163792d70726f62652e6c616e6768000000666e206d61696e2829202d3e20693634207b0a202020206c6574206d7574207368617265643a20693634203d2034303b0a202020206c6574206d7574207765616b3a20693634203d20323b0a2020202072657475726e20736861726564202b207765616b3b0a7d0a000000000000000001000000040000006d61696e000000000003000000000000010000000000000000670000000100000000000000030000000000000000280000000000000001000000002d0000002f000000000100000002000000000000000100000000490000004a00000001020000000000000001000000010000000057000000640000000002000000010000000050000000650000000100000000"
+  },
+  "producer": {
+    "entry": "lang::frontend::analyze_file -> compile_script -> lang_bytecode::unit::encode",
+    "source_commit": "69b1c4dc66d04a4a103d4eb843232df22e52eac0",
+    "historical_lock_sha256": "fa5c279a688f72fde9a09f387aee4fe741be36f56a7515c3b0bc1dccfd43fdca",
+    "companion_lock_sha256": "8a55e09be3dd1ee2970f44dc88ad28ea2eda138877e3981e03520eb8a4f781c5",
+    "dependency_note": "Companion package added; all dependency name/version identities match the historical lock. Cargo update --precise aligned libc to 0.2.190; artifact bytes were unchanged.",
+    "driver": "use lang::frontend::{self, CompileLimits};\nuse lang_bytecode::unit as wire;\nuse std::path::Path;\n\nfn main() {\n    let source = Path::new(\"/private/tmp/lang-m5-legacy-probe.lang\");\n    let limits = CompileLimits::default();\n    let analysis = frontend::analyze_file(source, source.parent().unwrap(), limits);\n    let typed = analysis.result.expect(\"historical source is valid\");\n    let program = frontend::compile_script(&typed, &analysis.sources, limits).unwrap();\n    let bytes = wire::encode(&program, wire::CodecLimits::default()).unwrap();\n    std::fs::write(\"/private/tmp/lang-m5-legacy-probe.langbc\", bytes).unwrap();\n}\n"
+  },
+  "scope": "Reference experiment, not an implemented migration tool or a closed M5 gate. Historical CLI has no compile subcommand; artifact was produced through the unchanged historical library API. Both-host automatic migration remains unverified."
+}

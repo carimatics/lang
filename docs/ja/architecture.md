@@ -4,7 +4,7 @@
 
 [English](../architecture.md)
 
-現在の契約を`28160e3`と照合し、2026-10-30 JSTにレビューしました。Milestone 0–4のexit gateは完了し、M5は未有効化です。公開component C v1と旧生成clientはRFC 0033に従い安定化し、source構文・native Rust ABI・bytecode/SDKの独立formatは実験段階です。[M4機能ガイド](milestone-4-capabilities.md)と[M3機能ガイド・15 gate監査](milestone-3-capabilities.md)にcommand・両host証拠・制約をまとめます。M2の[機能ガイド](milestone-2-capabilities.md)と[過去のarchitecture checkpoint](architecture-history.md)も保持しています。
+現在の契約を`28160e3`と照合し、2026-10-30 JSTにレビューしました。Milestone 0–4のexit gateは完了し、M5は[delivery board](milestone-5.md)で進行中です。[RFC 0043](rfcs/0043-editions-and-compatibility.md)がedition・非推奨方針を定めますが、実験sourceやformatの安定化ではありません。公開component C v1と旧生成clientはRFC 0033に従い安定化し、source構文・native Rust ABI・bytecode/SDKの独立formatは実験段階です。[M4機能ガイド](milestone-4-capabilities.md)と[M3機能ガイド・15 gate監査](milestone-3-capabilities.md)にcommand・両host証拠・制約をまとめます。M2の[機能ガイド](milestone-2-capabilities.md)と[過去のarchitecture checkpoint](architecture-history.md)も保持しています。
 
 ## 目標
 

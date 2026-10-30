@@ -50,6 +50,7 @@ The rationale and unresolved tradeoffs are documented in [the architecture basel
 - [Milestone 2 capability guide and complete exit audit](docs/milestone-2-capabilities.md)
 - [Milestone 3 completed delivery board](docs/milestone-3.md)
 - [Milestone 4 completed delivery board](docs/milestone-4.md)
+- [Milestone 5 active delivery board](docs/milestone-5.md)
 - [Whole-repository review, 2026-10-17](docs/review-2026-10-17.md)
 - [Whole-repository review, 2026-10-20](docs/review-2026-10-20.md)
 - [Whole-repository review, 2026-10-27](docs/review-2026-10-27.md)
@@ -102,6 +103,7 @@ The rationale and unresolved tradeoffs are documented in [the architecture basel
 - [RFC 0040: Bounded debug adapter sessions (implemented)](docs/rfcs/0040-bounded-debug-adapter-sessions.md)
 - [RFC 0041: Bounded toolchain profiles (implemented)](docs/rfcs/0041-bounded-toolchain-profiles.md)
 - [RFC 0042: Signed toolchain installation (implemented)](docs/rfcs/0042-signed-toolchain-installation.md)
+- [RFC 0043: Editions and compatibility policy (implemented)](docs/rfcs/0043-editions-and-compatibility.md)
 - [Contribution guide](CONTRIBUTING.md)
 
 `cargo run -- toolchain verify --trust-root root.json --metadata channel.json --channel stable --message-format json` verifies bounded signed metadata for the current host and emits a JSON summary. The root must be trusted out of band. This read-only check uses a fresh trust context: it neither consults an installed rollback floor nor reads or installs payloads. See [RFC 0042](docs/rfcs/0042-signed-toolchain-installation.md).
@@ -125,6 +127,8 @@ Prepare/rename proposes checked source identifier edits, including across depend
 Literal code actions reuse those input/version guards and the package linter rule. Clients must announce the supported kind families: `source.format` offers whole-document formatting after a source-position-independent HIR/type proof; `quickfix` prefixes one unambiguously selected unread binding with `_` through the rename proof. Initializers and assignment effects are retained, guest code is never executed, and ambiguous/colliding fixes produce no edit.
 
 ## Development
+
+`cargo run -- compatibility --message-format json` reports supported source editions and independent compatibility policies without reading a project. The only edition is `2026`; packages must specify it explicitly. Public component C v1 is stabilized, while source, bytecode, package/tooling formats and private native linkage retain their separate experimental contracts. [RFC 0043](docs/rfcs/0043-editions-and-compatibility.md) defines deprecation and future migration requirements; [M5 progress](docs/milestone-5.md) tracks the implementation.
 
 `cargo run -- fmt --manifest-path target/my_app/Lang.json --check` reports files needing the existing CST formatter without edits. Omit `--check` to apply validated per-file source replacements, including selected dependencies/tests. Original comments/spans and permissions are retained; stale or invalid input refuses before publication. Source changes leave the old lock stale; regenerate it through an ordinary build/run. See [RFC 0036](docs/rfcs/0036-checked-package-formatting.md) for the per-file publication boundary.
 

@@ -4,7 +4,7 @@
 
 [日本語版](ja/architecture.md)
 
-Current contracts reviewed against `28160e3`, 2026-10-30 JST. Milestones 0–4 have completed their exit gates; M5 is not activated. Public component C v1 and previous generated clients are stable under RFC 0033; source syntax, native Rust ABI and independently versioned bytecode/SDK formats remain experimental. The [M4 capability guide](milestone-4-capabilities.md) and [M3 capability guide and 15-gate audit](milestone-3-capabilities.md) map commands, both-host evidence and limits. The [M2 guide](milestone-2-capabilities.md) and [dated architecture checkpoints](architecture-history.md) remain available.
+Current contracts reviewed against `28160e3`, 2026-10-30 JST. Milestones 0–4 have completed their exit gates; M5 is active in its [delivery board](milestone-5.md); [RFC 0043](rfcs/0043-editions-and-compatibility.md) defines its edition/deprecation policy without stabilizing experimental source or formats. Public component C v1 and previous generated clients are stable under RFC 0033; source syntax, native Rust ABI and independently versioned bytecode/SDK formats remain experimental. The [M4 capability guide](milestone-4-capabilities.md) and [M3 capability guide and 15-gate audit](milestone-3-capabilities.md) map commands, both-host evidence and limits. The [M2 guide](milestone-2-capabilities.md) and [dated architecture checkpoints](architecture-history.md) remain available.
 
 ## Goals
 

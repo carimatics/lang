@@ -181,12 +181,7 @@ impl Manifest {
             if !valid_name(&package.name) || !valid_version(&package.version) {
                 return Err(invalid("invalid package name or exact version"));
             }
-            if package.edition != "2026" {
-                return Err(Diagnostic::error(
-                    "PKG0002",
-                    "unsupported package edition; expected 2026",
-                ));
-            }
+            super::compatibility::SourceEdition::parse(&package.edition)?;
             if !valid_path(&package.entry, false) || !package.entry.ends_with(".lang") {
                 return Err(invalid(
                     "package entry must be a relative .lang source path",

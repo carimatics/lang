@@ -50,6 +50,7 @@ source構文・native language ABI・private SDK/package formatは実験段階�
 - [Milestone 2 capability guide・全出口監査](docs/ja/milestone-2-capabilities.md)
 - [Milestone 3 完了した実装記録](docs/ja/milestone-3.md)
 - [Milestone 4 完了した実装ボード](docs/ja/milestone-4.md)
+- [Milestone 5 進行中の実装ボード](docs/ja/milestone-5.md)
 - [全ファイルreview、2026-10-17](docs/ja/review-2026-10-17.md)
 - [リポジトリ全体レビュー、2026-10-20](docs/ja/review-2026-10-20.md)
 - [リポジトリ全体レビュー、2026-10-27](docs/ja/review-2026-10-27.md)
@@ -102,6 +103,7 @@ source構文・native language ABI・private SDK/package formatは実験段階�
 - [RFC 0040: 上限付き debug adapter session（implemented）](docs/ja/rfcs/0040-bounded-debug-adapter-sessions.md)
 - [RFC 0041: 上限付きtoolchain profile（implemented）](docs/ja/rfcs/0041-bounded-toolchain-profiles.md)
 - [RFC 0042: 署名付きtoolchain installation（implemented）](docs/ja/rfcs/0042-signed-toolchain-installation.md)
+- [RFC 0043: Editionと互換性方針（implemented）](docs/ja/rfcs/0043-editions-and-compatibility.md)
 - [コントリビューションガイド](CONTRIBUTING.ja.md)
 
 `cargo run -- toolchain verify --trust-root root.json --metadata channel.json --channel stable --message-format json` は現在のhost向けの上限付き署名metadataを検証し、JSON概要を出力します。rootは別経路で信頼を確認してください。この読取専用検査は新規trust contextを使い、既存installのrollback floorを参照せず、payloadの読取やinstallも行いません。[RFC 0042](docs/ja/rfcs/0042-signed-toolchain-installation.md)を参照してください。
@@ -125,6 +127,8 @@ prepare／rename は dependency file を含む source 識別子の検証 edit �
 literal code action は同じ input／version guard と package linter の rule を再利用し、client が宣言した kind family に限定して提供します。`source.format` は source 位置に依存しない HIR／型の証明後に文書全体を整形し、`quickfix` は一意に選択した未読 binding を rename 証明で `_` prefix にします。initializer と代入の効果を保持し、guest code を実行せず、曖昧／衝突する fix は edit を返しません。
 
 ## 開発
+
+`cargo run -- compatibility --message-format json` はprojectを読まずに対応source editionと独立した互換性方針を表示します。editionは`2026`のみで、packageには明示が必要です。公開component C v1は安定化していますが、source・bytecode・package/tooling format・private native linkageはそれぞれの実験契約を維持します。[RFC 0043](docs/ja/rfcs/0043-editions-and-compatibility.md)が非推奨と将来移行の要件を定義し、[M5進捗](docs/ja/milestone-5.md)で実装状況を確認できます。
 
 `cargo run -- fmt --manifest-path target/my_app/Lang.json --check` は既存 CST formatter の要変更 file を無書込みで報告します。`--check` を省くと、選択 dependency／test を含め検証済みの source を file 単位で置換します。元 comment／span と permission を保持し、stale／不正 input は公開前に拒否します。source 変更後の古い lock は stale に保ち、通常 build／run で再生成します。file 単位公開の境界は [RFC 0036](docs/ja/rfcs/0036-checked-package-formatting.md) を参照してください。
 
