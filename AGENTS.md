@@ -34,6 +34,7 @@ These instructions apply to the entire repository.
   - `docs/review-2026-10-20.md` and `docs/ja/review-2026-10-20.md`
   - `docs/review-2026-10-27.md` and `docs/ja/review-2026-10-27.md`
   - `docs/review-2026-10-28.md` and `docs/ja/review-2026-10-28.md`
+  - `docs/review-2026-10-30.md` and `docs/ja/review-2026-10-30.md`
   - `docs/spec-improvement-study.md` and `docs/ja/spec-improvement-study.md`
   - `docs/rfcs/0000-template.md` and `docs/ja/rfcs/0000-template.md`
   - Every numbered RFC in `docs/rfcs/` and its same-named mirror in `docs/ja/rfcs/`

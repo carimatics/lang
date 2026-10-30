@@ -4,7 +4,7 @@
 
 [English](../architecture.md)
 
-現在の実装を`9e78f2d`で2026-10-27 JSTに検証しました。Milestone 0–3のexit gateは完了しています。公開component C v1と旧生成clientはRFC 0033に従い安定化し、source構文・native Rust ABI・bytecode/SDKの独立formatは実験段階です。[M3機能ガイドと15 gate監査](milestone-3-capabilities.md)にcommand・両host証拠・制約をまとめます。M2の[機能ガイド](milestone-2-capabilities.md)と[過去のarchitecture checkpoint](architecture-history.md)も保持しています。
+現在の契約を`28160e3`と照合し、2026-10-30 JSTにレビューしました。Milestone 0–4のexit gateは完了し、M5は未有効化です。公開component C v1と旧生成clientはRFC 0033に従い安定化し、source構文・native Rust ABI・bytecode/SDKの独立formatは実験段階です。[M4機能ガイド](milestone-4-capabilities.md)と[M3機能ガイド・15 gate監査](milestone-3-capabilities.md)にcommand・両host証拠・制約をまとめます。M2の[機能ガイド](milestone-2-capabilities.md)と[過去のarchitecture checkpoint](architecture-history.md)も保持しています。
 
 ## 目標
 
@@ -109,17 +109,17 @@ Source function/instruction rangeはmacOS DWARF/dSYMとWindows CodeView/PDBま�
 
 Read-only revision 1のdebug descriptorで、dispatch時にallocationせずownedの生存論理frame IDとsource spanを公開します。[両hostの実機検証](https://github.com/carimatics/lang/actions/runs/39427222132)で3段のframeと親のcall siteを確認しました。旧G18根拠だけではRFC 0012のこの要件を満たしていませんでした。
 
-この根拠ではsourceを残した手動のmatching-SDK debug linkを使っています。既定の`link-native`はdebugger sidecarを公開しません。Source variable location、論理continuation step、最適化後のstep、JIT debugger登録、VM/native混在stackは別作業です。
+このM2の根拠ではsourceを残した手動のmatching-SDK debug linkを使っています。既定の`link-native`はdebugger sidecarを公開しません。後述するRFC 0040のDAP profileはCopy VMのinspection／step、private sidecar付きnative launch、明示許可したVM／native混在stackを追加します。native value inspection、ownership continuation step、最適化後のstep、JIT debugger登録はこのprofileの範囲外です。
 
 [RFC 0040](rfcs/0040-bounded-debug-adapter-sessions.md) は上限付き stdio framing と許可済み不変 package snapshot を使う `lang dap` を追加します。Copy VM debugger は通常 interpreter を所有 worker に保持し、instruction の効果・課金前で停止して、元 control と caller span を保ちます。初期 source breakpoint、stack／source query、entry stop、continue、disconnect を実装し、Copy native launchは実装・両host検証済みで、明示許可した混在host stackとlifecycle分離も実装・両host検証済みです。通常CLIのlaunchではhost importを許可しません。
 
-VM adapter は source step-in／over／out と、上限付き read-only scope／variable／identifier・field・scalar 評価にも対応します。通常 lowering は検証 MIR や portable bytes を変更せず、target 非依存の local／register 環境を追加取得できます。初期化済み register の追跡は保持 debug frame だけで行い、caller は停止した call 点から検査します。query は元 worker で処理し、再開時に frame／variable reference を無効化します。実 native／混在 debug は引き続き必要です。
+VM adapterはsource step-in／over／outと、上限付きread-only scope／variable／identifier・field・scalar評価に対応します。通常loweringは検証MIRやportable bytesを変更せず、target非依存のlocal／register環境を追加取得できます。初期化済みregisterの追跡は保持debug frameだけで行い、callerは停止したcall点から検査します。queryは元workerで処理し、再開時にframe／variable referenceを無効化します。native／混在modeでのinspectionは、後述するより限定的な範囲に対応します。
 
 native DAP backend は同じ package admission を使い、検証した private SDK／program／code／debug sidecar の owner を debugger 終了まで保持します。実 native package の意味 bytes と受理 program を比較し、検査済み source line breakpoint と実行 control だけを転送して、未受理の物理 frame source location を省きます。source 応答は取得済み bytes を保持します。native value inspectionはunavailableです。source 39473b1のproduction native DAPは両hostで成功し、source 759bae0はnative-debug CIの3環境で生存中の物理／論理frame対応とfailure cleanupを証明します。
 
 信頼済みRust embeddingが混在native importを明示登録し、既定CLIはgrantしません。協調native pauseは元VMとcallbackを同じworkerに保持し、上限付き完全物理PC suffixを照合して、native prefixと元VM callerの順に表示します。Restartは旧targetを解放して明示launch入力を再captureします。異なるtarget reference blockで旧thread／source／frame／variable IDによる置換targetへのアクセスを防ぎます。Terminate／disconnectは元interruption／shutdown経路を使い、terminatedは一度だけ通知します。DAP cancelは完了済み／未知の要求の取消に応答し、実行を停止しません。同期準備中はqueueされた取消を処理できません。任意の信頼済みcallbackは協調的です。有限上限とlifecycle契約はRFC 0040を参照してください。
 
-実験段階のembedded mixed bridgeは明示的な信頼済みRust host bindingを必要とし、default CLIはimportを許可しません。元VMのHostCallで内部停止し、source frameを保持して同じworkerで登録callbackへ入ります。scope付き物理baselineと生存PCの完全一致suffixで、symbol名から推測せずnative prefixを確立します。協調的pauseから渡すのはowned物理／source frame dataだけで、借用中Machineはthreadを渡りません。callback return、割込み、scope退役で観測を失効させます。native pauseのvalue／stepはunavailableとし、元VMのcontrol・結果・effectを実行契約に保ちます。D04B bridge検証とD04の両host／failure根拠は進行中です。
+mixed bridgeは元VMのHostCallで内部停止し、source frameを保持して同じworkerで登録callbackへ入ります。協調的pauseから渡すのはowned物理／source frame dataだけで、借用中Machineはthreadを渡りません。callback return、割込み、scope退役で観測を失効させます。native pauseのvalue／stepはunavailableとし、元VMのcontrol・結果・effectを実行契約に保ちます。[完了済みM4ボード](milestone-4.md)にD04B／D04のbridge・両hostのfailure証拠とD05のlifecycle検証を記録しています。
 
 [M2 source/Rust/C測定](benchmarks.md)は名前付きの不変revisionに結び付き、大きな性能差を示しています。測定完了の根拠であり、native同等性能や速度保証ではありません。今後の最適化判断にはこのworkloadを使い、過去のscalar microbenchmarkでsource programの費用を代用しません。
 
@@ -139,7 +139,7 @@ native DAP backend は同じ package admission を使い、検証した private 
 
 CLI は check、source/artifact 実行、portable compile、native package/link、transactional REPL、同期 LSP prototype を備えます。format は共通 CST API と LSP document formatting から利用できます。[RFC 0010](rfcs/0010-owned-repl-previews.md) と [RFC 0016](rfcs/0016-indirect-repl-previews.md) が有界 result preview を定めます。output 公開前に result を retire し、session は source 定義を保持しても mutable guest owner を保持しません。
 
-Query graph は推移的 consumer を無効化し、編集、close／reopen、新しい処理の開始後に古い結果の公開を拒否します。LSP は source analysis、不変 overlay、UTF-16 mapping を再利用し、上限付き framing／output で lifecycle、full synchronization、診断、format、監視 module の refresh を実装しています。package profile は dependency item、case、parameter、local、record field の definition／references を追加します。[RFC 0039](rfcs/0039-package-editor-snapshots.md) が許可 input／overlay epoch、元 URI／span 対応、応答上限、検証 edit の前提を定義します。DAP は active delivery として残ります。
+Query graphは推移的consumerを無効化し、編集、close／reopen、新しい処理の開始後に古い結果の公開を拒否します。LSPはsource analysis、不変overlay、UTF-16 mappingを再利用し、上限付きframing／outputでlifecycle、full synchronization、診断、format、監視moduleのrefreshを実装しています。package profileはdependency item、case、parameter、local、record fieldのdefinition／referencesを追加します。[RFC 0039](rfcs/0039-package-editor-snapshots.md)が許可input／overlay epoch、元URI／span対応、応答上限、検証editの前提を定義します。実装済みDAP profileは前述の説明とRFC 0040に記録しています。
 
 package completion は上限付きで決定的な module／import／case 名、lexical binding、宣言型 record field を追加し、不完全な修飾名／member slot は一時的な通常 parser／binder overlay で扱います。probe 診断／位置は公開せず、edit は元 UTF-16 範囲と epoch／version data を使います。曖昧／未解決／未対応 receiver 式の field は推測しません。
 
@@ -175,12 +175,12 @@ M4は2026-10-30 JSTに完了しました。[RFC 0034](rfcs/0034-package-workspac
 
 `package::source::analyze_test` は固定 binding inventory から宣言 test を選択します。その root は選択 package の直接 edge と、同 package を指す `_package` を持ち、元 package-root 名前空間、nominal identity、可視性、source span を保持します。別 test root は module 上限に算入し、package entry 自体が test なら同じ root を再利用します。`lang test` は選択 package の test だけを manifest 順に、同じ検証済み artifact／VM 経路と entry ごとに初期化する control で実行します。test 0 件でも main を要求せず graph を型検査します。最初の source／runtime／非 0 失敗では旧 lock／build／test output を保持します。保持 artifact と完全一致 lock copy は 64 MiB に制限し、`target/lang/<lock-sha256>/test/{inputs.lock,tests/<manifest-index>.lbc}` を公開します。test は package／test root 間の公開 nominal type、private UTF-8 span、入力削除／project 移動後の固定解析、isolated service を含む全 VM profile、test ごとの fuel、test 0 件の library、batch-output 拒否を検証します。test 名前空間による artifact／lock schema 変更はありません。
 
-workspace選択、再現可能native executable、package／archive／fmt／lint／doc tooling、package editor navigation／検証edit、上限付きDAP profileは実装し、両hostで検証済みです。[live board](milestone-4.md)にG1–G8の証拠を記録しています。`lang profile compile`は元のpackage capture／frontend／portable lower・verify・encodeを観測し、guest実行やbuild／lock公開を行いません。[RFC 0041](rfcs/0041-bounded-toolchain-profiles.md)が閉じたcompile／runtime／allocation／rebuild reportと計測制限を定めます。全4 profiling commandを両hostで検証しました。署名installerは引き続き必要です。registry、WebAssembly component、追加backend、self-hosting、別frontendは後続milestoneで、実装済みではありません。async REPL、detached task、非同期foreign callback stackも現在の実行範囲外です。
+workspace選択、再現可能native executable、package／archive／fmt／lint／doc tooling、package editor navigation／検証edit、上限付きDAP profileは実装し、両hostで検証済みです。[完了ボード](milestone-4.md)にG1–G9の証拠を記録しています。`lang profile compile`は元のpackage capture／frontend／portable lower・verify・encodeを観測し、guest実行やbuild／lock公開を行いません。[RFC 0041](rfcs/0041-bounded-toolchain-profiles.md)が閉じたcompile／runtime／allocation／rebuild reportと計測制限を定めます。全4 profiling commandとRFC 0042の署名installerを両hostで検証しました。registry、WebAssembly component、追加backend、self-hosting、別frontendは後続milestoneで、実装済みではありません。async REPL、detached task、非同期foreign callback stackも現在の実行範囲外です。
 
 ## 検証と保守
 
 code変更は対象のbehavior regressionから確認し、workspace fmt/Clippy/test/docを実行します。source/format fixtureと、backend間の値、failure span、cleanup、resource accountingを維持します。native target実行、実debugger、sanitizer/coverage-guided fuzz campaign、性能測定は独立した証拠です。compileやCI時間からそれらを推測しません。
 
-現在の契約はここ、詳細はRFC、dated checkpointは[M3履歴](architecture-m3-history.md)と[完了board履歴](milestone-3-history.md)へ置きます。新しいcheckpointをこの概要へ複製しません。[2026-10-27レビュー](review-2026-10-27.md)に今回の保守修正と検証を記録します。
+現在の契約はここ、詳細はRFC、dated checkpointは[M3履歴](architecture-m3-history.md)と[完了board履歴](milestone-3-history.md)へ置きます。新しいcheckpointをこの概要へ複製しません。[2026-10-30レビュー](review-2026-10-30.md)に今回の保守修正と検証を記録します。
 
 情報源: repository実装・lockfile・RFC・[M3完了監査](milestone-3-capabilities.md)、2026-10-27 JST確認。実装ファイルには公開更新日の埋込みがないため、RFCの個別更新日と証跡の検証日を使用します。この整理は言語・ABI・serialized契約を変更しません。

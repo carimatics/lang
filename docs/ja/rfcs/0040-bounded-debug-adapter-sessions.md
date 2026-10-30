@@ -14,7 +14,7 @@
 
 ## Summary
 
-取得済み package source を使う上限付き stdio Debug Adapter Protocol adapter、`lang dap` を追加する。最初の実行 outcome は Copy VM program を準備し、replay せず実 source instruction の直前に止める。後続 delivery で step／inspection、両 tier-1 host の native launch、一つの実混在 VM／native stack を提供する。
+`lang dap`は取得済みpackage sourceを使う有界stdio Debug Adapter Protocol adapterを実装する。D01–D05により、状態を保持するCopy VMのpause/step/inspection、両tier-1 hostのnative launch、実際にgrantした混在VM/native stack、lifecycle cleanupを提供する。G7は完了し、証拠とprofileの対象外はOpen questionsに記録する。動機は実行状態保持の実装前に行った初期実験の記録である。
 
 ## Motivation
 

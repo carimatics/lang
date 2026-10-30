@@ -5,7 +5,6 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::error::Error;
 use std::fmt::{Display, Formatter};
-use std::fs::File;
 use std::io::{self, Read};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -1028,7 +1027,7 @@ impl<'a, 'p> Loader<'a, 'p> {
             .source_bytes
             .min(self.limits.total_source_bytes.saturating_sub(self.bytes));
         let mut bytes = Vec::new();
-        File::open(&file)
+        crate::file_input::open_regular(&file)
             .and_then(|input| {
                 input
                     .take(capacity.saturating_add(1) as u64)

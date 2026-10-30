@@ -167,19 +167,14 @@ fn source_tag_typed_import_and_registered_native_kind_share_one_binding() {
     )
     .unwrap();
     let digest = VersionedDigest::new(DigestAlgorithm::Sha256, vec![1; 32]).unwrap();
-    let methods = [native::Method {
-        interface: 0,
-        member: 0,
-        invoke,
-        user: ptr::null_mut(),
-        flags: 0,
-    }];
-    let resources = [native::ResourceType {
-        interface: 0,
-        resource: 0,
-        destroy,
-        user: ptr::null_mut(),
-    }];
+    let methods = [
+        /* SAFETY: retained code/user outlive these descriptors and all synchronous uses. */
+        unsafe { native::Method::new(0, 0, invoke, ptr::null_mut(), 0) },
+    ];
+    let resources = [
+        /* SAFETY: retained code/user outlive these descriptors and all synchronous uses. */
+        unsafe { native::ResourceType::new(0, 0, destroy, ptr::null_mut()) },
+    ];
     let owner = 42;
     let providers = [native::Provider::with_resources(
         wire::Provider {

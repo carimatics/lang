@@ -9,3 +9,6 @@ lang-hir.workspace = true
 lang-mir.workspace = true
 lang-query.workspace = true
 lang-syntax.workspace = true
+
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"

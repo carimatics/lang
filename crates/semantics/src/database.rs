@@ -5,7 +5,6 @@
 use std::collections::BTreeMap;
 use std::error::Error;
 use std::fmt::{Display, Formatter};
-use std::fs::File;
 use std::io::{self, Read};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -388,7 +387,7 @@ impl Database {
             return Err(DbError::NotOpen);
         }
         let mut bytes = Vec::new();
-        File::open(path)
+        crate::file_input::open_regular(path)
             .and_then(|file| {
                 file.take(self.limits.modules.parse.lex.source_bytes.saturating_add(1) as u64)
                     .read_to_end(&mut bytes)

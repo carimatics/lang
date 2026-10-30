@@ -576,6 +576,47 @@ impl Resolver<'_> {
         name: &Path,
         expected: Option<Requirement<'_>>,
     ) -> Result<PackageId, Diagnostic> {
+        let (id, dependencies) = self.enter(root.clone(), name, expected)?;
+        let mut stack = vec![(id, root, dependencies.into_iter())];
+        // Preserve sorted depth-first discovery and cycle diagnostics without
+        // making the host call stack proportional to a permitted package chain.
+        while let Some((parent, root, dependencies)) = stack.last_mut() {
+            let parent = *parent;
+            let Some((alias, dependency)) = dependencies.next() else {
+                self.states.insert(root.clone(), State::Ready(parent));
+                stack.pop();
+                continue;
+            };
+            self.edges = self
+                .edges
+                .checked_add(1)
+                .ok_or_else(|| limit("dependency edge capacity exceeded"))?;
+            if self.edges > self.limits.edges {
+                return Err(limit("dependency edge limit exceeded"));
+            }
+            let dependency_root = self.canonical_directory(&root.join(&dependency.path))?;
+            let (child, children) = self.enter(
+                dependency_root.clone(),
+                Path::new("Lang.json"),
+                Some(Requirement {
+                    name: &alias,
+                    version: &dependency.version,
+                }),
+            )?;
+            self.packages[parent.0].dependencies.insert(alias, child);
+            if matches!(self.states[&dependency_root], State::Loading(_)) {
+                stack.push((child, dependency_root, children.into_iter()));
+            }
+        }
+        Ok(id)
+    }
+
+    fn enter(
+        &mut self,
+        root: PathBuf,
+        name: &Path,
+        expected: Option<Requirement<'_>>,
+    ) -> Result<(PackageId, Vec<(String, super::manifest::Dependency)>), Diagnostic> {
         if let Some(state) = self.states.get(&root).copied() {
             let (id, loading) = match state {
                 State::Loading(id) => (id, true),
@@ -594,7 +635,7 @@ impl Resolver<'_> {
             if loading {
                 return Err(graph_error(&self.display.join(&root), "dependency cycle"));
             }
-            return Ok(id);
+            return Ok((id, Vec::new()));
         }
         if self.packages.len() >= self.limits.packages {
             return Err(limit("package count limit exceeded").at_path(&self.display.join(&root)));
@@ -660,26 +701,6 @@ impl Resolver<'_> {
             source_directory: Mutex::new(Some(source_directory)),
             dependencies: BTreeMap::new(),
         });
-        for (alias, dependency) in dependencies {
-            self.edges = self
-                .edges
-                .checked_add(1)
-                .ok_or_else(|| limit("dependency edge capacity exceeded"))?;
-            if self.edges > self.limits.edges {
-                return Err(limit("dependency edge limit exceeded"));
-            }
-            let dependency_root = self.canonical_directory(&root.join(&dependency.path))?;
-            let child = self.visit(
-                dependency_root,
-                Path::new("Lang.json"),
-                Some(Requirement {
-                    name: &alias,
-                    version: &dependency.version,
-                }),
-            )?;
-            self.packages[id.0].dependencies.insert(alias, child);
-        }
-        self.states.insert(root, State::Ready(id));
-        Ok(id)
+        Ok((id, dependencies))
     }
 }

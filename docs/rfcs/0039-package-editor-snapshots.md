@@ -7,12 +7,14 @@
 - Status: implemented
 - Authors: project maintainers with Codex
 - Created: 2026-10-29
-- Last updated: 2026-10-29
+- Last updated: 2026-10-30
 - Tracking issue: M4-C01–C07
 - Supersedes: none
 - Superseded by: none
 
 ## Summary
+
+Current status (2026-10-30 JST): C01–C07 and M4 G5/G6 are complete. The C07 audit at `6d16e93` and final validation at `5cdc422` record real overlay/LSP/checked-edit fixtures, full CI `40864753941` and native CI `40864753946`. The motivation and original prototype below describe the pre-implementation state; current acceptance is recorded in the [completed M4 board](../milestone-4.md).
 
 Extend the existing UTF-16 LSP server with package-aware navigation, completion, semantic tokens and checked rename/code actions. All semantic answers refer to one immutable admitted package/input/overlay epoch and original source spans. Edits are proposals for the client, never direct filesystem writes.
 
@@ -119,6 +121,8 @@ C01 accepts this contract and adds an admitted immutable package snapshot plus r
 Test real sibling package functions/types, imports/aliases/privacy, local/global shadowing, field/pattern identities, UTF-8/UTF-16/CRLF boundaries, malformed source, open/change/close, closed-file refresh and stale publication. Rename tests include valid multi-file changes, capture/collision, missing versions/transactional capability, stale input, invalid names and unchanged files on refusal. Check token ordering, response limits and end-to-end wire framing. Run both-host CI and the required baseline; no benchmark/fuzz campaign is implied.
 
 ## Open questions
+
+No implementation blocker remains for this bounded profile. The open-file/transactional client requirement remains an explicit product tradeoff. The following paragraph records the original acceptance decision; its C01–C07 evidence obligations have since been satisfied as noted above.
 
 Accepted under RFC 0001's experimental delegation, 2026-10-29 JST: existing resolver/HIR identities and explicit snapshot/edit boundaries are reasonably sound. A finite prototype resolves `helper::answer` bytes 41..47 to dependency declaration bytes 7..13, retains original bytes after provider mutation, and excludes a shadowing local through resolved HIR. It does not prove full overlay/LSP/edit integration or costs; C01–C07 must supply those fixtures. The open-file/transactional client requirement is an experimental product tradeoff.
 

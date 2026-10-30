@@ -778,8 +778,8 @@ impl<'state, 'p, 'u, 'resources, 'code, 'native> Host
         let mut result = (|| -> Result<NativeResult, Reason> {
             let bindings = self.program.bindings();
             let target = bindings.resolve(import).ok_or(Reason::Entry)?;
-            if target.method().flags & !1 != 0
-                || (target.method().flags != 0 && !self.invoker.reentry_supported())
+            if target.method().flags() & !1 != 0
+                || (target.method().flags() != 0 && !self.invoker.reentry_supported())
             {
                 return Err(Reason::Unsupported);
             }
@@ -1036,7 +1036,7 @@ impl<'state, 'p, 'u, 'resources, 'code, 'native> Host
             .with_source(caller, span)
             .with_parent_live(parent_live)
             .with_task(task)
-            .with_instance(self.instance, target.method().flags & 1 != 0)
+            .with_instance(self.instance, target.method().flags() & 1 != 0)
             .with_session(session)
             .with_cleanup(arguments.cleanup.as_mut().ok_or(Reason::Invariant)?);
             native_exit = Some((native_frame.clone(), failure_slot));

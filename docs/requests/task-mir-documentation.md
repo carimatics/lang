@@ -1,6 +1,8 @@
 <!-- language: en; canonical: true; status: investigation-request; updated: 2026-10-30 JST -->
 # Investigation request: Investigate contract/history separation in RFC 0023
 
+Reconciled 2026-10-30 JST: see the matching row in the [repository review](../review-2026-10-30.md) for current findings, fixes, validation and explicitly bounded follow-ups. This file preserves the original investigation scope; inherited observations below are not a claim that the issue remains unfixed.
+
 Created: 2026-10-30 JST. Deliver only this investigation and its report.
 
 ## Question and unit rationale

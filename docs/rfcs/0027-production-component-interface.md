@@ -7,18 +7,26 @@
 - Status: implemented
 - Authors: Project contributors
 - Created: 2026-10-22
-- Last updated: 2026-10-28
+- Last updated: 2026-10-30
 - Tracking issue: M3-I01 through M3-I09, M3-R01 through M3-B02
 - Supersedes:
 - Superseded by:
 
 ## Summary
 
+Current contract navigation (reviewed 2026-10-30 JST): Reference semantics defines IDL/projections, canonical values, ownership, failures and C operations. Execution modes defines original VM/JIT/AOT invocation and shared ledgers; ABI and compatibility plus RFC 0033 define stabilized public C v1. M3 and installed/both-host acceptance are complete. Dated E/I/R/L checkpoints are history; their pending-work language is resolved by Implementation plan/Open questions and the completed M3 capability audit. Rust/internal native SDK remains experimental. The following maintenance decisions tighten this implemented contract's enforcement.
+
+Maintenance clarification accepted under RFC 0001's delegation (2026-10-30 JST): root calls enforce the fieldwise minimum of engine, instance and one-shot control ceilings. Preparation and canonical codecs receive that effective policy; guest allocation temporarily narrows the original allocator without replacing its identity, storage or cumulative counters. Exiting a scope restores policy, including on unwind, and never refunds usage. Existing allocations can still be released under a lower ceiling. Nested calls retain the original root's effective limits and shared ledgers. Module loading and registration before an instance/control exists use engine ceilings. Zero is an actual bound; suppressed-record and trace-frame zero only omit optional evidence. Previously ignored lower limits may now refuse admission or execution; C layouts, status IDs and wire formats are unchanged.
+
+Rust native callback safety correction (2026-10-30 JST): raw method/destructor registration requires an explicit unsafe constructor. Callback/user/reentry fields are immutable through safe APIs; callbacks permitting reentry must remain sound across nested aliases of their user storage. Its caller guarantees live code/user storage for every descriptor copy, non-unwinding callbacks and memory-safe handling of the adapter's borrowed input/context/output contract, including malformed input passed directly to the Rust adapter. A `CodeOwner` marker or matching metadata does not establish pointer validity. Existing Rust embedders migrate raw struct literals to documented unsafe construction; the public C ABI already requires these native lifetime obligations and does not change. Compile-fail examples must reject safe construction, safe callback/user replacement and safe reentry escalation.
+
 Define component IDL v1, rich component-contract schema 3, typed value-frame v1 and a separate component C ABI v1. Preserve [RFC 0003](0003-versioned-component-contracts.md)'s capability, negotiation, ownership, failure and poisoning rules. A native host loads verified source or a validated artifact, supplies typed imports and grants, calls a script export and receives a nested guest callback within one accounted invocation. Generated native bodies continue to execute native arithmetic/control; adapters never interpret MIR as a fallback.
 
 This profile is implemented at M3's admitted scope: source/MIR proof, actual grants/resources/callbacks, production embedding, stored artifacts/native packages and both-host execution are complete. Full macOS/Windows conformance at `9e78f2d` includes previous C clients; public C v1 and existing generated-client stability follow [stabilized RFC 0033](0033-component-v1-compatibility.md). Source syntax, private Rust/native SDK ABI and independently versioned stored formats do not acquire blanket stability. The staged checkpoints below are historical; current completion evidence is on the [M3 board](../milestone-3.md).
 
 ## Motivation
+
+Native view safety clarification (2026-10-30 JST): implementing Rust `NativeContext` is unsafe because the adapter exposes its raw buffer/resource views to trusted callbacks. Implementations guarantee valid initialized ranges, original storage/loan authority and advertised lifetimes. A safe custom implementation must not be able to fabricate views for an otherwise valid registered callback. This changes the experimental Rust implementation obligation only; C v1 remains unchanged. Root preparation/codec refusals preserve their original quota kind, bound and attempted value in the existing C error slot before guest entry.
 
 At `7381e09`, `ComponentContractValueType` admits only I64, Bool, Own and Borrow. The representative application test executes scalar/resource results and lock replay, but its canonical tables wrap backend-produced host data rather than component resources/calls in source MIR. Its existing test passes on 2026-10-22 JST. The independent MIR constructor graph has task/channel/service roles but no nominal component resource. RFC 0023 and the executable task boundary test retain explicit old-codec refusal. These are useful foundations, not a rich IDL, callable production adapter or serialized task profile.
 

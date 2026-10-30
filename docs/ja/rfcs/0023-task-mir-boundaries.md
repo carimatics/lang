@@ -7,7 +7,7 @@
 - Status: implemented
 - Authors: Project contributors
 - Created: 2026-10-21
-- Last updated: 2026-10-27
+- Last updated: 2026-10-30
 - Tracking issue: M3-T11, M3-T04–T08
 - Supersedes:
 - Superseded by:
@@ -17,6 +17,8 @@
 **2026-10-27 JST: implemented（実験的profile）**。独立したtask type/effect/ownership/loan証明、continuation lowering、順序付きcleanup、共有controlを実装済みです。 根拠は `tests/task_mir_boundary.rs`, `task_controls.rs`, `task_retirement.rs`, `native_task_execution.rs` と、実行source `9e78f2d` の[両host適合・移行記録](../../evidence/2026-10-27-m3-migration-9e78f2d.json)、[15 gate監査](../milestone-3-capabilities.md#全exit監査)です。保存形式とinstalled packageは後続RFC 0028・0030–0032で完成しています。日付付きcheckpointの「未完」「未検証」はその時点の履歴であり、現在の残作業ではありません。公開component C v1だけがRFC 0033でstabilizedです。このRFCのsource/private ABIを安定化する変更ではありません。
 
 ## Summary
+
+読む順序（2026-10-30 JSTレビュー）: Reference semanticsで独立MIR proof・continuation/cleanup・ownership、Execution modesで共有runnerと別backend dispatch、ABI and compatibilityでformat境界を定義します。Implementation statusに現在のsource→proof→Program→runnerの証拠を示します。日付付きcheckpointは判断の履歴であり、delivery labelはM3を再開しません。現在のserialization/installed startupはRFC 0028/0031/0032に従います。
 
 A06 実装 checkpoint（2026-10-21 JST）: source と MIR は独立に検証した推移 type fact から compiler-derived logical-task Send/Share を提供し、新 graph cache、trait 自己宣言、bit-copy transfer、wire tag を導入しません。async signature は owned Bytes/Text/Vec/Map、sum、再帰 record/enum、checked shared/weak を受理します。loan/arena/allocator/Task 権限は禁止し、通常 move 解析で spawn 引数を一度だけ消費します。重点 7 テストで両 graph、未使用/前方再帰 signature と alias、不正 MIR loan signature の type span での拒否、二重消費拒否、proof work 境界値/1 未満を確認しました。到達する owned async transfer は A05 の publication/await/disposal 実装まで VM/native で副作用前の Unsupported 拒否を維持します。source actor authority は具体的 channel handle 後の A02 に残ります。部分実装の証拠であり、RFC 0024 と全 M3 gate は未完です。
 

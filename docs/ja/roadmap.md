@@ -22,9 +22,9 @@ M4は2026-10-30 JSTに完了しました。[完了ボード](milestone-4.md)は4
 
 実行可能なcommand、全tooling機能、互換性境界と両host証拠は[M4能力guide](milestone-4-capabilities.md)を参照してください。
 
-PR #9–#24はmerge済みです。profiling最終head `84b17f6`は全体CI `40981001066`とnative CI `40981000915`に成功し、PR #24は`fa271b1`としてmergeしました。最後に確認したlocal main／origin/mainは`fa271b1`でahead／behind 0/0。現在の`codex/m4-toolchain-installer`はcleanなprofiling head `84b17f6`から作成し、既存user変更はありません。upstreamは`origin/codex/m4-toolchain-installer`、先行PRのmerge後の記録baseは`carimatics/lang:main`、[draft PR #25](https://github.com/carimatics/lang/pull/25)です。installer実装とそのCI／mergeは未完了です。
+lock寿命の修正を含むinstallerは、2026-10-30 JSTに[PR #25](https://github.com/carimatics/lang/pull/25)で`54992c0`としてmergeしました。最終head `76c3698`は全体CI `41015803408`とnative-debug CI `41015803370`に成功しました。[完了済みM4ボード](milestone-4.md)にdeliveryと終了証拠を保持し、以前の作業branchのcheckpointは残作業として扱いません。
 
-保守やレビューのために完了済みM2ボードを拡大しません。修正はscopeを限定したchecklistに記録し、code、文書、検証を同じ変更にまとめます。新たな言語／ABI／形式の選択には引き続き明示的RFC判断が必要ですが、実験段階の委任により個別owner承認待ちは不要です。
+保守やレビューのために完了済みM2～M4ボードを拡大しません。修正はscopeを限定したchecklistに記録し、code、文書、検証を同じ変更にまとめます。M5を有効化する前に依存関係と受入範囲を監査し、独自の積み上げ式deliveryボードを作成します。M4の署名付きtoolchain配布は、M5のregistry公開やpackage信頼方針の完了を意味しません。新たな言語／ABI／形式の選択には引き続き明示的RFC判断が必要ですが、実験段階の委任により個別owner承認待ちは不要です。
 
 [2026-10-28のrepositoryレビュー](review-2026-10-28.md)で、古いRFC follow-upを完了済みM2／M3証拠と照合し、保守修正を別途記録しています。日付付きcheckpointに残る「Windows未検証」などの過去記述で完了済み成果を再開しません。M4～M7のgate重みは変更せず、残作業の見積もりとも扱いません。
 
@@ -36,7 +36,7 @@ PR #9–#24はmerge済みです。profiling最終head `84b17f6`は全体CI `4098
 
 以下のmilestone checklistは相対的な受入条件の重みを保持します。`1`はごく小、`2`は小、`3`は中、`5`は大、`8`は非常に大です。重み付きの達成率は `完了した重み / 全重み × 100` を小数第1位へ丸めます。この粗い重みは経過時間や実装残作業を予測しません。Milestoneがcurrentになったとき、またはscope／evidenceが変わったときに、長期見積もりを積み上げで見直します。進行中milestoneごとに別の実装Todoを使い、独立検証可能な残り1〜3 ptのtaskと、明示的なscope／見積もり変更を記録します。
 
-2026-10-30（JST）に確認した exit-gate weight の snapshot です。受入条件の重みと残作業見積りは別であり、現在の収支は live M4 board に記録します。完了済み M2／M3 の記録は維持します。
+2026-10-30（JST）に確認したexit-gate weightのsnapshotです。受入条件の重みと残作業見積りは別であり、M4の最終収支は完了ボードに記録します。現在進行中のmilestoneはありません。完了済みM2／M3の記録は維持します。
 
 | Milestone | 完了条件の重み | 条件の総重み | 条件達成率 |
 | --- | ---: | ---: | ---: |

@@ -14,7 +14,7 @@
 
 ## Summary
 
-Add `lang profile compile --manifest-path Lang.json` to observe the ordinary package compiler through a bounded, versioned JSON report. Runtime profiles, allocator traces and rebuild explanations follow as separately verified report kinds; accepting this contract does not implement or close G8.
+`lang profile` implements four bounded, versioned JSON report kinds: compile, runtime, allocation and rebuild. E01/E02/E03R/E03/E04 and G8 are complete, with both-host evidence under Open questions. Reports expose observations and measurement scope; they do not establish a speedup or a performance guarantee.
 
 ## Motivation
 

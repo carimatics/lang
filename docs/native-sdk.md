@@ -24,6 +24,8 @@ On Windows, use `python` if that is the installed Python command. Add `--release
 
 The SDK contains `bin/lang` (`lang.exe` on Windows), `lib/` Rust artifacts, applicable `native/` archives, `include/lang/runtime.h`, `startup/` templates, these bilingual instructions and `sdk.json`. The runtime role identifies `lang_codegen_clif`; MIR/runtime/bytecode and other selected libraries are dependencies. The common C header contains only existing profile-1 support types and assertions; each C program still requires its generated `program.h` with exact exports/interface identity. Copying the SDK directory does not change its build identity.
 
+Identity correction (2026-10-30 JST, [RFC 0020](rfcs/0020-native-sdk-and-startup.md)): the final digest includes the compiled codegen crate's opaque Cargo/type identity, so effective debug-assertion/overflow-check settings and package overrides participate alongside the source/toolchain seed. Rebuild SDKs and native packages together after this change. Public C v1 and SDK manifest schemas are unchanged; this checks compatibility, not authentication.
+
 Use the installed compiler to emit source-native program files:
 
 ```text
@@ -73,7 +75,7 @@ The experiment selects LLDB_USE_NATIVE_PDB_READER=1 in the debugger child to use
 
 The official [LLDB DAP documentation](https://lldb.llvm.org/use/lldbdap.html) describes obtaining the tool and launch configuration. Publication/update date is not provided; verified 2026-10-29 JST.
 
-Production native launch is implemented and both-host verified in D03 at `39473b1` (2026-10-30 JST, workflow 40918693919, 3/3). Start `SDK/bin/lang dap` and send a DAP launch with `{"mode":"native","root":"/absolute/package","manifestPath":"Lang.json","sdk":"/absolute/sdk"}` after initialize. It admits a Copy main returning i64 without host imports, snapshots existing SDK/program formats, verifies exact rustc and semantic identity, and privately debug-links the executable and sidecars. Only line breakpoints, immutable source queries, stacks, stepping, continue and disconnect are available; column breakpoints and native value inspection refuse. The capability event disables native hover evaluation. Physical frames keep their original order and expose source locations only for captured package files. Mixed-stack and lifecycle obligations remain in D04/D05; native value/column inspection is still unavailable.
+Production native launch is implemented and both-host verified in D03 at `39473b1` (2026-10-30 JST, workflow 40918693919, 3/3). Start `SDK/bin/lang dap` and send a DAP launch with `{"mode":"native","root":"/absolute/package","manifestPath":"Lang.json","sdk":"/absolute/sdk"}` after initialize. It admits a Copy main returning i64 without host imports, snapshots existing SDK/program formats, verifies exact rustc and semantic identity, and privately debug-links the executable and sidecars. Only line breakpoints, immutable source queries, stacks, stepping, continue and disconnect are available; column breakpoints and native value inspection refuse. The capability event disables native hover evaluation. Physical frames keep their original order and expose source locations only for captured package files. D04/D05 complete the granted mixed stack and lifecycle profile (RFC 0040); native value/column inspection remains unavailable.
 
 ## Trusted mixed Rust host (experimental)
 

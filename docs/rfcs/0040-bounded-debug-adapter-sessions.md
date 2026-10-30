@@ -14,7 +14,7 @@
 
 ## Summary
 
-Add `lang dap`, a bounded stdio Debug Adapter Protocol adapter over captured package source. Its first executable outcome prepares a Copy VM program and stops before a real source instruction without replay. Subsequent deliveries provide stepping/inspection, native launch on both tier-1 hosts and one actual mixed VM/native stack.
+`lang dap` implements a bounded stdio Debug Adapter Protocol adapter over captured package source. D01–D05 provide retained Copy VM pause/step/inspection, native launch on both tier-1 hosts, an actual granted mixed VM/native stack, and lifecycle cleanup. G7 is complete; evidence and remaining profile exclusions appear under Open questions. The motivation records the initial experiment, before retained execution was implemented.
 
 ## Motivation
 

@@ -620,7 +620,7 @@ fn execute_profile<P: a::Provider, B: Backend<P>>(
         if let Some(program) = program {
             let allowed = component.as_deref().is_some_and(|host| host.reentry_supported());
             component_budget.as_mut().ok_or(Reason::Invariant)?.charge(program.bindings().imports().len())?;
-            if !allowed && program.bindings().imports().iter().any(|import| import.method().flags & 1 != 0) {
+            if !allowed && program.bindings().imports().iter().any(|import| import.method().flags() & 1 != 0) {
                 return Err(Reason::Unsupported);
             }
         }
@@ -628,7 +628,7 @@ fn execute_profile<P: a::Provider, B: Backend<P>>(
             let supported=if let Some(program)=program{
                 let budget=component_budget.as_mut().ok_or(Reason::Invariant)?;
                 for import in declarations.imports(){budget.charge(1)?;if import.abi!=o::declarations::ImportAbi::Component{return Err(Reason::Unsupported);}}
-                for import in program.bindings().imports(){budget.charge(1)?;if import.method().flags & !1 != 0{return Err(Reason::Unsupported);}}
+                for import in program.bindings().imports(){budget.charge(1)?;if import.method().flags() & !1 != 0{return Err(Reason::Unsupported);}}
                 // Admit the complete capability scan, including unused bodies.
                 for function in typed.functions(){
                     budget.charge(1)?;
@@ -905,7 +905,7 @@ pub fn component_import_supported(
     let Some(binding) = program.bindings().resolve(import) else {
         return Ok(false);
     };
-    if binding.method().flags & !1 != 0 {
+    if binding.method().flags() & !1 != 0 {
         return Ok(false);
     }
     let declarations = program.proof().typed().places().declarations();

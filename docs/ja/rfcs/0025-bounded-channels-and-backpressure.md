@@ -7,7 +7,7 @@
 - Status: implemented
 - Authors: project contributors
 - Created: 2026-10-21
-- Last updated: 2026-10-27
+- Last updated: 2026-10-30
 - Tracking issue: M3-C01, M3-C02, M3-C03, M3-C04, M3-C05, M3-C06, M3-C07, M3-A02
 - Supersedes: none
 - Superseded by: none
@@ -17,6 +17,8 @@
 **2026-10-27 JST: implemented（実験的profile）**。有界channelの所有管理、FIFO backpressure、context付きpublication、取消、VM/native/別リンク実行を実装済みです。 根拠は `tests/source_channels.rs`, `native_channel_execution.rs`, `task_artifacts.rs` と、実行source `9e78f2d` の[両host適合・移行記録](../../evidence/2026-10-27-m3-migration-9e78f2d.json)、[15 gate監査](../milestone-3-capabilities.md#全exit監査)です。保存形式とinstalled packageは後続RFC 0028・0030–0032で完成しています。日付付きcheckpointの「未完」「未検証」はその時点の履歴であり、現在の残作業ではありません。公開component C v1だけがRFC 0033でstabilizedです。このRFCのsource/private ABIを安定化する変更ではありません。
 
 ## Summary
+
+読む順序（2026-10-30 JSTレビュー）: Reference semanticsでendpoint権限・有界FIFO custody・atomic publication・closed recovery・cancellation、Execution modesとDiagnostics and toolingでbackend同等性とdeadlock/failure報告を定義します。capacity 0・複数consumer・OS thread並列実行は対象外です。日付付きcheckpointは判断の理由を説明し、当時の未完stageはImplementation statusを上書きせずM3を再開しません。
 
 C07/A03 実装 checkpoint（2026-10-22 JST）: typed Copy staging/closed 回復は Unit・record・入れ子 enum/Option/Result に対応し、送信元 Copy と既存 scalar/error work event を保ちます。publication は既存の有界 Hub walk で committed message と実 service state の両方を読みます。state 所有 Receiver/ServiceOwner edge を即時/再開 send で検査し、whole-state candidate の prospective 検査ではその state だけを置き換えます。拒否 send は唯一の staged payload を返し、置換失敗は旧 state/generation と候補の custody を保ちます。control/provider/割込み/quota と nested cleanup のテストで inventory 0 を維持します。通常 channel の VM/生成 native/別リンク conformance を維持し、A04 の native 実行は下記に記録します。受理済み Send 契約を実装し、syntax・format・capability・意味論は変更せず、M3 gate は完了しません。
 

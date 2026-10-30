@@ -7,7 +7,7 @@
 - Status: implemented
 - Authors: Codex, under the owner's experimental delegation
 - Created: 2026-10-20
-- Last updated: 2026-10-29
+- Last updated: 2026-10-30
 - Tracking issue: M2-P08, M2-P09, M2-P11, M2-P10, M2-P07, M2-P12, M2-P02
 - Supersedes: none; extends RFCs 0008/0011/0015/0017/0018/0019
 - Superseded by: none
@@ -19,6 +19,10 @@ Follow-up照合（2026-10-28 JST）: [RFC 0031](0031-installed-native-task-packa
 2026-10-20 JSTに[M2 capabilityと検証根拠](../milestone-2-capabilities.md)と照合済みです。本RFCの範囲はimplementedであり、stabilizedではありません。以下の当初計画、decision時点の記述、日付付きcheckpointはrollout履歴として読みます。そこで別作業としていたnative／SDK／platformの現在状態は上記ガイドを参照してください。今回発見したRFC 0012の論理debugger検証不足は同ガイドの訂正で解消し、本RFCの非目標や規範的要求は変更しません。
 
 ## Summary
+
+build identity修正をRFC 0001の委任で受理（2026-10-30 JST）: source/toolchain seedだけでは、Cargo configやpackage overrideによる実効`debug-assertions`・`overflow-checks`を区別できません。既存のsource・target・flags・compiler入力に加え、compile済みcodegen crateのopaqueなnominal type identityを最終SDK digestへ含めます。Cargoはcompile済みcrateと依存graphを区別します。固定toolchainでboolean全4組合せ・package override・再現性・移動を検証します。これはexact-build互換性の識別子であり、認証やRust `TypeId`の安定したserializationではありません。hash/debug表現はRust release間で変わり得ますが、その場合は既に別SDKが必要です。手作業でrustc crate metadataを指定するbuildは、対応するCargo producerの範囲外です。既存SDK/native packageは一緒に再生成し、C v1とmanifest schemaは変更しません。`DEBUG`はdebuginfoなのでそれだけのhashでは不十分であり、Cargo環境変数の列挙もconfig fileのoverrideを漏らします。従来の衝突によるABI破壊が実証されたとは主張しません。
+
+出典: [Rust `TypeId`](https://doc.rust-lang.org/std/any/struct.TypeId.html)。公開/更新日なし、2026-10-30 JST確認。Rustが保証するのはnominal type identityであり、release間のhash/layout安定性ではありません。Cargo設定matrixは固定producerに対する本projectの検証根拠です。
 
 Native compilerコマンド、対応するRust SDK、scope付きproduction起動consumerを配布します。Sourceから元native objectと検証済み意味論／compiler記録を生成し、SDKのRust libraryと生成bindingでapplicationをlinkします。起動時は既存記録をdecode／準備して元machine codeを呼びます。
 

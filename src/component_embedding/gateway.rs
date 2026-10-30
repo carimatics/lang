@@ -927,6 +927,32 @@ unsafe fn bytes<'a>(view: ffi::Bytes) -> Result<&'a [u8], u32> {
     // The module loader snapshots every byte it retains.
     Ok(unsafe { std::slice::from_raw_parts(view.data, length) })
 }
+fn scoped_limits(mut limits: ModuleLimits, ceiling: ffi::Limits) -> Result<ModuleLimits, u32> {
+    let size = |n| usize::try_from(n).map_err(|_| INVALID);
+    limits.preparation.work = limits.preparation.work.min(size(ceiling.preparation_work)?);
+    limits.preparation.allocations = limits
+        .preparation
+        .allocations
+        .min(size(ceiling.metadata_bytes)?);
+    limits.preparation.elements = limits
+        .preparation
+        .elements
+        .min(size(ceiling.value_elements)?);
+    limits.metadata.bytes = limits.metadata.bytes.min(size(ceiling.metadata_bytes)?);
+    limits.metadata.work = limits.metadata.work.min(limits.preparation.work);
+    limits.metadata.elements = limits.metadata.elements.min(limits.preparation.elements);
+    limits.metadata.serialization_bytes = limits
+        .metadata
+        .serialization_bytes
+        .min(size(ceiling.serialization_bytes)?);
+    limits.metadata.depth = limits.metadata.depth.min(size(ceiling.depth)?);
+    limits.metadata.allocation_bytes = limits
+        .metadata
+        .allocation_bytes
+        .min(size(ceiling.decoder_allocation_bytes)?);
+    Ok(limits)
+}
+
 fn prepare(config: ffi::Config) -> Result<Box<Data>, u32> {
     if config.flags & !1 != 0
         || config.reserved != [0; 2]
@@ -1772,17 +1798,46 @@ pub unsafe extern "C" fn call(
     // SAFETY: owner-thread active guard excludes other mutable root operations.
     let data = unsafe { &mut *owner.data.as_ptr() };
     let ceiling = bounds(binding.instance.ceiling, control.ceiling);
+    let effective = match scoped_limits(data.limits, ceiling) {
+        Ok(limits) => limits,
+        Err(status) => return status,
+    };
     let _current = CurrentScope::enter(
         owner,
         CurrentCall {
             instance: binding.instance.clone(),
             mode: data.config.mode,
-            limits: data.limits,
+            limits: effective,
             ceiling,
         },
     );
     let as_size = |n| usize::try_from(n).map_err(|_| INVALID);
+    let refuse = |reason| {
+        // An owned canonical Session's allocation ledger is the decoder cap;
+        // the separate root MIR Budget retains compiler metadata provenance.
+        let allocation_kind = if matches!(&reason, super::Error::Wire(_)) {
+            wire::ReportLimitKind::DecoderAllocationBytes
+        } else {
+            wire::ReportLimitKind::MetadataBytes
+        };
+        let failure = admission::module_with_allocation(&reason, None, allocation_kind);
+        // SAFETY: call admitted this initialized writable error slot, retained
+        // by its native caller through every preparation refusal.
+        unsafe { error.write(failure.error) };
+        failure.status
+    };
     let execute = (|| -> Result<CallResult, u32> {
+        let mut allocation_scope = data
+            .allocator
+            .limit_scope(a::Limits {
+                request_bytes: ceiling.heap_bytes,
+                live_bytes: ceiling.heap_bytes,
+                cumulative_bytes: u64::MAX,
+                live_allocations: as_size(ceiling.live_allocations)?,
+                alignment: a::MAX_ALIGNMENT,
+            })
+            .map_err(|_| INVALID)?;
+        let allocator = &mut *allocation_scope;
         let limits = e::Limits {
             fuel: Some(ceiling.fuel),
             host_calls: Some(ceiling.host_calls),
@@ -1792,10 +1847,10 @@ pub unsafe extern "C" fn call(
         let invocation = e::Control::with_limits(limits)
             .and_service_work(Some(ceiling.service_work))
             .and_interruption(&control.flag);
-        let mut session = wire::Session::new(data.limits.metadata);
+        let mut session = wire::Session::new(effective.metadata);
         let mut views = session
             .vector(binding.instance.grants.len(), 0)
-            .map_err(|_| INVALID)?;
+            .map_err(|reason| refuse(super::Error::Wire(reason)))?;
         for grant in &binding.instance.grants {
             views.push(grant.view());
         }
@@ -1806,31 +1861,23 @@ pub unsafe extern "C" fn call(
             || &binding.instance.providers,
             &mut session,
         )
-        .map_err(|_| INVALID)?;
-        let mut budget = if data.config.mode == 2 {
-            m::Budget::with_usage(data.limits.preparation, session.preparation_usage())
-                .map_err(|_| INVALID)?
-        } else {
-            m::Budget::new(data.limits.preparation)
-        };
-        let program = if data.config.mode == 2 {
-            program::Program::prepare_with_budget(&bound, &mut budget)
-        } else {
-            program::Program::prepare(&bound, Default::default())
-        }
-        .map_err(|reason| {
-            if data.config.mode == 2 {
-                native_image::program_refused(reason, error)
-            } else {
-                INVALID
+        .map_err(|reason| match reason {
+            grants::Error::Wire(reason)
+            | grants::Error::Selection(wire::SelectionError::Wire(reason)) => {
+                refuse(super::Error::Wire(reason))
             }
+            _ => INVALID,
         })?;
+        let mut budget = m::Budget::with_usage(effective.preparation, session.preparation_usage())
+            .map_err(|reason| refuse(super::Error::Budget(reason)))?;
+        let program = program::Program::prepare_with_budget(&bound, &mut budget)
+            .map_err(|reason| native_image::program_refused(reason, error))?;
         let runtime = r::Limits {
             tasks: lang_runtime::task::Limits {
                 live_tasks: as_size(ceiling.live_tasks)?,
                 ..Default::default()
             },
-            preparation: data.limits.preparation,
+            preparation: effective.preparation,
             cleanup_failure_records: as_size(ceiling.suppressed_records)?.saturating_add(1),
             ..Default::default()
         };
@@ -1839,9 +1886,15 @@ pub unsafe extern "C" fn call(
                 lang_codegen_clif::tasks::CompiledProgram::compile_component(
                     &program,
                     binding.entry,
-                    data.limits.preparation,
+                    effective.preparation,
                 )
-                .map_err(|_| INVALID)?,
+                .map_err(|reason| match reason {
+                    lang_codegen_clif::tasks::Error::Resource(reason)
+                    | lang_codegen_clif::tasks::Error::Layout(
+                        lang_runtime::layout::Error::Resource { error: reason, .. },
+                    ) => refuse(super::Error::Budget(reason)),
+                    _ => INVALID,
+                })?,
             )
         } else {
             None
@@ -1868,12 +1921,10 @@ pub unsafe extern "C" fn call(
                              service_work: u64,
                              allocations: a::Stats|
                  -> Result<CallResult, u32> {
-                    if !matches!(
-                        reason,
-                        r::Reason::Control(_) | r::Reason::ComponentIndices { .. }
-                    ) {
-                        return Err(INVALID);
-                    }
+                    let reason = match execution::CallbackFailure::from(reason) {
+                        execution::CallbackFailure::Preparation(reason) => reason,
+                        execution::CallbackFailure::Admission(status) => return Err(status),
+                    };
                     let failure = r::Failure {
                         reason,
                         function: Some(binding.entry),
@@ -1941,32 +1992,32 @@ pub unsafe extern "C" fn call(
                     &mut budget,
                 ) {
                     Ok(v) => v,
-                    Err(reason) => return early(reason, 0, data.allocator.stats()),
+                    Err(reason) => return early(reason, 0, allocator.stats()),
                 };
                 let namespace = execution::ResourceNamespace::new(
                     u32::try_from(binding.instance.indices.borrow().len()).map_err(|_| INVALID)?,
                     u32::try_from(ceiling.canonical_indices).map_err(|_| INVALID)?,
                 );
                 if let Err(reason) = host.resource_namespace(namespace) {
-                    return early(reason, host.service_work_used(), data.allocator.stats());
+                    return early(reason, host.service_work_used(), allocator.stats());
                 }
                 let arguments = match host.decode_arguments(
                     arguments,
                     &binding.instance.indices.borrow(),
-                    &data.allocator,
+                    &*allocator,
                     &mut session,
                 ) {
                     Ok(v) => v,
                     Err(reason) => {
-                        return early(reason, host.service_work_used(), data.allocator.stats());
+                        return early(reason, host.service_work_used(), allocator.stats());
                     }
                 };
                 if let Err(reason) = host.prepare_output(&mut session) {
-                    return early(reason, host.service_work_used(), data.allocator.stats());
+                    return early(reason, host.service_work_used(), allocator.stats());
                 }
                 let outcome = if let Some(aot) = aot {
                     aot.execute_component_with_budget(
-                        &mut data.allocator,
+                        &mut *allocator,
                         invocation,
                         runtime,
                         &arguments,
@@ -1974,27 +2025,29 @@ pub unsafe extern "C" fn call(
                         &mut budget,
                     )
                 } else if let Some(generated) = generated {
-                    generated.execute_component(
-                        &mut data.allocator,
+                    generated.execute_component_with_budget(
+                        &mut *allocator,
                         invocation,
                         runtime,
                         &arguments,
                         &mut host,
+                        &mut budget,
                     )
                 } else {
-                    lang_vm::unit::tasks::execute_component(
+                    lang_vm::unit::tasks::execute_component_with_budget(
                         &program,
                         binding.entry,
-                        &mut data.allocator,
+                        &mut *allocator,
                         invocation,
                         runtime,
                         &arguments,
                         &mut host,
+                        &mut budget,
                     )
                 };
                 let committed = execution::Host::arguments_committed(&host);
                 drop(host);
-                let allocations = data.allocator.stats();
+                let allocations = allocator.stats();
                 match outcome {
                     Ok(outcome) => {
                         let execution::Value::Frame(frame) = outcome.value else {

@@ -7,7 +7,7 @@
 - Status: implemented
 - Authors: Codex, under the owner's experimental delegation
 - Created: 2026-10-20
-- Last updated: 2026-10-29
+- Last updated: 2026-10-30
 - Tracking issue: M2-P08, M2-P09, M2-P11, M2-P10, M2-P07, M2-P12, M2-P02
 - Supersedes: none; extends RFCs 0008/0011/0015/0017/0018/0019
 - Superseded by: none
@@ -19,6 +19,10 @@ Follow-up reconciliation (2026-10-28 JST): [RFC 0031](0031-installed-native-task
 Reconciled on 2026-10-20 JST against [M2 capabilities and evidence](../milestone-2-capabilities.md). This RFC's scope is implemented, not stabilized. Read the original plan, decision-time statements and dated checkpoints below as rollout history. The guide records current native/SDK/platform work that those checkpoints treated as separate deliveries. Its review correction explicitly resolves the discovered RFC 0012 logical-debugger evidence gap; this reconciliation changes no normative requirement or non-goal of this RFC.
 
 ## Summary
+
+Build identity correction accepted under RFC 0001's delegation (2026-10-30 JST): the source/toolchain seed alone cannot distinguish effective Cargo `debug-assertions` and `overflow-checks` supplied through configuration or package overrides. Include the pinned compiler's opaque nominal type identity from the compiled codegen crate in the final SDK digest, in addition to the existing source, target, flags and compiler inputs. Cargo distinguishes the compiled crate and its dependency graph; tests must verify all four boolean combinations, package overrides, repeatability and relocation for the pinned toolchain. This is an exact-build compatibility discriminator, not authentication or a stable serialization of Rust `TypeId`. Its hash/debug representation may change between Rust releases, which already require a different SDK. Hand-authored rustc crate metadata is outside the supported Cargo producer. Existing SDKs/native packages must be regenerated together; C v1 and manifest schemas are unchanged. The alternative of hashing only `DEBUG` is incorrect because it describes debuginfo; enumerating Cargo environment variables misses config-file overrides. This does not claim a demonstrated ABI corruption from the old collision.
+
+Source: [Rust `TypeId`](https://doc.rust-lang.org/std/any/struct.TypeId.html), publication/update date unavailable; verified 2026-10-30 JST. Rust guarantees nominal type identity, not cross-release hash/layout stability; the Cargo configuration matrix is project evidence for the pinned producer.
 
 Ship a native compiler command, a matching Rust SDK, and a scoped production startup consumer. Compile source to original native objects plus verified semantic/compiler records. Link an application using the SDK's Rust libraries and generated bindings; startup decodes/prepares existing records and calls the original machine code.
 

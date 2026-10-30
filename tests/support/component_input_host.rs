@@ -451,6 +451,19 @@ unsafe extern "C" fn probe_task_report(bytes: ffi::Bytes, mode: u32, kind: u32, 
 }
 
 #[unsafe(no_mangle)]
+unsafe extern "C" fn probe_scope_limit(bytes: ffi::Bytes, kind: u32) -> u32 {
+    // SAFETY: the C test retains this exact immutable result view.
+    let bytes = unsafe { input(bytes.data, bytes.length) }.unwrap();
+    let report = wire::decode_report(bytes, &mut wire::Session::new(Default::default())).unwrap();
+    assert!(!report.poisoned);
+    assert_eq!(report.primary.diagnostic, wire::Diagnostic::Limit);
+    let limit = report.primary.limit.unwrap();
+    assert_eq!(limit.kind as u32, kind);
+    assert_eq!(limit.limit, 0);
+    assert!(limit.attempted > 0);
+    0
+}
+#[unsafe(no_mangle)]
 unsafe extern "C" fn probe_report(bytes: ffi::Bytes, mode: u32, case: u32) -> u32 {
     // SAFETY: the native caller retains this exact immutable result view.
     let bytes = unsafe { input(bytes.data, bytes.length) }.unwrap();
