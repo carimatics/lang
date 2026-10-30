@@ -12,6 +12,8 @@
 
 F04の最終実行checkpoint、2026-10-30 13:09 JST: 実TLSの2 testと実compiler／SDKのinstall・update・select・run・uninstall・復旧を含む16重点testが成功。署名不正時のpayload未取得、転送失敗時のfloor保持、削除退避／state commit直後のprocess中断からの復旧、未知marker／symlink拒否、共有generation保持を確認した。root／fuzz fmt、警告なし全workspace／fuzz Clippy、assertion／overflow検査を有効にしたopt-level 1の全workspace test（**173 suite／2,512成功／0失敗**）、docが成功。残るF04受入条件は実装commitの両host CI。G9は未完了。
 
+F04 CI追跡: `52555ff`の[Windows workspace job](https://github.com/carimatics/lang/actions/runs/41001376849/job/123886372813)は、非Unix fallbackが定数となる`unwrap_or_else`へのClippy警告で失敗した。Unix signalと非Unix codeのfallbackをcfg別の式へ分け、警告の抑制や終了codeの切詰めは行わない。修正版はfmt／全workspace Clippyに成功し、重点testと全baselineを再確認中。旧headのlocal成功を新headのCI成功とは扱わない。
+
 **次: M4-F04 — channel操作と復旧（doing、3 pt）。** F03の最終3 ptを消化し追加0。F04の残件を有限HTTPS reader、既存receiptによるchannel操作、marker付きuninstall／復旧と失敗testとして再監査し3 ptを維持する。F05は配布producerと両host journeyを担当する。43 delivery、追加+17、消化102、残り18 pt。
 
 A04 source `cf6cf5c` は fmt、全 Clippy／doc、checked opt-level 1 全 test（**158 suite／2,384 成功／0 失敗**）、重点 75 test に成功。最終 head `75a2041` は [全 CI](https://github.com/carimatics/lang/actions/runs/40810065213)（全 19 job、18 成功、意図した文書専用 skip）と [debugger 実行](https://github.com/carimatics/lang/actions/runs/40810065278)（3/3）に成功した。[PR #13](https://github.com/carimatics/lang/pull/13) は `58527c2` として merge、main を fast-forward して clean・同期済み、ahead／behind 0/0。workspace branch 作成と現在の PR／upstream は上記に記録した。既存の user 変更はなかった。

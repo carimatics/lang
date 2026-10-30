@@ -64,17 +64,13 @@ fn main() -> ExitCode {
         return match result {
             Ok(Outcome::Code(code)) => ExitCode::from(code),
             Ok(Outcome::Child(status)) => {
+                #[cfg(unix)]
                 let code = status.code().unwrap_or_else(|| {
-                    #[cfg(unix)]
-                    {
-                        use std::os::unix::process::ExitStatusExt;
-                        128 + status.signal().unwrap_or(1)
-                    }
-                    #[cfg(not(unix))]
-                    {
-                        1
-                    }
+                    use std::os::unix::process::ExitStatusExt;
+                    128 + status.signal().unwrap_or(1)
                 });
+                #[cfg(not(unix))]
+                let code = status.code().unwrap_or(1);
                 std::process::exit(code)
             }
             Err(error) => {
