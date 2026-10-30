@@ -4,7 +4,7 @@
 
 [English](../../rfcs/0042-signed-toolchain-installation.md)
 
-- Status: accepted
+- Status: implemented
 - Authors: project maintainers with Codex
 - Created: 2026-10-30
 - Last updated: 2026-10-30
@@ -15,6 +15,8 @@
 ## Summary
 
 明示rootのtoolchain managerを追加する。payloadを読む前にrelease metadataを認証し、実compiler／SDK fileをinstallし、channel／versionを選択し、失敗やprocess中断でもactive installationを保持する。M4のtoolchain配布であり、M5のpackage registryは実装しない。
+
+実装確認、2026-10-30 14:57 JST: `bf14faf`は[全体CI](https://github.com/carimatics/lang/actions/runs/41009253145)（18成功、文書専用jobの意図したskip）、[native-debug CI](https://github.com/carimatics/lang/actions/runs/41009253195)（3/3）、完全local baseline（2,513 test）に成功した。両hostで2鍵配布生成、通常installerでの公開前検証、実SDKのnative実行、全channel、過去receiptの期限、旧compiler実行中のupdateを検証し、Windowsの実行中exe削除拒否／cleanup延期と終了後の復旧も成功した。update fixtureはcompiler identityを維持して実SDK packaging bytesを変更する。以下の採択時experiment／未検証事項の記録は履歴であり、この実装証拠によりF01–F05を完了した。implementedはstabilizedや公式配布trustの確立を意味しない。
 
 ## Motivation
 

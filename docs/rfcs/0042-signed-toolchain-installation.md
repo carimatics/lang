@@ -4,7 +4,7 @@
 
 [日本語版](../ja/rfcs/0042-signed-toolchain-installation.md)
 
-- Status: accepted
+- Status: implemented
 - Authors: project maintainers with Codex
 - Created: 2026-10-30
 - Last updated: 2026-10-30
@@ -15,6 +15,8 @@
 ## Summary
 
 Add an explicit-root toolchain manager that authenticates release metadata before reading payloads, installs actual compiler/SDK files, selects a channel/version and preserves the active installation on failure or process interruption. This distributes toolchains for M4; it does not implement M5's package registry.
+
+Implementation verified 2026-10-30 14:57 JST: `bf14faf` passes [full CI](https://github.com/carimatics/lang/actions/runs/41009253145) (18 success, intentional documentation-only skip), [native-debug CI](https://github.com/carimatics/lang/actions/runs/41009253195) (3/3) and the complete local baseline (2,513 tests). Both hosts verify two-key distribution production, ordinary-installer pre-publication validation, real SDK native execution, all channels, historical receipt expiry and update while the old compiler runs; Windows also verifies live-executable uninstall refusal/deferred cleanup and recovery after exit. The update fixture changes actual SDK packaging bytes while retaining compiler identity. The acceptance-stage experiments and open-validation notes below are historical; this implementation evidence completes F01–F05. Implemented does not mean stabilized or establish an official distribution trust identity.
 
 ## Motivation
 
