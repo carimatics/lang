@@ -6,11 +6,13 @@
 
 2026-10-30 JST、`3b676c5`から開始。[ロードマップ](roadmap.md#milestone-5ecosystemとcompatibility)のM5全範囲（P1の2ゲートを含む）を追跡する。M4のinstallerとlocal packageは前提条件であり、registry完了を意味しない。
 
-**5 done · 1 doing · 34 todo · 102 remaining pt**
+**6 done · 1 doing · 33 todo · 99 remaining pt**
 
-**次: M5-B05 — 旧scalar fixtureの検証付き移行をpreviewする。**
+**次: M5-B04 — 検証付き旧source移行をCLIへ公開し両hostでjourneyを実行する。**
 
-B05実行checkpoint（2026-10-31 02:24 JST確認）: 移行専用readerは旧scalar入力の名前解決・型検査後、全体でfreshな名前を選ぶ。token・offset証明と型付き解決構造の比較で実在する`shared`・`weak` sourceを受入れ、現VMは42を返し、通常compileは元sourceの拒否を維持する。integration test 8件とproof test 2件が成功し、固定producerの受入11ケース、生成scalar実行24件、wrapping加算、燃料切れの保持、衝突・trivia・CRLF、再実行no-op、意味の反例、厳密な資源境界を検証。組込みcallerも再帰の安全上限を引き上げられない。残る受入条件はsource固定全baselineと最新headの両host CIで、CLI・公開・native移行journeyはB04に残す。新規前提・見積り追加なし。検証完了までB05だけを3 ptのdoingとして維持する。
+B04範囲（2026-10-31 03:17 JST）: 明示profile・edition・source-rootのCLI受入を追加し、B05のbyte証明を既存公開境界を使って固定した単一regular sourceに結び付け、stale・alias・authority・拒否fixtureを保持する。元sourceを固定旧producerで実行し、移行後sourceを現VMと対応SDKのnative binaryでmacOS・Windowsの両方で実行する。この3つの統合部分を監査して3 ptを維持し、新規前提は不要。既存`run`との実行比較どおり`FILE`はcwd基準とし、report・公開には検証したauthority相対pathを使う。最後の実行checkpointは下記の検証済みB05 preview。残る受入条件はCLI・検証付きfilesystem適用・両host実行証拠・全体検証。B04だけをdoingとし、同じ旧source移行branchで一貫した作業を続ける。
+
+B05完了（2026-10-31 03:17 JST確認）: code `7f41dd0`は実在する旧`shared`・`weak` sourceを受入れ、元token offsetと型付き解決構造を証明し、rewrite後sourceは42を返す一方、通常compileは元sourceを拒否する。integration test 8件・proof test 2件で、固定producerの受入11ケース、生成scalar実行24件、wrapping加算、燃料切れ保持、衝突・trivia・CRLF、再実行no-op、意味の反例、引上げ不可の再帰上限を含む厳密な資源境界を検証。source固定全baselineの179 suite・2,546 test、fmt・厳密Clippy・rustdocが成功し、全child exitは0、全入力fingerprintは不変。logは`/private/tmp/lang-m5-fixes-target/m5-b05-validation/`に保持する。同headのCI `41101729179`は対象18 jobすべて成功（full routingにより文書専用のみ意図的省略）、native-debug `41101727954`も3 host jobすべて成功。[PR #31](https://github.com/carimatics/lang/pull/31)は関連するB04継続用にdraftを維持し、後続headもその公開check成功を必要とする。
 
 branch `codex/m5-historical-source-migration`は`codex/m5-checked-source-fixes`の`791237e`からclean状態で作成し、checkoutは`/private/tmp/lang-m5-migration`、初期PR baseは`git@github.com:carimatics/lang.git`の同前提branch。PR #30のmerge確認後、`6ea2cd1`へfast-forwardし、PR baseを`main`へ変更した。元worktreeは`main`上でcleanかつ`origin/main`と同期済み（ahead 0 / behind 0）。
 
@@ -52,8 +54,8 @@ B05 budget監査（2026-10-31 JST）: 再利用するscalar検査内部の独立
 | M5-B01 | done | 0 | M5-A01 | G2 | 移行レシピ・適用可能性・書込みトランザクション契約を採択 | `1ab1201` |
 | M5-B02 | done | 0 | M5-B01 | G2 | 元spanを保持した実ソース修正previewと意味再検査 | `2a3aca1` |
 | M5-B03 | done | 0 | M5-B02 | G2 | CLI修正適用とstale・競合・部分書込み拒否fixture | `01b425e` |
-| M5-B05 | doing | 3 | M5-B01 | G2 | 旧scalar構文を受入れfresh renameを証明し実在する旧sourceをpreview | — |
-| M5-B04 | todo | 3 | M5-B03,M5-B05 | G2 | edition移行CLIと両hostの移行前後実行journey | — |
+| M5-B05 | done | 0 | M5-B01 | G2 | 旧scalar構文を受入れfresh renameを証明し実在する旧sourceをpreview | `7f41dd0` |
+| M5-B04 | doing | 3 | M5-B03,M5-B05 | G2 | edition移行CLIと両hostの移行前後実行journey | — |
 | M5-C01 | todo | 3 | M5-A01 | G3 | identity・namespace・authority・濫用・攻撃者の脅威モデル | — |
 | M5-C02 | todo | 3 | M5-C01 | G3 | upload前にprotocol・上限・復旧・security受入ケースを採択 | — |
 | M5-D01 | todo | 3 | M5-C02 | G4 | 上限付き未信頼archiveの受入とtraversal・重複・bomb拒否 | — |
@@ -90,13 +92,15 @@ B05 budget監査（2026-10-31 JST）: 再利用するscalar検査内部の独立
 
 ## 見積り照合
 
-**112 + 3 − 13 = 102 pt**
+**112 + 3 − 16 = 99 pt**
 
 | 基準残作業 | 純追加・再見積り | 完了時に除去 | 残作業 |
 | ---: | ---: | ---: | ---: |
-| 112 pt | +3 pt | −13 pt | 102 pt |
+| 112 pt | +3 pt | −16 pt | 99 pt |
 
 ## Delivery noteとロードマップ監査
+
+- B05完了（2026-10-31 JST）: `7f41dd0`の全local・同head両host検証後、最後の3 ptを退役。追加・再見積りなし。次はB04で、上記統合監査後も3 ptを維持する。明示CLI・検証付き適用・実旧producerと現VM・nativeのjourneyが両hostで成功するまでG2はopen。他の8 openゲートとP1の両成果も必須を維持する。
 
 - B03完了（2026-10-31 JST）: code `01b425e`、全local baseline 2,536/2,536とfmt・Clippy・rustdoc、両host CIが成功。最終3 ptを退役し、追加・再見積りなし。B05・B04の旧source受入、検証付き移行CLI、両hostでの実旧producer・現VM・native journeyが成功するまでG2をopenとする。次はB05。他の全ゲートとP1成果も必須を維持する。
 

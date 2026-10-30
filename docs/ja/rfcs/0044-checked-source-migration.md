@@ -125,7 +125,7 @@ frontend/editor証明adapter、package/format公開、CLI・test・文書を変�
 
 ## Open questions
 
-2026-10-30 JST、RFC 0001の実験段階委任に基づき採択。根拠: 明示的な旧入力受入、全体でfreshな名前対応、解決済み構造の比較、既存の検証付きrename・公開境界の再利用により、通常compileを変えずに限定recipeをレビューできる。保持した旧producerで実在する遷移を確認した。2026-10-31現在、上限付きreader・proof previewの対象実行・拒否testは成功し、全baselineと両host検証は未完了。移行CLI・検証付き適用・native実行journeyはB04に残す。採択はG2完了ではない。具体的な総量上限とdiagnostic割当は境界testを伴う実装判断であり、grammarを広げる許可ではない。追加旧profileと将来editionには別のrecipeレビューが必要。選択sliceの設計を妨げる未決事項はない。
+2026-10-30 JST、RFC 0001の実験段階委任に基づき採択。根拠: 明示的な旧入力受入、全体でfreshな名前対応、解決済み構造の比較、既存の検証付きrename・公開境界の再利用により、通常compileを変えずに限定recipeをレビューできる。保持した旧producerで実在する遷移を確認した。2026-10-31現在、B05の上限付きreader・proof previewは`7f41dd0`で実行・拒否・意味の反例・厳密上限を含む全baselineと両host CIが成功した。移行CLI・検証付き適用・native実行journeyはB04に残す。採択はG2完了ではない。具体的な総量上限とdiagnostic割当は境界testを伴う実装判断であり、grammarを広げる許可ではない。追加旧profileと将来editionには別のrecipeレビューが必要。選択sliceの設計を妨げる未決事項はない。
 
 ## Sources
 
