@@ -4,7 +4,7 @@
 
 [日本語版](../ja/rfcs/0034-package-workspaces-and-cli-diagnostics.md)
 
-- Status: accepted
+- Status: implemented
 - Authors: project owner, Codex
 - Created: 2026-10-29
 - Last updated: 2026-10-29
@@ -13,6 +13,8 @@
 - Superseded by: none
 
 ## Summary
+
+Implementation audited 2026-10-30 JST at `0b6591d`: manifest/graph/source admission, canonical standalone/workspace locks, real package commands and native reproducibility are reconciled with the implementation and acceptance tests `package_manifest, package_graph, package_source, package_lock, package_workspace, package_command, native_package`. The complete local baseline (174 suites / 2,514 tests, zero failures), fmt/full Clippy/doc and the macOS 15/Windows package and continuous installed-tool journeys pass. Acceptance-stage open-validation notes below are historical; this contract is implemented. This does not mean stabilized; the compatibility boundaries and non-goals below remain.
 
 Introduce explicitly versioned `Lang.json` package/workspace manifests, local dependency resolution, `Lang.lock` and newline-delimited JSON CLI diagnostics. This is a host toolchain contract; it changes no source expression, typed MIR, runtime capability or ABI.
 

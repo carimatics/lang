@@ -40,6 +40,8 @@ source構文・native language ABI・private SDK/package formatは実験段階�
 
 ## ドキュメント
 
+- [M4開発toolchain機能guide](docs/ja/milestone-4-capabilities.md): package workflow、editor／debugger、profile、署名導入、両hostの証拠と制限。
+
 - [言語・エコシステム調査](docs/ja/research.md)
 - [Benchmark evidence: M2 source/Rust/Cと過去のprototype](docs/ja/benchmarks.md)
 - [アーキテクチャbaseline](docs/ja/architecture.md)
@@ -90,11 +92,11 @@ source構文・native language ABI・private SDK/package formatは実験段階�
 - [RFC 0031: Installed native task package（implemented）](docs/ja/rfcs/0031-installed-native-task-packages.md)
 - [RFC 0032: 明示host binding付きinstalled component package（implemented）](docs/ja/rfcs/0032-installed-component-packages.md)
 - [RFC 0033: Component C v1の互換性と移行（stabilized）](docs/ja/rfcs/0033-component-v1-compatibility.md)
-- [RFC 0034: パッケージワークスペースと CLI 診断（accepted）](docs/ja/rfcs/0034-package-workspaces-and-cli-diagnostics.md)
-- [RFC 0035: 決定的な source package snapshot（accepted）](docs/ja/rfcs/0035-source-package-snapshots.md)
-- [RFC 0036: 検証付き package formatting（accepted）](docs/ja/rfcs/0036-checked-package-formatting.md)
-- [RFC 0037: package lint 診断（accepted）](docs/ja/rfcs/0037-package-lint-diagnostics.md)
-- [RFC 0038: package API 文書（accepted）](docs/ja/rfcs/0038-package-api-documentation.md)
+- [RFC 0034: パッケージワークスペースと CLI 診断（implemented）](docs/ja/rfcs/0034-package-workspaces-and-cli-diagnostics.md)
+- [RFC 0035: 決定的な source package snapshot（implemented）](docs/ja/rfcs/0035-source-package-snapshots.md)
+- [RFC 0036: 検証付き package formatting（implemented）](docs/ja/rfcs/0036-checked-package-formatting.md)
+- [RFC 0037: package lint 診断（implemented）](docs/ja/rfcs/0037-package-lint-diagnostics.md)
+- [RFC 0038: package API 文書（implemented）](docs/ja/rfcs/0038-package-api-documentation.md)
 - [RFC 0039: package editor snapshot と検証付き edit（implemented）](docs/ja/rfcs/0039-package-editor-snapshots.md)
 - [RFC 0040: 上限付き debug adapter session（implemented）](docs/ja/rfcs/0040-bounded-debug-adapter-sessions.md)
 - [RFC 0041: 上限付きtoolchain profile（implemented）](docs/ja/rfcs/0041-bounded-toolchain-profiles.md)

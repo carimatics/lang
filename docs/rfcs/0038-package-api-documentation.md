@@ -4,7 +4,7 @@
 
 [日本語版](../ja/rfcs/0038-package-api-documentation.md)
 
-- Status: accepted
+- Status: implemented
 - Authors: project maintainers with Codex
 - Created: 2026-10-29
 - Last updated: 2026-10-29
@@ -13,6 +13,8 @@
 - Superseded by: none
 
 ## Summary
+
+Implementation audited 2026-10-30 JST at `0b6591d`: public API indexing, resolved nested type links, escaped source panels, relocation and exact rendering/publication limits are reconciled with the implementation and acceptance tests `package_doc; package::doc::tests`. The complete local baseline (174 suites / 2,514 tests, zero failures), fmt/full Clippy/doc and the macOS 15/Windows package and continuous installed-tool journeys pass. Acceptance-stage open-validation notes below are historical; this contract is implemented. This does not mean stabilized; the compatibility boundaries and non-goals below remain.
 
 `lang doc` generates a detached, offline HTML API reference from the selected package's checked frontend program. Public types/functions retain original signatures, adjacent `///` text, resolved type links and original source locations. Publish `target/lang/<lock-digest>/doc/index.html` through the existing failure-safe generation/lock protocol.
 

@@ -4,7 +4,7 @@
 
 [English](../../rfcs/0037-package-lint-diagnostics.md)
 
-- Status: accepted
+- Status: implemented
 - Authors: project maintainers with Codex
 - Created: 2026-10-29
 - Last updated: 2026-10-29
@@ -13,6 +13,8 @@
 - Superseded by: none
 
 ## 概要
+
+実装監査、2026-10-30 JST: `0b6591d`で解決済み未読binding identity／span、実行せずwarning拒否、診断重複除去とcollector境界を実装と受入testへ照合した。検証対象は`package_lint; package::lint::tests`。localの全baseline（174 suite／2,514 test、失敗0）、fmt／全Clippy／docに成功し、macOS 15とWindowsのpackage／連続導入tool journeyにも成功した。採択時の未検証記述は履歴であり、この契約をimplementedとする。stabilizedを意味せず、下記の互換性境界／non-goalを維持する。
 
 `lang lint` は選択 package と宣言 test を解析し、guest code の実行や artifact 公開を行わない。`--deny-warnings` は warning を command 失敗にする。既存 schema-1 human／JSON 診断は元 file path と UTF-8 byte span を保持する。
 

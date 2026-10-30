@@ -4,7 +4,7 @@
 
 [English](../../rfcs/0035-source-package-snapshots.md)
 
-- Status: accepted
+- Status: implemented
 - Authors: Codex under the owner's experimental delegation
 - Created: 2026-10-29
 - Last updated: 2026-10-29
@@ -13,6 +13,8 @@
 - Superseded by: None
 
 ## 概要
+
+実装監査、2026-10-30 JST: `0b6591d`で決定的archive headerと元bytes、信頼済み展開後の実行、固定source replay、失敗時の保持を実装と受入testへ照合した。検証対象は`package_archive`。localの全baseline（174 suite／2,514 test、失敗0）、fmt／全Clippy／docに成功し、macOS 15とWindowsのpackage／連続導入tool journeyにも成功した。採択時の未検証記述は履歴であり、この契約をimplementedとする。stabilizedを意味せず、下記の互換性境界／non-goalを維持する。
 
 既存 manifest／member／target／locked／offline／message-format option を持つ `lang package [--list]` を追加する。選択 source snapshot 全体を一度取得し、公開せず予定 file を一覧表示するか、原 byte、lock、version 付き descriptor の決定的な非圧縮 TAR を公開する。
 

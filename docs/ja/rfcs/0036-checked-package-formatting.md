@@ -4,7 +4,7 @@
 
 [English](../../rfcs/0036-checked-package-formatting.md)
 
-- Status: accepted
+- Status: implemented
 - Authors: Codex under the owner's experimental delegation
 - Created: 2026-10-29
 - Last updated: 2026-10-29
@@ -13,6 +13,8 @@
 - Superseded by: None
 
 ## 概要
+
+実装監査、2026-10-30 JST: `0b6591d`でcomment／Unicode保持、check-mode無書込み、stale plan拒否、permissionとfile単位失敗cleanupを実装と受入testへ照合した。検証対象は`package_format, formatter`。localの全baseline（174 suite／2,514 test、失敗0）、fmt／全Clippy／docに成功し、macOS 15とWindowsのpackage／連続導入tool journeyにも成功した。採択時の未検証記述は履歴であり、この契約をimplementedとする。stabilizedを意味せず、下記の互換性境界／non-goalを維持する。
 
 共通 manifest／member／target／locked／offline／message-format option を持つ `lang fmt [--check]` を追加する。固定した選択 graph の全 source／test を既存 lossless CST formatter で整形する。check は無書込みで要変更を報告し、通常 mode は検証済み source 置換を適用する。
 
