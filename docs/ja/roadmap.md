@@ -18,7 +18,7 @@ M2は完了済みです。18/18ゲート、過去のゲート重み113/113です
 
 ## M3完了後の作業
 
-M3は完了済みです。M4の[作業ボード](milestone-4.md)は44 delivery、**38 done · 1 doing · 5 todo · 14 remaining pt**です。G1–G8は検証済みで、再現したlock lifetime前提F06のためG9を再開し、M4はactiveです。DAP source `cf5e27f`が保持VMのstep／inspection、native source debug、実mixed native／VM pause、restart／terminationのID分離を実装し、完全local baseline、全体CI `40937041512`、native-debug `40937041276`の3環境に成功しました。E01 compile reportは`e2f0c1d`で実装し、E02 runtime観測は`7baee25`で検証し、E03R論理allocator traceは`b715b7a`で検証済み、E03 allocation reportは`546ae69`で検証済み、E04 rebuild説明は`356fdca`で全体CI `40979050495`とnative CI `40979050348`に成功しました。G8は完了し、F01署名installer設計は`3a58363`で採択し、F02署名release検証は`eb4243d`で完了し、F03分離installationは`28bc8df`で検証済み、F04のHTTPS／channel／復旧は`d2fb67b`で検証済み、F05の配布生成／journeyとG9は`bf14faf`で全体CI `41009253145`とnative CI `41009253195`に成功しました。最新head CI `41011643812`でlock解放失敗が判明し、F06がdoing（2 pt追加）、Z01はlocal journey成功を保持してtodoへ戻し、Z02–Z05も残ります。
+M3は完了済みです。M4の[作業ボード](milestone-4.md)は44 delivery、**39 done · 1 doing · 4 todo · 12 remaining pt**です。F06のlock lifetime修正後、G1–G9は検証済みで、M4はactiveです。DAP source `cf5e27f`が保持VMのstep／inspection、native source debug、実mixed native／VM pause、restart／terminationのID分離を実装し、完全local baseline、全体CI `40937041512`、native-debug `40937041276`の3環境に成功しました。E01 compile reportは`e2f0c1d`で実装し、E02 runtime観測は`7baee25`で検証し、E03R論理allocator traceは`b715b7a`で検証済み、E03 allocation reportは`546ae69`で検証済み、E04 rebuild説明は`356fdca`で全体CI `40979050495`とnative CI `40979050348`に成功しました。G8は完了し、F01署名installer設計は`3a58363`で採択し、F02署名release検証は`eb4243d`で完了し、F03分離installationは`28bc8df`で検証済み、F04のHTTPS／channel／復旧は`d2fb67b`で検証済み、F05の配布生成／journeyとG9は`bf14faf`で全体CI `41009253145`とnative CI `41009253195`に成功しました。F06 `76c3698`はlocal 2,514 test、全体CI `41015803408`、native CI `41015803370`に成功しました。PR #25は`54992c0`としてmergeし、mainは同期済み。Z01がdoingで、Z02–Z05も残ります。
 
 PR #9–#24はmerge済みです。profiling最終head `84b17f6`は全体CI `40981001066`とnative CI `40981000915`に成功し、PR #24は`fa271b1`としてmergeしました。最後に確認したlocal main／origin/mainは`fa271b1`でahead／behind 0/0。現在の`codex/m4-toolchain-installer`はcleanなprofiling head `84b17f6`から作成し、既存user変更はありません。upstreamは`origin/codex/m4-toolchain-installer`、先行PRのmerge後の記録baseは`carimatics/lang:main`、[draft PR #25](https://github.com/carimatics/lang/pull/25)です。installer実装とそのCI／mergeは未完了です。
 
@@ -42,11 +42,11 @@ PR #9–#24はmerge済みです。profiling最終head `84b17f6`は全体CI `4098
 | 1 — frontendとbytecodeのvertical slice（完了） | 89 pt | 89 pt | **100.0%** |
 | 2 — ownershipとnative AOT | 113 pt | 113 pt | 100.0% |
 | 3 — concurrencyとembedding（完了） | 96 pt | 96 pt | 100.0% |
-| 4 — developer toolchain | 55 pt | 63 pt | 87.3% |
+| 4 — developer toolchain | 63 pt | 63 pt | 100.0% |
 | 5 — ecosystemとcompatibility | 0 pt | 65 pt | 0.0% |
 | 6 — セルフホスティング | 0 pt | 74 pt | 0.0% |
 | 7 — 追加frontend | 0 pt | 55 pt | 0.0% |
-| **全体** | **562 pt** | **764 pt** | **73.6%** |
+| **全体** | **570 pt** | **764 pt** | **74.6%** |
 
 ## Milestone 0：設計baseline
 
@@ -228,7 +228,7 @@ Exit：Native hostがuser scriptをloadし、typed APIを公開し、scriptをca
 
 ## Milestone 4：developer toolchain
 
-**進捗：55 / 63 pt（87.3%）。**
+**進捗：63 / 63 pt（100%）。**
 
 有効化監査（2026-10-29 JST）: 現在の task、実行 checkpoint、積上げ baseline 103 pt は [M4 board](milestone-4.md)で管理します。[RFC 0034](rfcs/0034-package-workspaces-and-cli-diagnostics.md)が manifest／diagnostic と最初の local package 契約を採択しました。厳密な検査、許可 local dependency の実行、lock／offline replay、create／build／run／test fixture の順に進めてから広範な tooling へ進みます。installer は M5 registry より先に toolchain binary を配布するため、trust root、署名 release metadata 検証、atomic update／failure recovery の採択設計を download／install 前に必要とします。M5 signing は registry package 公開／provenance を対象とします。元の九つの gate と weight を維持し、63 pt を残作業予測には使いません。
 
@@ -242,7 +242,7 @@ Exit：Native hostがuser scriptをloadし、typed APIを公開し、scriptをca
 - [x] **P0 — 安全なrename／code actionを実装する。** — 8 pt
 - [x] **P0 — Mixed native／VM stackを持つDAP adapterを実装する。** — 8 pt
 - [x] **P1 — Compile-time／runtime profiling、allocation trace、rebuild explanationを追加する。** — 8 pt
-- [ ] **P0 — `rustup` と同じ役割を持つinstall／update／channel toolを構築する。** — 8 pt
+- [x] **P0 — `rustup` と同じ役割を持つinstall／update／channel toolを構築する。** — 8 pt
 
 Exit：新しいdeveloperが1つのtoolをinstallし、packageを作成し、editorで開発し、test／debugし、reproducible binaryを生成できる。
 

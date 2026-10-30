@@ -20,6 +20,8 @@
 
 F06回帰監査、2026-10-30 JST: F05検証checkpoint後の最新head CI `41011643812`でcloseだけに依存したlock lifetime不具合を検出した。決定的descriptor複製実験でclose後のlock残留を再現した。明示unlock guard、成功／失敗経路の回帰test、新しいlocal／両host検証が揃うまでF06としてG9を再開する。implemented lifecycle labelとF05の履歴証拠は保持し、wire format／trust契約は変更しない。
 
+F06修正確認、2026-10-30 16:08 JST: `76c3698`の所有guardはclose前に明示unlockし、正常終了／検証error returnを跨いで複製descriptorが存続する回帰testに両hostで成功した。完全local baselineは2,514 test成功、全体CI `41015803408`は18成功と意図した文書専用skip、native-debug CI `41015803370`は3/3成功。PR #25は`54992c0`としてmergeし、F06／G9を完了した。
+
 ## Motivation
 
 現在のnative SDKはsource checkoutなしでassemble／検証できるが、署名配布、永続channel選択、復旧可能なupdate commandがない。新規developerにはsource buildと同じ検証済みcompiler／SDK、明確な初期trust判断、暗黙のshell／global設定変更をしない操作が必要である。

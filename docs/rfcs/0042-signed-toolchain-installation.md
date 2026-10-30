@@ -20,6 +20,8 @@ Implementation verified 2026-10-30 14:57 JST: `bf14faf` passes [full CI](https:/
 
 F06 regression audit, 2026-10-30 JST: latest-head CI `41011643812` detects a close-only lock-lifetime defect after the verified F05 checkpoint. A deterministic duplicate-descriptor experiment reproduces retained ownership after close. F06 reopens G9 pending an explicit-unlock guard, success/error-path regressions and fresh local/both-host validation. The implemented lifecycle label and F05 historical evidence remain; this defect does not change the wire format or trust contract.
 
+F06 correction verified 2026-10-30 16:08 JST: `76c3698` explicitly unlocks before close and passes the success/validation-error regression with live duplicate descriptors on both hosts. The complete local baseline passes 2,514 tests; full CI `41015803408` passes 18 jobs plus the intentional documentation-only skip, and native-debug CI `41015803370` passes 3/3. PR #25 merged as `54992c0`, completing F06/G9.
+
 ## Motivation
 
 The current native SDK can be assembled and tested without a source checkout, but there is no signed distribution, persistent channel selection or recoverable update command. A new developer needs the same verified compiler and SDK as the source build, with a clear initial trust decision and no implicit shell/global configuration changes.

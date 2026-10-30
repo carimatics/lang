@@ -4,21 +4,19 @@
 
 [日本語版](ja/milestone-4.md)
 
-Updated: 2026-10-30 JST. M4 is active. Goal start: clean main/origin/main `af9988f`, remote `git@github.com:carimatics/lang.git`. PRs #9–#24 are merged. Profiling PR #24 merged as `fa271b1`, preserving independent documentation PRs #20–#23 (`be9f77c` ancestor). Last verified local main/origin/main match `fa271b1`, 0/0 ahead/behind. The full M4 outcome and installer remain unfinished.
+Updated: 2026-10-30 JST. M4 is active. Goal start: clean main/origin/main `af9988f`, remote `git@github.com:carimatics/lang.git`. PRs #9–#25 are merged. Installer PR #25 merged as `54992c0`; local main/origin/main match that commit, 0/0 ahead/behind. Independent documentation changes are preserved. G1–G9 are verified; the final journey, exit audit and capability guide remain unfinished.
 
-**38 done · 1 doing · 5 todo · 14 remaining pt**
+**39 done · 1 doing · 4 todo · 12 remaining pt**
 
-Current checkout: `codex/m4-toolchain-installer`, created from clean profiling documentation head `84b17f6`; no preexisting user changes. Its recorded remote PR base is now `carimatics/lang:main` after predecessor [PR #24](https://github.com/carimatics/lang/pull/24) merged. F01–F06 form one coherent installer outcome. Upstream is `origin/codex/m4-toolchain-installer`, [PR #25](https://github.com/carimatics/lang/pull/25). Profiling final head `84b17f6` passes [full CI](https://github.com/carimatics/lang/actions/runs/40981001066) (18 success, intentional documentation-only skip) and [native debugger execution](https://github.com/carimatics/lang/actions/runs/40981000915) (3/3). Local main/origin/main match merge `fa271b1`, 0/0. F06 proceeds on this branch in an isolated worktree; the original worktree preserves Z01 changes on `codex/m4-final-developer-journey`.
+Current checkout: `codex/m4-final-developer-journey`, created from clean installer documentation head `408eed1` with no preexisting user changes. After predecessor [PR #25](https://github.com/carimatics/lang/pull/25) merged, fast-forwarded the F06 fix and main `54992c0`; all six restored Z01 Rust files match their preservation stash byte-for-byte. The recorded PR base is now `carimatics/lang:main`. The final journey, exit audit and capability guide form one coherent outcome; return to the Goal’s starting main branch at completion.
 
-F06 last executable checkpoint, 2026-10-30 15:38 JST: the ownership guard passes a deterministic live-duplicate regression for successful completion and validation-error return. The existing recovery test that failed latest-head macOS 26 CI `123918665908` also passes locally; the actual signed-distribution/SDK fixture is running. Explicit unlock replaces close-only release without retrying genuine contention. Remaining acceptance: complete focused/full local checks and corrected both-host CI. Z01’s successful installed-tool journey is retained; its interrupted full baseline (exit 143) is not a pass.
+F06 complete, 2026-10-30 16:08 JST: `76c3698` implements explicit unlock on normal/error returns and the live-duplicate regression. It passes 17 focused checks, fmt/full Clippy, 174 suites / 2,514 local tests (zero failures, one unchanged ignored test), doc, [full CI](https://github.com/carimatics/lang/actions/runs/41015803408) (18 success, intentional documentation skip) and [native-debug CI](https://github.com/carimatics/lang/actions/runs/41015803370) (3/3). Both-host logs confirm the new regression and actual installer. Close G9 and retire F06’s 2 pt.
 
-Local checkpoint: 1 new lock regression and 17 focused tests pass, including the real signed-distribution/SDK fixture (74.20 s); fmt and full workspace Clippy with warnings denied pass. The complete local baseline is running; corrected-head CI remains required.
-
-Z01 last executable checkpoint, 2026-10-30 15:17 JST: one installed-compiler/SDK journey passes package creation, local dependency, LSP definition/references/completion/tokens/rename/code action, stale-lock refusal, fmt/lint/build/test/doc/package, DAP breakpoint/stack/locals/evaluation, native execution and identical binary bytes after relocation. The real-install suite passes 6 tests; existing shared-client LSP (27), DAP (12) and consistency (6) checks also pass. Fixture-only corrections use supported addition with a negative literal and the DAP canonical authority spelling for macOS temporary-root aliases; compiler semantics and assertions are unchanged. Remaining Z01 acceptance: complete local baseline/doc, code evidence and macOS CI. The bounded integration scope is unchanged, retaining 3 pt. Z02 retains the same Windows journey and full-baseline audit.
+Z01 last executable checkpoint, 2026-10-30 16:08 JST: after integrating F06, the actual signed installed compiler/SDK passes the continuous create/dependency/LSP navigation, rename and quickfix/test/DAP breakpoint and inspection/reproducible-native fixture (80.40 s). Together with 12 DAP, 27 LSP and six repository checks, all 51 focused tests pass. The earlier full baseline was interrupted with exit 143 and is not a pass. Remaining Z01 acceptance: the integrated complete local baseline and macOS CI. Z02 retains the same Windows journey and full-baseline validation.
 
 F04 source `d2fb67b` passes fmt/full Clippy, 16 focused tests, the full local baseline (**173 suites / 2,512 passed / 0 failed**) and doc; root/fuzz fmt and fuzz Clippy passed for the implementation. The [Windows workspace failure](https://github.com/carimatics/lang/actions/runs/41001376849/job/123886372813) at `52555ff` was a cfg-specific needless closure, fixed by separate Unix/non-Unix status expressions without suppression or truncation. Corrected-head [full CI](https://github.com/carimatics/lang/actions/runs/41001783236) passes 18 jobs plus the intentional documentation-only skip; [native-debug CI](https://github.com/carimatics/lang/actions/runs/41001783129) passes 3/3. Retire F04’s 3 pt with zero additions.
 
-**Next: M4-F06 — release the owned installation lock before closing its file (doing, 2 pt).** Expose the newly reproduced lock-lifetime prerequisite before changing code. Z01 returns to todo with its successful executable checkpoint preserved; do not retry the CI failure or weaken nonblocking contention assertions. Across 44 deliveries: additions +19, retired 108, remaining 14 pt. G9 reopens until corrected both-host evidence is available.
+**Next: M4-Z01 — continuous new-developer journey on macOS (doing, 3 pt).** F06 is verified on both hosts and merged. Re-auditing the remaining full baseline/CI work for the existing executable fixture retains 3 pt. Across 44 deliveries: additions +19, retired 110, remaining 12 pt. Keep G1–G9 gate completion separate from the final journey and guide.
 
 A04 source `cf6cf5c` passes fmt, full Clippy/doc and checked opt-level 1 full tests (**158 suites / 2,384 passed / 0 failed**), plus 75 focused tests. Final head `75a2041` passes [full CI](https://github.com/carimatics/lang/actions/runs/40810065213) (all 19 jobs: 18 success; intentional documentation-only skip) and [debugger execution](https://github.com/carimatics/lang/actions/runs/40810065278) (3/3). [PR #13](https://github.com/carimatics/lang/pull/13) merged as `58527c2`; main was fast-forwarded, clean and synchronized with 0/0 ahead/behind. Workspace branch creation and its current PR/upstream are recorded above. No preexisting user changes were present.
 
@@ -54,7 +52,7 @@ The [roadmap](roadmap.md#milestone-4-developer-toolchain) retains the original 6
 | G6 | P0 | Safe rename and code actions | 8 | done |
 | G7 | P0 | DAP adapter with mixed native/VM stacks | 8 | done |
 | G8 | P1 | Compile/runtime profiles, allocation traces and rebuild explanations | 8 | done |
-| G9 | P0 | Signed install/update/channel tool with recovery | 8 | pending |
+| G9 | P0 | Signed install/update/channel tool with recovery | 8 | done |
 
 ## Deliveries
 
@@ -100,8 +98,8 @@ The [roadmap](roadmap.md#milestone-4-developer-toolchain) retains the original 6
 | M4-F03 | done | 0 | M4-F02 | G9 | Install verified tools in an isolated root; failed/interrupted installs preserve active version | `28bc8df` |
 | M4-F04 | done | 0 | M4-F03 | G9 | Channel update/select/list/uninstall with atomic activation and recovery | `d2fb67b` |
 | M4-F05 | done | 0 | M4-F04 | G9 | Signed release/distribution fixture installs and updates on both hosts | `bf14faf` |
-| M4-F06 | doing | 2 | M4-F05 | G9 | Release the owned lock with a live duplicate descriptor, including failure paths and both hosts | — |
-| M4-Z01 | todo | 3 | M4-B01,M4-B04,M4-C07,M4-D05,M4-E04,M4-F05,M4-F06 | G1,G2,G3,G4,G5,G6,G7,G8,G9 | New-developer install/create/editor/test/debug/reproducible-binary journey on macOS | — |
+| M4-F06 | done | 0 | M4-F05 | G9 | Release the owned lock with a live duplicate descriptor, including failure paths and both hosts | `76c3698` |
+| M4-Z01 | doing | 3 | M4-B01,M4-B04,M4-C07,M4-D05,M4-E04,M4-F05,M4-F06 | G1,G2,G3,G4,G5,G6,G7,G8,G9 | New-developer install/create/editor/test/debug/reproducible-binary journey on macOS | — |
 | M4-Z02 | todo | 3 | M4-Z01 | G1,G2,G3,G4,G5,G6,G7,G8,G9 | Same complete journey and full baseline on Windows; diagnose any divergence | — |
 | M4-Z03 | todo | 2 | M4-Z02 | G1,G2,G3,G4,G5,G6,G7,G8,G9 | Audit every roadmap exit requirement against latest code, both-host evidence and limitations | — |
 | M4-Z04 | todo | 2 | M4-Z03 | G1,G2,G3,G4,G5,G6,G7,G8,G9 | Publish bilingual M4 capability guide with runnable commands and final reconciliation | — |
@@ -113,9 +111,9 @@ Activation audit, 2026-10-29 JST: 36 observable deliveries, baseline 103 pt. The
 
 | Baseline remaining | Net added/re-estimated | Retired on completion | Remaining |
 | ---: | ---: | ---: | ---: |
-| 103 pt | +19 pt | −108 pt | 14 pt |
+| 103 pt | +19 pt | −110 pt | 12 pt |
 
-**103 + 19 − 108 = 14 pt**
+**103 + 19 − 110 = 12 pt**
 
 Namespace prerequisite audit, 2026-10-29 JST: the existing `ModuleGraph::root()` is always `ModuleId(0)`. A path provider alone cannot give each dependency its own package-root namespace or safely reuse a shared dependency identity. Split the original A02 outcome into an authorized graph (new A02R, 3 pt) and namespace/source execution integration (A02, remaining 3 pt after reviewing its task list). Net addition: +3 pt; 37 deliveries total. A01 and A02R are two prerequisites, so A02 must supply the next source execution fixture before further horizontal scaffolding. No gate is completed or deferred by this audit.
 

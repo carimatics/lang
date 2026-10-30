@@ -1,4 +1,7 @@
 use super::*;
+
+#[path = "toolchain_developer_journey.rs"]
+mod developer_journey;
 use std::{
     io::{BufRead, BufReader, Read, Write},
     process::{Child, Stdio},
@@ -194,6 +197,7 @@ pub(super) fn journey(sdk: &Path, artifacts: &[u8]) {
     assert!(old.compiler.is_file());
     drop(installed);
     native_sdk_execution(&fixture, &old.compiler, &old.sdk);
+    developer_journey::run(&fixture.dir, &old.compiler, &old.sdk);
     let mut running = RunningCompiler::start(&root);
     let second_sdk = fixture.dir.join("second-sdk");
     copy_sdk(sdk, &second_sdk);

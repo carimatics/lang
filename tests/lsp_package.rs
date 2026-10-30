@@ -737,7 +737,7 @@ fn independent_stdio_client_applies_checked_package_edits_and_runs_the_saved_res
         .uri("src/main.lang")
         .replacen("file:///", "file://localhost/", 1);
     let helper = f.uri("helper/src/main.lang");
-    let mut client = Client::start();
+    let mut client = Client::start(std::path::Path::new(env!("CARGO_BIN_EXE_lang")));
     let init=client.call("initialize",json!({"rootUri":uri::file(&f.0).unwrap(),"capabilities":{"textDocument":{"publishDiagnostics":{"versionSupport":true,"relatedInformation":true},"codeAction":{"codeActionLiteralSupport":{"codeActionKind":{"valueSet":["quickfix","source"]}}}},"workspace":{"semanticTokens":{"refreshSupport":true},"workspaceEdit":{"documentChanges":true,"failureHandling":"textOnlyTransactional"}}}}));
     assert_eq!(
         init["result"]["capabilities"]["renameProvider"]["prepareProvider"],
