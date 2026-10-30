@@ -6,15 +6,15 @@
 
 Updated: 2026-10-30 JST. M4 is active. Goal start: clean main/origin/main `af9988f`, remote `git@github.com:carimatics/lang.git`. PRs #9–#24 are merged. Profiling PR #24 merged as `fa271b1`, preserving independent documentation PRs #20–#23 (`be9f77c` ancestor). Last verified local main/origin/main match `fa271b1`, 0/0 ahead/behind. The full M4 outcome and installer remain unfinished.
 
-**36 done · 1 doing · 6 todo · 18 remaining pt**
+**37 done · 1 doing · 5 todo · 15 remaining pt**
 
 Current checkout: `codex/m4-toolchain-installer`, created from clean profiling documentation head `84b17f6`; no preexisting user changes. Its recorded remote PR base is now `carimatics/lang:main` after predecessor [PR #24](https://github.com/carimatics/lang/pull/24) merged. F01–F05 form one coherent installer outcome. Upstream is `origin/codex/m4-toolchain-installer`, [draft PR #25](https://github.com/carimatics/lang/pull/25). Profiling final head `84b17f6` passes [full CI](https://github.com/carimatics/lang/actions/runs/40981001066) (18 success, intentional documentation-only skip) and [native debugger execution](https://github.com/carimatics/lang/actions/runs/40981000915) (3/3). Local main/origin/main match merge `fa271b1`, 0/0.
 
-F04 last executable checkpoint, 2026-10-30 13:09 JST: two real TLS tests and 16 focused tests including actual compiler/SDK install/update/select/run/uninstall/recovery pass. They verify no payload request before authentication, floor preservation after failed transfer, recovery after process interruption immediately following uninstall move/state commit, unknown-marker/symlink refusal and shared-generation retention. Root/fuzz fmt, warning-free full workspace/fuzz Clippy, checked opt-level 1 full workspace tests (**173 suites / 2,512 passed / 0 failed**) with assertions/overflow checks, and doc pass. Remaining F04 acceptance: both-host CI for the implementation commit. G9 remains open.
+F05 last executable checkpoint, verified 2026-10-30 14:33 JST: the release producer and integrated local journey pass all 17 focused checks, fmt, warning-free workspace/fuzz Clippy, doc and the complete resumed baseline (**174 suites / 2,513 passed / 0 failed**, one unchanged ignored timing test). The real CLI receives two signing keys through stdin, validates with the ordinary installer before publication and installs all three channels. Installed-SDK native execution, changed SDK packaging with the same compiler identity, update while the old compiler serves LSP, and historical-expiry/failed-new-update boundaries pass locally. The earlier baseline was explicitly interrupted on user pause; only the completed resumed run supplies full-baseline evidence. Remaining F05 acceptance: both-host CI, especially Windows live-executable removal/recovery. G9 remains open; 3 pt remains until that validation completes.
 
-F04 CI follow-up: the [Windows workspace job](https://github.com/carimatics/lang/actions/runs/41001376849/job/123886372813) for `52555ff` failed Clippy because the non-Unix fallback made unwrap_or_else a needless closure. Split Unix signal and non-Unix code fallbacks into cfg-specific expressions, without suppressing warnings or truncating status. The correction passes fmt/full workspace Clippy; focused tests and the full baseline are being rechecked. Prior-head local success does not substitute for corrected-head CI.
+F04 source `d2fb67b` passes fmt/full Clippy, 16 focused tests, the full local baseline (**173 suites / 2,512 passed / 0 failed**) and doc; root/fuzz fmt and fuzz Clippy passed for the implementation. The [Windows workspace failure](https://github.com/carimatics/lang/actions/runs/41001376849/job/123886372813) at `52555ff` was a cfg-specific needless closure, fixed by separate Unix/non-Unix status expressions without suppression or truncation. Corrected-head [full CI](https://github.com/carimatics/lang/actions/runs/41001783236) passes 18 jobs plus the intentional documentation-only skip; [native-debug CI](https://github.com/carimatics/lang/actions/runs/41001783129) passes 3/3. Retire F04’s 3 pt with zero additions.
 
-**Next: M4-F04 — channel operations and recovery (doing, 3 pt).** Retire F03’s last 3 pt with zero additions. Re-audit F04 as a bounded HTTPS reader, channel operations over existing receipts, marker-based uninstall/recovery and failure tests; retain 3 pt. F05 owns the distribution producer and both-host journeys. Across 43 deliveries: additions +17, retired 102, remaining 18 pt.
+**Next: M4-F05 — signed distribution producer and both-host journeys (doing, 3 pt).** Retire F04’s last 3 pt with zero additions. Re-audit F05 as one bounded bundle producer, ordinary-installer pre-publication validation and integrated SDK/expiry/channel/live-executable journeys; retain 3 pt. No second verifier or registry is added. Across 43 deliveries: additions +17, retired 105, remaining 15 pt.
 
 A04 source `cf6cf5c` passes fmt, full Clippy/doc and checked opt-level 1 full tests (**158 suites / 2,384 passed / 0 failed**), plus 75 focused tests. Final head `75a2041` passes [full CI](https://github.com/carimatics/lang/actions/runs/40810065213) (all 19 jobs: 18 success; intentional documentation-only skip) and [debugger execution](https://github.com/carimatics/lang/actions/runs/40810065278) (3/3). [PR #13](https://github.com/carimatics/lang/pull/13) merged as `58527c2`; main was fast-forwarded, clean and synchronized with 0/0 ahead/behind. Workspace branch creation and its current PR/upstream are recorded above. No preexisting user changes were present.
 
@@ -94,8 +94,8 @@ The [roadmap](roadmap.md#milestone-4-developer-toolchain) retains the original 6
 | M4-F01 | done | 0 | M4-A01 | G9 | Accept installer trust roots, signed metadata, channel/version selection and atomic recovery design | `3a58363` |
 | M4-F02 | done | 0 | M4-F01 | G9 | Verify signatures, expiry/rollback/target/digests before any install; tamper refusals | `eb4243d` |
 | M4-F03 | done | 0 | M4-F02 | G9 | Install verified tools in an isolated root; failed/interrupted installs preserve active version | `28bc8df` |
-| M4-F04 | doing | 3 | M4-F03 | G9 | Channel update/select/list/uninstall with atomic activation and recovery | — |
-| M4-F05 | todo | 3 | M4-F04 | G9 | Signed release/distribution fixture installs and updates on both hosts | — |
+| M4-F04 | done | 0 | M4-F03 | G9 | Channel update/select/list/uninstall with atomic activation and recovery | `d2fb67b` |
+| M4-F05 | doing | 3 | M4-F04 | G9 | Signed release/distribution fixture installs and updates on both hosts | — |
 | M4-Z01 | todo | 3 | M4-B01,M4-B04,M4-C07,M4-D05,M4-E04,M4-F05 | G1,G2,G3,G4,G5,G6,G7,G8,G9 | New-developer install/create/editor/test/debug/reproducible-binary journey on macOS | — |
 | M4-Z02 | todo | 3 | M4-Z01 | G1,G2,G3,G4,G5,G6,G7,G8,G9 | Same complete journey and full baseline on Windows; diagnose any divergence | — |
 | M4-Z03 | todo | 2 | M4-Z02 | G1,G2,G3,G4,G5,G6,G7,G8,G9 | Audit every roadmap exit requirement against latest code, both-host evidence and limitations | — |
@@ -108,9 +108,9 @@ Activation audit, 2026-10-29 JST: 36 observable deliveries, baseline 103 pt. The
 
 | Baseline remaining | Net added/re-estimated | Retired on completion | Remaining |
 | ---: | ---: | ---: | ---: |
-| 103 pt | +17 pt | −102 pt | 18 pt |
+| 103 pt | +17 pt | −105 pt | 15 pt |
 
-**103 + 17 − 102 = 18 pt**
+**103 + 17 − 105 = 15 pt**
 
 Namespace prerequisite audit, 2026-10-29 JST: the existing `ModuleGraph::root()` is always `ModuleId(0)`. A path provider alone cannot give each dependency its own package-root namespace or safely reuse a shared dependency identity. Split the original A02 outcome into an authorized graph (new A02R, 3 pt) and namespace/source execution integration (A02, remaining 3 pt after reviewing its task list). Net addition: +3 pt; 37 deliveries total. A01 and A02R are two prerequisites, so A02 must supply the next source execution fixture before further horizontal scaffolding. No gate is completed or deferred by this audit.
 

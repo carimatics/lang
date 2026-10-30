@@ -6,15 +6,15 @@
 
 更新: 2026-10-30 JST。M4はactive。Goal開始はclean main／origin/main `af9988f`、remote `git@github.com:carimatics/lang.git`。PR #9–#24はmerge済み。profiling PR #24は`fa271b1`としてmergeし、別文書PR #20–#23の祖先`be9f77c`も保持した。最後に確認したlocal main／origin/mainは`fa271b1`でahead／behind 0/0。M4全体とinstallerは未完了。
 
-**36 done · 1 doing · 6 todo · 18 remaining pt**
+**37 done · 1 doing · 5 todo · 15 remaining pt**
 
 現在のcheckoutは`codex/m4-toolchain-installer`。cleanなprofiling文書head `84b17f6`から作成し、既存user変更はない。先行[PR #24](https://github.com/carimatics/lang/pull/24)のmerge後、記録remote PR baseは`carimatics/lang:main`へ変更した。F01–F05を一貫したinstaller成果とする。upstreamは`origin/codex/m4-toolchain-installer`、[draft PR #25](https://github.com/carimatics/lang/pull/25)。profiling最終head `84b17f6`は[全体CI](https://github.com/carimatics/lang/actions/runs/40981001066)（18成功、文書専用jobの意図したskip）と[native debugger実行](https://github.com/carimatics/lang/actions/runs/40981000915)（3/3）に成功した。local main／origin/mainはmerge `fa271b1`で一致し、ahead／behindは0/0。
 
-F04の最終実行checkpoint、2026-10-30 13:09 JST: 実TLSの2 testと実compiler／SDKのinstall・update・select・run・uninstall・復旧を含む16重点testが成功。署名不正時のpayload未取得、転送失敗時のfloor保持、削除退避／state commit直後のprocess中断からの復旧、未知marker／symlink拒否、共有generation保持を確認した。root／fuzz fmt、警告なし全workspace／fuzz Clippy、assertion／overflow検査を有効にしたopt-level 1の全workspace test（**173 suite／2,512成功／0失敗**）、docが成功。残るF04受入条件は実装commitの両host CI。G9は未完了。
+F05の最終実行checkpoint、2026-10-30 14:33 JST確認: release producerと統合local journeyは重点検査17件、fmt、警告なしworkspace／fuzz Clippy、doc、再開した完全baseline（**174 suite／2,513成功／0失敗**、既存timing test 1件のignoredは不変）に成功した。実CLIはstdinから2署名鍵を受け取り、公開前に通常installerで検証し、全3 channelをinstallする。導入SDKのnative実行、同一compiler identityを保つSDK packaging変更、旧compilerのLSP実行中update、保存receiptの期限切れ／新update拒否の境界はlocalで成功した。前回baselineはuserの一時停止により明示的に中断しており、完了した再開runだけを全baselineの証拠とする。残るF05受入条件は両host CI、特にWindows実行中exeの削除／復旧である。G9は未完了で、この検証完了まで3 ptを残す。
 
-F04 CI追跡: `52555ff`の[Windows workspace job](https://github.com/carimatics/lang/actions/runs/41001376849/job/123886372813)は、非Unix fallbackが定数となる`unwrap_or_else`へのClippy警告で失敗した。Unix signalと非Unix codeのfallbackをcfg別の式へ分け、警告の抑制や終了codeの切詰めは行わない。修正版はfmt／全workspace Clippyに成功し、重点testと全baselineを再確認中。旧headのlocal成功を新headのCI成功とは扱わない。
+F04 source `d2fb67b`はfmt／全Clippy、重点16 test、完全local baseline（**173 suite／2,512成功／0失敗**）、docに成功し、実装のroot／fuzz fmtとfuzz Clippyも成功した。`52555ff`の[Windows workspace失敗](https://github.com/carimatics/lang/actions/runs/41001376849/job/123886372813)はcfg固有の不要closureで、Unix／非Unixのstatus式を分け、抑制や切詰めなしで修正した。修正版の[全体CI](https://github.com/carimatics/lang/actions/runs/41001783236)は18成功と意図した文書専用skip、[native-debug CI](https://github.com/carimatics/lang/actions/runs/41001783129)は3/3成功。F04の3 ptを消化し追加0。
 
-**次: M4-F04 — channel操作と復旧（doing、3 pt）。** F03の最終3 ptを消化し追加0。F04の残件を有限HTTPS reader、既存receiptによるchannel操作、marker付きuninstall／復旧と失敗testとして再監査し3 ptを維持する。F05は配布producerと両host journeyを担当する。43 delivery、追加+17、消化102、残り18 pt。
+**次: M4-F05 — 署名配布producerと両host journey（doing、3 pt）。** F04の最終3 ptを消化し追加0。F05残件を有限な一bundle producer、通常installerでの公開前検証、実SDK／期限／channel／実行中fileの統合journeyとして再監査し3 ptを維持する。新しい検証器やregistryを追加しない。43 delivery、追加+17、消化105、残り15 pt。
 
 A04 source `cf6cf5c` は fmt、全 Clippy／doc、checked opt-level 1 全 test（**158 suite／2,384 成功／0 失敗**）、重点 75 test に成功。最終 head `75a2041` は [全 CI](https://github.com/carimatics/lang/actions/runs/40810065213)（全 19 job、18 成功、意図した文書専用 skip）と [debugger 実行](https://github.com/carimatics/lang/actions/runs/40810065278)（3/3）に成功した。[PR #13](https://github.com/carimatics/lang/pull/13) は `58527c2` として merge、main を fast-forward して clean・同期済み、ahead／behind 0/0。workspace branch 作成と現在の PR／upstream は上記に記録した。既存の user 変更はなかった。
 
@@ -94,8 +94,8 @@ F03 source `28bc8df`は重点15 test、fmt、全体／fuzz Clippy、doc、完全
 | M4-F01 | done | 0 | M4-A01 | G9 | installer trust root、署名 metadata、channel／version 選択、atomic 復旧設計採択 | `3a58363` |
 | M4-F02 | done | 0 | M4-F01 | G9 | install 前に署名、期限／rollback／target／digest を検証、改ざん拒否 | `eb4243d` |
 | M4-F03 | done | 0 | M4-F02 | G9 | isolated root に検証済み tool を install、失敗／中断で active version 保持 | `28bc8df` |
-| M4-F04 | doing | 3 | M4-F03 | G9 | atomic activation／復旧付き channel update／select／list／uninstall | — |
-| M4-F05 | todo | 3 | M4-F04 | G9 | 両 host で署名 release／distribution fixture を install／update | — |
+| M4-F04 | done | 0 | M4-F03 | G9 | atomic activation／復旧付き channel update／select／list／uninstall | `d2fb67b` |
+| M4-F05 | doing | 3 | M4-F04 | G9 | 両 host で署名 release／distribution fixture を install／update | — |
 | M4-Z01 | todo | 3 | M4-B01,M4-B04,M4-C07,M4-D05,M4-E04,M4-F05 | G1,G2,G3,G4,G5,G6,G7,G8,G9 | macOS の新規開発者 install／create／editor／test／debug／再現可能 binary journey | — |
 | M4-Z02 | todo | 3 | M4-Z01 | G1,G2,G3,G4,G5,G6,G7,G8,G9 | Windows の同一 journey と全 baseline、差異の原因解決 | — |
 | M4-Z03 | todo | 2 | M4-Z02 | G1,G2,G3,G4,G5,G6,G7,G8,G9 | 全 roadmap 終了条件を最新 code／両 host 証拠／限界に照らして監査 | — |
@@ -108,9 +108,9 @@ F03 source `28bc8df`は重点15 test、fmt、全体／fuzz Clippy、doc、完全
 
 | Baseline remaining | Net added/re-estimated | Retired on completion | Remaining |
 | ---: | ---: | ---: | ---: |
-| 103 pt | +17 pt | −102 pt | 18 pt |
+| 103 pt | +17 pt | −105 pt | 15 pt |
 
-**103 + 17 − 102 = 18 pt**
+**103 + 17 − 105 = 15 pt**
 
 名前空間の前提監査、2026-10-29 JST: 既存 `ModuleGraph::root()` は常に `ModuleId(0)`。path provider だけでは依存ごとの package-root 名前空間や共有 dependency identity の安全な再利用を提供できない。元の A02 を、許可 graph（新規 A02R、3 pt）と名前空間／source 実行の統合（task list を見直した A02、残り 3 pt）へ分割する。純追加 +3 pt、全 37 delivery。A01 と A02R は前提二つとなるため、水平基盤を増やす前に A02 で次の source 実行 fixture を示す。この監査による gate 完了や延期はない。
 

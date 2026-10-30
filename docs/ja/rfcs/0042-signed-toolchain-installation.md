@@ -111,6 +111,18 @@ uninstallの唯一のtransaction markerは閉じた1 KiB以下の`transaction.js
 
 F04残件は上限付きtransport adapter一つ、既存認証receipt上の操作、marker復旧と失敗testであり、このtask監査後も3 ptを維持する。F05は配布生成と完全な両host journeyを担当する。TLS挙動は実験済みだが、統合転送順序、Windowsの実行中file削除、全復旧checkpointは必須検証として残し、完了とは扱わない。新host formatであり、既存source／ABI／SDK移行は発生しない。
 
+### Distribution producer
+
+F05詳細化、2026-10-30 JSTにRFC 0001の実験委任で採択。producerは信頼済みhost toolとし、既存の実SDK、独立に信頼したrootの正確なbytes、channel、canonical bundle version、sequence、issued／expires時刻、外部から渡す1–8個の署名鍵、新しい出力directoryを入力する。鍵生成、trust root探索、guest権限変更は行わない。libraryは鍵をmemoryで受け取る。repositoryの`toolchain-release` exampleは`--sdk`、`--output`、`--trust-root`、`--channel`、`--version`、`--sequence`、`--issued`、`--expires`を受け取る。唯一の署名入力はstdinからの4 KiB以下の閉じたschema-1 JSON `{schema: 1, signing_keys: [64-character lowercase hexadecimal Ed25519 seeds]}`とする。未知／重複field、不正size／count、重複／未認可鍵、threshold未達を拒否する。private key引数、環境変数からの探索、一時鍵file、diagnosticへの生署名入力の出力は許可しない。
+
+明示directory capabilityから元の上限付きSDK manifestを読む。完全file表と`sdk/sdk.json`、対応するroot compiler copyから一つのrelease／current-version catalogueを構成する。既存のtarget／build／SDKと署名file／path／count／byte／lifetime上限をすべて適用する。productionはbypassなしでhost clockを使う。外部指定の異なる認可鍵で正確なpayload bytesへ署名し、既存admission verifierでenvelopeを検証する。regular SDK入力をstream／hashしてcontent-addressed objectへ保存する。同digestはobjectを共有するが、bytesと長さの一致を引き続き要求する。公開内容は`channels/`と`objects/`だけとし、鍵やtrust rootを公開／暗黙importしない。
+
+既存の出力parentを要求し、同filesystemへ排他的なprivate sibling stageを確保する。既存destinationは拒否する。公開前に明示trust rootでstage内の一時checked-install rootを初期化し、stage配布物に対して通常installerを実行する。これによりcompiler buildを跨いでも認証済みadmission、正確なSDK／compiler検査、上限付きcandidate identity実行を共用する。全handleをdropし、checked-installを削除してから既存の上書きしないatomic renameで配布物を公開する。失敗やcleanup失敗は公開を中止し、既存destinationを保持する。process中断でprivate sibling stageが残る場合はあるが、adopt／公開された配布物にはならず、署名秘密情報も保存しない。追加検証copyのcostを明記し、stageは最大2 release copyと上限付きmetadataを保持する。性能上の優位は主張しない。
+
+成功は`schema`、`kind`、`root_sha256`、`repository`、`channel`、`target`、`sequence`、`version`、`generation`、`compiler_build_id`、`files`、`bytes`を持つ閉じたschema-1 `toolchain_distribution` recordとする。公開値は認証済みの公開bundleを表す。失敗時は成功recordを出力せず、repository exampleは署名入力をechoしないhuman diagnosticを出す。host tool／reportの追加であり、source、SDK、package、ABIの移行は不要。
+
+installerによるself-checkは有限のI/Oを追加するが、SDK／identity検証器の重複を避ける。元SDK parserの実験ではcompact／pretty manifestのbytesとhashが異なり、identityと117 file recordが同じことを確認した。これはpackaging実現性でありinstalled実行の証明ではない。実験は独立したoffline dependency lockを使い、workspace baselineとは扱わない。F05は実際の生成配布物でinstall／update／select／run、SDK native link、過去admissionの期限、全3 channel／共有generation、Windows実行中fileの削除を検証し、既存の改ざん／rollback／中断／TLS検査を保持する。この有限producerと統合journeyのscopeを監査してF05の3 ptを維持する。受入条件と両host CIは未完了であり、この詳細化でG9を閉じたり公式署名identityを確立したりしない。
+
 ## Execution modes
 
 信頼済みhost CLIの変更である。installed VM／native実行は既存の上限、grant、source意味を維持する。package install hook、guest network capability、JIT／component／embedding実行変更はない。native SDKは既存の厳密compiler／rustc／profile検査の下でだけ利用できる。

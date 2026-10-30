@@ -88,7 +88,7 @@ impl Drop for Stage {
         }
     }
 }
-fn hash_file(
+pub(super) fn hash_file(
     input: impl Read,
     file: &File,
     mut output: Option<&mut fs::File>,

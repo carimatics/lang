@@ -5,6 +5,7 @@ use std::{
     path::{Path, PathBuf},
     time::{SystemTime, UNIX_EPOCH},
 };
+pub mod distribution;
 mod operations;
 mod payload;
 mod recovery;

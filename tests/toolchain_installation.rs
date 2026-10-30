@@ -1,6 +1,8 @@
 use ed25519_dalek::{Signer, SigningKey};
 use lang::toolchain::{self as t, installation::Installation};
 use serde_json::{Value, json};
+#[path = "support/toolchain_distribution.rs"]
+mod distribution_tests;
 use std::{
     fs,
     path::PathBuf,
@@ -223,6 +225,8 @@ fn real_signed_install_preserves_active_execution_across_failed_and_interrupted_
                 "lang",
                 "--example",
                 "native-sdk",
+                "--example",
+                "toolchain-release",
                 "--message-format=json",
             ])
             .output()
@@ -377,6 +381,7 @@ fn real_signed_install_preserves_active_execution_across_failed_and_interrupted_
     fs::write(&installed_sdk, original_sdk).unwrap();
     success(install_cli(&root, &source));
     channel_journey(&fixture, &sdk, &source, &manifest);
+    distribution_tests::journey(&sdk, &built.stdout);
 }
 fn state_cli(root: &Path, operation: &str, args: &[&str]) -> Output {
     Command::new(env!("CARGO_BIN_EXE_lang"))

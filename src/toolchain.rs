@@ -3,6 +3,7 @@
 pub mod command;
 pub mod installation;
 use ed25519_dalek::{Signature, VerifyingKey};
+pub use installation::distribution;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::collections::{BTreeMap, BTreeSet};
