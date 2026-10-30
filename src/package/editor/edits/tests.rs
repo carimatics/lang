@@ -39,7 +39,7 @@ impl Files {
         let snapshot = Snapshot::capture_test(&graph, 0, 7, &[], limits).unwrap();
         View {
             authority: graph.authority_root().to_path_buf(),
-            graph,
+            graph: Arc::new(graph),
             snapshot,
             overlays: Vec::new(),
             limits,

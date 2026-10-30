@@ -19,6 +19,14 @@ pub(crate) struct Plan {
     pub files: BTreeMap<PathBuf, Vec<ByteSpan>>,
     offsets: BTreeMap<PathBuf, Vec<(usize, usize)>>,
 }
+pub(crate) fn verify(
+    view: &View,
+    next: &Snapshot,
+    plan: &Plan,
+    work: &mut usize,
+) -> Result<(), Diagnostic> {
+    proof::verify(view, next, plan, work)
+}
 pub(crate) fn format_document(
     view: &View,
     path: &Path,

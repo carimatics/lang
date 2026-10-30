@@ -265,6 +265,13 @@ impl Snapshot {
     pub fn display_path<'a>(&'a self, path: &'a Path) -> &'a Path {
         self.aliases.get(path).map(PathBuf::as_path).unwrap_or(path)
     }
+    pub(super) fn canonical_path<'a>(&'a self, display: &'a Path) -> &'a Path {
+        self.aliases
+            .iter()
+            .find(|(_, value)| value.as_path() == display)
+            .map(|(path, _)| path.as_path())
+            .unwrap_or(display)
+    }
     pub fn matches(&self, epoch: u64, versions: &BTreeMap<PathBuf, i32>) -> bool {
         self.epoch == epoch && &self.versions == versions
     }

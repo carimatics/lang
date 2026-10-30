@@ -5,6 +5,7 @@ pub mod command;
 pub mod compatibility;
 pub mod doc;
 pub mod editor;
+pub mod fix;
 pub mod format;
 pub mod graph;
 pub mod lint;

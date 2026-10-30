@@ -10,7 +10,7 @@
 
 **次: M5-B02 — entry・宣言testの検証付きsource fixをpreviewする。**
 
-B02実行checkpoint（2026-10-30 JST確認）: `Snapshot::capture_test`がrename・format再captureでも宣言testのidentityを保持する。実test専用renameはinitializerと代入を保持し、前後とも42を返す。package entryは99のままでdisk bytesも変更しない。衝突・未宣言test index・不正test overlayをentry解析へ逃がさず拒否する。新規実行・拒否test 2件とeditor・source・repositoryの27件、警告をerrorとするworkspace全target・全featureのClippyが成功。残る受入条件は選択packageのfix収集、総量proof/work課金、元spanへの合成、全root再検査、preview fixture完成、全baseline、最新head CI。この残作業を監査し、B02は3 ptのdoingを維持する。checkpointでdelivery完了とはしない。
+B02実行checkpoint（2026-10-31 JST確認）: library previewは複数renameの元byte spanを合成し、entryと全宣言test（test専用moduleを含む）を扱い、各edit後に全影響rootを証明する。preview fixture 5件が成功: 移行前後VM実行、CRLF・UTF-8 span、依存・未選択workspaceの入力不変、衝突・不正test拒否、総量上限・report境界、再実行no-op、未読initializerのfuel枯渇保持。LSP 40/40、source 15/15、repository consistency 7/7も成功。sourceを固定した全baselineは`/private/tmp/lang-m5-fixes-target/m5-validation/`へlog・実終了codeを保持して実行中で、fmtと厳密workspace Clippyは成功。残る受入条件は全workspace・docの最終結果、code evidence、最新head CI。このpreview sliceに追加前提は露出しておらず、検証完了まで監査済み3 ptでB02をdoingとする。検証付き公開と移行はB03・B05・B04に残る。
 
 B01 checkpoint（2026-10-30 JST）: [RFC 0044](rfcs/0044-checked-source-migration.md)でpreview既定のfix、検証付き公開、明示的な旧scalar profileを採択。保持した旧`shared`・`weak` sourceは42を返し、手動alpha-rename後も現VMで42を返してnative出力を生成する。移行commandとnative実行journeyは未実装。B01検証は日英整合性7/7成功、`1ab1201`としてcommit済み。作業branch `codex/m5-checked-source-fixes`は`main`（`3b676c5`）から作成し、PR baseを`git@github.com:carimatics/lang.git`の`main`として記録。その後PR #29の前提commit `8a43f76`へfast-forwardした。checkoutは`/private/tmp/lang-m5-fixes`。元worktreeはcleanを保ち、同PRのCIを待つ。
 

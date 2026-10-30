@@ -7,7 +7,7 @@
 - Status: accepted
 - Authors: project contributors
 - Created: 2026-10-30
-- Last updated: 2026-10-30
+- Last updated: 2026-10-31
 - Tracking issue: M5-B01–B05 in the M5 delivery board
 - Supersedes: none
 - Superseded by: none
@@ -51,7 +51,7 @@ Capture the selected package entry and every declared test entry, respecting its
 
 ### Historical scalar admission
 
-`rfc0006-scalar` is a migration-only subset of the source at the pinned historical commit, not an additional supported compilation edition. Admit one UTF-8 file with private scalar functions, `i64`/`bool` parameters/results/locals, mutable local declarations and assignment, `if`/`else`, `while`, `return`, scalar literals, parentheses, names, calls, addition and less-than. Require `main() -> i64`. Preserve RFC 0006's declaration-before-use, function-wide local-name uniqueness, typing, checked addition, left-to-right evaluation and control-flow rules. Use the historical operator/keyword set: accepting newer constructs merely because the current parser accepts them is forbidden.
+`rfc0006-scalar` is a migration-only subset of the source at the pinned historical commit, not an additional supported compilation edition. Admit one UTF-8 file with private scalar functions, `i64`/`bool` parameters/results/locals, mutable local declarations and assignment, `if`/`else`, `while`, `return`, scalar literals, parentheses, names, calls, addition and less-than. Require `main() -> i64`. Preserve RFC 0006's declaration-before-use, function-wide local-name uniqueness, typing, RFC 0002's wrapping addition, left-to-right evaluation and control-flow rules. Use the historical operator/keyword set: accepting newer constructs merely because the current parser accepts them is forbidden.
 
 Reject modules/imports/qualified paths, public/foreign declarations, aggregates, patterns, ownership/borrowing, tasks, host capabilities and every construct outside that subset, with no writes. In particular, `break`, `continue`, strings and subtraction are not introduced into this old grammar. Their spellings may be ordinary identifiers where the historical grammar permits them. Old identifier syntax is ASCII and excludes lone `_`; comments and CRLF retain their exact bytes. Apply historical UTF-8, NUL, token and nested-comment validation before rewriting.
 
@@ -82,6 +82,8 @@ Ordinary parser recovery and existing LSP behavior stay unchanged. Editor quickf
 ## Performance and cost model
 
 Bound aggregate source bytes, roots, tokens, AST/proof work, candidates, replacements and report bytes over the whole operation. Reanalysis must charge one shared work budget rather than resetting it for each rename. Reuse frozen snapshots where proven safe. Preview allocates original/replacement bytes and proof data; apply additionally stages complete replacements. No runtime overhead is added. Implementation must publish concrete defaults and exact-limit tests; there is no unmeasured latency or memory claim.
+
+B02 preview defaults (2026-10-31): 64 roots, 256 fixes, 65,536 token edits, 256 MiB cumulative analyzed source bytes, 1,000,000,000 aggregate work units, 64 MiB cumulative replacement bytes and a 16 MiB encoded report. Existing editor/compiler limits remain independently enforced. Each index or proof pass reserves its complete editor work allowance before running; a checked rename reserves both its index and edit/proof passes. Source-byte charging includes each analysis and the underscore growth of the prospective rename. These conservative reservations can reject a request before all individual maxima are reached. Report encoding is measured through a bounded counting writer, without first allocating an oversized JSON buffer. These are admission limits, not measurements of CPU time or peak resident memory.
 
 ## Security and trust boundaries
 
@@ -116,6 +118,8 @@ For migration, retain historical source/artifact hashes; cover each newly reserv
 Accepted under RFC 0001's experimental delegation on 2026-10-30 JST. Rationale: explicit historical admission, a globally fresh name mapping, resolved-structure comparison and reuse of existing checked rename/publication boundaries make the narrow recipes reviewable without changing normal compilation. The retained historical producer establishes a real transition. The bounded reader and proof remain unimplemented and unmeasured; acceptance is not G2 completion. Concrete aggregate budget defaults and diagnostic allocations are implementation decisions with exact-limit tests, not authorization to broaden the grammar. Additional historical profiles and future editions need separate reviewed recipes. No blocking design question remains for the selected slices.
 
 ## Sources
+
+- [RFC 0002](0002-prototype-control-flow.md), updated 2026-10-27: two's-complement wrapping addition. Correction on 2026-10-31: the original draft incorrectly called addition checked; an executable overflow probe and the canonical arithmetic contract disproved that wording. This corrects the migration specification without changing compiler semantics or compatibility.
 
 - [RFC 0006](0006-source-frontend-and-portable-programs.md), current update 2026-10-30; historical revision at the pinned commit updated 2026-10-17: source lexical, scalar and module rules.
 - [RFC 0007](0007-source-ownership-and-core-values.md), updated 2026-10-21: reserved ownership names and migration diagnostics.

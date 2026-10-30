@@ -7,7 +7,7 @@
 - Status: accepted
 - Authors: project contributors
 - Created: 2026-10-30
-- Last updated: 2026-10-30
+- Last updated: 2026-10-31
 - Tracking issue: M5 delivery boardのM5-B01–B05
 - Supersedes: none
 - Superseded by: none
@@ -51,7 +51,7 @@ lang migrate --from-profile rfc0006-scalar --to-edition 2026 --source-root DIR [
 
 ### 旧scalar profileの受入
 
-`rfc0006-scalar`は固定した旧commitのsourceのうち移行専用subsetであり、通常compileの対応editionではない。単一UTF-8 file内のprivate scalar関数、`i64`・`bool`のparameter・result・local、可変local宣言と代入、`if`・`else`・`while`・`return`、scalar literal・括弧・名前・call・加算・小なり比較を受け入れる。`main() -> i64`を必須とする。RFC 0006の使用前宣言、関数全体のlocal名一意性、型、検査付き加算、左から右の評価、制御flow規則を維持する。旧operator・keyword集合を使い、現parserが受け入れるだけの新構文を通してはならない。
+`rfc0006-scalar`は固定した旧commitのsourceのうち移行専用subsetであり、通常compileの対応editionではない。単一UTF-8 file内のprivate scalar関数、`i64`・`bool`のparameter・result・local、可変local宣言と代入、`if`・`else`・`while`・`return`、scalar literal・括弧・名前・call・加算・小なり比較を受け入れる。`main() -> i64`を必須とする。RFC 0006の使用前宣言、関数全体のlocal名一意性、型、RFC 0002のwrapping加算、左から右の評価、制御flow規則を維持する。旧operator・keyword集合を使い、現parserが受け入れるだけの新構文を通してはならない。
 
 module・import・qualified path、公開・foreign宣言、aggregate・pattern・ownership・borrow・task・host capability、およびsubset外の構文を無書込みで拒否する。特に`break`・`continue`・文字列・減算を旧grammarへ導入しない。ただし旧grammarが許す位置ではその綴りを通常識別子として扱える。旧識別子はASCIIで、単独`_`を除く。commentとCRLFのbyteを保持する。rewrite前に旧UTF-8・NUL・token・入れ子comment検証を行う。
 
@@ -82,6 +82,8 @@ schema-1 JSON reportにoperation、profile・edition、対象root・file、順�
 ## Performance and cost model
 
 operation全体のsource bytes・root・token・AST/証明work・candidate・replacement・report bytesに総量上限を設ける。renameごとに上限をリセットせず、再解析も共通work budgetへ課金する。安全性を証明できるfreeze snapshotは再利用する。previewは元bytes・replacement・証明dataを確保し、applyは完全replacementを追加stagingする。runtime overheadは増やさない。実装は具体的な既定上限と境界testを公開する。未測定のlatency・memory性能を主張しない。
+
+B02 previewの既定値（2026-10-31）: root 64件、fix 256件、token edit 65,536件、累積解析source 256 MiB、総量work 1,000,000,000単位、累積replacement 64 MiB、符号化report 16 MiB。既存editor・compiler上限も独立に守る。各index・proof passは実行前にeditor work許容量全体を予約し、検証付きrenameはindexとedit/proofの両passを予約する。source bytesには毎回の解析と適用予定renameのunderscore増分を課金する。保守的な予約のため、個別上限をすべて使う前に拒否する場合がある。reportは上限付きcounting writerで符号化量を測り、巨大JSON bufferを先に確保しない。これは入力受入上限であり、CPU時間や最大常駐memoryの測定値ではない。
 
 ## Security and trust boundaries
 
@@ -116,6 +118,8 @@ frontend/editor証明adapter、package/format公開、CLI・test・文書を変�
 2026-10-30 JST、RFC 0001の実験段階委任に基づき採択。根拠: 明示的な旧入力受入、全体でfreshな名前対応、解決済み構造の比較、既存の検証付きrename・公開境界の再利用により、通常compileを変えずに限定recipeをレビューできる。保持した旧producerで実在する遷移を確認した。上限付きreaderと証明は未実装・未測定であり、採択はG2完了ではない。具体的な総量上限とdiagnostic割当は境界testを伴う実装判断であり、grammarを広げる許可ではない。追加旧profileと将来editionには別のrecipeレビューが必要。選択sliceの設計を妨げる未決事項はない。
 
 ## Sources
+
+- [RFC 0002](0002-prototype-control-flow.md)、更新2026-10-27: 2の補数のwrapping加算。2026-10-31訂正: 当初案は加算を検査付きと誤記していたが、実行overflow probeと正本の算術契約で誤りを確認した。compiler意味・互換性は変えず、移行仕様の記述を訂正する。
 
 - [RFC 0006](0006-source-frontend-and-portable-programs.md)、現更新2026-10-30、固定commitの旧版更新2026-10-17: source字句・scalar・module規則。
 - [RFC 0007](0007-source-ownership-and-core-values.md)、更新2026-10-21: ownership予約名と移行diagnostic。
