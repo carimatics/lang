@@ -7,7 +7,7 @@
 - Status: implemented
 - Authors: Codex under the owner's experimental delegation
 - Created: 2026-10-29
-- Last updated: 2026-10-29
+- Last updated: 2026-10-31
 - Tracking issue: M4-B02
 - Supersedes: None; extends RFCs 0034/0035
 - Superseded by: None
@@ -50,6 +50,8 @@ Common selection, bounds and diagnostic rules remain RFC 0034's. `--check` is fm
 Capture the original package graph, manifests and complete source inventory once. Reuse the existing CST parser, comment/token owners and work/output limits; do not require type-correct source merely to format it. Prepare every file before edits, and refuse syntax errors rather than treating preserved-invalid formatter output as success. Bound aggregate formatted bytes to 64 MiB. Unselected workspace source files and manifests are not formatted.
 
 The plan owns immutable original source/metadata bytes and physical input identities. Directory bindings must be canonical, using the same directory-alias restrictions as archive profile 1. Final source-file links are refused too; manifest links may be read but are never replaced. No manifest, lock, generated artifact or guest resource is edited.
+
+2026-10-31 clarification: final source-file link refusal includes a hardlink outside the admitted inventory. Check the opened regular file's link count is exactly one during both live validation passes; checking only duplicate captured identities misses such aliases. RFC 0044's checked fixes share this guard. This enforces the existing no-alias contract and intentionally refuses previously missed linked inputs before writes; unlink the extra alias or copy the source to an independent file before retrying.
 
 Apply requires an explicit separately retained authority-root directory capability. Open and retain each canonical input parent directory; validate regular files, identity and original bytes for every source and admitted manifest before staging. Missing/replaced/changed input is `PKG0007`; aliases and unsupported file types are `PKG0003`. Check mode performs this live validation without staging or publication.
 

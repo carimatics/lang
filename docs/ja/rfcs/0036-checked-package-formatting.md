@@ -7,7 +7,7 @@
 - Status: implemented
 - Authors: Codex under the owner's experimental delegation
 - Created: 2026-10-29
-- Last updated: 2026-10-29
+- Last updated: 2026-10-31
 - Tracking issue: M4-B02
 - Supersedes: None; extends RFCs 0034/0035
 - Superseded by: None
@@ -50,6 +50,8 @@ lang fmt --manifest-path Lang.json --package app
 元 package graph、manifest、完全 source inventory を一度取得する。既存 CST parser、comment／token owner、work／output 上限を再利用し、整形だけのために型の正しさは要求しない。全 file を準備してから edit し、preserved-invalid 出力を成功と扱わず構文 error を拒否する。整形後 byte 合計は 64 MiB に制限する。未選択 workspace source と manifest は整形しない。
 
 plan は元 source／metadata byte と物理 input identity を不変で所有する。directory binding は archive profile 1 と同じ canonical 条件を要求する。最終 source-file link も拒否し、manifest link は読めるが置換しない。manifest、lock、生成 artifact、guest resource は編集しない。
+
+2026-10-31明確化: 最終source-file link拒否には受入inventory外のhardlinkも含む。取得identityの重複検査だけではこのaliasを見逃すため、両live検証でopenした通常fileのlink数が厳密に1であることを確認する。RFC 0044の検証付きfixも同じguardを使う。既存のalias禁止契約を実施し、従来見逃していたlink入力を書込み前に拒否する。再試行するには余分なaliasをunlinkするかsourceを独立fileへcopyする。
 
 apply は別途保持した権限 root の directory capability を明示的に要求する。各 canonical input parent を open／保持し、staging 前に全 source／受入 manifest の通常 file、identity、原 byte を検証する。欠落／置換／変更は `PKG0007`、alias／未対応 file type は `PKG0003`。check は staging／公開なしで同じ live 検証を行う。
 

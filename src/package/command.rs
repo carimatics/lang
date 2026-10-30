@@ -3,7 +3,7 @@ use super::{Diagnostic, manifest};
 use std::io::{self, Write};
 use std::{collections::BTreeSet, ffi::OsString, path::PathBuf};
 
-pub const USAGE: &str = "usage: lang new [--name NAME] [--message-format human|json] DIR\n       lang build [--manifest-path FILE] [--package NAME] [--target TRIPLE] [--native --sdk DIR] [--locked] [--offline] [--message-format human|json]\n       lang run [--manifest-path FILE] [--package NAME] [--target TRIPLE] [--locked] [--offline] [--message-format human|json] [--fuel N] [--service-work N] [--host-calls N] [--frames N] [--cells N]\n       lang test [--manifest-path FILE] [--package NAME] [--target TRIPLE] [--locked] [--offline] [--message-format human|json] [--fuel N] [--service-work N] [--host-calls N] [--frames N] [--cells N]\n       lang package [--list] [--manifest-path FILE] [--package NAME] [--target TRIPLE] [--locked] [--offline] [--message-format human|json]\n       lang fmt [--check] [--manifest-path FILE] [--package NAME] [--target TRIPLE] [--locked] [--offline] [--message-format human|json]\n       lang lint [--deny-warnings] [--manifest-path FILE] [--package NAME] [--target TRIPLE] [--locked] [--offline] [--message-format human|json]\n       lang doc [--manifest-path FILE] [--package NAME] [--target TRIPLE] [--locked] [--offline] [--message-format human|json]\n";
+pub const USAGE: &str = "usage: lang new [--name NAME] [--message-format human|json] DIR\n       lang build [--manifest-path FILE] [--package NAME] [--target TRIPLE] [--native --sdk DIR] [--locked] [--offline] [--message-format human|json]\n       lang run [--manifest-path FILE] [--package NAME] [--target TRIPLE] [--locked] [--offline] [--message-format human|json] [--fuel N] [--service-work N] [--host-calls N] [--frames N] [--cells N]\n       lang test [--manifest-path FILE] [--package NAME] [--target TRIPLE] [--locked] [--offline] [--message-format human|json] [--fuel N] [--service-work N] [--host-calls N] [--frames N] [--cells N]\n       lang package [--list] [--manifest-path FILE] [--package NAME] [--target TRIPLE] [--locked] [--offline] [--message-format human|json]\n       lang fmt [--check] [--manifest-path FILE] [--package NAME] [--target TRIPLE] [--locked] [--offline] [--message-format human|json]\n       lang fix [--apply] [--manifest-path FILE] [--package NAME] [--target TRIPLE] [--locked] [--offline] [--message-format human|json]\n       lang lint [--deny-warnings] [--manifest-path FILE] [--package NAME] [--target TRIPLE] [--locked] [--offline] [--message-format human|json]\n       lang doc [--manifest-path FILE] [--package NAME] [--target TRIPLE] [--locked] [--offline] [--message-format human|json]\n";
 
 #[derive(Clone, Copy, Default)]
 pub struct ExecutionOptions {
@@ -27,6 +27,7 @@ pub enum Action {
     Test,
     Archive,
     Format,
+    Fix,
     Lint,
     Doc,
 }
@@ -46,6 +47,7 @@ pub struct Request {
     pub native_sdk: Option<PathBuf>,
     pub list: bool,
     pub check: bool,
+    pub apply: bool,
     pub deny_warnings: bool,
     pub target: String,
     pub locked: bool,
@@ -79,6 +81,7 @@ pub fn selected(args: &[OsString]) -> bool {
         || first == "build"
         || first == "test"
         || first == "fmt"
+        || first == "fix"
         || first == "lint"
         || first == "doc"
     {
@@ -138,6 +141,8 @@ pub fn parse(args: &[OsString]) -> Result<Command, Diagnostic> {
         Action::Archive
     } else if first == "fmt" {
         Action::Format
+    } else if first == "fix" {
+        Action::Fix
     } else if first == "lint" {
         Action::Lint
     } else if first == "doc" {
@@ -146,7 +151,7 @@ pub fn parse(args: &[OsString]) -> Result<Command, Diagnostic> {
         Action::Build
     } else {
         return Err(usage(
-            "expected new, build, run, test, package, fmt, lint or doc",
+            "expected new, build, run, test, package, fmt, fix, lint or doc",
         ));
     };
     let (mut directory, mut name) = (None, None);
@@ -158,6 +163,7 @@ pub fn parse(args: &[OsString]) -> Result<Command, Diagnostic> {
         native_sdk: None,
         list: false,
         check: false,
+        apply: false,
         deny_warnings: false,
         target: lang_codegen_clif::Triple::host().to_string(),
         locked: false,
@@ -192,6 +198,10 @@ pub fn parse(args: &[OsString]) -> Result<Command, Diagnostic> {
         }
         if !new && action == Action::Format && flag == "--check" {
             request.check = true;
+            continue;
+        }
+        if !new && action == Action::Fix && flag == "--apply" {
+            request.apply = true;
             continue;
         }
         if !new && action == Action::Lint && flag == "--deny-warnings" {
@@ -405,6 +415,42 @@ fn artifact(stdout: &mut impl Write, format: Format, path: &str) -> io::Result<(
     }
 }
 
+fn fix_report(
+    stdout: &mut impl Write,
+    format: Format,
+    report: &super::fix::Preview,
+) -> io::Result<()> {
+    if format == Format::Json {
+        serde_json::to_writer(&mut *stdout, report)?;
+        return writeln!(stdout);
+    }
+    writeln!(
+        stdout,
+        "fix {}: {} files changed, {} applied (checked; edition 2026)",
+        report.outcome(),
+        report.changes().len(),
+        report.applied()
+    )?;
+    for root in report.roots() {
+        writeln!(stdout, "root {}", escaped(&root.to_string_lossy()))?;
+    }
+    for file in report.files() {
+        writeln!(stdout, "checked {}", escaped(&file.to_string_lossy()))?;
+    }
+    for edit in report.edits() {
+        writeln!(
+            stdout,
+            "{}:{}..{} {} -> {}",
+            escaped(&edit.path.to_string_lossy()),
+            edit.span.start,
+            edit.span.end,
+            edit.diagnostic,
+            escaped(&edit.replacement)
+        )?;
+    }
+    Ok(())
+}
+
 fn checked(
     analysis: crate::frontend::Analysis,
     format: Format,
@@ -590,6 +636,28 @@ pub fn run(
         Ok(p) => p,
         Err(d) => return fail(stderr, format, d),
     };
+    if request.action == Action::Fix {
+        let plan = match super::fix::Plan::capture(
+            std::sync::Arc::new(prepared.graph),
+            Default::default(),
+        ) {
+            Ok(plan) => plan,
+            Err(d) => return fail(stderr, format, d),
+        };
+        if request.apply {
+            let report = match plan.apply(prepared.output.directory()) {
+                Ok(report) => report,
+                Err(d) => return fail(stderr, format, d),
+            };
+            fix_report(stdout, format, &report)?;
+        } else {
+            if let Err(d) = plan.validate(prepared.output.directory()) {
+                return fail(stderr, format, d);
+            }
+            fix_report(stdout, format, plan.preview())?;
+        }
+        return Ok(0);
+    }
     if request.action == Action::Format {
         let plan = match super::format::Plan::capture(&prepared.graph) {
             Ok(plan) => plan,

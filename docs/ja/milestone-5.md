@@ -6,11 +6,13 @@
 
 2026-10-30 JST、`3b676c5`から開始。[ロードマップ](roadmap.md#milestone-5ecosystemとcompatibility)のM5全範囲（P1の2ゲートを含む）を追跡する。M4のinstallerとlocal packageは前提条件であり、registry完了を意味しない。
 
-**3 done · 1 doing · 36 todo · 108 remaining pt**
+**4 done · 1 doing · 35 todo · 105 remaining pt**
 
-**次: M5-B02 — entry・宣言testの検証付きsource fixをpreviewする。**
+**次: M5-B03 — CLIから検証付きsource fixを公開する。**
 
-B02実行checkpoint（2026-10-31 JST確認）: 実装`2a3aca1`は複数renameの元byte spanを合成し、entryと全宣言test（test専用moduleを含む）を扱い、各edit後に全影響rootを証明する。preview fixture 5件で移行前後VM実行、CRLF・UTF-8 span、依存・未選択workspaceの入力不変、衝突・不正test拒否、総量上限・report境界、再実行no-op、未読initializerのfuel枯渇保持を検証。source固定の全baselineは完了し、178 suiteの2,529 test、fmt、厳密workspace Clippy、rustdocがすべてexit 0。log・実終了codeは`/private/tmp/lang-m5-fixes-target/m5-validation/`に保持した。Windows CIがPOSIX専用の期待pathリテラルを検出したため、既存診断契約に従い、root identity・順序の厳密比較を維持してnative pathで期待値を構築するよう修正。testのみの修正後、preview 5/5、repository consistency 7/7、fmt、厳密workspace Clippyが成功。残る受入条件はWindowsを含む最新head CI。追加前提は露出しておらず、検証完了まで監査済み3 ptでB02をdoingとする。検証付き公開と移行はB03・B05・B04に残る。
+B03実行checkpoint（2026-10-31 JST確認）: `lang fix`はpreviewが既定で、`--apply`はformatterの固定入力検証・全件staging・file単位置換を再利用し、非公開の検証済みplanを再計算する。fix 11/11、formatter 7/7、repository consistency 7/7、後半置換失敗unit fixture、厳密workspace Clippyが成功。entry・testの適用前後VM実行、古いsource・依存・manifestと異なるauthority拒否、readonly・alias拒否、staging失敗cleanup、正確な適用済みprefix、再実行no-op、CLI診断、適用成功reportのsize境界を検証。取得inventory外のhardlinkが既存alias禁止要件の漏れを露出したため、両live検証でopen済みfileのlink数を確認し、RFC 0036を日英で明確化した。監査済みB03の3 pt内で、追加前提なし。残る受入条件はsource固定の全baseline、code evidence、最新head CI・PR公開。B04は旧source移行統合を維持する。
+
+B02 local完了（2026-10-31 JST確認）: 実装`2a3aca1`は元spanを合成し、各rename後にentryと全宣言testを証明する。source固定全baselineの178 suite・2,529 test、fmt、厳密Clippy、rustdocが成功し、実終了codeを`/private/tmp/lang-m5-fixes-target/m5-validation/`に保持した。修正`5e2b593`はPOSIX専用test期待値を厳密native pathへ置換し、対象preview・整合性・fmt・Clippyが成功。公開には最新head CIが必要で、検証付き適用と旧source移行は別のB03・B05・B04成果とする。
 
 B01 checkpoint（2026-10-30 JST）: [RFC 0044](rfcs/0044-checked-source-migration.md)でpreview既定のfix、検証付き公開、明示的な旧scalar profileを採択。保持した旧`shared`・`weak` sourceは42を返し、手動alpha-rename後も現VMで42を返してnative出力を生成する。移行commandとnative実行journeyは未実装。B01検証は日英整合性7/7成功、`1ab1201`としてcommit済み。作業branch `codex/m5-checked-source-fixes`は`main`（`3b676c5`）から作成し、PR baseを`git@github.com:carimatics/lang.git`の`main`として記録。その後PR #29の前提commit `8a43f76`へfast-forwardした。checkoutは`/private/tmp/lang-m5-fixes`。元worktreeはcleanを保ち、同PRのCIを待つ。
 
@@ -40,8 +42,8 @@ A02公開checkpoint（2026-10-31 JST確認）: 最新head `8a43f76`のCI `410723
 | M5-A01 | done | 0 | — | G1 | edition・非推奨方針と領域別互換性表を採択 | `b654ae7` |
 | M5-A02 | done | 0 | M5-A01 | G1 | CLIで互換性を表示し未知editionと旧consumer境界を検証 | `a473cc0` |
 | M5-B01 | done | 0 | M5-A01 | G2 | 移行レシピ・適用可能性・書込みトランザクション契約を採択 | `1ab1201` |
-| M5-B02 | doing | 3 | M5-B01 | G2 | 元spanを保持した実ソース修正previewと意味再検査 | — |
-| M5-B03 | todo | 3 | M5-B02 | G2 | 修正適用とstale・競合・部分書込み拒否fixture | — |
+| M5-B02 | done | 0 | M5-B01 | G2 | 元spanを保持した実ソース修正previewと意味再検査 | `2a3aca1` |
+| M5-B03 | doing | 3 | M5-B02 | G2 | CLI修正適用とstale・競合・部分書込み拒否fixture | — |
 | M5-B05 | todo | 3 | M5-B01 | G2 | 旧scalar構文を受入れfresh renameを証明し実在する旧sourceをpreview | — |
 | M5-B04 | todo | 3 | M5-B03,M5-B05 | G2 | edition移行CLIと両hostの移行前後実行journey | — |
 | M5-C01 | todo | 3 | M5-A01 | G3 | identity・namespace・authority・濫用・攻撃者の脅威モデル | — |
@@ -80,13 +82,15 @@ A02公開checkpoint（2026-10-31 JST確認）: 最新head `8a43f76`のCI `410723
 
 ## 見積り照合
 
-**112 + 3 − 7 = 108 pt**
+**112 + 3 − 10 = 105 pt**
 
 | 基準残作業 | 純追加・再見積り | 完了時に除去 | 残作業 |
 | ---: | ---: | ---: | ---: |
-| 112 pt | +3 pt | −7 pt | 108 pt |
+| 112 pt | +3 pt | −10 pt | 105 pt |
 
 ## Delivery noteとロードマップ監査
+
+- B02 local完了（2026-10-31 JST）: 実装`2a3aca1`のsource固定全baseline（2,529 test、fmt、厳密Clippy、rustdoc）が成功。修正`5e2b593`はnative pathの厳密比較を維持し、対象検証が成功。最後の3 ptを退役し、追加・再見積りなし。G2はopen。最新head CI・PR mergeは公開条件として未完了。B03だけをdoingとし、新規planのCLI・共通writerを`codex/m5-checked-source-fixes`上の一貫した続きとして進める。
 
 - B01完了（2026-10-30 JST）: `1ab1201`でRFC 0044を実験段階委任により採択し、未検証の実装前提を明示した。日英repository consistencyは7/7成功。validatorがNext markerの変更を検出したため既存markerへ戻した。B01の最終2 ptを除去し、別に監査した前提+3 ptは維持する。G2は未完了、doingはB02のみ。
 

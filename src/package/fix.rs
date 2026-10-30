@@ -1,4 +1,4 @@
-//! RFC 0044 checked previews. This module has no source-write authority.
+//! RFC 0044 checked previews and plans requiring separate source-write authority.
 use super::{
     ByteSpan, Diagnostic,
     editor::{self, Overlay, Snapshot, edits, workspace::View},
@@ -309,20 +309,75 @@ impl Preview {
             outcome: "preview",
             changes,
         };
-        serde_json::to_writer(ReportLimit(limits.report_bytes), &preview).map_err(|error| {
+        preview.check_report(limits.report_bytes)?;
+        Ok(preview)
+    }
+    fn check_report(&self, limit: usize) -> Result<(), Diagnostic> {
+        serde_json::to_writer(ReportLimit(limit), self).map_err(|error| {
             if error.is_io() {
                 capacity()
             } else {
                 invalid("fix report cannot encode its source paths")
             }
-        })?;
-        Ok(preview)
+        })
     }
     pub fn edits(&self) -> &[Edit] {
         &self.edits
     }
     pub fn changes(&self) -> &[Change] {
         &self.changes
+    }
+    pub fn roots(&self) -> &[PathBuf] {
+        &self.roots
+    }
+    pub fn files(&self) -> &[PathBuf] {
+        &self.files
+    }
+    pub fn applied(&self) -> usize {
+        self.applied
+    }
+    pub fn outcome(&self) -> &'static str {
+        self.outcome
+    }
+}
+/// A fresh proof and publication snapshot bound to the same immutable graph.
+/// Serialized previews cannot be loaded as plans.
+#[derive(Debug)]
+pub struct Plan {
+    preview: Preview,
+    publication: super::format::Plan,
+}
+impl Plan {
+    pub fn capture(graph: Arc<Graph>, limits: Limits) -> Result<Self, Diagnostic> {
+        let mut preview = Preview::capture(graph.clone(), limits)?;
+        // Check the successful apply report's size before obtaining write authority.
+        preview.applied = preview.changes.len();
+        preview.outcome = "applied";
+        preview.check_report(limits.report_bytes)?;
+        preview.applied = 0;
+        preview.outcome = "preview";
+        let publication = super::format::Plan::from_replacements(
+            &graph,
+            preview
+                .changes
+                .iter()
+                .map(|c| (c.path.clone(), c.text.clone())),
+        )?;
+        Ok(Self {
+            preview,
+            publication,
+        })
+    }
+    pub fn preview(&self) -> &Preview {
+        &self.preview
+    }
+    pub fn validate(&self, authority: &cap_std::fs::Dir) -> Result<(), Diagnostic> {
+        self.publication.validate(authority)
+    }
+    pub fn apply(mut self, authority: &cap_std::fs::Dir) -> Result<Preview, Diagnostic> {
+        self.preview.applied = self.publication.apply(authority)?;
+        self.preview.outcome = "applied";
+        Ok(self.preview)
     }
 }
 struct ReportLimit(usize);

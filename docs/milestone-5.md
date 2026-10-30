@@ -6,11 +6,13 @@
 
 Activated 2026-10-30 JST from `3b676c5`. This board tracks the entire M5 scope in [the roadmap](roadmap.md#milestone-5-ecosystem-and-compatibility), including both P1 gates. M4's installer and local packages are prerequisites, not registry completion.
 
-**3 done · 1 doing · 36 todo · 108 remaining pt**
+**4 done · 1 doing · 35 todo · 105 remaining pt**
 
-**Next: M5-B02 — preview checked source fixes across entry and declared tests.**
+**Next: M5-B03 — publish checked source fixes through the CLI.**
 
-B02 executable checkpoint, verified 2026-10-31 JST: implementation `2a3aca1` composes original byte spans across multiple renames, covers entry plus every declared test (including test-only modules), and proves every affected root after each edit. Five preview fixtures cover before/after VM execution, CRLF/UTF-8 spans, unchanged dependency/unselected workspace inputs, collisions/invalid test refusal, aggregate limits/exact report boundary, repeat-run no-op and preserved fuel exhaustion in an unread initializer. Its frozen-source full baseline completed: 2,529 tests across 178 suites, fmt, strict workspace Clippy and rustdoc all exited 0; retained logs/exit codes are under `/private/tmp/lang-m5-fixes-target/m5-validation/`. Windows CI exposed a POSIX-only expected-path literal; the assertion now constructs native paths while preserving exact root identities/order, matching the existing diagnostic contract. After that test-only correction, preview 5/5, repository consistency 7/7, fmt and strict workspace Clippy pass. Remaining acceptance: latest-head CI including Windows. No extra prerequisite was exposed; B02 remains doing at its audited 3 pt until validation completes. Checked publication and migration remain B03/B05/B04 work.
+B03 executable checkpoint, verified 2026-10-31 JST: `lang fix` previews by default and `--apply` recomputes a private checked plan, using the formatter's frozen-input validation, complete staging and per-file replacement. Fix tests 11/11, formatter 7/7, repository consistency 7/7, the late-replacement unit fixture and strict workspace Clippy pass. Fixtures cover entry/test VM execution before/after, stale source/dependency/manifest and foreign-authority refusal, read-only/alias refusal, cleaned staging failures, exact committed-prefix reporting, idempotent replay, CLI diagnostics and the successful-apply report size boundary. A hardlink outside the captured inventory exposed a missed existing no-alias requirement; both live validation passes now check the opened file's link count, with RFC 0036 clarified in both languages. This is within B03's audited 3 pt, with no new prerequisite. Remaining acceptance: frozen full baseline, code evidence and latest-head CI/PR publication. B04 retains historical migration integration.
+
+B02 completed locally, verified 2026-10-31 JST: implementation `2a3aca1` composes original spans and proves entry plus all declared tests after each rename. The frozen full baseline passed 2,529 tests in 178 suites, fmt, strict Clippy and rustdoc, with actual exits retained under `/private/tmp/lang-m5-fixes-target/m5-validation/`. Correction `5e2b593` replaces a POSIX-only test expectation with exact native paths; focused preview/consistency/fmt/Clippy checks pass. Publication remains subject to latest-head CI; checked application and historical migration are separate B03/B05/B04 outcomes.
 
 B01 checkpoint, 2026-10-30 JST: [RFC 0044](rfcs/0044-checked-source-migration.md) accepts preview-first fixes, checked publication and the explicit historical scalar profile. The retained old `shared`/`weak` source returns 42; manual alpha-renaming also returns 42 in the current VM and generates native output. The migration command and native execution journey remain unimplemented. B01 validation completed: bilingual consistency 7/7, committed as `1ab1201`. Work branch `codex/m5-checked-source-fixes` was created from `main` (`3b676c5`), PR base `main` in `git@github.com:carimatics/lang.git`, then fast-forwarded to prerequisite `8a43f76` from PR #29. Its checkout is `/private/tmp/lang-m5-fixes`; the original worktree remains clean while that PR's CI runs.
 
@@ -40,8 +42,8 @@ Gate completion: **1/10; 5/65 historical gate weight**. Delivery points below ar
 | M5-A01 | done | 0 | — | G1 | Accept edition/deprecation policy and domain compatibility matrix | `b654ae7` |
 | M5-A02 | done | 0 | M5-A01 | G1 | Expose supported compatibility in CLI; test unknown editions and old consumer boundaries | `a473cc0` |
 | M5-B01 | done | 0 | M5-A01 | G2 | Accept migration recipes, applicability and write transaction contract | `1ab1201` |
-| M5-B02 | doing | 3 | M5-B01 | G2 | Preview real source fixes with original spans and semantic recheck | — |
-| M5-B03 | todo | 3 | M5-B02 | G2 | Apply checked fixes; stale/conflicting/partial-write refusal fixtures | — |
+| M5-B02 | done | 0 | M5-B01 | G2 | Preview real source fixes with original spans and semantic recheck | `2a3aca1` |
+| M5-B03 | doing | 3 | M5-B02 | G2 | Apply checked fixes through CLI; stale/conflicting/partial-write refusal fixtures | — |
 | M5-B05 | todo | 3 | M5-B01 | G2 | Admit historical scalar syntax, prove fresh renames and preview the real old-source fixture | — |
 | M5-B04 | todo | 3 | M5-B03,M5-B05 | G2 | Edition migration CLI and both-host before/after execution journey | — |
 | M5-C01 | todo | 3 | M5-A01 | G3 | Threat model: identities, namespace, authority, abuse and adversaries | — |
@@ -80,13 +82,15 @@ Gate completion: **1/10; 5/65 historical gate weight**. Delivery points below ar
 
 ## Estimate reconciliation
 
-**112 + 3 − 7 = 108 pt**
+**112 + 3 − 10 = 105 pt**
 
 | Baseline remaining | Net additions/re-estimates | Retired at completion | Remaining |
 | ---: | ---: | ---: | ---: |
-| 112 pt | +3 pt | −7 pt | 108 pt |
+| 112 pt | +3 pt | −10 pt | 105 pt |
 
 ## Delivery notes and roadmap audits
+
+- B02 completed locally, 2026-10-31 JST: implementation `2a3aca1` passes the frozen full baseline (2,529 tests, fmt, strict Clippy and rustdoc); correction `5e2b593` preserves exact native path assertions and passes focused checks. Retire its last 3 pt, no additions/re-estimates; G2 remains open. Latest-head CI and PR merge are publication gates still pending. B03 is the sole doing row; its fresh-plan CLI and shared writer are one coherent continuation on `codex/m5-checked-source-fixes`.
 
 - B01 completed, 2026-10-30 JST: RFC 0044 accepted in `1ab1201` under the experimental delegation, with explicit unverified implementation assumptions. Bilingual repository consistency passes 7/7; the board's established Next marker was restored after its validator caught a renamed marker. Retire B01's last 2 pt; keep the separately audited +3 pt prerequisite. G2 remains open. B02 is the only doing row.
 

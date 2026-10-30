@@ -149,6 +149,8 @@ prepare／rename は dependency file を含む source 識別子の検証 edit �
 
 literal code action は同じ input／version guard と package linter の rule を再利用し、client が宣言した kind family に限定して提供します。`source.format` は source 位置に依存しない HIR／型の証明後に文書全体を整形し、`quickfix` は一意に選択した未読 binding を rename 証明で `_` prefix にします。initializer と代入の効果を保持し、guest code を実行せず、曖昧／衝突する fix は edit を返しません。
 
+RFC 0044の`package::fix`はentryと全宣言testの上限付き複数root rename証明で元spanを合成します。CLIはpreviewが既定で、`--apply`は証明と同じ固定graphから新しい非公開planを作ります。formatterと共有する公開境界は全source・manifestのidentityとbytesを固定し、別directory authorityを検証して選択source置換を全件stage化し、再検証後file単位でcommitします。依存は証明のみの対象です。previewと適用成功report両方のsizeを書込み前に検査し、後半I/O失敗時は適用済みprefixを報告して未公開stageをcleanupし、rollbackしません。旧source移行は未実装です。
+
 ## Concurrency、component、将来のtoolchain
 
 [RFC 0021](rfcs/0021-bounded-structured-task-driver.md)の有界FIFO driverと[RFC 0022](rfcs/0022-source-structured-tasks.md)・[0023](rfcs/0023-task-mir-boundaries.md)のsource/MIR契約を実装済みです。scope付きtask claim、join、所有引数/結果、suspension loan規則、取消、子から親のcleanupはVMと生成native continuation、受理済み別リンクobjectで共通です。未回収所有結果はescrowとlive-cell計上を保持し、子のjoinと結果退役が親localのcleanupに先行します。taskは1 invocation内の論理taskであり、複数OS threadでguestを実行しません。

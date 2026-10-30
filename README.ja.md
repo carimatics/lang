@@ -133,6 +133,8 @@ literal code action は同じ input／version guard と package linter の rule 
 
 `cargo run -- fmt --manifest-path target/my_app/Lang.json --check` は既存 CST formatter の要変更 file を無書込みで報告します。`--check` を省くと、選択 dependency／test を含め検証済みの source を file 単位で置換します。元 comment／span と permission を保持し、stale／不正 input は公開前に拒否します。source 変更後の古い lock は stale に保ち、通常 build／run で再生成します。file 単位公開の境界は [RFC 0036](docs/ja/rfcs/0036-checked-package-formatting.md) を参照してください。
 
+`cargo run -- fix --manifest-path target/my_app/Lang.json --message-format json` は選択entryと全宣言testの検証付き`LNT0001` renameをpreviewします。`--apply`を付けると証明を再計算して置換し、initializer・assignment・comment・無関係なbytesを保持します。依存は検査しますが編集しません。reportは対象root・file、元byte span、変更・適用件数を含み、保存したreportは適用入力にできません。`--locked`は操作前のlockを検証し、source編集後もlockは変更せずstaleに保ち、通常build／runで再生成します。公開中は協調writerの排他的書込み時間帯が必要です。全入力を再検証してfile単位でatomic置換しますが、後半I/O失敗時は適用済みprefixを報告しrollbackしません。[RFC 0044](docs/ja/rfcs/0044-checked-source-migration.md)を参照してください。旧sourceの`migrate`は未実装です。
+
 `cargo run -- package --manifest-path target/my_app/Lang.json --list` は予定する固定 source snapshot を無書込みで一覧表示します。`--list` を省くと、元 manifest／source byte、`Lang.lock`、version 付き descriptor の決定的な非圧縮 TAR を公開します。`--locked --offline` は完全一致 replay を検証します。profile 1 は directory alias を拒否し、信頼しない archive の展開や registry 公開は行いません。[RFC 0035](docs/ja/rfcs/0035-source-package-snapshots.md) を参照してください。
 
 `rust-toolchain.toml`で固定したRust **1.99.0**とrustfmt/Clippyを使います。[M2機能guide](docs/ja/milestone-2-capabilities.md)と[M3機能guide](docs/ja/milestone-3-capabilities.md)に実装動作・完了条件・制約を記録しています。`cargo run -- run examples/scripts/tasks.lang`で実装済みsource asyncを実行し、42を返します。[M3 board](docs/ja/milestone-3.md)は完了した79 deliveryの記録です。
