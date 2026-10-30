@@ -50,6 +50,7 @@ The rationale and unresolved tradeoffs are documented in [the architecture basel
 - [Milestone 2 capability guide and complete exit audit](docs/milestone-2-capabilities.md)
 - [Milestone 3 completed delivery board](docs/milestone-3.md)
 - [Milestone 4 completed delivery board](docs/milestone-4.md)
+- [Milestone 5 active delivery board](docs/milestone-5.md)
 - [Whole-repository review, 2026-10-17](docs/review-2026-10-17.md)
 - [Whole-repository review, 2026-10-20](docs/review-2026-10-20.md)
 - [Whole-repository review, 2026-10-27](docs/review-2026-10-27.md)
@@ -102,6 +103,7 @@ The rationale and unresolved tradeoffs are documented in [the architecture basel
 - [RFC 0040: Bounded debug adapter sessions (implemented)](docs/rfcs/0040-bounded-debug-adapter-sessions.md)
 - [RFC 0041: Bounded toolchain profiles (implemented)](docs/rfcs/0041-bounded-toolchain-profiles.md)
 - [RFC 0042: Signed toolchain installation (implemented)](docs/rfcs/0042-signed-toolchain-installation.md)
+- [RFC 0043: Editions and compatibility policy (accepted)](docs/rfcs/0043-editions-and-compatibility.md)
 - [Contribution guide](CONTRIBUTING.md)
 
 `cargo run -- toolchain verify --trust-root root.json --metadata channel.json --channel stable --message-format json` verifies bounded signed metadata for the current host and emits a JSON summary. The root must be trusted out of band. This read-only check uses a fresh trust context: it neither consults an installed rollback floor nor reads or installs payloads. See [RFC 0042](docs/rfcs/0042-signed-toolchain-installation.md).

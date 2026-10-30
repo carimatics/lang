@@ -18,13 +18,13 @@ M2は完了済みです。18/18ゲート、過去のゲート重み113/113です
 
 ## M3完了後の作業
 
-M4は2026-10-30 JSTに完了しました。[完了ボード](milestone-4.md)は44 delivery、**44 done · 0 doing · 0 todo · 0 remaining pt**、103 + 19 − 122 = 0 ptです。G1–G9とmacOS／Windowsの連続新規開発者journey、全契約監査、[英日能力guide](milestone-4-capabilities.md)を完了しました。source `0b6591d`はlocal 2,514 testと全体CI `41019002147`、最終文書head `01f89ff`は全体CI `41023185791`に成功しました。[PR #26](https://github.com/carimatics/lang/pull/26)は`e7fa5ab`としてmergeし、開始mainへ戻ってremoteとのclean一致、ahead／behind 0/0を確認しました。M5はまだ有効化していません。
+M4は2026-10-30 JSTに完了しました。[完了ボード](milestone-4.md)は44 delivery、**44 done · 0 doing · 0 todo · 0 remaining pt**、103 + 19 − 122 = 0 ptです。G1–G9とmacOS／Windowsの連続新規開発者journey、全契約監査、[英日能力guide](milestone-4-capabilities.md)を完了しました。source `0b6591d`はlocal 2,514 testと全体CI `41019002147`、最終文書head `01f89ff`は全体CI `41023185791`に成功しました。[PR #26](https://github.com/carimatics/lang/pull/26)は`e7fa5ab`としてmergeし、開始mainへ戻ってremoteとのclean一致、ahead／behind 0/0を確認しました。M5は進行中です。[delivery board](milestone-5.md)を参照してください。
 
 実行可能なcommand、全tooling機能、互換性境界と両host証拠は[M4能力guide](milestone-4-capabilities.md)を参照してください。
 
 lock寿命の修正を含むinstallerは、2026-10-30 JSTに[PR #25](https://github.com/carimatics/lang/pull/25)で`54992c0`としてmergeしました。最終head `76c3698`は全体CI `41015803408`とnative-debug CI `41015803370`に成功しました。[完了済みM4ボード](milestone-4.md)にdeliveryと終了証拠を保持し、以前の作業branchのcheckpointは残作業として扱いません。
 
-保守やレビューのために完了済みM2～M4ボードを拡大しません。修正はscopeを限定したchecklistに記録し、code、文書、検証を同じ変更にまとめます。M5を有効化する前に依存関係と受入範囲を監査し、独自の積み上げ式deliveryボードを作成します。M4の署名付きtoolchain配布は、M5のregistry公開やpackage信頼方針の完了を意味しません。新たな言語／ABI／形式の選択には引き続き明示的RFC判断が必要ですが、実験段階の委任により個別owner承認待ちは不要です。
+保守やレビューのために完了済みM2～M4ボードを拡大しません。修正はscopeを限定したchecklistに記録し、code、文書、検証を同じ変更にまとめます。M5の開始監査と積上げdeliveryボードで依存関係・受入範囲を追跡します。M4の署名付きtoolchain配布は、M5のregistry公開やpackage信頼方針の完了を意味しません。新たな言語／ABI／形式の選択には引き続き明示的RFC判断が必要ですが、実験段階の委任により個別owner承認待ちは不要です。
 
 [2026-10-28のrepositoryレビュー](review-2026-10-28.md)で、古いRFC follow-upを完了済みM2／M3証拠と照合し、保守修正を別途記録しています。日付付きcheckpointに残る「Windows未検証」などの過去記述で完了済み成果を再開しません。M4～M7のgate重みは変更せず、残作業の見積もりとも扱いません。
 
@@ -36,7 +36,7 @@ lock寿命の修正を含むinstallerは、2026-10-30 JSTに[PR #25](https://git
 
 以下のmilestone checklistは相対的な受入条件の重みを保持します。`1`はごく小、`2`は小、`3`は中、`5`は大、`8`は非常に大です。重み付きの達成率は `完了した重み / 全重み × 100` を小数第1位へ丸めます。この粗い重みは経過時間や実装残作業を予測しません。Milestoneがcurrentになったとき、またはscope／evidenceが変わったときに、長期見積もりを積み上げで見直します。進行中milestoneごとに別の実装Todoを使い、独立検証可能な残り1〜3 ptのtaskと、明示的なscope／見積もり変更を記録します。
 
-2026-10-30（JST）に確認したexit-gate weightのsnapshotです。受入条件の重みと残作業見積りは別であり、M4の最終収支は完了ボードに記録します。現在進行中のmilestoneはありません。完了済みM2／M3の記録は維持します。
+2026-10-30（JST）に確認したexit-gate weightのsnapshotです。受入条件の重みと残作業見積りは別であり、M4の最終収支は完了ボードに記録します。M5が進行中です（**0 done · 1 doing · 38 todo · 112 remaining pt**）。完了済みM2／M3の記録は維持します。
 
 | Milestone | 完了条件の重み | 条件の総重み | 条件達成率 |
 | --- | ---: | ---: | ---: |
@@ -249,6 +249,10 @@ Exit：Native hostがuser scriptをloadし、typed APIを公開し、scriptをca
 Exit：新しいdeveloperが1つのtoolをinstallし、packageを作成し、editorで開発し、test／debugし、reproducible binaryを生成できる。
 
 ## Milestone 5：ecosystemとcompatibility
+
+2026-10-30 JST開始。[M5 board](milestone-5.md)に全10ゲート、39件の観測可能delivery、残作業基準112 ptを保持する。[edition・互換性方針](rfcs/0043-editions-and-compatibility.md)と実行可能な互換性・移行fixtureから開始する。registry upload前に脅威モデルを定め、署名toolchain導入をregistry provenanceと混同しない。P1の2ゲートも範囲内。完了には両host ecosystem journeyと日英能力guideを含める。
+
+**0 done · 1 doing · 38 todo · 112 remaining pt**
 
 **進捗：0 / 65 pt（0.0%）。**
 

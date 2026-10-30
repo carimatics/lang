@@ -18,13 +18,13 @@ Public C v1 and existing generated clients follow stabilized RFC 0033. Source/na
 
 ## Work after M3
 
-M4 completed on 2026-10-30 JST. Its [completed board](milestone-4.md) records 44 deliveries, **44 done · 0 doing · 0 todo · 0 remaining pt**, with 103 + 19 − 122 = 0 pt. G1–G9, the continuous macOS/Windows new-developer journey, contract audit and [bilingual capability guide](milestone-4-capabilities.md) are complete. Source `0b6591d` passes 2,514 local tests and full CI `41019002147`; final documentation head `01f89ff` passes full CI `41023185791`. [PR #26](https://github.com/carimatics/lang/pull/26) merged as `e7fa5ab`; starting main was restored, clean and synchronized with 0/0 ahead/behind. M5 is not activated.
+M4 completed on 2026-10-30 JST. Its [completed board](milestone-4.md) records 44 deliveries, **44 done · 0 doing · 0 todo · 0 remaining pt**, with 103 + 19 − 122 = 0 pt. G1–G9, the continuous macOS/Windows new-developer journey, contract audit and [bilingual capability guide](milestone-4-capabilities.md) are complete. Source `0b6591d` passes 2,514 local tests and full CI `41019002147`; final documentation head `01f89ff` passes full CI `41023185791`. [PR #26](https://github.com/carimatics/lang/pull/26) merged as `e7fa5ab`; starting main was restored, clean and synchronized with 0/0 ahead/behind. M5 is active; see its [delivery board](milestone-5.md).
 
 See the [M4 capability guide](milestone-4-capabilities.md) for runnable commands, tooling workflows, compatibility boundaries and both-host evidence.
 
 The installer, including its lock-lifetime correction, merged through [PR #25](https://github.com/carimatics/lang/pull/25) as `54992c0` on 2026-10-30 JST. Its final head `76c3698` passed full CI `41015803408` and native-debug CI `41015803370`. The [completed M4 board](milestone-4.md) retains the delivery and exit evidence; former work-branch checkpoints are not outstanding work.
 
-Do not expand the completed M2–M4 boards for maintenance or reviews. Record fixes in their scoped checklist, and keep code, documentation and validation in the same change. Before activating M5, audit its dependencies and acceptance scope and create its own bottom-up delivery board. M4's signed toolchain distribution does not complete M5's registry publication or package trust policy. New language/ABI/format choices still require an explicit RFC decision; experimental delegation avoids a separate owner-approval wait.
+Do not expand the completed M2–M4 boards for maintenance or reviews. Record fixes in their scoped checklist, and keep code, documentation and validation in the same change. M5's activation audit and bottom-up delivery board now track its dependencies and acceptance scope. M4's signed toolchain distribution does not complete M5's registry publication or package trust policy. New language/ABI/format choices still require an explicit RFC decision; experimental delegation avoids a separate owner-approval wait.
 
 The [2026-10-28 repository review](review-2026-10-28.md) reconciles stale RFC follow-ups with completed M2/M3 evidence and records maintenance fixes separately. Historical statements such as “Windows unverified” in dated checkpoints do not reopen those completed outcomes. M4–M7 gate weights remain unchanged and are not a remaining-effort estimate.
 
@@ -36,7 +36,7 @@ Tasks are listed in dependency-aware priority order within each milestone. A mil
 
 The milestone checklists below retain relative exit-gate weights: `1` is very small, `2` small, `3` medium, `5` large, and `8` very large. Their weighted completion is `completed weights / total weights × 100`, rounded to one decimal place. These coarse weights do not predict elapsed time or remaining implementation effort. Long-horizon estimates require a bottom-up review when their milestone becomes current or scope/evidence changes. For each active milestone, a separate delivery board records independently verifiable 1–3-point remaining tasks and explicit scope/estimate changes.
 
-Snapshot of exit-gate weights verified 2026-10-30 JST. Acceptance weights are separate from remaining-effort estimates; the completed M4 board records its final reconciliation. No milestone is currently active. Completed M2/M3 records remain unchanged.
+Snapshot of exit-gate weights verified 2026-10-30 JST. Acceptance weights are separate from remaining-effort estimates; the completed M4 board records its final reconciliation. M5 is active with **0 done · 1 doing · 38 todo · 112 remaining pt**. Completed M2/M3 records remain unchanged.
 
 | Milestone | Completed gate weight | Total gate weight | Gate completion |
 | --- | ---: | ---: | ---: |
@@ -249,6 +249,8 @@ Sequencing contract (clarified 2026-10-28 JST, retained on activation): the firs
 Exit: a new developer can install one tool, create a package, develop in an editor, test, debug, and produce a reproducible binary.
 
 ## Milestone 5: ecosystem and compatibility
+
+Activated 2026-10-30 JST. The [M5 board](milestone-5.md) retains all ten gates, 39 observable deliveries and a 112 pt remaining-work baseline. Start with the [edition/compatibility policy](rfcs/0043-editions-and-compatibility.md) and executable compatibility/migration fixtures. Threat modeling must precede registry uploads; signed toolchain installation is not registry provenance. Both P1 gates remain in scope. Completion includes both-host ecosystem journeys and a bilingual capability guide.
 
 **Progress: 0 / 65 pt (0.0%).**
 

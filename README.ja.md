@@ -50,6 +50,7 @@ source構文・native language ABI・private SDK/package formatは実験段階�
 - [Milestone 2 capability guide・全出口監査](docs/ja/milestone-2-capabilities.md)
 - [Milestone 3 完了した実装記録](docs/ja/milestone-3.md)
 - [Milestone 4 完了した実装ボード](docs/ja/milestone-4.md)
+- [Milestone 5 進行中の実装ボード](docs/ja/milestone-5.md)
 - [全ファイルreview、2026-10-17](docs/ja/review-2026-10-17.md)
 - [リポジトリ全体レビュー、2026-10-20](docs/ja/review-2026-10-20.md)
 - [リポジトリ全体レビュー、2026-10-27](docs/ja/review-2026-10-27.md)
@@ -102,6 +103,7 @@ source構文・native language ABI・private SDK/package formatは実験段階�
 - [RFC 0040: 上限付き debug adapter session（implemented）](docs/ja/rfcs/0040-bounded-debug-adapter-sessions.md)
 - [RFC 0041: 上限付きtoolchain profile（implemented）](docs/ja/rfcs/0041-bounded-toolchain-profiles.md)
 - [RFC 0042: 署名付きtoolchain installation（implemented）](docs/ja/rfcs/0042-signed-toolchain-installation.md)
+- [RFC 0043: Editionと互換性方針（accepted）](docs/ja/rfcs/0043-editions-and-compatibility.md)
 - [コントリビューションガイド](CONTRIBUTING.ja.md)
 
 `cargo run -- toolchain verify --trust-root root.json --metadata channel.json --channel stable --message-format json` は現在のhost向けの上限付き署名metadataを検証し、JSON概要を出力します。rootは別経路で信頼を確認してください。この読取専用検査は新規trust contextを使い、既存installのrollback floorを参照せず、payloadの読取やinstallも行いません。[RFC 0042](docs/ja/rfcs/0042-signed-toolchain-installation.md)を参照してください。

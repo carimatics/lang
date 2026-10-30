@@ -25,6 +25,7 @@ These instructions apply to the entire repository.
   - `docs/milestone-2.md` and `docs/ja/milestone-2.md`
   - `docs/milestone-3.md` and `docs/ja/milestone-3.md`
   - `docs/milestone-4.md` and `docs/ja/milestone-4.md`
+  - `docs/milestone-5.md` and `docs/ja/milestone-5.md`
   - `docs/milestone-3-history.md` and `docs/ja/milestone-3-history.md`
   - `docs/milestone-2-capabilities.md` and `docs/ja/milestone-2-capabilities.md`
   - `docs/milestone-3-capabilities.md` and `docs/ja/milestone-3-capabilities.md`
