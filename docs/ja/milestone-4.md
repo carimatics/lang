@@ -4,13 +4,15 @@
 
 [English](../milestone-4.md)
 
-更新: 2026-10-30 JST。M4 は active。Goal 開始は clean main／origin/main `af9988f`、remote `git@github.com:carimatics/lang.git`。PR #9–#18 は merge 済み。editor PR #18 最終 head `5cdc422` は CI `40864753941`（18 成功、意図した文書専用 skip）と debugger `40864753946`（3/3）に成功し、`0a15fb5` として merge。local main／origin/main ref は ahead／behind 0/0 で一致する。現在の `codex/m4-debug-adapter` は clean・upstream 同期済み `codex/m4-editor-checked-edits` head `5cdc422` から、一貫した D01–D05 用に作成した。既存 user 変更はなく、upstream は `origin/codex/m4-debug-adapter`、main 宛 [draft PR #19](https://github.com/carimatics/lang/pull/19)。D01 head `8421298` は CI `40874260252`（18 成功、意図した文書専用 skip）と debugger `40874260229`（3/3）に成功し、D02 head `ced8e56` は push 済みで、CI `40879596677`（18 成功、意図した文書専用 skip）と debugger `40879596614`（3/3）に成功。merge は未実施。初期記録 base `carimatics/lang:codex/m4-editor-checked-edits` は #18 merge により `carimatics/lang:main` へ変更した。base 同期中も DAP 作業を保持した。
+更新: 2026-10-30 JST。M4はactive。Goal開始はclean main／origin/main `af9988f`、remote `git@github.com:carimatics/lang.git`。PR #9–#19はmerge済み。debugger PR #19は`14a92df`としてmergeし、別文書PR #20–#23の祖先`be9f77c`も保持した。最後に確認したlocal main／origin/mainは`14a92df`でahead／behind 0/0。M4全体とinstallerは未完了。
 
-**28 done · 1 doing · 13 todo · 39 remaining pt**
+**33 done · 1 doing · 9 todo · 27 remaining pt**
 
-E01 の最終実行 checkpoint: 2026-10-30 04:14 JSTのexact-SDK単独実験で、通常frontend／lower／verify経路によりhelloをcompileし、入力を含むfrontend 2.684 ms、lower／verify 0.212 msを観測。単一の実行観測であり性能比較ではない。E01の残る受入は上限付きreport schema採択、package対応CLIのphase表示、重点検証。D05 source `cf5e27f`はfmt／全警告エラーClippy／169 suite・2,477 test／doc／fuzz Clippy、全体CI `40937041512`（18成功、意図したdoc専用skip）、native `40937041276`（3/3）に成功。native restartと独立mixed／lifecycle／不正入力12 caseが両hostで成功し、G7を検証済み。PR #19の最終文書head CI／mergeは引き続き必要。
+現在のcheckoutは`codex/m4-profiling`。clean・同期済みdebugger branch `10aae50`から作成し、既存user変更はない。upstreamは`origin/codex/m4-profiling`、[PR #24](https://github.com/carimatics/lang/pull/24)のscopeはE01–E04。#19が`14a92df`でmergeしたため記録baseを`carimatics/lang:codex/m4-debug-adapter`から`carimatics/lang:main`へ移した。local main／origin/mainは`14a92df`で0/0。別文書PR #20–#23の祖先`be9f77c`も保持した。
 
-**次: M4-E01 — 上限付きcompiler phase report（doing、3 pt）。** D05は`cf5e27f`で完了、追加なしで最終3 ptを消化。追加+15、消化79、42 deliveryの残り39 pt。E01残タスクをreport／schema契約、既存package／frontend／portable compile経路の計測、実CLI fixture、上限／error reader試験へ再確認し3 ptを維持。E02–E04、署名install、最終journey／guideは引き続き必要。
+F01の最終実行checkpoint、2026-10-30 09:37 JST: 直前のE04 source `356fdca`は完全local baseline（171 suite／2,500 test）、全体CI `40979050495`（18成功、意図したdoc専用skip）、native CI `40979050348`（3/3）に成功。独立した署名実験は公開RFC 8032 vectorの受理、改変／不正scalar／弱い鍵の拒否、macOSのnonblocking file lockを確認した。F01の残条件はtrust root／renewal、署名metadata／channel／version、上限付きtransport、atomic install／update／recoveryの具体的契約と日英RFC採択。実験はinstaller実装やG9完了を意味しない。
+
+**次: M4-F01 — 署名installer設計（doing、3 pt）。** E04の最終3 ptを消化し、追加は0。F01の残作業を上記契約と実験の照合へ再確認し、3 ptを維持する。43 delivery、追加+17、消化93、残り27 pt。
 
 A04 source `cf6cf5c` は fmt、全 Clippy／doc、checked opt-level 1 全 test（**158 suite／2,384 成功／0 失敗**）、重点 75 test に成功。最終 head `75a2041` は [全 CI](https://github.com/carimatics/lang/actions/runs/40810065213)（全 19 job、18 成功、意図した文書専用 skip）と [debugger 実行](https://github.com/carimatics/lang/actions/runs/40810065278)（3/3）に成功した。[PR #13](https://github.com/carimatics/lang/pull/13) は `58527c2` として merge、main を fast-forward して clean・同期済み、ahead／behind 0/0。workspace branch 作成と現在の PR／upstream は上記に記録した。既存の user 変更はなかった。
 
@@ -30,7 +32,7 @@ A01 入力修正は Unix の nonblocking open と開いた handle の metadata �
 
 ## 終了 gate
 
-[roadmap](roadmap.md#milestone-4developer-toolchain)の元の採択 weight 63 pt を維持する。**検証済み 7/9 gate、47/63 gate weight（74.6%）。** 設計採択は実装 gate の完了を意味しない。P0／P1 はすべて scope 内に残し、延期はない。
+[roadmap](roadmap.md#milestone-4developer-toolchain)の元の採択 weight 63 pt を維持する。**検証済み 8/9 gate、55/63 gate weight（87.3%）。** 設計採択は実装 gate の完了を意味しない。P0／P1 はすべて scope 内に残し、延期はない。
 
 | Gate | 優先度 | 成果 | Weight | 状態 |
 | --- | --- | --- | ---: | --- |
@@ -41,7 +43,7 @@ A01 入力修正は Unix の nonblocking open と開いた handle の metadata �
 | G5 | P0 | LSP navigation／completion／semantic token | 8 | done |
 | G6 | P0 | 安全な rename と code action | 8 | done |
 | G7 | P0 | native／VM 混在 stack を持つ DAP adapter | 8 | done |
-| G8 | P1 | compile／runtime profile、allocation trace、rebuild 説明 | 8 | pending |
+| G8 | P1 | compile／runtime profile、allocation trace、rebuild 説明 | 8 | done |
 | G9 | P0 | 署名付き install／update／channel tool と復旧 | 8 | pending |
 
 ## Delivery
@@ -78,11 +80,12 @@ A01 入力修正は Unix の nonblocking open と開いた handle の metadata �
 | M4-D04B | done | 0 | M4-D03 | G7 | 明示grant済みhost bridgeと元VMに結合する上限付きnative物理frame停止 | `67f62fa` |
 | M4-D04 | done | 0 | M4-D04B | G7 | native／VM 混在 stack fixture で call 順、span、失敗 cleanup 保持 | `759bae0` |
 | M4-D05 | done | 0 | M4-D04 | G7 | DAP disconnect／restart／cancel／不正 input と両 host session 証拠 | `cf5e27f` |
-| M4-E01 | doing | 3 | M4-A06 | G8 | profile／trace schema 採択、上限付き compiler phase cost 出力 | — |
-| M4-E02 | todo | 3 | M4-E01 | G8 | sampling／測定限界を明示する source 対応 VM／native runtime profile | — |
-| M4-E03 | todo | 3 | M4-E02 | G8 | 実 allocator counter と整合し buffer 上限を持つ allocation／retirement trace | — |
-| M4-E04 | todo | 3 | M4-E03 | G8 | rebuild 説明が source／dependency／target／toolchain input の変更を特定 | — |
-| M4-F01 | todo | 3 | M4-A01 | G9 | installer trust root、署名 metadata、channel／version 選択、atomic 復旧設計採択 | — |
+| M4-E01 | done | 0 | M4-A06 | G8 | profile／trace schema 採択、上限付き compiler phase cost 出力 | `e2f0c1d` |
+| M4-E02 | done | 0 | M4-E01 | G8 | sampling／測定限界を明示する source 対応 VM／native runtime profile | `7baee25` |
+| M4-E03R | done | 0 | M4-E02 | G8 | 元logical allocatorの0-byte／OOM／resize／retirementを完全な上限付きcounter traceで観測 | `b715b7a` |
+| M4-E03 | done | 0 | M4-E03R | G8 | 実 allocator counter と整合し buffer 上限を持つ allocation／retirement trace | `546ae69` |
+| M4-E04 | done | 0 | M4-E03 | G8 | rebuild 説明が source／dependency／target／toolchain input の変更を特定 | `356fdca` |
+| M4-F01 | doing | 3 | M4-A01 | G9 | installer trust root、署名 metadata、channel／version 選択、atomic 復旧設計採択 | — |
 | M4-F02 | todo | 3 | M4-F01 | G9 | install 前に署名、期限／rollback／target／digest を検証、改ざん拒否 | — |
 | M4-F03 | todo | 3 | M4-F02 | G9 | isolated root に検証済み tool を install、失敗／中断で active version 保持 | — |
 | M4-F04 | todo | 3 | M4-F03 | G9 | atomic activation／復旧付き channel update／select／list／uninstall | — |
@@ -99,9 +102,9 @@ A01 入力修正は Unix の nonblocking open と開いた handle の metadata �
 
 | Baseline remaining | Net added/re-estimated | Retired on completion | Remaining |
 | ---: | ---: | ---: | ---: |
-| 103 pt | +15 pt | −79 pt | 39 pt |
+| 103 pt | +17 pt | −93 pt | 27 pt |
 
-**103 + 15 − 79 = 39 pt**
+**103 + 17 − 93 = 27 pt**
 
 名前空間の前提監査、2026-10-29 JST: 既存 `ModuleGraph::root()` は常に `ModuleId(0)`。path provider だけでは依存ごとの package-root 名前空間や共有 dependency identity の安全な再利用を提供できない。元の A02 を、許可 graph（新規 A02R、3 pt）と名前空間／source 実行の統合（task list を見直した A02、残り 3 pt）へ分割する。純追加 +3 pt、全 37 delivery。A01 と A02R は前提二つとなるため、水平基盤を増やす前に A02 で次の source 実行 fixture を示す。この監査による gate 完了や延期はない。
 
@@ -110,6 +113,8 @@ snapshot lifecycle 監査、2026-10-29 JST: Windows CI は dependency fixture �
 CLI 成果監査、2026-10-29 JST、実装前: 採択した transaction profile で実行可能な成果二つが明確になった。新規 A04B（3 pt）は scaffold／既存 file 互換、全 profile の build／run、不変 generation 公開を、42 を返す実 dependency で示す。A04 は残る test-entry 選択、複数 profile の戻り値検査、構造化した失敗／span fixture を見直して 3 pt とする。公開処理や共有 engine 作業を元の見積に隠さず、元の複合 CLI 成果を縦の delivery に分割する。純追加 +3 pt、累計 +8 pt、全 39 delivery。これと別に、修正 source の両 host CI が API 成果を検証した A03 の最終 2 pt を消化する。CLI 二行は同じ一貫した command 実装 branch とし、lock wire API を review 済み依存とする。独立 local API baseline／PR lifecycle は source を固定した checkout で継続する。gate 完了や延期はない。
 
 ## Delivery note と roadmap review
+
+E04／G8完了、2026-10-30 JST: `3db6cb3`の厳密rebuild reader／CLIを、checkout bytes修正`356fdca`で両host検証した。実source／dependency／target／旧compiler、workspace選択／非選択member、実SDK header変更、SDK／rustc／receipt拒否、旧出力保持に成功。過去LF fixtureのWindows CRLF変換をGit属性で修正し、実CRLF編集を検出するassertionを追加した。fmt、警告なし全Clippy、171 suite／2,500 test、doc、重点／整合性10 test、fuzz fmt／Clippy、実report 4種のinstrumentationなしsmoke 10,000回が成功。全体CI `40979050495`は18成功＋意図したdoc専用skip、native CI `40979050348`は3/3。E04の3 ptを消化し追加0、RFC 0041をimplementedとする。E01–E04の実証済み観測契約でG8を完了し、G9と最終journey／guideは未完了。
 
 B03 実行 checkpoint、2026-10-29 15:55 JST、現在 worktree: 重点 110 件、source 固定の全 baseline（**163 suite／2,419 成功／0 失敗**）、fmt、警告なし全 Clippy、doc が成功した。実 CLI 6 fixture が解決済み未読 binding、元 UTF-8 span、既存 warning、dependency／test 重複除去、拒否、main 不要／無実行解析、lock／artifact bytes 保持を検証し、library 境界は一意診断 65,536 件丁度を受理して次の一件を拒否した。formatter head `5010d45` の Windows core-1 job `123305175897` で slash 固定文字列比較の test 仮定を検出したため、同じ厳密 span 条件を保持して native Path 比較へ修正し、新 lint test にも適用した。修正後の path／formatter／lint／consistency 19 件と Clippy は local で成功。残る条件は code 証拠と修正最新 head の両 host CI／PR lifecycle。B03 は 3 pt の doing に保つ。
 

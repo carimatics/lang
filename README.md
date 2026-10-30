@@ -97,6 +97,7 @@ The rationale and unresolved tradeoffs are documented in [the architecture basel
 - [RFC 0038: Package API documentation (accepted)](docs/rfcs/0038-package-api-documentation.md)
 - [RFC 0039: Package editor snapshots and checked edits (implemented)](docs/rfcs/0039-package-editor-snapshots.md)
 - [RFC 0040: Bounded debug adapter sessions (implemented)](docs/rfcs/0040-bounded-debug-adapter-sessions.md)
+- [RFC 0041: Bounded toolchain profiles (implemented)](docs/rfcs/0041-bounded-toolchain-profiles.md)
 - [Contribution guide](CONTRIBUTING.md)
 
 `cargo run -- lint --manifest-path target/my_app/Lang.json --deny-warnings --message-format json` checks the selected package and declared tests without executing guest code or writing lock/artifacts. `LNT0001` reports unread bindings; `_`-prefixed names suppress that rule. Existing warnings retain their codes. Omit `--deny-warnings` to keep warnings non-failing. See [RFC 0037](docs/rfcs/0037-package-lint-diagnostics.md).

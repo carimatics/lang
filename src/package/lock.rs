@@ -19,6 +19,8 @@ use std::{
 pub const MAX_BYTES: usize = 1024 * 1024;
 pub const NAME: &str = "Lang.lock";
 
+pub(crate) mod explain;
+
 #[derive(Debug)]
 pub struct Lock {
     bytes: Vec<u8>,

@@ -212,9 +212,11 @@ fn option_validation_and_zero_work_copy_programs_keep_cli_exit_contracts() {
     let help = String::from_utf8(help.stdout).unwrap();
     assert!(help.contains("lang run [--manifest-path FILE]"));
     assert!(help.contains("lang test [--manifest-path FILE]"));
+    assert!(help.contains("lang profile run [--manifest-path FILE]"));
+    assert!(help.contains("lang profile allocations [--manifest-path FILE]"));
     assert_eq!(
         help.matches("[--service-work N]").count(),
-        5 // Legacy run/native/REPL and package run/test.
+        7 // The five existing forms plus profile run and allocations.
     );
 }
 

@@ -315,7 +315,11 @@ fn escaped(text: &str) -> String {
     }
     out
 }
-fn emit(stderr: &mut impl Write, format: Format, diagnostic: &Diagnostic) -> io::Result<()> {
+pub(crate) fn emit(
+    stderr: &mut impl Write,
+    format: Format,
+    diagnostic: &Diagnostic,
+) -> io::Result<()> {
     if format == Format::Json {
         serde_json::to_writer(&mut *stderr, diagnostic)?;
         writeln!(stderr)
@@ -424,7 +428,7 @@ fn checked(
     }
 }
 
-fn compile_analysis(
+pub(crate) fn compile_analysis(
     analysis: crate::frontend::Analysis,
     format: Format,
     limits: crate::frontend::CompileLimits,

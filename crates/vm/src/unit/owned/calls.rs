@@ -829,6 +829,13 @@ fn execute_with<P: a::Provider>(
             f::Kind::Fuel { next, failure, .. } => {
                 let checked = control
                     .charge(&mut usage)
+                    .inspect(|()| {
+                        control.observe(Some(lang_runtime::execution::Point {
+                            source: node.span.source.0,
+                            start: node.span.start,
+                            end: node.span.end,
+                        }))
+                    })
                     .map_err(crate::unit::Reason::from);
                 match checked {
                     Ok(()) => next,

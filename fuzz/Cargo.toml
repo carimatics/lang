@@ -8,6 +8,13 @@ edition = "2024"
 cargo-fuzz = true
 
 [[bin]]
+name = "toolchain_profiles"
+path = "fuzz_targets/toolchain_profiles.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
 name = "package_metadata"
 path = "fuzz_targets/package_metadata.rs"
 test = false

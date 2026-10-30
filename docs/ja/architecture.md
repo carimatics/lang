@@ -123,6 +123,12 @@ native DAP backend は同じ package admission を使い、検証した private 
 
 [M2 source/Rust/C測定](benchmarks.md)は名前付きの不変revisionに結び付き、大きな性能差を示しています。測定完了の根拠であり、native同等性能や速度保証ではありません。今後の最適化判断にはこのworkloadを使い、過去のscalar microbenchmarkでsource programの費用を代用しません。
 
+任意のhost point recorderはexecution Control／configuration identityに含まれ、Send／Syncを維持します。元Copy VM／ownership VM／通常native ownershipのcharge pointはfuel課金成功後だけ、予約済み有限storageと既存spanを使って記録します。`lang profile run`は頻度、決定的sampling、元usage、host entry経過時間を返し、CPU帰属とは主張しません。native engineはownership JITで、native Copy／task／C／component profileは拒否します。観測上限超過でもguestを中断／再実行せず、成功report公開を拒否します。閉じたruntime readerは4 MiB上限内で有限sample合計と取得済みsource範囲を検証します。
+
+`lang profile allocations`はfreshな元allocatorに上限付きmetadata ledgerを付け、logicalな0-byte owner、admitされた失敗、resize確保、retirementをborrowed view経由でも一度だけ記録します。完全なentry-return snapshotを実counterと照合し、閉じたreaderもgeneration、request、全counterを独立にreplayします。要求guest storageには必要なguest-controlled metadataを含み、物理heap／RSSではありません。失敗entryは元診断と完全なfailed-outcome reportを保持し、観測超過はguestを変えず公開を拒否します。snapshotはlive ownerを保持でき、allocator teardownを意味しません。VMとownership native JITはimportをgrantせず一回実行します。完全local／両hostのreport検証をboardに記録しています。
+
+`lang profile rebuild`は現在の不変package／workspace入力と過去のcanonical lockを比較します。native比較では現在の独立SDK snapshotと選択rustcも検証し、過去世代receiptを保持lock／SDK bytesと照合します。構造化相対keyでsource／dependencyの来歴、追加／削除、workspace選択、target／compiler identity、SDK／rustc変化を保持します。閉じた4 MiB readerは上限付きsnapshotから全差分を独立に導出します。この読取専用観測はpackageの型検査／実行／公開、過去recordの認証、cache出力再利用の保証を行いません。
+
 ## 診断、REPL、editor tooling
 
 CLI は check、source/artifact 実行、portable compile、native package/link、transactional REPL、同期 LSP prototype を備えます。format は共通 CST API と LSP document formatting から利用できます。[RFC 0010](rfcs/0010-owned-repl-previews.md) と [RFC 0016](rfcs/0016-indirect-repl-previews.md) が有界 result preview を定めます。output 公開前に result を retire し、session は source 定義を保持しても mutable guest owner を保持しません。
@@ -161,7 +167,7 @@ M4 は 2026-10-29 JST に開始しました。[RFC 0034](rfcs/0034-package-works
 
 `package::source::analyze_test` は固定 binding inventory から宣言 test を選択します。その root は選択 package の直接 edge と、同 package を指す `_package` を持ち、元 package-root 名前空間、nominal identity、可視性、source span を保持します。別 test root は module 上限に算入し、package entry 自体が test なら同じ root を再利用します。`lang test` は選択 package の test だけを manifest 順に、同じ検証済み artifact／VM 経路と entry ごとに初期化する control で実行します。test 0 件でも main を要求せず graph を型検査します。最初の source／runtime／非 0 失敗では旧 lock／build／test output を保持します。保持 artifact と完全一致 lock copy は 64 MiB に制限し、`target/lang/<lock-sha256>/test/{inputs.lock,tests/<manifest-index>.lbc}` を公開します。test は package／test root 間の公開 nominal type、private UTF-8 span、入力削除／project 移動後の固定解析、isolated service を含む全 VM profile、test ごとの fuel、test 0 件の library、batch-output 拒否を検証します。test 名前空間による artifact／lock schema 変更はありません。
 
-workspace 選択、再現可能 native executable、package／archive／fmt／lint／doc tooling、package editor navigation／検証 edit は実装し、独立 editor protocol 監査を含め両 host で検証済みです。DAP は [live board](milestone-4.md) で進行中で、native／混在 debug 全体、profiling、署名 installer は引き続き必要です。registry、WebAssembly component、追加 backend、self-hosting、別 frontend は後続 milestone で、実装済みではありません。async REPL、detached task、非同期 foreign callback stack も現在の実行範囲外です。
+workspace選択、再現可能native executable、package／archive／fmt／lint／doc tooling、package editor navigation／検証edit、上限付きDAP profileは実装し、両hostで検証済みです。[live board](milestone-4.md)にG1–G8の証拠を記録しています。`lang profile compile`は元のpackage capture／frontend／portable lower・verify・encodeを観測し、guest実行やbuild／lock公開を行いません。[RFC 0041](rfcs/0041-bounded-toolchain-profiles.md)が閉じたcompile／runtime／allocation／rebuild reportと計測制限を定めます。全4 profiling commandを両hostで検証しました。署名installerは引き続き必要です。registry、WebAssembly component、追加backend、self-hosting、別frontendは後続milestoneで、実装済みではありません。async REPL、detached task、非同期foreign callback stackも現在の実行範囲外です。
 
 ## 検証と保守
 

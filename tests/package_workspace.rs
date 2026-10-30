@@ -123,6 +123,75 @@ fn run(graph: &Graph) -> i64 {
 }
 
 #[test]
+fn rebuild_profile_reconciles_workspace_selection_and_inactive_member_catalogue() {
+    use lang::profile::rebuild::{Category, Report};
+    let files = Files::new();
+    files.catalogue_with_idle();
+    let lock = Lock::capture(&files.graph("app")).unwrap();
+    fs::write(files.0.join("Lang.lock"), lock.as_bytes()).unwrap();
+    let profile = |package: &str| {
+        let output = files.run(&[
+            "profile",
+            "rebuild",
+            "--package",
+            package,
+            "--target",
+            TARGET,
+            "--message-format",
+            "json",
+        ]);
+        assert!(
+            output.status.success(),
+            "{}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        Report::decode(&output.stdout).unwrap()
+    };
+    let same = profile("app");
+    assert!(!same.inputs_changed);
+    let selected = profile("helper");
+    assert!(
+        selected
+            .changes
+            .iter()
+            .any(|c| c.category == Category::Workspace
+                && c.key == ["selected_root"]
+                && c.before.as_deref() == Some("app")
+                && c.after.as_deref() == Some("helper"))
+    );
+    assert!(
+        selected
+            .changes
+            .iter()
+            .any(|c| c.category == Category::Source && c.key[0] == "app" && c.after.is_none())
+    );
+    files.write(
+        "idle/Lang.json",
+        &HELPER
+            .replace("\"helper\"", "\"idle\"")
+            .replace("0.1.0", "0.2.0"),
+    );
+    let changed = profile("app");
+    assert!(
+        changed
+            .changes
+            .iter()
+            .any(|c| c.category == Category::Workspace && c.key == ["member", "idle", "version"])
+    );
+    assert!(
+        !changed
+            .changes
+            .iter()
+            .any(|c| c.category == Category::Source)
+    );
+    assert_eq!(
+        fs::read(files.0.join("Lang.lock")).unwrap(),
+        lock.as_bytes()
+    );
+    assert!(!files.0.join("target").exists());
+}
+
+#[test]
 fn explicit_workspace_authority_executes_a_real_sibling_dependency() {
     let files = Files::new();
     assert_eq!(

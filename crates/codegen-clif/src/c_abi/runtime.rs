@@ -324,7 +324,15 @@ impl<P: a::Provider> Runtime for State<'_, '_, '_, '_, P> {
     fn charge(&mut self, span: m::Span) -> n::ResultStep {
         let active = self.stack.last_mut().unwrap();
         active.debug = n::DebugFrame::new(active.function, span);
-        self.control.charge(&mut self.usage).map_err(control_cause)
+        self.control
+            .charge(&mut self.usage)
+            .map_err(control_cause)?;
+        self.control.observe(Some(e::Point {
+            source: span.source.0,
+            start: span.start,
+            end: span.end,
+        }));
+        Ok(())
     }
     fn move_slot(&mut self, source: usize, target: usize, span: m::Span) -> n::ResultStep {
         values::move_value(self, source, target, span)
