@@ -95,3 +95,7 @@ A01完了（2026-10-30 JST）: 日英RFC 0043を委任採択し、既存edition�
 
 B01準備（2026-10-30 JST、delivery完了への変更なし）: 2 moduleのstandalone sourceと、同じbytesにedition-2026 manifestを付けたpackageはどちらも42を返した。これはpackage化であり、edition間移行の証拠ではなく、これだけでG2を完了できない。実stdio LSPは`unused`だけを`_unused`へ変更するversion付き`LNT0001` quickfixを返し、適用後もinitializerを保持して42を返し、lintが解消した。次のfix CLIでは既存の意味rename証明を再利用する。現editor snapshotはroot entryを扱うため、B02では宣言testのcoverageを明示的に扱う必要がある。契約案はB01レビューまで採択RFC集合の外に置く。見積り・exitゲートの変更なし。
 
+A02公開checkpoint: 実装`a473cc0`を`main`ベースの[draft PR #29](https://github.com/carimatics/lang/pull/29)へpushした。最新headのCI `41064851495`とnative-debug CI `41064851345`を開始し、全適用checkと保持された全local結果が揃うまでmergeしない。以前のbackground観測wrapperはCargo子process終了後も残っていたため、idle wrapperを終了してから順次実行の保存付き検証を開始した。保存したfmt・Clippyは成功。workspace testとdocは未確定。観測timeoutだけを理由に稼働中のCargo子processを再起動しない。
+
+B01の歴史的移行証拠: [保持したprobe](../evidence/2026-10-30-m5-legacy-source-probe.json)は架空の後継editionではなく、実在する`69b1c4d`（2026-10-17）のRFC 0006 sourceを使う。`shared`・`weak`識別子はlockを固定した旧compilerで42を返すが、現compilerでは`SRC0024`が4件出る。その旧libraryから生成した315 byteのartifactは現compilerでも42を返す。これを旧profileから2026への実移行fixtureとする。B01は明示profile受入を定義し、capture・renameの前提作業を実装前に明示・再見積りする。通常compilerの現予約語拒否は維持する。この実験はG2完了ではない。
+
