@@ -4,9 +4,9 @@
 //!
 //! `lowering` converts successful RFC 0002 HIR to validated typed MIR.
 //!
-//! RFCs 0004/0005 accept the strict policies; this crate models only selected
-//! traces, not a production ownership checker or structured-task runtime.
-//! The permissive alternatives remain unaccepted experiments.
+//! The production frontend modules implement the accepted checking/lowering
+//! contracts. The original RFC 0004/0005 models below exercise selected traces;
+//! their permissive alternatives remain unaccepted experiments.
 //! The first model compares a deliberately strict async baseline with an
 //! alternative that permits shared task-frame borrows across suspension.
 //! Exclusive borrows never cross suspension, and cancellation ends permitted
@@ -19,6 +19,7 @@
 pub mod analysis;
 pub mod binding;
 pub mod database;
+pub mod file_input;
 pub mod graph;
 pub mod lowering;
 pub mod modules;

@@ -1851,34 +1851,49 @@ fn run_source_namespace(
         context: Cell::new(None),
         fail: cleanup_failure,
     });
-    let methods = [native::Method {
-        interface: 0,
-        member: 0,
-        invoke: if case.native().is_some() {
-            native_apply
-        } else {
-            unused
+    let methods = [
+        /* SAFETY: retained code/user outlive these descriptors and all synchronous uses. */
+        unsafe {
+            native::Method::new(
+                0,
+                0,
+                if case.native().is_some() {
+                    native_apply
+                } else {
+                    unused
+                },
+                if case.native().is_some() {
+                    ptr::from_ref(destroyed.as_ref()).cast_mut().cast()
+                } else {
+                    ptr::null_mut()
+                },
+                native_flags,
+            )
         },
-        user: if case.native().is_some() {
-            ptr::from_ref(destroyed.as_ref()).cast_mut().cast()
-        } else {
-            ptr::null_mut()
+    ];
+    let mut resources = vec![
+        /* SAFETY: retained code/user outlive these descriptors and all synchronous uses. */
+        unsafe {
+            native::ResourceType::new(
+                0,
+                0,
+                destroy,
+                ptr::from_ref(destroyed.as_ref()).cast_mut().cast(),
+            )
         },
-        flags: native_flags,
-    }];
-    let mut resources = vec![native::ResourceType {
-        interface: 0,
-        resource: 0,
-        destroy,
-        user: ptr::from_ref(destroyed.as_ref()).cast_mut().cast(),
-    }];
+    ];
     if matches!(case, Case::NativeWrongResultKind) {
-        resources.push(native::ResourceType {
-            interface: 0,
-            resource: 1,
-            destroy,
-            user: ptr::from_ref(destroyed.as_ref()).cast_mut().cast(),
-        });
+        resources.push(
+            /* SAFETY: retained code/user outlive these descriptors and all synchronous uses. */
+            unsafe {
+                native::ResourceType::new(
+                    0,
+                    1,
+                    destroy,
+                    ptr::from_ref(destroyed.as_ref()).cast_mut().cast(),
+                )
+            },
+        );
     }
     let acquisitions = Cell::new(0);
     let providers = [if owning_registration {

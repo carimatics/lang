@@ -7,12 +7,14 @@
 - ステータス: implemented
 - Authors: Codex（repository ownerのreview向け）
 - 作成日: 2026-10-17
-- 最終更新日: 2026-10-28
+- 最終更新日: 2026-10-30
 - Tracking issue: `docs/roadmap.md` のMilestone 1
 - Supersedes: なし。RFC 0002を拡張
 - Superseded by: なし
 
 ## 現在の範囲
+
+disk入力の強制を明確化（2026-10-30 JST）: root source・import module・editorのdisk snapshotは通常fileだけを受理します。Unixではnonblocking open後のhandleを検査し、byte上限を適用する前にFIFO/device入力がwriterを待つことを防ぎます。root内の通常fileへの認可済みsymlinkは引き続き利用でき、overlayはhostから受け取る不変bytesです。I/O拒否を追加するもので、source構文やpath権限は変えません。
 
 2026-10-28 JST照合。M1のfrontend／portable Copy profileとVM／nativeへの全loweringは実装済みです。[M2](../milestone-2-capabilities.md)がnative call／aggregateを完成させ、[M3](../milestone-3-capabilities.md)が別途規定したtask／component profileを追加します。RFC 0007、0008、0022は字句／core／foreign／task機能を拡張します。本書の初期字句一覧はM1基準であり、現在のkeyword全体ではありません。以下の過去のscalar-native制約や受理checkpointで完了済みgateを再開しません。
 

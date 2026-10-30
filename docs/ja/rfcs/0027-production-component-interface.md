@@ -7,18 +7,26 @@
 - Status: implemented
 - Authors: Project contributors
 - Created: 2026-10-22
-- Last updated: 2026-10-28
+- Last updated: 2026-10-30
 - Tracking issue: M3-I01 through M3-I09, M3-R01 through M3-B02
 - Supersedes:
 - Superseded by:
 
 ## Summary
 
+現在の契約の案内（2026-10-30 JSTレビュー）: Reference semanticsでIDL/projection・canonical value・ownership・failure・C操作を定義します。Execution modesで元VM/JIT/AOT invocationと共有ledger、ABI and compatibilityとRFC 0033でstabilizedな公開C v1を定義します。M3とinstalled/両hostの受入は完了しています。日付付きE/I/R/L checkpointは履歴で、未完記述はImplementation plan/Open questionsと完了したM3 capability auditにより解消されています。Rust/内部native SDKは実験段階です。以下の保守判断はこの実装済み契約の強制を修正します。
+
+保守上の明確化をRFC 0001の委任で受理（2026-10-30 JST）: root callはengine・instance・one-shot controlの各ceilingの最小値を適用します。準備処理とcanonical codecにはこの実効policyを渡し、guest allocationでは元allocatorのidentity・storage・累積counterを置き換えず、一時的に上限を絞ります。unwindを含むscope終了でpolicyだけを復元し、使用量は返却しません。低いceilingでも既存allocationの解放は可能です。nested callは元rootの実効上限と共有ledgerを保持します。instance/control作成前のmodule load・registrationにはengine ceilingを使います。0も実際の上限であり、suppressed-record・trace-frameの0だけは任意の証拠を省略します。従来無視されていた低い上限でadmissionや実行を拒否する場合がありますが、C layout・status ID・wire formatは変更しません。
+
+Rust native callbackの安全性修正（2026-10-30 JST）: 生のmethod/destructor登録には明示的なunsafe constructorを要求し、safe APIからcallback/user/reentry fieldを変更できなくします。再入を許可するcallbackは、nested callでuser storageのaliasが生じてもmemory safetyを維持します。constructorの呼出側はdescriptorの全copyに対するcode/userの有効期間、callbackがunwindしないこと、Rust adapterへ直接渡される不正入力を含む借用input/context/output契約のmemory safetyを保証します。`CodeOwner` markerやmetadata一致はpointerの有効性を証明しません。既存Rust embedderはstruct literalを安全条件を明記したunsafe構築へ移行します。公開C ABIには既にnative lifetimeの義務があり変更しません。compile-fail exampleでsafeな構築・callback/user差替え・再入許可の変更を拒否します。
+
 component IDL v1、rich component-contract schema 3、typed value-frame v1、独立した component C ABI v1 を定義します。[RFC 0003](0003-versioned-component-contracts.md) の capability・negotiation・所有権・failure・poison 規則を維持します。native host が検証済み source または検証した artifact を読み込み、型付き import と grant を供給して script export を呼び、同じ計上対象 invocation で nested guest callback を受け取ります。native body の演算/制御は生成 native code のままです。adapter は MIR 解釈へ fallback しません。
 
 このprofileはM3の受理範囲でimplementedです。source/MIR proof・grant/resource/callback・production embedding・保存artifact/native package・両host実行が完了しました。`9e78f2d`で旧C client移行を含むmacOS/Windows全適合が成功し、公開C v1と既存生成clientの安定性は[stabilized RFC 0033](0033-component-v1-compatibility.md)に従います。source構文・private Rust/native SDK ABI・各保存formatの独立versionを一括安定化するものではありません。下記の段階checkpointは履歴であり、現在の完了証拠は[M3 board](../milestone-3.md)に記録します。
 
 ## Motivation
+
+native viewの安全性を明確化（2026-10-30 JST）: Rust `NativeContext`の実装はunsafeとします。adapterがraw buffer/resource viewをtrusted callbackへ公開するため、実装側は初期化済み有効range・元storage/loan権限・定められた有効期間を保証します。safeな独自実装でviewを偽造し、有効な登録callbackへ渡せてはいけません。実験段階Rustの実装義務だけを変更し、C v1は不変です。rootのpreparation/codec拒否はguest entry前に、元quota種別・上限・試行値を既存C error slotへ保持します。
 
 `7381e09` の `ComponentContractValueType` は I64・Bool・Own・Borrow だけを受理します。代表 application test は scalar/resource の結果と lock replay を実行しますが、canonical table は backend が生成した host data を包み、source MIR の component resource/call ではありません。既存テストは2026-10-22 JSTに成功しました。独立 MIR constructor graph に task/channel/service role はありますが、nominal component resource はありません。RFC 0023 と実行した task boundary test は旧 codec の明示拒否を維持します。これらは基盤であり、rich IDL・実 production adapter・serialized task profile そのものではありません。
 

@@ -131,13 +131,8 @@ extern "C" fn callback(
     panic!("preparation invoked callback")
 }
 fn method(user: *mut c_void) -> native::Method {
-    native::Method {
-        interface: 0,
-        member: 0,
-        invoke: callback,
-        user,
-        flags: 1,
-    }
+    /* SAFETY: retained code/user outlive these descriptors and all synchronous uses. */
+    unsafe { native::Method::new(0, 0, callback, user, 1) }
 }
 fn digest() -> VersionedDigest {
     VersionedDigest::new(DigestAlgorithm::Sha256, vec![7; 32]).unwrap()
@@ -204,10 +199,13 @@ fn unused_rich_and_scalar_imports_bind_real_callbacks_owners_and_source_ids() {
         assert_eq!(import.source(), m::ImportId(i as u32));
         assert!(import.provider().retains_code(owner));
         assert!(std::ptr::fn_addr_eq(
-            import.method().invoke,
+            import.method().invoke_fn(),
             callback as native::Invoke
         ));
-        assert_eq!(import.method().user, ptr::from_ref(owner).cast_mut().cast());
+        assert_eq!(
+            import.method().user_data(),
+            ptr::from_ref(owner).cast_mut().cast()
+        );
         assert_eq!(owner.get(), 0);
     }
     assert!(bound.resolve(m::ImportId(2)).is_none());

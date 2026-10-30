@@ -334,7 +334,7 @@ impl Invoker for Invocation<'_, '_> {
             reserved: [0; 2],
         };
         state.scope = Some(scope);
-        state.reentry = method.flags & 1 != 0;
+        state.reentry = method.flags() & 1 != 0;
         state.last = Some(context);
         // SAFETY: Active clears both borrowed pointers before this invocation
         // or the original callback capabilities can move or be released.
@@ -359,7 +359,8 @@ impl Invoker for Invocation<'_, '_> {
         // SAFETY: the binding retains actual code/user owners. Input bytes and
         // original capabilities stay live through this owner-thread callback;
         // native implementations obey the fixed no-unwind/view contract.
-        let status = unsafe { (method.invoke)(method.user, &context, arguments, &mut buffer) };
+        let status =
+            unsafe { (method.invoke_fn())(method.user_data(), &context, arguments, &mut buffer) };
         Ok(NativeReturn { status, buffer })
     }
     fn destroy(
@@ -416,7 +417,8 @@ impl Invoker for Invocation<'_, '_> {
         // uniquely detached and remains live through the call. The context
         // points at stable engine storage with this live owner-thread scope;
         // the native provider obeys the component-v1 no-unwind/view contract.
-        let status = unsafe { (record.destroy)(record.user, &context, bytes, &mut failure) };
+        let status =
+            unsafe { (record.destroy_fn())(record.user_data(), &context, bytes, &mut failure) };
         cleanup.omit(state.scratch.take_omitted());
         match status {
             0 if failure.is_null() => {}
@@ -648,7 +650,8 @@ mod child_scope_tests {
     use std::cell::Cell;
 
     struct Capabilities(e::InvocationAccounting);
-    impl NativeContext for Capabilities {
+    // SAFETY: this test context refuses every buffer/resource view operation.
+    unsafe impl NativeContext for Capabilities {
         fn accounting(&self) -> Option<&e::InvocationAccounting> {
             Some(&self.0)
         }
@@ -707,12 +710,15 @@ mod child_scope_tests {
         let accounting = e::InvocationAccounting::prepare(control, &mut budget).unwrap();
         let mut capabilities = Capabilities(accounting);
         let restored = Cell::new(false);
-        let method = native::Method {
-            interface: 0,
-            member: 0,
-            invoke: contained_unwind,
-            user: ptr::from_ref(&restored).cast_mut().cast(),
-            flags: 1,
+        // SAFETY: restored outlives this synchronous callback; it contains unwind.
+        let method = unsafe {
+            native::Method::new(
+                0,
+                0,
+                contained_unwind,
+                ptr::from_ref(&restored).cast_mut().cast(),
+                1,
+            )
         };
         {
             let mut invocation = engine.begin(control).unwrap();

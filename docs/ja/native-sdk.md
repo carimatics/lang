@@ -24,6 +24,8 @@ WindowsでPythonのcommandが `python` なら置き換えます。Release SDKに
 
 SDKには `bin/lang`（Windowsは `lang.exe`）、Rust artifactの `lib/`、必要なarchiveの `native/`、`include/lang/runtime.h`、`startup/` template、日英の本文書、`sdk.json` が含まれます。Runtime roleは `lang_codegen_clif` で、MIR／runtime／bytecodeと他の選択libraryはdependencyです。共通C headerは既存profile-1のsupport型とassertionだけを含み、各C programには正確なexport／interface identityを持つ生成 `program.h` が必要です。SDK directoryのコピーではbuild identityは変わりません。
 
+識別子の修正（2026-10-30 JST、[RFC 0020](rfcs/0020-native-sdk-and-startup.md)）: 最終digestにcompile済みcodegen crateのopaqueなCargo/type identityを含め、実効debug assertion/overflow check設定とpackage overrideをsource/toolchain seedに加えて区別します。この変更後はSDKとnative packageを一緒に再生成します。公開C v1とSDK manifest schemaは変更せず、互換性を検査するもので認証ではありません。
+
 Installしたcompilerでsource-native program fileを生成します。
 
 ```text
@@ -73,7 +75,7 @@ runner の旧 LLVM 20.1.8 は python310.dll、別配置の LLVM 23.1.4 MSI は p
 
 公式 [LLDB DAP 文書](https://lldb.llvm.org/use/lldbdap.html) は tool 入手方法と起動設定を記載しています。公開／更新日の記載はなく、2026-10-29 JST 確認。
 
-production native launch は D03 の `39473b1` で実装・両host検証済み（2026-10-30 JST、workflow 40918693919、3/3）。`SDK/bin/lang dap` を起動し、initialize 後に DAP launch `{"mode":"native","root":"/absolute/package","manifestPath":"Lang.json","sdk":"/absolute/sdk"}` を送る。host import のない i64 main を持つ Copy を受理し、既存 SDK／program format を snapshot 化して厳密 rustc と意味 identity を検証し、executable／sidecar を private debug link する。line breakpoint、不変 source query、stack、step、continue、disconnect に対応し、column breakpoint と native value inspection は拒否する。capability event で native hover 評価を無効にする。物理 frame の元の順を保ち、取得済み package file だけに source location を付ける。混在stackとlifecycleはD04／D05に残し、native value／column inspectionは引き続きunavailable。
+production native launch は D03 の `39473b1` で実装・両host検証済み（2026-10-30 JST、workflow 40918693919、3/3）。`SDK/bin/lang dap` を起動し、initialize 後に DAP launch `{"mode":"native","root":"/absolute/package","manifestPath":"Lang.json","sdk":"/absolute/sdk"}` を送る。host import のない i64 main を持つ Copy を受理し、既存 SDK／program format を snapshot 化して厳密 rustc と意味 identity を検証し、executable／sidecar を private debug link する。line breakpoint、不変 source query、stack、step、continue、disconnect に対応し、column breakpoint と native value inspection は拒否する。capability event で native hover 評価を無効にする。物理 frame の元の順を保ち、取得済み package file だけに source location を付ける。D04／D05でgrantした混在stackとlifecycle profileは完了済み（RFC 0040）で、native value／column inspectionは引き続きunavailable。
 
 ## 信頼済みmixed Rust host（実験段階）
 

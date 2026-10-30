@@ -97,6 +97,36 @@ fn main() {
         assert_eq!((api.module_drop)(module,&mut error),0);assert_eq!(RELEASED.load(Ordering::Relaxed),0);
         assert_eq!((api.bind_export)(instance,bytes(include_bytes!(concat!(@PACKAGE@,"/request.bin"))),&mut binding,&mut error),0);
         let mut retained=ptr::null_mut();let mut baseline:ffi::Usage=std::mem::zeroed();baseline.header=header::<ffi::Usage>();
+        if !@CALLBACK@ && !@TASK@ {
+            // The same control ceilings must constrain an installed native image.
+            for kind in 0..8 {
+                let mut limits=config.ceiling;
+                match kind {
+                    0=>limits.heap_bytes=0,1=>limits.live_allocations=0,
+                    2=>limits.preparation_work=0,3=>limits.metadata_bytes=0,
+                    4=>limits.value_elements=0,5=>limits.serialization_bytes=0,
+                    6=>limits.depth=0,_=>limits.decoder_allocation_bytes=0,
+                }
+                let mut control=ptr::null_mut();let mut result=ptr::null_mut();
+                assert_eq!((api.control_create)(engine,&limits,&mut control,&mut error),0);
+                let status=typed_call(api.call,api.result_info,binding,control,41,&mut result,&mut error);
+                assert!(status==1||status==2,"scope quota {kind}: {status}");
+                if status==2 {
+                    assert_eq!(error.diagnostic,12);assert_eq!(error.limit_kind,[3,4,9,10,11,12,13,14][kind]);
+                    assert_eq!(error.limit,0);assert!(error.attempted>0);
+                }
+                if !result.is_null(){
+                    let mut view=bytes(&[]);assert_eq!((api.result_bytes)(result,&mut view,&mut error),0);
+                    let report=wire::decode_report(std::slice::from_raw_parts(view.data,view.length as usize),&mut wire::Session::new(Default::default())).unwrap();
+                    assert!(!report.poisoned);assert_eq!(report.primary.diagnostic,wire::Diagnostic::Limit);
+                    let limit=report.primary.limit.unwrap();assert_eq!(limit.kind as u32,[3,4,9,10,11,12,13,14][kind]);
+                    assert_eq!(limit.limit,0);assert!(limit.attempted>0);
+                    assert_eq!((api.result_drop)(result,&mut error),0);
+                }
+                assert_eq!((api.control_drop)(control,&mut error),0);
+                assert_eq!(LIVE.load(Ordering::Relaxed),0);
+            }
+        }
         for (value,fuel,interrupt,task_limit) in [(41,1000000,false,64),(-1,1000000,false,64),(0,1000000,false,64),(41,0,false,64),(41,1000000,true,64),(41,1000000,false,1)] {
             let mut limits=config.ceiling;limits.fuel=fuel;limits.live_tasks=task_limit;let mut control=ptr::null_mut();let mut result=ptr::null_mut();
             assert_eq!((api.control_create)(engine,&limits,&mut control,&mut error),0);

@@ -814,6 +814,7 @@ dependencies = [
  "lang-mir",
  "lang-query",
  "lang-syntax",
+ "libc",
 ]
 
 [[package]]

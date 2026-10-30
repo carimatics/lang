@@ -8,6 +8,12 @@ use super::wire;
 use crate::c_abi::context::CodeOwner;
 use std::{ffi::c_void, fmt, rc::Rc};
 
+// Only the two raw descriptor constructors declare unsafe obligations. They
+// contain no pointer dereference; actual dispatch stays in the native adapter.
+#[allow(unsafe_code)]
+mod raw;
+pub use raw::{Method, ResourceType};
+
 #[repr(C)]
 #[derive(Clone, Copy, Debug)]
 pub struct Header {
@@ -49,28 +55,10 @@ pub type Invoke = unsafe extern "C" fn(*mut c_void, *const Context, Bytes, *mut 
 pub type Destroy =
     unsafe extern "C" fn(*mut c_void, *const Context, MutBytes, *mut *mut Buffer) -> u32;
 
-#[derive(Clone, Copy, Debug)]
-pub struct Method {
-    pub interface: usize,
-    pub member: usize,
-    pub invoke: Invoke,
-    pub user: *mut c_void,
-    /// Bit 0 permits nested synchronous guest calls; all other bits are zero.
-    pub flags: u32,
-}
-
 #[derive(Debug)]
 pub(crate) enum ResourceLookupError {
     Budget(lang_mir::unit::Error),
     Unknown,
-}
-
-#[derive(Clone, Copy, Debug)]
-pub struct ResourceType {
-    pub interface: usize,
-    pub resource: usize,
-    pub destroy: Destroy,
-    pub user: *mut c_void,
 }
 
 /// A live implementation identity. Equal static keys from separately registered
@@ -381,7 +369,7 @@ fn validate(
     let d = metadata.contract.document();
     for (index, method) in methods.iter().enumerate() {
         let error = |kind| RegistrationError::Method { kind, index };
-        if method.flags & !1 != 0 {
+        if method.flags() & !1 != 0 {
             return Err(error(RegistrationErrorKind::Flags));
         }
         let interface = d

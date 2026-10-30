@@ -7,7 +7,7 @@
 - Status: implemented
 - Authors: Project contributors
 - Created: 2026-10-21
-- Last updated: 2026-10-27
+- Last updated: 2026-10-30
 - Tracking issue: M3-T11, M3-T04–T08
 - Supersedes:
 - Superseded by:
@@ -17,6 +17,8 @@
 **2026-10-27 JST: implemented at the experimental profile.** Independent task type/effect/ownership/loan proof, continuation lowering, ordered cleanup and shared controls are implemented. Evidence: `tests/task_mir_boundary.rs`, `task_controls.rs`, `task_retirement.rs`, `native_task_execution.rs`, the [both-host conformance/migration record](../evidence/2026-10-27-m3-migration-9e78f2d.json) at executable source `9e78f2d`, and the [15-gate audit](../milestone-3-capabilities.md#complete-exit-audit). Follow-up RFCs 0028 and 0030–0032 complete serialization and installed packages. “Remaining” or “unverified” in dated checkpoints describes that checkpoint, not current work. Only the public component C v1 boundary is stabilized by RFC 0033; this update does not stabilize this RFC's source/private ABI.
 
 ## Summary
+
+Reading order (reviewed 2026-10-30 JST): Reference semantics defines independent MIR proof, continuation/cleanup and ownership; Execution modes defines the shared runner and separate backend dispatch; ABI and compatibility defines format boundaries. Implementation status supplies current source→proof→Program→runner evidence. Dated checkpoints retain the decision history; their delivery labels do not reopen M3. Current serialization/installed startup follow RFCs 0028/0031/0032.
 
 A06 implementation checkpoint (2026-10-21 JST): source and MIR expose compiler-derived logical-task Send/Share from their independently verified transitive type facts; no new graph cache, trait assertion, bit-copy transfer or wire tag is introduced. Async signature checks now accept owned Bytes/Text/Vec/Map, sums, recursive records/enums and checked shared/weak types. Loan/arena/allocator/Task authority remains forbidden, and ordinary move analysis consumes each spawn argument once. Seven focused tests compare both graphs, validate unused/forward-recursive signatures and aliases, reject forged MIR loan signatures at the type span and duplicate consumption, and check exact/one-below proof-work limits. VM/native continue a zero-effect Unsupported refusal for reachable owned async transfers until A05 implements publication/await/disposal. Source actor authority remains A02 after concrete channel handles. This is partial implementation evidence; RFC 0024 and all M3 gates remain incomplete.
 

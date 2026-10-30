@@ -107,13 +107,18 @@ pub(super) unsafe fn prepare(
                     if signature.digest() != method.signature {
                         return Err(2);
                     }
-                    found = Some(native::Method {
-                        interface,
-                        member,
-                        invoke,
-                        user: method.user,
-                        flags: method.flags,
-                    });
+                    found = Some(
+                        /* SAFETY: retained code/user outlive these descriptors and all synchronous uses. */
+                        unsafe {
+                            native::Method::new(
+                                interface,
+                                member,
+                                invoke,
+                                method.user,
+                                method.flags,
+                            )
+                        },
+                    );
                 }
             }
         }
@@ -145,12 +150,12 @@ pub(super) unsafe fn prepare(
                     k.resource().as_bytes(),
                 ];
                 if key_matches(key, &parts, session)? {
-                    found = Some(native::ResourceType {
-                        interface,
-                        resource: index,
-                        destroy,
-                        user: resource.user,
-                    });
+                    found = Some(
+                        /* SAFETY: retained code/user outlive these descriptors and all synchronous uses. */
+                        unsafe {
+                            native::ResourceType::new(interface, index, destroy, resource.user)
+                        },
+                    );
                 }
             }
         }

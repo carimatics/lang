@@ -7,7 +7,7 @@
 - Status: implemented
 - Authors: project contributors
 - Created: 2026-10-21
-- Last updated: 2026-10-27
+- Last updated: 2026-10-30
 - Tracking issue: M3-C01, M3-C02, M3-C03, M3-C04, M3-C05, M3-C06, M3-C07, M3-A02
 - Supersedes: none
 - Superseded by: none
@@ -17,6 +17,8 @@
 **2026-10-27 JST: implemented at the experimental profile.** Bounded channel custody, FIFO backpressure, contextual publication, cancellation and VM/native/linked execution are implemented. Evidence: `tests/source_channels.rs`, `native_channel_execution.rs`, `task_artifacts.rs`, the [both-host conformance/migration record](../evidence/2026-10-27-m3-migration-9e78f2d.json) at executable source `9e78f2d`, and the [15-gate audit](../milestone-3-capabilities.md#complete-exit-audit). Follow-up RFCs 0028 and 0030–0032 complete serialization and installed packages. “Remaining” or “unverified” in dated checkpoints describes that checkpoint, not current work. Only the public component C v1 boundary is stabilized by RFC 0033; this update does not stabilize this RFC's source/private ABI.
 
 ## Summary
+
+Reading order (reviewed 2026-10-30 JST): Reference semantics defines endpoint authority, bounded FIFO custody, atomic publication, closed recovery and cancellation; Execution modes and Diagnostics and tooling define backend equivalence and deadlock/failure reporting. Capacity zero, multiple consumers and OS-thread parallelism remain non-goals. Dated checkpoints explain decisions; formerly pending stages do not override Implementation status or reopen M3.
 
 C07/A03 implementation checkpoint (2026-10-22 JST): typed Copy staging/closed recovery covers Unit, records and nested enum/Option/Result while retaining original sender copies and existing scalar/error work events. Publication now reads both committed messages and actual service state through the existing bounded Hub walk. State-owned Receiver/ServiceOwner edges participate in immediate and resumed send checks; a whole-state candidate substitutes only that state during prospective inspection. Rejected sends return the sole staged payload, and failed state replacement preserves the old state/generation and candidate custody. Control/provider/interruption/quota and nested cleanup tests retain zero inventory. Ordinary channel VM/generated-native/linked conformance remains available; A04 native execution is described below. This implements the accepted Send contract without new syntax, format, capability or semantic changes and completes no M3 gate.
 

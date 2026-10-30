@@ -1179,7 +1179,7 @@ fn run_artifact(file: PathBuf, limits: ExecutionOptions) -> Result<u8, CliError>
 // The CLI's initial input buffer is bounded separately by the artifact byte
 // cap. Decoder-retained copies and all verification buffers use its own ledger.
 fn read_artifact(path: &std::path::Path, maximum: usize) -> io::Result<Vec<u8>> {
-    let mut input = std::fs::File::open(path)?;
+    let mut input = lang_semantics::file_input::open_regular(path)?;
     let mut bytes = Vec::new();
     let mut chunk = [0_u8; 8192];
     loop {

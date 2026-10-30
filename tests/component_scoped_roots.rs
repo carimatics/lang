@@ -619,7 +619,7 @@ impl execution::Invoker for BudgetInvoker<'_> {
         parameters: &[u8],
         context: &mut dyn execution::NativeContext,
     ) -> Result<execution::NativeReturn, u32> {
-        if method.flags & 1 == 0 {
+        if method.flags() & 1 == 0 {
             let mut denied = DeniedCallback(false);
             assert_eq!(context.with_callback(&mut denied), Err(4));
             assert!(!denied.0);
@@ -1383,40 +1383,46 @@ fn provider(owner: Rc<Owner>) -> native::Provider<'static> {
     let mut session = wire::Session::new(Default::default());
     let contract = wire::Contract::new(doc, vec![], &mut session).unwrap();
     let mut methods = vec![
-        native::Method {
-            interface: 0,
-            member: 0,
-            invoke: if resource {
-                apply_callback_resource
-            } else {
-                unused
-            },
-            user: Rc::as_ptr(&owner).cast_mut().cast(),
-            flags: 0,
+        /* SAFETY: retained code/user outlive these descriptors and all synchronous uses. */
+        unsafe {
+            native::Method::new(
+                0,
+                0,
+                if resource {
+                    apply_callback_resource
+                } else {
+                    unused
+                },
+                Rc::as_ptr(&owner).cast_mut().cast(),
+                0,
+            )
         },
-        native::Method {
-            interface: 0,
-            member: 1,
-            invoke: make,
-            user: Rc::as_ptr(&owner).cast_mut().cast(),
-            flags: u32::from(owner.child.is_some()),
+        /* SAFETY: retained code/user outlive these descriptors and all synchronous uses. */
+        unsafe {
+            native::Method::new(
+                0,
+                1,
+                make,
+                Rc::as_ptr(&owner).cast_mut().cast(),
+                u32::from(owner.child.is_some()),
+            )
         },
-        native::Method {
-            interface: 0,
-            member: 2,
-            invoke: tick,
-            user: Rc::as_ptr(&owner).cast_mut().cast(),
-            flags: 0,
-        },
+        /* SAFETY: retained code/user outlive these descriptors and all synchronous uses. */
+        unsafe { native::Method::new(0, 2, tick, Rc::as_ptr(&owner).cast_mut().cast(), 0) },
     ];
     if resource {
-        methods.push(native::Method {
-            interface: 0,
-            member: 3,
-            invoke: bounce_resource,
-            user: Rc::as_ptr(&owner).cast_mut().cast(),
-            flags: 1,
-        });
+        methods.push(
+            /* SAFETY: retained code/user outlive these descriptors and all synchronous uses. */
+            unsafe {
+                native::Method::new(
+                    0,
+                    3,
+                    bounce_resource,
+                    Rc::as_ptr(&owner).cast_mut().cast(),
+                    1,
+                )
+            },
+        );
     }
     for method in &mut methods {
         let name = ["apply", "make", "tick", "bounce"][method.member];
@@ -1430,12 +1436,12 @@ fn provider(owner: Rc<Owner>) -> native::Provider<'static> {
         contract,
         VersionedDigest::new(DigestAlgorithm::Sha256, vec![1; 32]).unwrap(),
         methods,
-        vec![native::ResourceType {
-            interface: 0,
-            resource: 0,
-            destroy,
-            user: Rc::as_ptr(&owner).cast_mut().cast(),
-        }],
+        vec![
+            /* SAFETY: retained code/user outlive these descriptors and all synchronous uses. */
+            unsafe {
+                native::ResourceType::new(0, 0, destroy, Rc::as_ptr(&owner).cast_mut().cast())
+            },
+        ],
         &mut || owner.clone(),
         &mut session,
     )
@@ -5018,12 +5024,10 @@ fn retained_entry_checks_unused_native_owners_and_preparation_work_before_effect
     let mut h = Harness::new();
     let (owned, watch) = h.registration(false);
     let methods = owned.methods().to_vec();
-    let kinds = [native::ResourceType {
-        interface: 0,
-        resource: 0,
-        destroy,
-        user: watch.owner.as_ptr().cast_mut().cast(),
-    }];
+    let kinds = [
+        /* SAFETY: retained code/user outlive these descriptors and all synchronous uses. */
+        unsafe { native::ResourceType::new(0, 0, destroy, watch.owner.as_ptr().cast_mut().cast()) },
+    ];
     let borrowed = native::Provider::with_resources(
         owned.metadata(),
         &methods,

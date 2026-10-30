@@ -874,7 +874,29 @@ pub trait CallbackOperation {
         task: &mut crate::task::CurrentTask<'_>,
     ) -> Result<(), CallbackFailure>;
 }
-pub trait NativeContext {
+/// Native views exposed to trusted callbacks by the live adapter.
+///
+/// # Safety
+/// Successful buffer/resource views must reference initialized storage with
+/// their original access/loan authority and remain valid through the advertised
+/// buffer-drop/callback lifetime. Native callbacks may dereference these views
+/// according to the component-v1 contract. Unknown/expired handles must refuse.
+///
+/// ```compile_fail,E0200
+/// use lang_runtime::component::{execution::NativeContext, native};
+/// struct Fake;
+/// impl NativeContext for Fake {
+///     fn allocator_identity(&self) -> u64 { 0 }
+///     fn buffer_create(&mut self, _:u64, _:u64) -> Result<*mut native::Buffer,u32> { Err(4) }
+///     fn buffer_drop(&mut self, _:*mut native::Buffer) -> Result<(),u32> { Err(4) }
+///     fn buffer_mut_bytes(&mut self, _:*mut native::Buffer) -> Result<native::MutBytes,u32> { Err(4) }
+///     fn resource_read(&self, _:u32) -> Result<native::Bytes,u32> { Err(4) }
+///     fn resource_write(&self, _:u32) -> Result<native::MutBytes,u32> { Err(4) }
+///     fn resource_publish(&mut self, _:&[u8], _:*mut native::Buffer) -> Result<u32,u32> { Err(4) }
+/// }
+/// ```
+#[allow(unsafe_code)] // The raw-view validity obligation is part of this trait.
+pub unsafe trait NativeContext {
     fn call_frame(&self) -> Option<&NativeCallFrame> {
         None
     }
@@ -1176,7 +1198,10 @@ impl<'r, 'm, 'b, 'scope, 'code> CallContext<'r, 'm, 'b, 'scope, 'code> {
         Ok(view)
     }
 }
-impl NativeContext for CallContext<'_, '_, '_, '_, '_> {
+// SAFETY: buffer tickets and resource views resolve through the original live
+// holder/allocator and access grant; the enclosing callback retains their loans.
+#[allow(unsafe_code)]
+unsafe impl NativeContext for CallContext<'_, '_, '_, '_, '_> {
     fn call_frame(&self) -> Option<&NativeCallFrame> {
         self.native_frame
     }
@@ -1491,6 +1516,7 @@ impl NativeContext for CallContext<'_, '_, '_, '_, '_> {
 }
 
 #[cfg(test)]
+#[allow(unsafe_code)] // Only admission of inert test callbacks; no pointer access.
 mod callback_authority_tests {
     use super::*;
     use crate::component::{
@@ -1532,19 +1558,14 @@ mod callback_authority_tests {
         let mut session = wire::Session::new(Default::default());
         let contract = wire::Contract::new(document, vec![], &mut session).unwrap();
         let digest = VersionedDigest::new(DigestAlgorithm::Sha256, vec![1; 32]).unwrap();
-        let methods = [native::Method {
-            interface: 0,
-            member: 0,
-            invoke: unused,
-            user: ptr::null_mut(),
-            flags: 0,
-        }];
-        let descriptors = [native::ResourceType {
-            interface: 0,
-            resource: 0,
-            destroy,
-            user: ptr::null_mut(),
-        }];
+        let methods = [
+            /* SAFETY: retained code/user outlive these descriptors and all synchronous uses. */
+            unsafe { native::Method::new(0, 0, unused, ptr::null_mut(), 0) },
+        ];
+        let descriptors = [
+            /* SAFETY: retained code/user outlive these descriptors and all synchronous uses. */
+            unsafe { native::ResourceType::new(0, 0, destroy, ptr::null_mut()) },
+        ];
         let mut register = || {
             native::Provider::with_resources(
                 wire::Provider {

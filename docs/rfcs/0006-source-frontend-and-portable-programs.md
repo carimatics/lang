@@ -7,12 +7,14 @@
 - Status: implemented
 - Authors: Codex (for repository-owner review)
 - Created: 2026-10-17
-- Last updated: 2026-10-28
+- Last updated: 2026-10-30
 - Tracking issue: Milestone 1 in `docs/roadmap.md`
 - Supersedes: None; extends RFC 0002
 - Superseded by: None
 
 ## Current scope
+
+Disk-input enforcement clarified 2026-10-30 JST: source roots, imported modules and editor disk snapshots admit regular files only. Unix opens use nonblocking admission and validate the opened handle, so FIFO/device inputs cannot wait for a writer before the byte limit applies. Authorized in-root symlinks to regular files remain supported; overlays remain immutable host-supplied bytes. This adds an I/O refusal, without changing source syntax or path authority.
 
 Reconciled 2026-10-28 JST. The M1 frontend/portable Copy profile and its full VM/native lowering are implemented. [M2](../milestone-2-capabilities.md) completes native calls/aggregates, while [M3](../milestone-3-capabilities.md) adds separately specified task/component profiles. RFCs 0007, 0008 and 0022 extend the lexical/core/foreign/task surface; the original lexical list here describes the M1 baseline, not the complete current keyword list. Historical scalar-native limitations and acceptance checkpoints below do not reopen completed gates.
 

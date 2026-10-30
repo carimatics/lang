@@ -7,7 +7,7 @@
 - Status: implemented
 - Authors: Project contributors
 - Created: 2026-10-18
-- Last updated: 2026-10-28
+- Last updated: 2026-10-30
 - Tracking issue: [実装Todo](../milestone-2.md) のM2-A01/A02/A03とN01
 - Supersedes: なし。RFC 0006のschema 1と並行してownership schema 2を追加
 - Superseded by:
@@ -15,6 +15,8 @@
 拡張（2026-10-19）：[RFC 0014](0014-explicit-source-panic.md)は明示的Panicを含むunitにschema 3を選びます。本書のschema 2 profileは閉じたままbyte互換性を保ち、33命令tagと37runtime core tagは変えません。
 
 ## 現在の実装状態
+
+CLIのdisk admissionを明確化（2026-10-30 JST）: artifact入力は通常fileに限定し、Unixではnonblocking openしたhandleを有界readの前に検査します。FIFO/deviceは無期限に待たずI/O入力として拒否します。既存byte上限・診断span・schema・memory内decoder APIは変更しません。
 
 2026-10-20 JSTに[M2 capabilityと検証根拠](../milestone-2-capabilities.md)と照合済みです。本RFCの範囲はimplementedであり、stabilizedではありません。以下の当初計画、decision時点の記述、日付付きcheckpointはrollout履歴として読みます。そこで別作業としていたnative／SDK／platformの現在状態は上記ガイドを参照してください。今回発見したRFC 0012の論理debugger検証不足は同ガイドの訂正で解消し、本RFCの非目標や規範的要求は変更しません。
 

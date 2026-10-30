@@ -7,12 +7,14 @@
 - Status: implemented
 - Authors: project maintainers with Codex
 - Created: 2026-10-29
-- Last updated: 2026-10-29
+- Last updated: 2026-10-30
 - Tracking issue: M4-C01–C07
 - Supersedes: none
 - Superseded by: none
 
 ## 概要
+
+現在の状態（2026-10-30 JST）: C01–C07とM4 G5/G6は完了しています。`6d16e93`のC07 auditと`5cdc422`の最終検証に、実overlay/LSP/checked-edit fixture、full CI `40864753941`、native CI `40864753946`を記録しています。以下の動機と初期prototypeは実装前の状態であり、現在の受入状態は[完了したM4 board](../milestone-4.md)を参照してください。
 
 既存 UTF-16 LSP server に package 対応 navigation、completion、semantic token、検証付き rename／code action を加える。semantic answer は不変の許可 package／input／overlay epoch と元 source span に対応する。edit は client 向け提案で、filesystem に直接書き込まない。
 
@@ -119,6 +121,8 @@ C01 で本契約を採択し、許可済み不変 package snapshot と実 depend
 実 sibling package function／type、import／alias／privacy、local／global shadowing、field／pattern identity、UTF-8／UTF-16／CRLF 境界、不正 source、open／change／close、closed-file refresh、stale 公開を検証する。rename は有効な複数 file 変更、capture／衝突、version／transactional capability 不足、古い input、不正名、拒否時 file 保持を含める。token 順、response 上限、end-to-end wire framing を検査する。両 host CI と必須 baseline を実行し、benchmark／fuzz campaign は主張しない。
 
 ## 未解決事項
+
+この有界profileに実装のblockerは残っていません。open-file/transactional client要件は明示的なproduct tradeoffとして維持します。以下は初期採択判断の記録であり、C01–C07の証拠条件は上記の通り充足済みです。
 
 RFC 0001 の実験委譲で 2026-10-29 JST に採択。既存 resolver／HIR identity と明示 snapshot／edit 境界は合理的に妥当。有限 prototype は `helper::answer` の bytes 41..47 から依存宣言 7..13 を解決し、provider 変更後も元 bytes を保持し、同名 local を解決済み HIR で除外した。全 overlay／LSP／edit 統合や cost の証明ではなく、C01–C07 で実 fixture が必要。open-file／transactional client 要件は実験的 product tradeoff。
 

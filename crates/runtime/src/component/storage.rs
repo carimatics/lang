@@ -970,6 +970,7 @@ impl<'a> Detached<'a> {
 }
 
 #[cfg(test)]
+#[allow(unsafe_code)] // Test-only callback admission; fixture owners remain live.
 mod tests {
     use super::super::negotiation::{InterfaceKey, PackageKey};
     use super::*;
@@ -1011,19 +1012,14 @@ mod tests {
         let mut session = wire::Session::new(Default::default());
         let contract = wire::Contract::new(document, vec![], &mut session).unwrap();
         let digest = VersionedDigest::new(DigestAlgorithm::Sha256, vec![1; 32]).unwrap();
-        let methods = [native::Method {
-            interface: 0,
-            member: 0,
-            invoke,
-            user: ptr::null_mut(),
-            flags: 0,
-        }];
-        let descriptors = [native::ResourceType {
-            interface: 0,
-            resource: 0,
-            destroy,
-            user: ptr::null_mut(),
-        }];
+        let methods = [
+            /* SAFETY: retained code/user outlive these descriptors and all synchronous uses. */
+            unsafe { native::Method::new(0, 0, invoke, ptr::null_mut(), 0) },
+        ];
+        let descriptors = [
+            /* SAFETY: retained code/user outlive these descriptors and all synchronous uses. */
+            unsafe { native::ResourceType::new(0, 0, destroy, ptr::null_mut()) },
+        ];
         let provider = native::Provider::with_resources(
             wire::Provider {
                 contract: &contract,

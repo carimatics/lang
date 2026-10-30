@@ -105,6 +105,29 @@ pub struct Limits {
     pub live_allocations: usize,
     pub alignment: u64,
 }
+
+/// Temporarily lower the original allocator's limits without resetting usage.
+/// Drop restores only the policy; storage, identity and counters stay original.
+pub struct LimitScope<'a, P: Provider> {
+    allocator: &'a mut Allocator<P>,
+    previous: Limits,
+}
+impl<P: Provider> std::ops::Deref for LimitScope<'_, P> {
+    type Target = Allocator<P>;
+    fn deref(&self) -> &Self::Target {
+        self.allocator
+    }
+}
+impl<P: Provider> std::ops::DerefMut for LimitScope<'_, P> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        self.allocator
+    }
+}
+impl<P: Provider> Drop for LimitScope<'_, P> {
+    fn drop(&mut self) {
+        self.allocator.limits = self.previous;
+    }
+}
 impl Default for Limits {
     fn default() -> Self {
         Self {
@@ -398,6 +421,31 @@ impl<P: Provider> Allocator<P> {
     }
     pub const fn limits(&self) -> Limits {
         self.limits
+    }
+    /// Constrain a storage-owning allocator for one synchronous invocation.
+    /// Borrowed views cannot substitute policy for their original allocator.
+    /// Existing regions remain releasable even when their usage exceeds a new cap.
+    pub fn limit_scope(&mut self, ceiling: Limits) -> Result<LimitScope<'_, P>, Error> {
+        if self
+            .provider
+            .as_ref()
+            .and_then(Provider::allocator_view)
+            .is_some()
+        {
+            return Err(Error::BorrowedProvider);
+        }
+        let previous = self.limits;
+        self.limits = Limits {
+            request_bytes: previous.request_bytes.min(ceiling.request_bytes),
+            live_bytes: previous.live_bytes.min(ceiling.live_bytes),
+            cumulative_bytes: previous.cumulative_bytes.min(ceiling.cumulative_bytes),
+            live_allocations: previous.live_allocations.min(ceiling.live_allocations),
+            alignment: previous.alignment.min(ceiling.alignment),
+        };
+        Ok(LimitScope {
+            allocator: self,
+            previous,
+        })
     }
     pub fn revoke(&mut self) -> Result<P, Error> {
         if self.stats().live_allocations != 0 {
@@ -881,6 +929,43 @@ impl<P: Provider> Drop for Allocator<P> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn lower_scope_preserves_storage_usage_and_restores_policy_after_unwind() {
+        let mut allocator = Allocator::new(System, Default::default()).unwrap();
+        let original = allocator.limits();
+        let identity = allocator.identity();
+        let request = Request::new(8, 8).unwrap();
+        let live = allocator.allocate(request).unwrap();
+        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            let mut scope = allocator
+                .limit_scope(Limits {
+                    live_bytes: 0,
+                    live_allocations: 0,
+                    ..original
+                })
+                .unwrap();
+            assert_eq!(scope.identity(), identity);
+            assert_eq!(scope.stats().live_bytes, 8);
+            assert!(matches!(scope.allocate(request), Err(Error::Limit(_))));
+            // Cleanup must work even when retained usage exceeds the new cap.
+            scope.release(live).unwrap();
+            let mut view = Allocator::borrow(&mut *scope).unwrap();
+            assert!(matches!(view.allocate(request), Err(Error::Limit(_))));
+            assert!(matches!(
+                view.limit_scope(original),
+                Err(Error::BorrowedProvider)
+            ));
+            panic!("exercise policy restoration");
+        }));
+        assert!(result.is_err());
+        assert_eq!(allocator.limits(), original);
+        assert_eq!(allocator.stats().cumulative_bytes, 8);
+        assert_eq!(allocator.stats().deallocations, 1);
+        let next = allocator.allocate(request).unwrap();
+        allocator.release(next).unwrap();
+        assert_eq!(allocator.stats().cumulative_bytes, 16);
+    }
 
     #[test]
     fn borrowed_views_keep_original_requests_handles_regions_and_failure_accounting() {

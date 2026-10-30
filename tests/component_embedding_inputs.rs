@@ -1104,6 +1104,7 @@ extern uint32_t probe_result_usage(const lang_component_v1_result *,lang_compone
 extern uint32_t probe_result_bytes(const lang_component_v1_result *,lang_component_v1_bytes *,lang_component_v1_error *);
 extern uint32_t probe_result_drop(lang_component_v1_result *,lang_component_v1_error *);
 extern uint32_t probe_report(lang_component_v1_bytes,uint32_t,uint32_t);
+extern uint32_t probe_scope_limit(lang_component_v1_bytes,uint32_t);
 extern uint32_t probe_task_report(lang_component_v1_bytes,uint32_t,uint32_t,uint64_t);
 extern uint32_t probe_provider_register(lang_component_v1_engine *,const lang_component_v1_provider_config *,lang_component_v1_provider **,lang_component_v1_error *);
 extern uint32_t probe_provider_drop(lang_component_v1_provider *,lang_component_v1_result **,lang_component_v1_error *);
@@ -1123,6 +1124,7 @@ extern uint32_t probe_context_resource_publish(const lang_component_v1_context *
 {resources_host}
 static void bound_case(const lang_component_v1_api *api,const lang_component_v1_config *config,uint32_t format,lang_component_v1_bytes program,lang_component_v1_bytes contract,uint32_t limited) {{
     lang_component_v1_engine *engine=NULL;lang_component_v1_module *module=NULL;
+    lang_component_v1_module *trials_module=NULL;
     lang_component_v1_instance *instance=NULL;lang_component_v1_binding *binding=NULL;
     lang_component_v1_error error={{0}};lang_component_v1_instance_config options={{0}};
     lang_component_v1_bytes request={{projection,sizeof(projection)}};
@@ -1203,6 +1205,7 @@ static void bound_case(const lang_component_v1_api *api,const lang_component_v1_
     assert(api->module_load(engine,format,program,contract,&module,&error)==0);
     assert(api->instance_create(module,&options,&instance,&error)==0);
     assert(api->bind_export(instance,request,&binding,&error)==0);
+    if(!limited)assert(api->module_load(engine,format,program,contract,&trials_module,&error)==0);
     assert(api->module_drop(module,&error)==0);
     memset(p,0,(size_t)program.length);free(p);if(c){{memset(c,0,(size_t)contract.length);free(c);}}
     assert(api->engine_destroy(engine,&error)==4);
@@ -1239,6 +1242,48 @@ static void bound_case(const lang_component_v1_api *api,const lang_component_v1_
         assert(api->control_drop(control,&error)==0);
     }}
     if(limited)goto bound_cleanup;
+    /* Each lower instance/control quota must reach its actual consumer. */
+    {{uint32_t scope,kind;for(scope=0;scope<2;++scope)for(kind=0;kind<8;++kind){{
+        lang_component_v1_limits lower=config->ceiling;
+        lang_component_v1_control *control=NULL;
+        lang_component_v1_instance *trial=NULL;lang_component_v1_binding *target=binding;
+        uint8_t scratch[1024];{arguments_type} args={{0}};lc_value_writer w={{0}};lc_value_outcome out;
+        switch(kind){{
+            case 0:lower.heap_bytes=0;break;case 1:lower.live_allocations=0;break;
+            case 2:lower.preparation_work=0;break;case 3:lower.metadata_bytes=0;break;
+            case 4:lower.value_elements=0;break;case 5:lower.serialization_bytes=0;break;
+            case 6:lower.depth=0;break;default:lower.decoder_allocation_bytes=0;break;
+        }}
+        if(scope==0){{
+            lang_component_v1_instance_config reduced=options;reduced.ceiling=lower;
+            assert(api->instance_create(trials_module,&reduced,&trial,&error)==0);
+            assert(api->bind_export(trial,request,&target,&error)==0);
+        }}
+        assert(api->control_create(engine,scope?&lower:&config->ceiling,&control,&error)==0);
+        args.p0=41;w.data=scratch;w.capacity=sizeof(scratch);w.left.work=1000000;w.left.elements=1000;w.left.depth=128;
+        out={name}_call(api,control,target,&args,&w,&error);
+        assert((out.status==1||out.status==2)&&!out.poisoned);
+        if(out.status==2){{
+            const uint32_t kinds[8]={{3,4,9,10,11,12,13,14}};
+            assert(!out.result&&!out.commit);
+            if(error.diagnostic!=12||error.limit_kind!=kinds[kind])fprintf(stderr,"quota scope=%u field=%u: diagnostic=%u kind=%u limit=%llu attempted=%llu\n",scope,kind,error.diagnostic,error.limit_kind,(unsigned long long)error.limit,(unsigned long long)error.attempted);
+            assert(error.diagnostic==12&&error.limit_kind==kinds[kind]);
+            assert(error.limit==0&&error.attempted>0);
+        }}
+        if(out.result){{
+            const uint32_t kinds[8]={{3,4,9,10,11,12,13,14}};
+            lang_component_v1_bytes report;
+            assert(api->result_bytes(out.result,&report,&error)==0);
+            assert(probe_scope_limit(report,kinds[kind])==0);
+            assert(api->result_drop(out.result,&error)==0);
+        }}
+        assert(api->control_drop(control,&error)==0);
+        if(trial){{
+            lang_component_v1_result *closed=NULL;
+            assert(api->instance_close(trial,&closed,&error)==0&&!closed);
+            assert(api->binding_drop(target,&error)==0);
+        }}
+    }}}}
     for(repeat=0;repeat<4;++repeat){{
         lang_component_v1_control *control=NULL;lang_component_v1_limits limits=config->ceiling;
         lang_component_v1_bytes bytes;lang_component_v1_result_info info={{0}};
@@ -1271,6 +1316,7 @@ static void bound_case(const lang_component_v1_api *api,const lang_component_v1_
         assert(api->result_drop(out.result,&error)==0);assert(api->control_drop(control,&error)==0);
     }}
 bound_cleanup:
+    if(trials_module)assert(api->module_drop(trials_module,&error)==0);
     {{lang_component_v1_result *closed=(lang_component_v1_result *)(uintptr_t)42;assert(api->instance_close(instance,&closed,&error)==0&&closed==NULL);}}
     assert(api->binding_drop(binding,&error)==0);
     assert(api->engine_destroy(engine,&error)==0);

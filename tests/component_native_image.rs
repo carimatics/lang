@@ -147,29 +147,44 @@ fn callback_package(semantic: &[u8], resource: bool) -> lang::native::Package {
         sha2::Sha256::digest(&encoded).to_vec(),
     )
     .unwrap();
-    let mut methods = vec![native::Method {
-        interface: 0,
-        member: 0,
-        invoke: provider::invoke,
-        user: std::rc::Rc::as_ptr(&state).cast_mut().cast(),
-        flags: 1,
-    }];
+    let mut methods = vec![
+        /* SAFETY: retained code/user outlive these descriptors and all synchronous uses. */
+        unsafe {
+            native::Method::new(
+                0,
+                0,
+                provider::invoke,
+                std::rc::Rc::as_ptr(&state).cast_mut().cast(),
+                1,
+            )
+        },
+    ];
     if resource {
-        methods.push(native::Method {
-            interface: 0,
-            member: 1,
-            invoke: provider::make,
-            user: std::rc::Rc::as_ptr(&state).cast_mut().cast(),
-            flags: 0,
-        });
+        methods.push(
+            /* SAFETY: retained code/user outlive these descriptors and all synchronous uses. */
+            unsafe {
+                native::Method::new(
+                    0,
+                    1,
+                    provider::make,
+                    std::rc::Rc::as_ptr(&state).cast_mut().cast(),
+                    0,
+                )
+            },
+        );
     }
     let resources = if resource {
-        vec![native::ResourceType {
-            interface: 0,
-            resource: 0,
-            destroy: provider::destroy,
-            user: std::rc::Rc::as_ptr(&state).cast_mut().cast(),
-        }]
+        vec![
+            /* SAFETY: retained code/user outlive these descriptors and all synchronous uses. */
+            unsafe {
+                native::ResourceType::new(
+                    0,
+                    0,
+                    provider::destroy,
+                    std::rc::Rc::as_ptr(&state).cast_mut().cast(),
+                )
+            },
+        ]
     } else {
         vec![]
     };

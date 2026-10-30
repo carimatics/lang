@@ -51,7 +51,9 @@ impl Scratch {
             .ok_or(2)
     }
 }
-impl NativeContext for Scratch {
+// SAFETY: only checked slots in this retained fixed arena expose writable views;
+// every resource operation refuses and reset follows callback completion.
+unsafe impl NativeContext for Scratch {
     fn allocator_identity(&self) -> u64 {
         // Scratch has no guest allocation authority. The bridge obtains the
         // original identity from its separately retained cleanup Memory.

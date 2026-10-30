@@ -27,13 +27,10 @@ fn registration_retains_real_callback_and_owner_without_calling_it() {
     let contract = wire::Contract::new(doc, vec![], &mut s).unwrap();
     let digest = VersionedDigest::new(DigestAlgorithm::Sha256, vec![1; 32]).unwrap();
     let owner = Cell::new(0);
-    let methods = [native::Method {
-        interface: 0,
-        member: 0,
-        invoke: callback,
-        user: ptr::from_ref(&owner).cast_mut().cast(),
-        flags: 1,
-    }];
+    let methods = [
+        /* SAFETY: retained code/user outlive these descriptors and all synchronous uses. */
+        unsafe { native::Method::new(0, 0, callback, ptr::from_ref(&owner).cast_mut().cast(), 1) },
+    ];
     let provider = native::Provider::new(
         wire::Provider {
             contract: &contract,
@@ -46,11 +43,11 @@ fn registration_retains_real_callback_and_owner_without_calling_it() {
     .unwrap();
     assert!(provider.retains_code(&owner));
     assert!(std::ptr::fn_addr_eq(
-        provider.methods()[0].invoke,
+        provider.methods()[0].invoke_fn(),
         callback as native::Invoke
     ));
     assert_eq!(
-        provider.methods()[0].user,
+        provider.methods()[0].user_data(),
         ptr::from_ref(&owner).cast_mut().cast()
     );
     assert_eq!(owner.get(), 0);
@@ -81,25 +78,33 @@ fn all_export_implementations_are_required_and_registration_is_bounded() {
         digest: &digest,
     };
     let owner = Cell::new(0);
-    let good = native::Method {
-        interface: 0,
-        member: 0,
-        invoke: callback,
-        user: ptr::null_mut(),
-        flags: 0,
-    };
+    // SAFETY: this inert callback has static code and never accesses user data.
+    let good = unsafe { native::Method::new(0, 0, callback, ptr::null_mut(), 0) };
     for (methods, expected) in [
         (vec![], K::MissingMember),
         (vec![good, good], K::DuplicateMember),
         (
-            vec![native::Method {
-                interface: 1,
-                ..good
+            vec![{
+                let mut value = good;
+                value.interface = 1;
+                value
             }],
             K::UnknownMember,
         ),
-        (vec![native::Method { member: 1, ..good }], K::UnknownMember),
-        (vec![native::Method { flags: 2, ..good }], K::Flags),
+        (
+            vec![{
+                let mut value = good;
+                value.member = 1;
+                value
+            }],
+            K::UnknownMember,
+        ),
+        (
+            // SAFETY: the callback and null user storage have the same lifetime
+            // as good; invalid flags are rejected before any invocation.
+            vec![unsafe { native::Method::new(0, 0, callback, ptr::null_mut(), 2) }],
+            K::Flags,
+        ),
     ] {
         let error = native::Provider::new(
             metadata,
@@ -204,33 +209,30 @@ fn registered_resource_kinds_retain_real_destructors_and_seal_provider_identity(
         digest: &digest,
     };
     let owner = Cell::new(0);
-    let methods = [native::Method {
-        interface: 0,
-        member: 0,
-        invoke: callback,
-        user: ptr::null_mut(),
-        flags: 0,
-    }];
-    let good = native::ResourceType {
-        interface: 0,
-        resource: 0,
-        destroy,
-        user: ptr::from_ref(&owner).cast_mut().cast(),
+    let methods = [
+        /* SAFETY: retained code/user outlive these descriptors and all synchronous uses. */
+        unsafe { native::Method::new(0, 0, callback, ptr::null_mut(), 0) },
+    ];
+    // SAFETY: retained code/user outlive these descriptors and synchronous uses.
+    let good = unsafe {
+        native::ResourceType::new(0, 0, destroy, ptr::from_ref(&owner).cast_mut().cast())
     };
     for (resources, expected) in [
         (vec![], K::MissingResource),
         (vec![good, good], K::DuplicateResource),
         (
-            vec![native::ResourceType {
-                interface: 1,
-                ..good
+            vec![{
+                let mut value = good;
+                value.interface = 1;
+                value
             }],
             K::UnknownResource,
         ),
         (
-            vec![native::ResourceType {
-                resource: 1,
-                ..good
+            vec![{
+                let mut value = good;
+                value.resource = 1;
+                value
             }],
             K::UnknownResource,
         ),
@@ -266,11 +268,11 @@ fn registered_resource_kinds_retain_real_destructors_and_seal_provider_identity(
     assert_eq!(a.key(), c.key());
     assert!(a.provider().retains_code(&owner));
     assert!(std::ptr::fn_addr_eq(
-        a.registration().destroy,
+        a.registration().destroy_fn(),
         destroy as native::Destroy
     ));
     assert_eq!(
-        a.registration().user,
+        a.registration().user_data(),
         ptr::from_ref(&owner).cast_mut().cast()
     );
     assert_eq!(owner.get(), 0);
@@ -322,19 +324,14 @@ fn physical_storage_checks_tickets_holders_allocator_and_implementation_before_a
     let contract = wire::Contract::new(doc, vec![], &mut session).unwrap();
     let digest = VersionedDigest::new(DigestAlgorithm::Sha256, vec![1; 32]).unwrap();
     let owner = Cell::new(0);
-    let methods = [native::Method {
-        interface: 0,
-        member: 0,
-        invoke: callback,
-        user: ptr::null_mut(),
-        flags: 0,
-    }];
-    let types = [native::ResourceType {
-        interface: 0,
-        resource: 0,
-        destroy,
-        user: ptr::null_mut(),
-    }];
+    let methods = [
+        /* SAFETY: retained code/user outlive these descriptors and all synchronous uses. */
+        unsafe { native::Method::new(0, 0, callback, ptr::null_mut(), 0) },
+    ];
+    let types = [
+        /* SAFETY: retained code/user outlive these descriptors and all synchronous uses. */
+        unsafe { native::ResourceType::new(0, 0, destroy, ptr::null_mut()) },
+    ];
     let metadata = wire::Provider {
         contract: &contract,
         digest: &digest,
@@ -437,19 +434,14 @@ fn owning_inputs() -> (
     (
         contract,
         VersionedDigest::new(DigestAlgorithm::Sha256, vec![1; 32]).unwrap(),
-        vec![native::Method {
-            interface: 0,
-            member: 0,
-            invoke: callback,
-            user: ptr::null_mut(),
-            flags: 0,
-        }],
-        vec![native::ResourceType {
-            interface: 0,
-            resource: 0,
-            destroy,
-            user: ptr::null_mut(),
-        }],
+        vec![
+            /* SAFETY: retained code/user outlive these descriptors and all synchronous uses. */
+            unsafe { native::Method::new(0, 0, callback, ptr::null_mut(), 0) },
+        ],
+        vec![
+            /* SAFETY: retained code/user outlive these descriptors and all synchronous uses. */
+            unsafe { native::ResourceType::new(0, 0, destroy, ptr::null_mut()) },
+        ],
     )
 }
 
@@ -534,7 +526,7 @@ fn owning_registration_acquires_owner_only_after_complete_budget_admission() {
         if invalid_resource {
             resources.clear();
         } else {
-            methods[0].flags = 2;
+            methods[0] = invalid_flags(methods[0]);
         }
         assert!(
             native::Provider::new_owned(
@@ -580,7 +572,15 @@ fn retained_cleanup_record_owns_the_actual_registration_without_an_instance() {
     let drops = Rc::new(Cell::new(0));
     let actual = Rc::new(Owner(drops.clone()));
     let (contract, digest, methods, mut descriptors) = owning_inputs();
-    descriptors[0].destroy = fail;
+    // SAFETY: fail ignores its user pointer and is permanently linked.
+    descriptors[0] = unsafe {
+        native::ResourceType::new(
+            descriptors[0].interface,
+            descriptors[0].resource,
+            fail,
+            descriptors[0].user_data(),
+        )
+    };
     let provider = native::Provider::new_owned(
         contract,
         digest,
@@ -642,6 +642,20 @@ fn retained_cleanup_record_owns_the_actual_registration_without_an_instance() {
     assert_eq!(drops.get(), 1);
 }
 
+fn invalid_flags(method: native::Method) -> native::Method {
+    // SAFETY: preserve this fixture's live code/user pointers. Invalid flags are
+    // rejected during registration, before the callback can run.
+    unsafe {
+        native::Method::new(
+            method.interface,
+            method.member,
+            method.invoke_fn(),
+            method.user_data(),
+            2,
+        )
+    }
+}
+
 #[test]
 fn refused_registration_leaves_the_owner_factory_with_its_caller() {
     use std::rc::Rc;
@@ -649,7 +663,7 @@ fn refused_registration_leaves_the_owner_factory_with_its_caller() {
     let weak = Rc::downgrade(&owner);
     let mut factory = move || -> Rc<dyn lang_runtime::c_abi::context::CodeOwner> { owner.clone() };
     let (contract, digest, mut methods, resources) = owning_inputs();
-    methods[0].flags = 2;
+    methods[0] = invalid_flags(methods[0]);
     assert!(
         native::Provider::new_owned(
             contract,
@@ -703,8 +717,15 @@ fn owning_kind_retains_original_descriptor_and_backing_after_registration_releas
     let weak = Rc::downgrade(&owner);
     let (contract, digest, methods, mut resources) = owning_inputs();
     let key = contract.document().interfaces[0].resources[0].value.clone();
-    resources[0].destroy = retained_destroy;
-    resources[0].user = Rc::as_ptr(&owner).cast_mut().cast();
+    // SAFETY: the registration retains this owner through final destruction.
+    resources[0] = unsafe {
+        native::ResourceType::new(
+            resources[0].interface,
+            resources[0].resource,
+            retained_destroy,
+            Rc::as_ptr(&owner).cast_mut().cast(),
+        )
+    };
     let mut session = wire::Session::new(Default::default());
     let provider = native::Provider::new_owned(
         contract,
@@ -762,8 +783,8 @@ fn owning_kind_retains_original_descriptor_and_backing_after_registration_releas
     // SAFETY: the retained lease keeps code/user live, and the registered test
     // callback ignores context/failure and reads only the original live backing.
     let status = unsafe {
-        (descriptor.registration().destroy)(
-            descriptor.registration().user,
+        (descriptor.registration().destroy_fn())(
+            descriptor.registration().user_data(),
             ptr::null(),
             native::MutBytes {
                 data: bytes.as_mut_ptr(),

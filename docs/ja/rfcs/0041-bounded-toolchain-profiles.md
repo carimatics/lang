@@ -1,4 +1,4 @@
-<!-- canonical-language: en; japanese-translation: ../ja/rfcs/0041-bounded-toolchain-profiles.md -->
+<!-- translation-of: ../../rfcs/0041-bounded-toolchain-profiles.md; canonical-language: en -->
 
 # RFC 0041: 上限付きtoolchain profile
 
@@ -14,7 +14,7 @@
 
 ## Summary
 
-`lang profile compile --manifest-path Lang.json`で通常のpackage compilerを観測し、上限とversionを持つJSON reportを返す。runtime profile／allocator trace／rebuild説明は別の検証済みreport kindとして後続する。この採択で実装やG8を完了しない。
+`lang profile`は上限とversionを持つ4種類のJSON report、compile・runtime・allocation・rebuildを実装する。E01/E02/E03R/E03/E04とG8は完了し、両hostの証拠はOpen questionsに記録する。reportは観測値と計測範囲を示すもので、高速化や性能保証を示すものではない。
 
 ## Motivation
 
