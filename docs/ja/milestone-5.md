@@ -26,6 +26,8 @@ A02公開checkpoint（2026-10-31 JST確認）: 最新head `8a43f76`のCI `410723
 
 ## Exit gates
 
+B05 budget監査（2026-10-31 JST）: 再利用するscalar検査内部の独立task構文分類3回をすべて計上する。各scanは共有budgetからphase許容量全体を予約し、新しい小source回帰testで不十分な総量budgetを拒否する。最初の`a55cda0`全体検証はこの修正のため意図的に中断し、`/private/tmp/lang-m5-fixes-target/m5-b05-validation-a55cda0-interrupted/`に保持した。成功baselineとは数えず、修正後の固定commitで全体を再実行する。既存の課金要件を満たす修正で、新規delivery・見積り変更なし。
+
 | Gate | 必須成果 | State |
 | --- | --- | --- |
 | G1 | edition・非推奨方針・互換性表 | done |

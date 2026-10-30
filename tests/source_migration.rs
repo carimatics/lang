@@ -228,6 +228,12 @@ fn migration_bounds_each_phase_and_exact_encoded_report() {
             work: 0,
             ..Limits::default()
         },
+        // Small source still reserves independent compiler classification
+        // passes; per-phase limits cannot silently reset the aggregate budget.
+        Limits {
+            work: 6_000_000,
+            ..Limits::default()
+        },
         Limits {
             analysis_bytes: 0,
             ..Limits::default()

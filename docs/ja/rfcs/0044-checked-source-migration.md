@@ -95,6 +95,8 @@ B05 previewの既定値（2026-10-31）: 1 file・最大1 MiB、符号化path 4,
 
 ## Security and trust boundaries
 
+compiler予約はscalar入力でも独立したtask構文分類を含む。旧scalar検査前に1回、現semantic facade・HIR pipelineで2回行い、scalar検査と現parse・module・bindingを合わせて完了までに8 phase分を予約する。この内部scanはtask移行を許可しない。小sourceの回帰testは、各1,000,000単位のphaseが個別に成功可能でも、6,000,000単位の総量budgetを拒否する。
+
 source・manifestは未信頼data。解析はsource・native code・host importを実行せず、network・process capabilityを取得しない。source-root/package authorityでreadを制限し、別の明示authorityでwriteを制限する。nonregular・alias・stale入力、不正UTF-8、未対応旧構文、曖昧edit、上限超過は未検証planを公開せず拒否する。任意JSON edit programやユーザー指定applicabilityを信用しない。file単位atomicityと協調writer制限をCLI文書に明示する。
 
 ## Alternatives

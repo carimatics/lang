@@ -95,6 +95,8 @@ B05 preview defaults (2026-10-31): one source of at most 1 MiB, 4,096 encoded pa
 
 ## Security and trust boundaries
 
+Compiler reservations include independent task-syntax classifiers even for scalar input: one before historical scalar checking and two in the current semantic facade/HIR pipeline. Together with the scalar checks and current parse/module/binding passes, they reserve eight phase allowances before completion. These internal scans do not enable task migration. A small-source regression refuses a six-million-unit aggregate budget even when each one-million-unit phase could succeed independently.
+
 Source and manifests are untrusted data. Analysis must not execute source, native code or host imports and obtains no network/process capability. Source-root/package authority bounds reads and a separate explicit authority bounds writes. Refuse nonregular/aliased/stale inputs, malformed UTF-8, unsupported legacy syntax, ambiguous edits and exhausted limits without publishing an unvalidated plan. Do not accept an arbitrary JSON edit program or trust a user-supplied applicability label. Per-file atomicity and cooperative-writer limits must be visible in CLI documentation.
 
 ## Alternatives

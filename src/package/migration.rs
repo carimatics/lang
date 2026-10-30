@@ -178,7 +178,9 @@ impl Preview {
         compile.typing.expressions = limits.nodes;
         compile.typing.blocks = limits.nodes;
         compile.typing.depth = limits.depth;
-        work.take(limits.phase_work)?;
+        // check_program has an independently bounded task-profile classifier
+        // before its scalar checker. Reserve both passes, even for Copy input.
+        work.take(limits.phase_work.checked_mul(2).ok_or_else(capacity)?)?;
         work.analyze(bytes.len())?;
         let checked = check_program(program, &sources, compile.typing).map_err(|_| capacity())?;
         let old = checked.program.ok_or_else(|| {
@@ -260,6 +262,10 @@ impl Preview {
             compile.modules.parse.work,
             compile.modules.work,
             compile.binding.work,
+            // The semantic facade and HIR checker each classify task syntax
+            // independently, before the Copy checker uses its own allowance.
+            compile.typing.work,
+            compile.typing.work,
             compile.typing.work,
         ] {
             work.take(allowance)?;

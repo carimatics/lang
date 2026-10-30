@@ -26,6 +26,8 @@ A02 publication checkpoint, verified 2026-10-31 JST: [PR #29](https://github.com
 
 ## Exit gates
 
+B05 budget audit, 2026-10-31 JST: account for all three independent task-syntax classifiers inside the reused scalar checking paths. They each reserve a full phase allowance from the shared budget; a new small-source regression refuses an insufficient aggregate budget. The initial `a55cda0` full run was deliberately interrupted for this correction and is retained under `/private/tmp/lang-m5-fixes-target/m5-b05-validation-a55cda0-interrupted/`; it is not a passing baseline. Restart the complete baseline on the corrected frozen commit. This closes an existing accounting requirement, with no new delivery or estimate change.
+
 | Gate | Required outcome | State |
 | --- | --- | --- |
 | G1 | Editions, deprecation policy, compatibility matrix | done |
