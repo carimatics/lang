@@ -8,7 +8,7 @@
 - Authors: project maintainers with Codex
 - Created: 2026-10-30
 - Last updated: 2026-10-30
-- Tracking issue: M4-F01–F05
+- Tracking issue: M4-F01–F06
 - Supersedes: none
 - Superseded by: none
 
@@ -17,6 +17,8 @@
 Add an explicit-root toolchain manager that authenticates release metadata before reading payloads, installs actual compiler/SDK files, selects a channel/version and preserves the active installation on failure or process interruption. This distributes toolchains for M4; it does not implement M5's package registry.
 
 Implementation verified 2026-10-30 14:57 JST: `bf14faf` passes [full CI](https://github.com/carimatics/lang/actions/runs/41009253145) (18 success, intentional documentation-only skip), [native-debug CI](https://github.com/carimatics/lang/actions/runs/41009253195) (3/3) and the complete local baseline (2,513 tests). Both hosts verify two-key distribution production, ordinary-installer pre-publication validation, real SDK native execution, all channels, historical receipt expiry and update while the old compiler runs; Windows also verifies live-executable uninstall refusal/deferred cleanup and recovery after exit. The update fixture changes actual SDK packaging bytes while retaining compiler identity. The acceptance-stage experiments and open-validation notes below are historical; this implementation evidence completes F01–F05. Implemented does not mean stabilized or establish an official distribution trust identity.
+
+F06 regression audit, 2026-10-30 JST: latest-head CI `41011643812` detects a close-only lock-lifetime defect after the verified F05 checkpoint. A deterministic duplicate-descriptor experiment reproduces retained ownership after close. F06 reopens G9 pending an explicit-unlock guard, success/error-path regressions and fresh local/both-host validation. The implemented lifecycle label and F05 historical evidence remain; this defect does not change the wire format or trust contract.
 
 ## Motivation
 
@@ -80,6 +82,8 @@ The state retains a time floor from successful admissions and refuses a clock ea
 ### Publication, concurrency and recovery
 
 The installation root is trusted local state owned by the invoking user. Keep all temporary and final files on its filesystem. Use a dedicated regular lock file and the stable standard library's nonblocking exclusive file lock; contention is an explicit refusal, not an unbounded wait. Hold it for state-changing operations and for selecting/verifying a child executable. For `run`, release it after spawning the child and before waiting for its exit. Bounded candidate identity verification remains inside the locked installation transaction. An already running executable may make later Windows removal fail; report that failure and preserve a coherent installation record.
+
+Acquire the lock into an owning guard immediately, before any fallible state validation. On every normal or error return, explicitly unlock before closing the file: duplicated descriptors, including a concurrent fork before exec, must not extend manager ownership. Keep genuine live-owner contention nonblocking and refusing.
 
 Prepare exclusive private staging directories; stream/hash payloads and check the full manifest and matching SDK before publication. Name immutable generations by a SHA-256 of the typed release's canonical compact JSON representation. Existing generations require complete byte/permission comparison; their name alone is never a cache authenticity check. Persist signed metadata/receipt evidence alongside the generation. Bound the local state to 1 MiB and 64 installed releases. Refuse reaching capacity instead of evicting active/installed versions implicitly.
 

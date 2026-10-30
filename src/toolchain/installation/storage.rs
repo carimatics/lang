@@ -67,7 +67,21 @@ pub(super) struct Store {
     pub dir: Dir,
     pub root_bytes: Vec<u8>,
     pub state: State,
-    _lock: fs::File,
+    _lock: Lock,
+}
+struct Lock(fs::File);
+impl Lock {
+    fn acquire(file: fs::File) -> io::Result<Self> {
+        file.try_lock().map_err(io::Error::other)?;
+        Ok(Self(file))
+    }
+}
+impl Drop for Lock {
+    fn drop(&mut self) {
+        // Ownership ends here even if a concurrent fork still holds a duplicate
+        // of the open file description. Closing only this file can retain its lock.
+        let _ = self.0.unlock();
+    }
 }
 pub(super) fn open_file(dir: &Dir, path: &Path, owned: bool) -> Result<cap_std::fs::File, Error> {
     open_mode(dir, path, owned, false)
@@ -287,9 +301,8 @@ impl Store {
             .map_err(|e| io("resolve installation root", path, e))?;
         let dir = Dir::open_ambient_dir(&path, cap_std::ambient_authority())
             .map_err(|e| io("open installation root", &path, e))?;
-        let lock = open_mode(&dir, Path::new("lock"), true, true)?.into_std();
-        lock.try_lock()
-            .map_err(|e| io("lock installation", path.join("lock"), io::Error::other(e)))?;
+        let lock = Lock::acquire(open_mode(&dir, Path::new("lock"), true, true)?.into_std())
+            .map_err(|e| io("lock installation", path.join("lock"), e))?;
         for name in ["metadata", "generations", "staging", "trash"] {
             let metadata = dir
                 .symlink_metadata(name)
@@ -392,5 +405,63 @@ impl Store {
             return Err(state("active installation is absent from installed state"));
         }
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::Lock;
+    use std::{fs, io, path::PathBuf, time::SystemTime};
+
+    struct LockPath(PathBuf);
+    impl Drop for LockPath {
+        fn drop(&mut self) {
+            let _ = fs::remove_file(&self.0);
+        }
+    }
+
+    #[test]
+    fn owned_lock_releases_with_live_duplicate_on_success_and_error() {
+        let path = LockPath(std::env::temp_dir().join(format!(
+            "lang-installation-lock-{}-{}",
+            std::process::id(),
+            SystemTime::now()
+                .duration_since(SystemTime::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        )));
+        let file = fs::OpenOptions::new()
+            .read(true)
+            .write(true)
+            .create_new(true)
+            .open(&path.0)
+            .unwrap();
+        let contender = fs::OpenOptions::new()
+            .read(true)
+            .write(true)
+            .open(&path.0)
+            .unwrap();
+        for fail_before_store_construction in [false, true] {
+            let mut duplicate = None;
+            let result = (|| -> io::Result<()> {
+                let owner = Lock::acquire(file.try_clone()?)?;
+                assert!(
+                    contender.try_lock().is_err(),
+                    "live owner must exclude rivals"
+                );
+                duplicate = Some(owner.0.try_clone()?);
+                if fail_before_store_construction {
+                    return Err(io::Error::other("validation refused"));
+                }
+                Ok(())
+            })();
+            assert_eq!(result.is_err(), fail_before_store_construction);
+            // The duplicate remains open, as it can between fork and exec.
+            contender
+                .try_lock()
+                .expect("owner drop must release immediately");
+            contender.unlock().unwrap();
+            drop(duplicate);
+        }
     }
 }

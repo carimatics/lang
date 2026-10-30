@@ -6,15 +6,19 @@
 
 更新: 2026-10-30 JST。M4はactive。Goal開始はclean main／origin/main `af9988f`、remote `git@github.com:carimatics/lang.git`。PR #9–#24はmerge済み。profiling PR #24は`fa271b1`としてmergeし、別文書PR #20–#23の祖先`be9f77c`も保持した。最後に確認したlocal main／origin/mainは`fa271b1`でahead／behind 0/0。M4全体とinstallerは未完了。
 
-**38 done · 1 doing · 4 todo · 12 remaining pt**
+**38 done · 1 doing · 5 todo · 14 remaining pt**
 
-現在のcheckoutは`codex/m4-toolchain-installer`。cleanなprofiling文書head `84b17f6`から作成し、既存user変更はない。先行[PR #24](https://github.com/carimatics/lang/pull/24)のmerge後、記録remote PR baseは`carimatics/lang:main`へ変更した。F01–F05を一貫したinstaller成果とする。upstreamは`origin/codex/m4-toolchain-installer`、[draft PR #25](https://github.com/carimatics/lang/pull/25)。profiling最終head `84b17f6`は[全体CI](https://github.com/carimatics/lang/actions/runs/40981001066)（18成功、文書専用jobの意図したskip）と[native debugger実行](https://github.com/carimatics/lang/actions/runs/40981000915)（3/3）に成功した。local main／origin/mainはmerge `fa271b1`で一致し、ahead／behindは0/0。
+現在のcheckoutは`codex/m4-toolchain-installer`。cleanなprofiling文書head `84b17f6`から作成し、既存user変更はない。先行[PR #24](https://github.com/carimatics/lang/pull/24)のmerge後、記録remote PR baseは`carimatics/lang:main`へ変更した。F01–F06を一貫したinstaller成果とする。upstreamは`origin/codex/m4-toolchain-installer`、[PR #25](https://github.com/carimatics/lang/pull/25)。profiling最終head `84b17f6`は[全体CI](https://github.com/carimatics/lang/actions/runs/40981001066)（18成功、文書専用jobの意図したskip）と[native debugger実行](https://github.com/carimatics/lang/actions/runs/40981000915)（3/3）に成功した。local main／origin/mainはmerge `fa271b1`で一致し、ahead／behindは0/0。 F06修正は同branchの分離worktreeで進め、元worktreeの`codex/m4-final-developer-journey`にZ01の変更を保持する。
 
-Z01の最終実行checkpoint、2026-10-30 14:57 JST: 導入済みcompiler／SDK、実LSP process、native実行はF05 `bf14faf`で両host検証済み。これは前提であり新規開発者の完全journeyではない。残るZ01受入条件は、導入toolを使ったcreate／dependency／editor／test／DAP／再現nativeの一続きのfixture、失敗assertion、local baselineである。Z02には同一Windows journeyと全baseline監査を残す。
+F06の最終実行checkpoint、2026-10-30 15:38 JST: 所有guardの正常終了／検証error returnで、複製descriptorが存続する決定的回帰testに成功した。最新head macOS 26 CI `123918665908`で失敗した既存recovery testもlocalで成功し、実署名配布／SDK fixtureは実行中。closeだけの解放を明示unlockへ修正し、実競合のretryは加えない。残る受入条件は重点／完全local検査の完了と修正版の両host CI。Z01の導入tool journey成功は保持し、中断した全baseline（exit 143）は成功と数えない。
+
+local checkpoint: 新lock回帰1件と重点17件に成功し、実署名配布／SDK fixture（74.20秒）も完了した。fmtとwarnings deniedの全workspace Clippyも成功。完全local baselineは実行中で、修正headのCIも必須検証に残る。
+
+Z01の最終実行checkpoint、2026-10-30 15:17 JST: 導入compiler／SDKによる一続きのpackage作成、local依存、LSP definition／references／completion／tokens／rename／code action、stale lock拒否、fmt／lint／build／test／doc／package、DAP breakpoint／stack／locals／評価、native実行と移動後のbinary bytes一致に成功した。実install suite 6件、共有clientを使う既存LSP 27件／DAP 12件、整合性6件が成功。fixtureの未対応二項減算は既存の加算＋負literalへ、macOS一時rootの別名はDAPの正規authorityへ揃え、compiler意味論や検証条件は変えていない。残るZ01受入条件は完全local baseline／doc、code証拠、macOS CI。有限な統合scopeは不変で3 ptを維持する。Z02には同一Windows journeyと全baseline監査を残す。
 
 F04 source `d2fb67b`はfmt／全Clippy、重点16 test、完全local baseline（**173 suite／2,512成功／0失敗**）、docに成功し、実装のroot／fuzz fmtとfuzz Clippyも成功した。`52555ff`の[Windows workspace失敗](https://github.com/carimatics/lang/actions/runs/41001376849/job/123886372813)はcfg固有の不要closureで、Unix／非Unixのstatus式を分け、抑制や切詰めなしで修正した。修正版の[全体CI](https://github.com/carimatics/lang/actions/runs/41001783236)は18成功と意図した文書専用skip、[native-debug CI](https://github.com/carimatics/lang/actions/runs/41001783129)は3/3成功。F04の3 ptを消化し追加0。
 
-**次: M4-Z01 — macOSの導入toolによる新規開発者journey（doing、3 pt）。** 検証済み配布fixtureとSDKを再利用し、実package作成、local依存、editor編集、test、DAP、移動後のnative bytes比較を接続する。既存拒否検査を保持する。この有限な統合scopeの監査によりZ01の3 pt、Z02–Z05の9 ptを維持し、追加0とする。43 delivery、追加+17、消化108、残り12 pt。
+**次: M4-F06 — file close前のinstallation所有lock解放（doing、2 pt）。** 再現したlock lifetime前提を実装前に公開する。Z01は実行成功checkpointを保持してtodoへ戻し、CI失敗の単純retryや非blocking競合assertionの緩和は行わない。44 delivery、追加+19、消化108、残り14 pt。修正後の両host証拠が揃うまでG9を再開する。
 
 A04 source `cf6cf5c` は fmt、全 Clippy／doc、checked opt-level 1 全 test（**158 suite／2,384 成功／0 失敗**）、重点 75 test に成功。最終 head `75a2041` は [全 CI](https://github.com/carimatics/lang/actions/runs/40810065213)（全 19 job、18 成功、意図した文書専用 skip）と [debugger 実行](https://github.com/carimatics/lang/actions/runs/40810065278)（3/3）に成功した。[PR #13](https://github.com/carimatics/lang/pull/13) は `58527c2` として merge、main を fast-forward して clean・同期済み、ahead／behind 0/0。workspace branch 作成と現在の PR／upstream は上記に記録した。既存の user 変更はなかった。
 
@@ -38,7 +42,7 @@ F02 source `eb4243d`はfmt、全体Clippy／doc、local baseline（**172 suite�
 
 F03 source `28bc8df`は重点15 test、fmt、全体／fuzz Clippy、doc、完全local baseline（**173 suite／2,509成功／0失敗**）に成功した。[全体CI](https://github.com/carimatics/lang/actions/runs/40988434179)は18成功と意図した文書専用skip、[native-debug CI](https://github.com/carimatics/lang/actions/runs/40988434180)は3/3成功。両hostの実署名compiler／SDK install、source実行、改ざん／rollback拒否、5つの失敗境界、process中断後の旧active保持とretryを確認した。F03の3 ptを消化し追加0。
 
-[roadmap](roadmap.md#milestone-4developer-toolchain)の元の採択 weight 63 pt を維持する。**検証済み 9/9 gate、63/63 gate weight（100.0%）。** 設計採択は実装 gate の完了を意味しない。P0／P1 はすべて scope 内に残し、延期はない。
+[roadmap](roadmap.md#milestone-4developer-toolchain)の元の採択 weight 63 pt を維持する。**検証済み 8/9 gate、55/63 gate weight（87.3%）。** 設計採択は実装 gate の完了を意味しない。P0／P1 はすべて scope 内に残し、延期はない。
 
 | Gate | 優先度 | 成果 | Weight | 状態 |
 | --- | --- | --- | ---: | --- |
@@ -50,7 +54,7 @@ F03 source `28bc8df`は重点15 test、fmt、全体／fuzz Clippy、doc、完全
 | G6 | P0 | 安全な rename と code action | 8 | done |
 | G7 | P0 | native／VM 混在 stack を持つ DAP adapter | 8 | done |
 | G8 | P1 | compile／runtime profile、allocation trace、rebuild 説明 | 8 | done |
-| G9 | P0 | 署名付き install／update／channel tool と復旧 | 8 | done |
+| G9 | P0 | 署名付き install／update／channel tool と復旧 | 8 | pending |
 
 ## Delivery
 
@@ -96,7 +100,8 @@ F03 source `28bc8df`は重点15 test、fmt、全体／fuzz Clippy、doc、完全
 | M4-F03 | done | 0 | M4-F02 | G9 | isolated root に検証済み tool を install、失敗／中断で active version 保持 | `28bc8df` |
 | M4-F04 | done | 0 | M4-F03 | G9 | atomic activation／復旧付き channel update／select／list／uninstall | `d2fb67b` |
 | M4-F05 | done | 0 | M4-F04 | G9 | 両 host で署名 release／distribution fixture を install／update | `bf14faf` |
-| M4-Z01 | doing | 3 | M4-B01,M4-B04,M4-C07,M4-D05,M4-E04,M4-F05 | G1,G2,G3,G4,G5,G6,G7,G8,G9 | macOS の新規開発者 install／create／editor／test／debug／再現可能 binary journey | — |
+| M4-F06 | doing | 2 | M4-F05 | G9 | 複製descriptorが存続しても所有lockを即時解放し、失敗経路／両hostで検証 | — |
+| M4-Z01 | todo | 3 | M4-B01,M4-B04,M4-C07,M4-D05,M4-E04,M4-F05,M4-F06 | G1,G2,G3,G4,G5,G6,G7,G8,G9 | macOS の新規開発者 install／create／editor／test／debug／再現可能 binary journey | — |
 | M4-Z02 | todo | 3 | M4-Z01 | G1,G2,G3,G4,G5,G6,G7,G8,G9 | Windows の同一 journey と全 baseline、差異の原因解決 | — |
 | M4-Z03 | todo | 2 | M4-Z02 | G1,G2,G3,G4,G5,G6,G7,G8,G9 | 全 roadmap 終了条件を最新 code／両 host 証拠／限界に照らして監査 | — |
 | M4-Z04 | todo | 2 | M4-Z03 | G1,G2,G3,G4,G5,G6,G7,G8,G9 | 実行コマンドと最終照合を持つ日英 M4 capability guide 公開 | — |
@@ -108,9 +113,9 @@ F03 source `28bc8df`は重点15 test、fmt、全体／fuzz Clippy、doc、完全
 
 | Baseline remaining | Net added/re-estimated | Retired on completion | Remaining |
 | ---: | ---: | ---: | ---: |
-| 103 pt | +17 pt | −108 pt | 12 pt |
+| 103 pt | +19 pt | −108 pt | 14 pt |
 
-**103 + 17 − 108 = 12 pt**
+**103 + 19 − 108 = 14 pt**
 
 名前空間の前提監査、2026-10-29 JST: 既存 `ModuleGraph::root()` は常に `ModuleId(0)`。path provider だけでは依存ごとの package-root 名前空間や共有 dependency identity の安全な再利用を提供できない。元の A02 を、許可 graph（新規 A02R、3 pt）と名前空間／source 実行の統合（task list を見直した A02、残り 3 pt）へ分割する。純追加 +3 pt、全 37 delivery。A01 と A02R は前提二つとなるため、水平基盤を増やす前に A02 で次の source 実行 fixture を示す。この監査による gate 完了や延期はない。
 
@@ -119,6 +124,8 @@ snapshot lifecycle 監査、2026-10-29 JST: Windows CI は dependency fixture �
 CLI 成果監査、2026-10-29 JST、実装前: 採択した transaction profile で実行可能な成果二つが明確になった。新規 A04B（3 pt）は scaffold／既存 file 互換、全 profile の build／run、不変 generation 公開を、42 を返す実 dependency で示す。A04 は残る test-entry 選択、複数 profile の戻り値検査、構造化した失敗／span fixture を見直して 3 pt とする。公開処理や共有 engine 作業を元の見積に隠さず、元の複合 CLI 成果を縦の delivery に分割する。純追加 +3 pt、累計 +8 pt、全 39 delivery。これと別に、修正 source の両 host CI が API 成果を検証した A03 の最終 2 pt を消化する。CLI 二行は同じ一貫した command 実装 branch とし、lock wire API を review 済み依存とする。独立 local API baseline／PR lifecycle は source を固定した checkout で継続する。gate 完了や延期はない。
 
 ## Delivery note と roadmap review
+
+F06追加監査、2026-10-30 JST: 文書head `408eed1`のCIで、既存recovery testのdrop後再openが非決定的なlock競合を検出した。descriptor複製実験はcloseとunlockの差を再現する。2 ptを追加し、F05の完了記録とZ01の実行checkpointを保持、G9をpendingへ戻す。新計算は103 + 19 − 108 = 14 pt。
 
 F05／G9完了、2026-10-30 14:57 JST確認: source `bf14faf`は重点検査17件、root／fuzz fmt、警告なしworkspace／fuzz Clippy、doc、完全local baseline（**174 suite／2,513成功／0失敗**、既存timing test 1件のignoredは不変）に成功した。[全体CI](https://github.com/carimatics/lang/actions/runs/41009253145)は18 job成功と文書専用jobの意図したskip、[native-debug CI](https://github.com/carimatics/lang/actions/runs/41009253195)は3/3成功。両hostで2鍵producer、通常installerによる公開前検証、全3 channel／共有generation、導入SDKのnative link、保存receiptの期限、旧compilerのLSP実行中updateを実行した。Windowsでは実行中exeのuninstall拒否／cleanup延期と終了後の復旧も検証した。updateはcompiler identityを保って実SDK packaging bytesを変更するもので、異なるcompiler buildではない。F05の最終3 ptを追加0で消化し、RFC 0042をimplemented、G9をdoneにする。M4にはZ01–Z05の統合journey、終了監査、guide、最終lifecycleが残る。
 

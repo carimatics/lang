@@ -8,7 +8,7 @@
 - Authors: project maintainers with Codex
 - Created: 2026-10-30
 - Last updated: 2026-10-30
-- Tracking issue: M4-F01–F05
+- Tracking issue: M4-F01–F06
 - Supersedes: none
 - Superseded by: none
 
@@ -17,6 +17,8 @@
 明示rootのtoolchain managerを追加する。payloadを読む前にrelease metadataを認証し、実compiler／SDK fileをinstallし、channel／versionを選択し、失敗やprocess中断でもactive installationを保持する。M4のtoolchain配布であり、M5のpackage registryは実装しない。
 
 実装確認、2026-10-30 14:57 JST: `bf14faf`は[全体CI](https://github.com/carimatics/lang/actions/runs/41009253145)（18成功、文書専用jobの意図したskip）、[native-debug CI](https://github.com/carimatics/lang/actions/runs/41009253195)（3/3）、完全local baseline（2,513 test）に成功した。両hostで2鍵配布生成、通常installerでの公開前検証、実SDKのnative実行、全channel、過去receiptの期限、旧compiler実行中のupdateを検証し、Windowsの実行中exe削除拒否／cleanup延期と終了後の復旧も成功した。update fixtureはcompiler identityを維持して実SDK packaging bytesを変更する。以下の採択時experiment／未検証事項の記録は履歴であり、この実装証拠によりF01–F05を完了した。implementedはstabilizedや公式配布trustの確立を意味しない。
+
+F06回帰監査、2026-10-30 JST: F05検証checkpoint後の最新head CI `41011643812`でcloseだけに依存したlock lifetime不具合を検出した。決定的descriptor複製実験でclose後のlock残留を再現した。明示unlock guard、成功／失敗経路の回帰test、新しいlocal／両host検証が揃うまでF06としてG9を再開する。implemented lifecycle labelとF05の履歴証拠は保持し、wire format／trust契約は変更しない。
 
 ## Motivation
 
@@ -80,6 +82,8 @@ stateはadmission成功時刻のfloorを保持し、新metadata admissionでは�
 ### Publication, concurrency and recovery
 
 installation rootは呼出userが所有する信頼済みlocal stateであり、一時／最終fileを同じfilesystemへ置く。専用regular lock fileとstable標準libraryのnonblocking exclusive file lockを使い、競合は無制限待機せず明示拒否する。state変更操作とchild executableの選択／検証中にlockを保持し、`run`ではchildをspawnしてから終了を待つ前に解放する。上限付きcandidate identity検証はinstall transactionの一部としてlock下で行う。実行中executableによりWindowsの後続削除が失敗した場合、失敗を報告して整合したinstallation recordを保つ。
+
+lock取得直後、失敗し得るstate検証より前に所有guardで管理する。正常終了／error returnの両方でfile close前に明示unlockし、並行forkからexecまでの間を含む複製descriptorがmanagerの所有期間を延ばさないようにする。実際の所有者が存続する競合は従来どおりnonblockingで拒否する。
 
 排他的private staging directoryを作り、payloadをstream／hashし、完全manifestと対応SDKを検査してから公開する。型付きreleaseのcanonical compact JSON表現のSHA-256で不変generationを命名する。既存generationは全bytes／permissionを比較し、名前だけをcache真正性検査にしない。署名metadata／receipt証拠をgenerationと共に保存する。local stateは1 MiB、installed releaseは64件以下。容量到達時はactive／installed versionを暗黙evictせず拒否する。
 
