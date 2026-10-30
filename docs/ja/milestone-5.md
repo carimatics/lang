@@ -6,11 +6,13 @@
 
 2026-10-30 JST、`3b676c5`から開始。[ロードマップ](roadmap.md#milestone-5ecosystemとcompatibility)のM5全範囲（P1の2ゲートを含む）を追跡する。M4のinstallerとlocal packageは前提条件であり、registry完了を意味しない。
 
-**2 done · 1 doing · 37 todo · 110 remaining pt**
+**3 done · 1 doing · 36 todo · 108 remaining pt**
 
-**次: M5-B01 — 検証付きfixと旧仕様移行recipeを採択する。**
+**次: M5-B02 — entry・宣言testの検証付きsource fixをpreviewする。**
 
-B01 checkpoint（2026-10-30 JST）: [RFC 0044](rfcs/0044-checked-source-migration.md)でpreview既定のfix、検証付き公開、明示的な旧scalar profileを採択。保持した旧`shared`・`weak` sourceは42を返し、手動alpha-rename後も現VMで42を返してnative出力を生成する。移行commandとnative実行journeyは未実装。残る受入条件は日英整合性検証とcommit。作業branch `codex/m5-checked-source-fixes`は`main`（`3b676c5`）から作成し、PR baseを`git@github.com:carimatics/lang.git`の`main`として記録。その後PR #29の前提commit `8a43f76`へfast-forwardした。checkoutは`/private/tmp/lang-m5-fixes`。元worktreeはcleanを保ち、同PRのCIを待つ。
+B02実行checkpoint（2026-10-30 JST確認）: `Snapshot::capture_test`がrename・format再captureでも宣言testのidentityを保持する。実test専用renameはinitializerと代入を保持し、前後とも42を返す。package entryは99のままでdisk bytesも変更しない。衝突・未宣言test index・不正test overlayをentry解析へ逃がさず拒否する。新規実行・拒否test 2件とeditor・source・repositoryの27件、警告をerrorとするworkspace全target・全featureのClippyが成功。残る受入条件は選択packageのfix収集、総量proof/work課金、元spanへの合成、全root再検査、preview fixture完成、全baseline、最新head CI。この残作業を監査し、B02は3 ptのdoingを維持する。checkpointでdelivery完了とはしない。
+
+B01 checkpoint（2026-10-30 JST）: [RFC 0044](rfcs/0044-checked-source-migration.md)でpreview既定のfix、検証付き公開、明示的な旧scalar profileを採択。保持した旧`shared`・`weak` sourceは42を返し、手動alpha-rename後も現VMで42を返してnative出力を生成する。移行commandとnative実行journeyは未実装。B01検証は日英整合性7/7成功、`1ab1201`としてcommit済み。作業branch `codex/m5-checked-source-fixes`は`main`（`3b676c5`）から作成し、PR baseを`git@github.com:carimatics/lang.git`の`main`として記録。その後PR #29の前提commit `8a43f76`へfast-forwardした。checkoutは`/private/tmp/lang-m5-fixes`。元worktreeはcleanを保ち、同PRのCIを待つ。
 
 A02 checkpoint（2026-10-30 JST確認）: A01・A02でRFC 0043を実装した。code `a473cc0`で実互換性CLI、focused test 45件、fmt、Clippy、workspace test 2,522件、分離targetのrustdocが成功。両host CI `41064851495`とnative-debug CI `41064851345`も同codeで成功した。[PR #29](https://github.com/carimatics/lang/pull/29)のbaseは`main`。この文書記録の公開には最新head checkとremote mergeが残る。開始branchはcleanな`main`、追跡先`origin/main`、remoteは`git@github.com:carimatics/lang.git`、作業branchは`codex/m5-editions-and-migration`。ユーザー変更なし。M5は継続中で9ゲートがopen。
 
@@ -37,8 +39,8 @@ A02 checkpoint（2026-10-30 JST確認）: A01・A02でRFC 0043を実装した。
 | --- | --- | ---: | --- | --- | --- | --- |
 | M5-A01 | done | 0 | — | G1 | edition・非推奨方針と領域別互換性表を採択 | `b654ae7` |
 | M5-A02 | done | 0 | M5-A01 | G1 | CLIで互換性を表示し未知editionと旧consumer境界を検証 | `a473cc0` |
-| M5-B01 | doing | 2 | M5-A01 | G2 | 移行レシピ・適用可能性・書込みトランザクション契約を採択 | — |
-| M5-B02 | todo | 3 | M5-B01 | G2 | 元spanを保持した実ソース修正previewと意味再検査 | — |
+| M5-B01 | done | 0 | M5-A01 | G2 | 移行レシピ・適用可能性・書込みトランザクション契約を採択 | `1ab1201` |
+| M5-B02 | doing | 3 | M5-B01 | G2 | 元spanを保持した実ソース修正previewと意味再検査 | — |
 | M5-B03 | todo | 3 | M5-B02 | G2 | 修正適用とstale・競合・部分書込み拒否fixture | — |
 | M5-B05 | todo | 3 | M5-B01 | G2 | 旧scalar構文を受入れfresh renameを証明し実在する旧sourceをpreview | — |
 | M5-B04 | todo | 3 | M5-B03,M5-B05 | G2 | edition移行CLIと両hostの移行前後実行journey | — |
@@ -78,13 +80,15 @@ A02 checkpoint（2026-10-30 JST確認）: A01・A02でRFC 0043を実装した。
 
 ## 見積り照合
 
-**112 + 3 − 5 = 110 pt**
+**112 + 3 − 7 = 108 pt**
 
 | 基準残作業 | 純追加・再見積り | 完了時に除去 | 残作業 |
 | ---: | ---: | ---: | ---: |
-| 112 pt | +3 pt | −5 pt | 110 pt |
+| 112 pt | +3 pt | −7 pt | 108 pt |
 
 ## Delivery noteとロードマップ監査
+
+- B01完了（2026-10-30 JST）: `1ab1201`でRFC 0044を実験段階委任により採択し、未検証の実装前提を明示した。日英repository consistencyは7/7成功。validatorがNext markerの変更を検出したため既存markerへ戻した。B01の最終2 ptを除去し、別に監査した前提+3 ptは維持する。G2は未完了、doingはB02のみ。
 
 - B01範囲監査（2026-10-30 JST）: 実在する旧仕様からの遷移には、現editionのLNT0001 fixに加え、上限付きscalar readerと解決名の等価証明が必要。実装前にB05を3 ptで明示する（純追加+3、計40 delivery）。受入条件は実在する旧`shared`・`weak`のpreview。B04はB03・B05後のCLI統合、検証付き適用、両host VM・native実行用に3 ptを維持する。B02の3 ptは宣言test captureと総量proof課金を含み、B03の3 ptは既存公開guardを再利用する。この範囲監査でゲートを削除・完了しない。
 

@@ -1,5 +1,7 @@
 //! Checked identifier replacements; proposals never write source files.
 mod proof;
+#[cfg(test)]
+mod tests;
 use super::{
     ByteSpan, Diagnostic, Location, Overlay, Snapshot, Symbol, SymbolKind, capacity, invalid,
     spend, spend_bytes, workspace::View,
@@ -69,7 +71,9 @@ pub(crate) fn format_document(
         version,
         bytes: Arc::from(result.text.as_bytes()),
     });
-    let next = Snapshot::capture(&view.graph, epoch, &overlays, view.limits)?;
+    let next = view
+        .snapshot
+        .recapture(&view.graph, epoch, &overlays, view.limits)?;
     let mut work = view.limits.work;
     proof::verify_format(view, &next, &mut work)?;
     Ok(Some(Plan {
@@ -248,7 +252,9 @@ pub(crate) fn rename(
             bytes: Arc::from(updated.as_bytes()),
         });
     }
-    let next = Snapshot::capture(&view.graph, epoch, &overlays, view.limits)?;
+    let next = view
+        .snapshot
+        .recapture(&view.graph, epoch, &overlays, view.limits)?;
     proof::verify(view, &next, &plan, &mut work)?;
     Ok(plan)
 }

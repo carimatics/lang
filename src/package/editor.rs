@@ -87,6 +87,7 @@ pub struct Occurrence {
 #[derive(Debug)]
 pub struct Snapshot {
     epoch: u64,
+    test: Option<usize>,
     versions: BTreeMap<PathBuf, i32>,
     analysis: Analysis,
     modules: Option<ModuleGraph>,
@@ -120,6 +121,37 @@ fn location(sources: &SourceMap, span: Span) -> Result<Location, Diagnostic> {
 impl Snapshot {
     pub fn capture(
         graph: &Graph,
+        epoch: u64,
+        overlays: &[Overlay],
+        limits: Limits,
+    ) -> Result<Self, Diagnostic> {
+        Self::capture_entry(graph, None, epoch, overlays, limits)
+    }
+
+    /// Capture a declared test from the same immutable package input epoch.
+    pub fn capture_test(
+        graph: &Graph,
+        test: usize,
+        epoch: u64,
+        overlays: &[Overlay],
+        limits: Limits,
+    ) -> Result<Self, Diagnostic> {
+        Self::capture_entry(graph, Some(test), epoch, overlays, limits)
+    }
+
+    fn recapture(
+        &self,
+        graph: &Graph,
+        epoch: u64,
+        overlays: &[Overlay],
+        limits: Limits,
+    ) -> Result<Self, Diagnostic> {
+        Self::capture_entry(graph, self.test, epoch, overlays, limits)
+    }
+
+    pub(super) fn capture_entry(
+        graph: &Graph,
+        test: Option<usize>,
         epoch: u64,
         overlays: &[Overlay],
         limits: Limits,
@@ -186,9 +218,10 @@ impl Snapshot {
             analysis,
             modules,
             aliases,
-        } = source::analyze_indexed(graph, &replacements, limits.compiler)?;
+        } = source::analyze_indexed(graph, test, &replacements, limits.compiler)?;
         let mut snapshot = Self {
             epoch,
+            test,
             versions,
             analysis,
             modules,

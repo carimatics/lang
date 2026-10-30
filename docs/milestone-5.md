@@ -6,11 +6,13 @@
 
 Activated 2026-10-30 JST from `3b676c5`. This board tracks the entire M5 scope in [the roadmap](roadmap.md#milestone-5-ecosystem-and-compatibility), including both P1 gates. M4's installer and local packages are prerequisites, not registry completion.
 
-**2 done · 1 doing · 37 todo · 110 remaining pt**
+**3 done · 1 doing · 36 todo · 108 remaining pt**
 
-**Next: M5-B01 — accept checked fix and historical migration recipes.**
+**Next: M5-B02 — preview checked source fixes across entry and declared tests.**
 
-B01 checkpoint, 2026-10-30 JST: [RFC 0044](rfcs/0044-checked-source-migration.md) accepts preview-first fixes, checked publication and the explicit historical scalar profile. The retained old `shared`/`weak` source returns 42; manual alpha-renaming also returns 42 in the current VM and generates native output. The migration command and native execution journey remain unimplemented. Acceptance remaining: bilingual consistency validation and commit. Work branch `codex/m5-checked-source-fixes` was created from `main` (`3b676c5`), PR base `main` in `git@github.com:carimatics/lang.git`, then fast-forwarded to prerequisite `8a43f76` from PR #29. Its checkout is `/private/tmp/lang-m5-fixes`; the original worktree remains clean while that PR's CI runs.
+B02 executable checkpoint, verified 2026-10-30 JST: `Snapshot::capture_test` retains declared-test identity through rename/format recapture. A real test-only rename preserves its initializer and assignment, executes to 42 before/after, and leaves the package entry returning 99 and disk bytes unchanged. Collisions, undeclared test indices and invalid test overlays are refused without falling back to entry analysis. Two new execution/refusal tests plus 27 editor/source/repository checks pass; workspace all-target/all-feature Clippy passes with warnings denied. Remaining acceptance: selected-package fix collection, aggregate proof/work charging, original-span composition, rechecks across all roots, complete preview fixtures, full baseline and latest-head CI. B02 remains doing at 3 pt after auditing this remaining list; this checkpoint retires no delivery.
+
+B01 checkpoint, 2026-10-30 JST: [RFC 0044](rfcs/0044-checked-source-migration.md) accepts preview-first fixes, checked publication and the explicit historical scalar profile. The retained old `shared`/`weak` source returns 42; manual alpha-renaming also returns 42 in the current VM and generates native output. The migration command and native execution journey remain unimplemented. B01 validation completed: bilingual consistency 7/7, committed as `1ab1201`. Work branch `codex/m5-checked-source-fixes` was created from `main` (`3b676c5`), PR base `main` in `git@github.com:carimatics/lang.git`, then fast-forwarded to prerequisite `8a43f76` from PR #29. Its checkout is `/private/tmp/lang-m5-fixes`; the original worktree remains clean while that PR's CI runs.
 
 A02 checkpoint, verified 2026-10-30 JST: A01/A02 implement RFC 0043. Code `a473cc0` passes the real compatibility CLI, 45 focused tests, fmt, Clippy, 2,522 workspace tests and isolated-target rustdoc. Both-host CI `41064851495` and native-debug CI `41064851345` succeeded for that code. [PR #29](https://github.com/carimatics/lang/pull/29) targets `main`; publication of these documentation records still requires latest-head checks and remote merge. Starting branch is clean `main` tracking `origin/main`, remote `git@github.com:carimatics/lang.git`; work branch `codex/m5-editions-and-migration`. No user changes. M5 remains active with nine gates open.
 
@@ -37,8 +39,8 @@ Gate completion: **1/10; 5/65 historical gate weight**. Delivery points below ar
 | --- | --- | ---: | --- | --- | --- | --- |
 | M5-A01 | done | 0 | — | G1 | Accept edition/deprecation policy and domain compatibility matrix | `b654ae7` |
 | M5-A02 | done | 0 | M5-A01 | G1 | Expose supported compatibility in CLI; test unknown editions and old consumer boundaries | `a473cc0` |
-| M5-B01 | doing | 2 | M5-A01 | G2 | Accept migration recipes, applicability and write transaction contract | — |
-| M5-B02 | todo | 3 | M5-B01 | G2 | Preview real source fixes with original spans and semantic recheck | — |
+| M5-B01 | done | 0 | M5-A01 | G2 | Accept migration recipes, applicability and write transaction contract | `1ab1201` |
+| M5-B02 | doing | 3 | M5-B01 | G2 | Preview real source fixes with original spans and semantic recheck | — |
 | M5-B03 | todo | 3 | M5-B02 | G2 | Apply checked fixes; stale/conflicting/partial-write refusal fixtures | — |
 | M5-B05 | todo | 3 | M5-B01 | G2 | Admit historical scalar syntax, prove fresh renames and preview the real old-source fixture | — |
 | M5-B04 | todo | 3 | M5-B03,M5-B05 | G2 | Edition migration CLI and both-host before/after execution journey | — |
@@ -78,13 +80,15 @@ Gate completion: **1/10; 5/65 historical gate weight**. Delivery points below ar
 
 ## Estimate reconciliation
 
-**112 + 3 − 5 = 110 pt**
+**112 + 3 − 7 = 108 pt**
 
 | Baseline remaining | Net additions/re-estimates | Retired at completion | Remaining |
 | ---: | ---: | ---: | ---: |
-| 112 pt | +3 pt | −5 pt | 110 pt |
+| 112 pt | +3 pt | −7 pt | 108 pt |
 
 ## Delivery notes and roadmap audits
+
+- B01 completed, 2026-10-30 JST: RFC 0044 accepted in `1ab1201` under the experimental delegation, with explicit unverified implementation assumptions. Bilingual repository consistency passes 7/7; the board's established Next marker was restored after its validator caught a renamed marker. Retire B01's last 2 pt; keep the separately audited +3 pt prerequisite. G2 remains open. B02 is the only doing row.
 
 - B01 scope audit, 2026-10-30 JST: the real historical transition needs a bounded scalar reader and a resolved-name equivalence proof beyond current-edition LNT0001 fixes. Expose B05 at 3 pt before implementation (net +3; 40 total deliveries). Its acceptance is an actual historical `shared`/`weak` preview. B04 retains 3 pt for CLI integration, checked application and both-host VM/native execution after B03/B05. B02's 3 pt includes declared-test capture and aggregate proof accounting; B03's 3 pt reuses existing publication guards. No gate is removed or declared complete by this scope audit.
 

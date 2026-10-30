@@ -27,16 +27,19 @@ pub fn analyze_test(
     index: usize,
     limits: CompileLimits,
 ) -> Result<Analysis, Diagnostic> {
+    analyze_entry(graph, Some(test_entry(graph, index)?), limits)
+}
+
+fn test_entry(graph: &Graph, index: usize) -> Result<&inventory::Declared, Diagnostic> {
     let inputs = graph.inputs()?;
-    let test = inputs
+    inputs
         .declared
         .get(&graph.root())
         .into_iter()
         .flatten()
         .filter(|binding| binding.kind == inventory::BindingKind::Test)
         .nth(index)
-        .ok_or_else(|| Diagnostic::error("PKG0003", "test index is not declared"))?;
-    analyze_entry(graph, Some(test), limits)
+        .ok_or_else(|| Diagnostic::error("PKG0003", "test index is not declared"))
 }
 
 fn analyze_entry(
@@ -55,10 +58,12 @@ pub(super) struct Indexed {
 
 pub(super) fn analyze_indexed(
     graph: &Graph,
+    test: Option<usize>,
     overlays: &BTreeMap<PathBuf, Arc<[u8]>>,
     limits: CompileLimits,
 ) -> Result<Indexed, Diagnostic> {
-    indexed_entry(graph, None, limits, overlays, true)
+    let test = test.map(|index| test_entry(graph, index)).transpose()?;
+    indexed_entry(graph, test, limits, overlays, true)
 }
 
 fn indexed_entry(
