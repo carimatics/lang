@@ -41,6 +41,8 @@ Both commands preview by default. `--apply` computes and validates a fresh priva
 
 For example, migration renames declarations and all references of historical `shared`/`weak` locals to fresh `_migrated_shared_1`/`_migrated_weak_1`, leaving their initializers, addition and return unchanged. The reported names depend deterministically on identifiers already present. Comments are preserved even when they contain the old spelling.
 
+`FILE` follows existing source commands: relative spelling is cwd-relative, while the explicit source root bounds access. Reports use checked authority-relative paths. Do not canonicalize an input file symlink into its target before applying the no-alias checks. The standalone plan captures one source and never invents or consults a package manifest.
+
 ## Reference semantics
 
 ### Current-source fixes
@@ -126,6 +128,8 @@ For migration, retain historical source/artifact hashes; cover each newly reserv
 ## Open questions
 
 Accepted under RFC 0001's experimental delegation on 2026-10-30 JST. Rationale: explicit historical admission, a globally fresh name mapping, resolved-structure comparison and reuse of existing checked rename/publication boundaries make the narrow recipes reviewable without changing normal compilation. The retained historical producer establishes a real transition. As of 2026-10-31, B05's bounded reader/proof preview passes the full baseline and both-host CI at `7f41dd0`, including execution, refusal, semantic counterexamples and exact limits. The migration CLI, checked application and native execution journey remain B04 work. Acceptance is not G2 completion. Concrete aggregate budget defaults and diagnostic allocations are implementation decisions with exact-limit tests, not authorization to broaden the grammar. Additional historical profiles and future editions need separate reviewed recipes. No blocking design question remains for the selected slices.
+
+Implementation checkpoint, 2026-10-31 JST: B04's standalone CLI and checked single-source application pass focused preview/apply/no-op, VM execution, stale identity/bytes, foreign authority, readonly/alias, option and capacity tests. The historical-producer/current-VM/native journey on both hosts and the final full baseline remain required; this checkpoint does not complete B04 or G2.
 
 ## Sources
 

@@ -6,11 +6,11 @@
 
 Activated 2026-10-30 JST from `3b676c5`. This board tracks the entire M5 scope in [the roadmap](roadmap.md#milestone-5-ecosystem-and-compatibility), including both P1 gates. M4's installer and local packages are prerequisites, not registry completion.
 
-**6 done · 1 doing · 33 todo · 99 remaining pt**
+**6 done · 1 doing · 33 todo · 98 remaining pt**
 
-**Next: M5-B04 — expose checked historical migration through the CLI and execute both-host journeys.**
+**Next: M5-B04 — validate historical-producer/current-VM/native migration journeys on both hosts.**
 
-B04 scope, 2026-10-31 03:17 JST: add explicit profile/edition/source-root CLI admission, bind B05's byte proof to one frozen regular source through the existing publication boundary, and retain stale/alias/authority/refusal fixtures. Execute the original source with the pinned historical producer, then migrated source with the current VM and a matching-SDK native binary on macOS and Windows. Retain 3 pt after reviewing those three integration pieces; no new prerequisite is needed. `FILE` remains cwd-relative, as an executable comparison with existing `run` confirmed; reporting and publication use checked authority-relative paths. Last executable checkpoint is B05's validated preview below. Remaining acceptance is the CLI, checked filesystem application, both-host execution evidence and full validation. B04 is the only doing row; continue on the same coherent historical-migration branch.
+B04 executable checkpoint, verified 2026-10-31 03:32 JST: `lang migrate` now requires explicit profile/edition/root, previews by default and applies a freshly proved single-source replacement through the shared publication boundary. The CLI fixture previews unchanged bytes, applies, executes to 42 and repeats as a no-op. Fifteen migration tests cover old admission/proof plus apply, stale bytes/identity, foreign authority, readonly/aliases, usage refusals and cwd-relative/absolute source paths; existing fix 11/11 and format 7/7 also pass. Reduce the remaining estimate from 3 to 2 pt after this executable integration checkpoint. Remaining acceptance: actual pinned historical-producer/current-VM/matching-SDK-native journeys on both hosts, final full baseline and latest-head CI. This checkpoint is not a completed delivery; B04 remains the only doing row on the same coherent branch.
 
 B05 completed, verified 2026-10-31 03:17 JST: code `7f41dd0` admits the real historical `shared`/`weak` source, proves original-token offsets and typed resolved structure, and executes the rewritten source to 42 while ordinary compilation still rejects the original. Eight integration tests and two proof tests cover eleven pinned-producer admission cases, 24 generated scalar executions, wrapping addition, retained fuel exhaustion, collisions/trivia/CRLF, repeat no-op, semantic counterexamples and exact limits with an unraisable recursion ceiling. The frozen full baseline passed 2,546 tests in 179 suites, fmt, strict Clippy and rustdoc; all child exits are 0 and all input fingerprints are unchanged. Logs are retained under `/private/tmp/lang-m5-fixes-target/m5-b05-validation/`. Exact-head CI `41101729179` passed all 18 applicable jobs (documentation-only intentionally skipped under full routing), and native-debug `41101727954` passed all three host jobs. [PR #31](https://github.com/carimatics/lang/pull/31) remains draft for the related B04 continuation; later heads must pass their own publication checks.
 
@@ -55,7 +55,7 @@ Gate completion: **1/10; 5/65 historical gate weight**. Delivery points below ar
 | M5-B02 | done | 0 | M5-B01 | G2 | Preview real source fixes with original spans and semantic recheck | `2a3aca1` |
 | M5-B03 | done | 0 | M5-B02 | G2 | Apply checked fixes through CLI; stale/conflicting/partial-write refusal fixtures | `01b425e` |
 | M5-B05 | done | 0 | M5-B01 | G2 | Admit historical scalar syntax, prove fresh renames and preview the real old-source fixture | `7f41dd0` |
-| M5-B04 | doing | 3 | M5-B03,M5-B05 | G2 | Edition migration CLI and both-host before/after execution journey | — |
+| M5-B04 | doing | 2 | M5-B03,M5-B05 | G2 | Edition migration CLI and both-host before/after execution journey | — |
 | M5-C01 | todo | 3 | M5-A01 | G3 | Threat model: identities, namespace, authority, abuse and adversaries | — |
 | M5-C02 | todo | 3 | M5-C01 | G3 | Accept protocol, limits, recovery and security acceptance cases before upload | — |
 | M5-D01 | todo | 3 | M5-C02 | G4 | Admit bounded untrusted archives and reject traversal/duplicate/bomb inputs | — |
@@ -92,13 +92,15 @@ Gate completion: **1/10; 5/65 historical gate weight**. Delivery points below ar
 
 ## Estimate reconciliation
 
-**112 + 3 − 16 = 99 pt**
+**112 + 2 − 16 = 98 pt**
 
 | Baseline remaining | Net additions/re-estimates | Retired at completion | Remaining |
 | ---: | ---: | ---: | ---: |
-| 112 pt | +3 pt | −16 pt | 99 pt |
+| 112 pt | +2 pt | −16 pt | 98 pt |
 
 ## Delivery notes and roadmap audits
+
+- B04 checkpoint/re-estimate, 2026-10-31 JST: the CLI and private single-source publication adapter now execute the migrated fixture. Remaining work is the both-host historical/current VM/native journey and final validation; reduce 3 → 2 pt without removing any acceptance condition. Net additions/re-estimates become +3 − 1 = +2 pt; retired estimates stay 16 pt because B04 remains doing. No new delivery is added.
 
 - B05 completed, 2026-10-31 JST: retire its last 3 pt after full local and exact-head both-host validation at `7f41dd0`; no additions/re-estimates. B04 is next and remains 3 pt after the integration audit above. G2 stays open until the explicit CLI, checked application and real historical-producer/current-VM/native journeys pass on both hosts. The other eight open gates and both P1 outcomes remain required.
 

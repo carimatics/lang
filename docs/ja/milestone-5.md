@@ -6,11 +6,11 @@
 
 2026-10-30 JST、`3b676c5`から開始。[ロードマップ](roadmap.md#milestone-5ecosystemとcompatibility)のM5全範囲（P1の2ゲートを含む）を追跡する。M4のinstallerとlocal packageは前提条件であり、registry完了を意味しない。
 
-**6 done · 1 doing · 33 todo · 99 remaining pt**
+**6 done · 1 doing · 33 todo · 98 remaining pt**
 
-**次: M5-B04 — 検証付き旧source移行をCLIへ公開し両hostでjourneyを実行する。**
+**次: M5-B04 — 旧producer・現VM・nativeの移行journeyを両hostで検証する。**
 
-B04範囲（2026-10-31 03:17 JST）: 明示profile・edition・source-rootのCLI受入を追加し、B05のbyte証明を既存公開境界を使って固定した単一regular sourceに結び付け、stale・alias・authority・拒否fixtureを保持する。元sourceを固定旧producerで実行し、移行後sourceを現VMと対応SDKのnative binaryでmacOS・Windowsの両方で実行する。この3つの統合部分を監査して3 ptを維持し、新規前提は不要。既存`run`との実行比較どおり`FILE`はcwd基準とし、report・公開には検証したauthority相対pathを使う。最後の実行checkpointは下記の検証済みB05 preview。残る受入条件はCLI・検証付きfilesystem適用・両host実行証拠・全体検証。B04だけをdoingとし、同じ旧source移行branchで一貫した作業を続ける。
+B04実行checkpoint（2026-10-31 03:32 JST確認）: `lang migrate`はprofile・edition・rootを明示必須とし、既定でpreview、新しく証明した単一source置換を共通公開境界で適用する。CLI fixtureは元bytesを変更せずpreviewし、適用後42を実行して、再実行がno-opになる。移行test 15件は旧受入・証明に加え、適用・stale bytes/identity・異なるauthority・readonly/alias・usage拒否・cwd基準/絶対source pathを検証し、既存fix 11/11・format 7/7も成功。この実行可能な統合checkpointを受け、残見積りを3から2 ptへ下げる。残る受入条件は固定旧producer・現VM・対応SDK nativeの両host journey、最終全baseline、最新head CI。このcheckpointはdelivery完了ではなく、同じ一貫したbranchでB04だけをdoingとする。
 
 B05完了（2026-10-31 03:17 JST確認）: code `7f41dd0`は実在する旧`shared`・`weak` sourceを受入れ、元token offsetと型付き解決構造を証明し、rewrite後sourceは42を返す一方、通常compileは元sourceを拒否する。integration test 8件・proof test 2件で、固定producerの受入11ケース、生成scalar実行24件、wrapping加算、燃料切れ保持、衝突・trivia・CRLF、再実行no-op、意味の反例、引上げ不可の再帰上限を含む厳密な資源境界を検証。source固定全baselineの179 suite・2,546 test、fmt・厳密Clippy・rustdocが成功し、全child exitは0、全入力fingerprintは不変。logは`/private/tmp/lang-m5-fixes-target/m5-b05-validation/`に保持する。同headのCI `41101729179`は対象18 jobすべて成功（full routingにより文書専用のみ意図的省略）、native-debug `41101727954`も3 host jobすべて成功。[PR #31](https://github.com/carimatics/lang/pull/31)は関連するB04継続用にdraftを維持し、後続headもその公開check成功を必要とする。
 
@@ -55,7 +55,7 @@ B05 budget監査（2026-10-31 JST）: 再利用するscalar検査内部の独立
 | M5-B02 | done | 0 | M5-B01 | G2 | 元spanを保持した実ソース修正previewと意味再検査 | `2a3aca1` |
 | M5-B03 | done | 0 | M5-B02 | G2 | CLI修正適用とstale・競合・部分書込み拒否fixture | `01b425e` |
 | M5-B05 | done | 0 | M5-B01 | G2 | 旧scalar構文を受入れfresh renameを証明し実在する旧sourceをpreview | `7f41dd0` |
-| M5-B04 | doing | 3 | M5-B03,M5-B05 | G2 | edition移行CLIと両hostの移行前後実行journey | — |
+| M5-B04 | doing | 2 | M5-B03,M5-B05 | G2 | edition移行CLIと両hostの移行前後実行journey | — |
 | M5-C01 | todo | 3 | M5-A01 | G3 | identity・namespace・authority・濫用・攻撃者の脅威モデル | — |
 | M5-C02 | todo | 3 | M5-C01 | G3 | upload前にprotocol・上限・復旧・security受入ケースを採択 | — |
 | M5-D01 | todo | 3 | M5-C02 | G4 | 上限付き未信頼archiveの受入とtraversal・重複・bomb拒否 | — |
@@ -92,13 +92,15 @@ B05 budget監査（2026-10-31 JST）: 再利用するscalar検査内部の独立
 
 ## 見積り照合
 
-**112 + 3 − 16 = 99 pt**
+**112 + 2 − 16 = 98 pt**
 
 | 基準残作業 | 純追加・再見積り | 完了時に除去 | 残作業 |
 | ---: | ---: | ---: | ---: |
-| 112 pt | +3 pt | −16 pt | 99 pt |
+| 112 pt | +2 pt | −16 pt | 98 pt |
 
 ## Delivery noteとロードマップ監査
+
+- B04 checkpoint・再見積り（2026-10-31 JST）: CLIと非公開の単一source公開adapterで移行fixtureを実行できた。残作業は両hostの旧producer・現VM・native journeyと最終検証のため、受入条件を削除せず3 → 2 ptへ下げる。純追加・再見積りは+3 − 1 = +2 ptとし、B04はdoingなので退役見積り16 ptは変えない。新規delivery追加なし。
 
 - B05完了（2026-10-31 JST）: `7f41dd0`の全local・同head両host検証後、最後の3 ptを退役。追加・再見積りなし。次はB04で、上記統合監査後も3 ptを維持する。明示CLI・検証付き適用・実旧producerと現VM・nativeのjourneyが両hostで成功するまでG2はopen。他の8 openゲートとP1の両成果も必須を維持する。
 

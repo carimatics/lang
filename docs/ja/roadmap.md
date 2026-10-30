@@ -252,9 +252,9 @@ Exit：新しいdeveloperが1つのtoolをinstallし、packageを作成し、edi
 
 2026-10-30 JST開始。[M5 board](milestone-5.md)に全10ゲート、39件の観測可能delivery、残作業基準112 ptを保持する。[edition・互換性方針](rfcs/0043-editions-and-compatibility.md)と実行可能な互換性・移行fixtureから開始する。registry upload前に脅威モデルを定め、署名toolchain導入をregistry provenanceと混同しない。P1の2ゲートも範囲内。完了には両host ecosystem journeyと日英能力guideを含める。
 
-**6 done · 1 doing · 33 todo · 99 remaining pt**
+**6 done · 1 doing · 33 todo · 98 remaining pt**
 
-B01監査で39件の基準deliveryに旧scalar移行の前提1件・3 ptを追加した（全40件、112 + 3 − 16 = 残99 pt）。[RFC 0044](rfcs/0044-checked-source-migration.md)で検証付きfix・移行契約を採択。B02・B03の検証付きfixはmerge済みPR #30で公開した。B05の旧scalar previewは`7f41dd0`で全local baselineと両host CIが成功し、B04で明示的な移行CLI・検証付き適用・実旧producerと現VM・nativeの両host journeyを統合する。G2と他の全残ゲートはopenを維持する。
+B01監査で39件の基準deliveryに旧scalarの前提1件・3 ptを追加し、B04の実行可能CLI checkpointで残見積りを1 pt減らした（全40件、純追加+2 pt、112 + 2 − 16 = 残98 pt）。[RFC 0044](rfcs/0044-checked-source-migration.md)で検証付きfix・移行契約を採択。B02・B03の検証付きfixはmerge済みPR #30で公開した。B05の旧scalar previewは`7f41dd0`で全baselineと両host CIが成功。B04のCLIと検証付き適用は対象実行・拒否testが成功し、実旧producer・現VM・nativeの両host journeyと最終検証は引き続き必要。G2と他の全残ゲートはopenを維持する。
 
 **進捗：5 / 65 pt（7.7%）。**
 

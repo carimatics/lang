@@ -1,4 +1,6 @@
-//! RFC 0044 migration-only scalar profile; no filesystem or execution authority.
+//! RFC 0044 scalar previews and separately authorized standalone publication.
+//! Preview never accesses files or executes guest code; Plan requires a Dir.
+pub mod command;
 mod proof;
 mod reader;
 
@@ -316,14 +318,17 @@ impl Preview {
             original: bytes.to_vec(),
             replacement,
         };
-        serde_json::to_writer(ReportLimit(limits.report_bytes), &result).map_err(|e| {
+        result.check_report(limits.report_bytes)?;
+        Ok(result)
+    }
+    fn check_report(&self, limit: usize) -> Result<(), Diagnostic> {
+        serde_json::to_writer(ReportLimit(limit), self).map_err(|e| {
             if e.is_io() {
                 capacity()
             } else {
                 invalid("migration report path cannot be encoded", None)
             }
-        })?;
-        Ok(result)
+        })
     }
     pub fn original(&self) -> &[u8] {
         &self.original
@@ -333,6 +338,69 @@ impl Preview {
     }
     pub fn edits(&self) -> &[Edit] {
         &self.edits
+    }
+}
+
+/// A fresh scalar proof bound to one frozen, authority-relative source input.
+/// Serialized reports cannot construct this filesystem publication authority.
+#[derive(Debug)]
+pub struct Plan {
+    preview: Preview,
+    publication: super::format::Plan,
+}
+impl Plan {
+    pub fn capture(
+        authority: &cap_std::fs::Dir,
+        path: &Path,
+        limits: Limits,
+    ) -> Result<Self, Diagnostic> {
+        if path.as_os_str().is_empty()
+            || !path
+                .components()
+                .all(|c| matches!(c, std::path::Component::Normal(_)))
+        {
+            return Err(invalid(
+                "migration source must be a canonical relative file path",
+                None,
+            )
+            .at_path(path));
+        }
+        if path.as_os_str().as_encoded_bytes().len() > 4096 {
+            return Err(capacity().at_path(path));
+        }
+        let input = super::graph::read(authority, Path::new(""), path, limits.source_bytes)
+            .map_err(|d| {
+                if d.code == "PKG0004" {
+                    capacity().at_path(path)
+                } else {
+                    d
+                }
+            })?;
+        let mut preview = Preview::capture(path, &input.bytes, limits)?;
+        let publication =
+            super::format::Plan::from_source(path, input, preview.replacement.clone())?;
+        // Reject aliases and stale capture even for preview/no-op plans.
+        publication.validate(authority)?;
+        preview.applied = publication.changes().len();
+        preview.outcome = "applied";
+        preview.check_report(limits.report_bytes)?;
+        preview.applied = 0;
+        preview.outcome = "preview";
+        Ok(Self {
+            preview,
+            publication,
+        })
+    }
+    pub fn preview(&self) -> &Preview {
+        &self.preview
+    }
+    pub fn validate(&self, authority: &cap_std::fs::Dir) -> Result<(), Diagnostic> {
+        self.publication.validate(authority)
+    }
+    pub fn apply(mut self, authority: &cap_std::fs::Dir) -> Result<Preview, Diagnostic> {
+        self.preview.applied = self.publication.apply(authority)?;
+        self.preview.outcome = "applied";
+        Ok(self.preview)
     }
 }
 fn fresh_names(

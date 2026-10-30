@@ -169,6 +169,36 @@ impl Plan {
     pub fn changes(&self) -> &[Change] {
         &self.changes
     }
+    /// Bind one already captured standalone source to a checked in-process
+    /// replacement. The caller must prove these exact bytes before publication.
+    pub(super) fn from_source(
+        path: &Path,
+        input: super::graph::Input,
+        replacement: String,
+    ) -> Result<Self, Diagnostic> {
+        if replacement.len() > super::output::MAX_OUTPUT {
+            return Err(capacity(path, "replacement byte limit exceeded"));
+        }
+        let identity =
+            source::identity(&input.metadata, path).map_err(|e| operation(path, 0, e))?;
+        let changes = if input.bytes == replacement.as_bytes() {
+            Vec::new()
+        } else {
+            vec![Change {
+                path: path.to_path_buf(),
+                text: replacement,
+            }]
+        };
+        Ok(Self {
+            inputs: vec![Input {
+                path: path.to_path_buf(),
+                bytes: input.bytes,
+                identity,
+                role: Role::Source,
+            }],
+            changes,
+        })
+    }
     /// Revalidate a captured plan without publishing source changes.
     pub fn validate(&self, authority: &Dir) -> Result<(), Diagnostic> {
         self.live(authority, false).map(|_| ())

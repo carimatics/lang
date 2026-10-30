@@ -41,6 +41,8 @@ lang migrate --from-profile rfc0006-scalar --to-edition 2026 --source-root DIR [
 
 例えば旧local `shared`・`weak`の宣言と全参照をfreshな`_migrated_shared_1`・`_migrated_weak_1`へ変更し、initializer・加算・returnを維持する。実際の名前は既存識別子から決定的に選ぶ。旧名を含むcommentも保持する。
 
+`FILE`は既存source commandと同じく相対表記をcwd基準とし、明示source rootでaccessを制限する。reportには検証したauthority相対pathを使う。alias禁止検査前に入力fileのsymlinkをcanonical化してtarget名に置き換えない。standalone planは単一sourceを取得し、package manifestを創作も参照もしない。
+
 ## Reference semantics
 
 ### 現sourceの修正
@@ -126,6 +128,8 @@ frontend/editor証明adapter、package/format公開、CLI・test・文書を変�
 ## Open questions
 
 2026-10-30 JST、RFC 0001の実験段階委任に基づき採択。根拠: 明示的な旧入力受入、全体でfreshな名前対応、解決済み構造の比較、既存の検証付きrename・公開境界の再利用により、通常compileを変えずに限定recipeをレビューできる。保持した旧producerで実在する遷移を確認した。2026-10-31現在、B05の上限付きreader・proof previewは`7f41dd0`で実行・拒否・意味の反例・厳密上限を含む全baselineと両host CIが成功した。移行CLI・検証付き適用・native実行journeyはB04に残す。採択はG2完了ではない。具体的な総量上限とdiagnostic割当は境界testを伴う実装判断であり、grammarを広げる許可ではない。追加旧profileと将来editionには別のrecipeレビューが必要。選択sliceの設計を妨げる未決事項はない。
+
+実装checkpoint（2026-10-31 JST）: B04のstandalone CLIと検証付き単一source適用は、対象preview・apply・no-op、VM実行、stale identity・bytes、異なるauthority、readonly・alias、option・容量testが成功。旧producer・現VM・nativeの両host journeyと最終全baselineは引き続き必要で、このcheckpointではB04・G2を完了しない。
 
 ## Sources
 
