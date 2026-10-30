@@ -4,7 +4,7 @@
 
 [English](../../rfcs/0041-bounded-toolchain-profiles.md)
 
-- Status: accepted
+- Status: implemented
 - Authors: project maintainers with Codex
 - Created: 2026-10-30
 - Last updated: 2026-10-30
@@ -141,7 +141,7 @@ E01でcompile report／readerと実package CLI fixtureを実装する。E02で�
 
 ## Open questions
 
-2026-10-30 JST、RFC 0001の実験委任で採択する。E01／E02／E03R／E03は完全local baselineと両host CIで検証済み。E03 source `546ae69`は170 suite／2,494 test、全体CI `40958978887`、native CI `40958978855`の3環境に成功した。E04契約は通常build実験に基づき採択済みだが、実装と検証は未完了。単発timingを性能比較に使わない。
+2026-10-30 JST、RFC 0001の実験委任で採択し、実装を完了した。E01／E02／E03R／E03／E04は完全local baselineと両host CIで検証済み。最終実装source `356fdca`は171 suite／2,500 test、全体CI `40979050495`（18成功、意図したdoc専用skip）、native CI `40979050348`（3/3）に成功した。4種のreport readerは実seedで通常build smoke 10,000回を通過したが、coverage／sanitizer campaignではない。G8は完了し、単発timingを性能比較に使わない。
 
 ## Sources
 

@@ -18,9 +18,9 @@ M2は完了済みです。18/18ゲート、過去のゲート重み113/113です
 
 ## M3完了後の作業
 
-M3は完了済みです。M4の[作業ボード](milestone-4.md)は43 delivery、**32 done · 1 doing · 10 todo · 30 remaining pt**です。G1–G7を検証済みです。DAP source `cf5e27f`が保持VMのstep／inspection、native source debug、実mixed native／VM pause、restart／terminationのID分離を実装し、完全local baseline、全体CI `40937041512`、native-debug `40937041276`の3環境に成功しました。E01 compile reportは`e2f0c1d`で実装し、E02 runtime観測は`7baee25`で検証し、E03R論理allocator traceは`b715b7a`で検証済み、E03 allocation reportは`546ae69`で検証済み、E04 rebuild説明がdoingで、runtime／allocation profiling（G8）、署名install（G9）、最終journey／機能guideは引き続き必要です。
+M3は完了済みです。M4の[作業ボード](milestone-4.md)は43 delivery、**33 done · 1 doing · 9 todo · 27 remaining pt**です。G1–G8を検証済みです。DAP source `cf5e27f`が保持VMのstep／inspection、native source debug、実mixed native／VM pause、restart／terminationのID分離を実装し、完全local baseline、全体CI `40937041512`、native-debug `40937041276`の3環境に成功しました。E01 compile reportは`e2f0c1d`で実装し、E02 runtime観測は`7baee25`で検証し、E03R論理allocator traceは`b715b7a`で検証済み、E03 allocation reportは`546ae69`で検証済み、E04 rebuild説明は`356fdca`で全体CI `40979050495`とnative CI `40979050348`に成功しました。G8は完了し、F01署名installer設計がdoingです。署名install（G9）と最終journey／機能guideは引き続き必要です。
 
-PR #9–#18 は merge 済みです。local main／origin/main ref は `0a15fb5` で一致し、ahead／behind 0/0。現在の `codex/m4-debug-adapter` は clean・upstream 同期済み `codex/m4-editor-checked-edits` head `5cdc422` から作成し、既存 user 変更はありません。記録 PR base は #18 merge 後に `carimatics/lang:main` へ移行しました。upstream は `origin/codex/m4-debug-adapter`、[draft PR #19](https://github.com/carimatics/lang/pull/19) の D01 両 host CI／debugger は成功し、現在の証拠と残る条件は board に記録しています。
+PR #9–#19はmerge済みです。最後に確認したlocal main／origin/mainは`14a92df`でahead／behind 0/0。現在の`codex/m4-profiling`は同期済みdebugger head `10aae50`から作成し、既存user変更はありません。upstreamは`origin/codex/m4-profiling`、記録baseは`carimatics/lang:main`、[PR #24](https://github.com/carimatics/lang/pull/24)です。実装head `356fdca`の両host CIは成功し、最終文書commitのCI／mergeは未完了です。
 
 保守やレビューのために完了済みM2ボードを拡大しません。修正はscopeを限定したchecklistに記録し、code、文書、検証を同じ変更にまとめます。新たな言語／ABI／形式の選択には引き続き明示的RFC判断が必要ですが、実験段階の委任により個別owner承認待ちは不要です。
 
@@ -34,7 +34,7 @@ PR #9–#18 は merge 済みです。local main／origin/main ref は `0a15fb5` 
 
 以下のmilestone checklistは相対的な受入条件の重みを保持します。`1`はごく小、`2`は小、`3`は中、`5`は大、`8`は非常に大です。重み付きの達成率は `完了した重み / 全重み × 100` を小数第1位へ丸めます。この粗い重みは経過時間や実装残作業を予測しません。Milestoneがcurrentになったとき、またはscope／evidenceが変わったときに、長期見積もりを積み上げで見直します。進行中milestoneごとに別の実装Todoを使い、独立検証可能な残り1〜3 ptのtaskと、明示的なscope／見積もり変更を記録します。
 
-2026-10-29（JST）に確認した exit-gate weight の snapshot です。受入条件の重みと残作業見積りは別であり、現在の収支は live M4 board に記録します。完了済み M2／M3 の記録は維持します。
+2026-10-30（JST）に確認した exit-gate weight の snapshot です。受入条件の重みと残作業見積りは別であり、現在の収支は live M4 board に記録します。完了済み M2／M3 の記録は維持します。
 
 | Milestone | 完了条件の重み | 条件の総重み | 条件達成率 |
 | --- | ---: | ---: | ---: |
@@ -42,11 +42,11 @@ PR #9–#18 は merge 済みです。local main／origin/main ref は `0a15fb5` 
 | 1 — frontendとbytecodeのvertical slice（完了） | 89 pt | 89 pt | **100.0%** |
 | 2 — ownershipとnative AOT | 113 pt | 113 pt | 100.0% |
 | 3 — concurrencyとembedding（完了） | 96 pt | 96 pt | 100.0% |
-| 4 — developer toolchain | 47 pt | 63 pt | 74.6% |
+| 4 — developer toolchain | 55 pt | 63 pt | 87.3% |
 | 5 — ecosystemとcompatibility | 0 pt | 65 pt | 0.0% |
 | 6 — セルフホスティング | 0 pt | 74 pt | 0.0% |
 | 7 — 追加frontend | 0 pt | 55 pt | 0.0% |
-| **全体** | **554 pt** | **764 pt** | **72.5%** |
+| **全体** | **562 pt** | **764 pt** | **73.6%** |
 
 ## Milestone 0：設計baseline
 
@@ -228,7 +228,7 @@ Exit：Native hostがuser scriptをloadし、typed APIを公開し、scriptをca
 
 ## Milestone 4：developer toolchain
 
-**進捗：47 / 63 pt（74.6%）。**
+**進捗：55 / 63 pt（87.3%）。**
 
 有効化監査（2026-10-29 JST）: 現在の task、実行 checkpoint、積上げ baseline 103 pt は [M4 board](milestone-4.md)で管理します。[RFC 0034](rfcs/0034-package-workspaces-and-cli-diagnostics.md)が manifest／diagnostic と最初の local package 契約を採択しました。厳密な検査、許可 local dependency の実行、lock／offline replay、create／build／run／test fixture の順に進めてから広範な tooling へ進みます。installer は M5 registry より先に toolchain binary を配布するため、trust root、署名 release metadata 検証、atomic update／failure recovery の採択設計を download／install 前に必要とします。M5 signing は registry package 公開／provenance を対象とします。元の九つの gate と weight を維持し、63 pt を残作業予測には使いません。
 
@@ -241,7 +241,7 @@ Exit：Native hostがuser scriptをloadし、typed APIを公開し、scriptをca
 - [x] **P0 — LSP navigation、completion、semantic tokenを実装する。** — 8 pt
 - [x] **P0 — 安全なrename／code actionを実装する。** — 8 pt
 - [x] **P0 — Mixed native／VM stackを持つDAP adapterを実装する。** — 8 pt
-- [ ] **P1 — Compile-time／runtime profiling、allocation trace、rebuild explanationを追加する。** — 8 pt
+- [x] **P1 — Compile-time／runtime profiling、allocation trace、rebuild explanationを追加する。** — 8 pt
 - [ ] **P0 — `rustup` と同じ役割を持つinstall／update／channel toolを構築する。** — 8 pt
 
 Exit：新しいdeveloperが1つのtoolをinstallし、packageを作成し、editorで開発し、test／debugし、reproducible binaryを生成できる。

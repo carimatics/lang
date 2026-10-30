@@ -18,9 +18,9 @@ Public C v1 and existing generated clients follow stabilized RFC 0033. Source/na
 
 ## Work after M3
 
-M3 is complete. M4’s [live board](milestone-4.md) records **32 done · 1 doing · 10 todo · 30 remaining pt** across 43 deliveries. G1–G7 are verified. DAP source `cf5e27f` supplies retained VM stepping/inspection, verified native source debugging, real mixed native/VM pauses and restart/termination identity isolation. It passes the complete local baseline, full CI `40937041512` and all three native-debug environments in `40937041276`. E01 compile reports are implemented at `e2f0c1d`; E02 runtime observations are verified at `7baee25`; E03R logical allocator tracing is verified at `b715b7a`; E03 allocation reports are verified at `546ae69`; E04 rebuild explanations are doing; runtime/allocation profiling (G8), signed installation (G9) and the final journeys/capability guide remain required.
+M3 is complete. M4’s [live board](milestone-4.md) records **33 done · 1 doing · 9 todo · 27 remaining pt** across 43 deliveries. G1–G8 are verified. DAP source `cf5e27f` supplies retained VM stepping/inspection, verified native source debugging, real mixed native/VM pauses and restart/termination identity isolation. It passes the complete local baseline, full CI `40937041512` and all three native-debug environments in `40937041276`. E01 compile reports are implemented at `e2f0c1d`; E02 runtime observations are verified at `7baee25`; E03R logical allocator tracing is verified at `b715b7a`; E03 allocation reports are verified at `546ae69`; E04 rebuild explanations are verified at `356fdca` with full CI `40979050495` and native CI `40979050348`. G8 is complete; F01 signed-installer design is doing. Signed installation (G9) and the final journeys/capability guide remain required.
 
-PRs #9–#18 are merged. Local main/origin/main refs match `0a15fb5` with 0/0 ahead/behind. Current `codex/m4-debug-adapter` was created from clean, upstream-synchronized `codex/m4-editor-checked-edits` head `5cdc422`; no preexisting user changes. Its recorded PR base transitioned to `carimatics/lang:main` after #18 merged. Upstream is `origin/codex/m4-debug-adapter`, [draft PR #19](https://github.com/carimatics/lang/pull/19); D01 both-host CI/debugger succeeds; the board records current evidence and remaining conditions.
+PRs #9–#19 are merged. Last verified local main/origin/main match `14a92df`, 0/0 ahead/behind. Current `codex/m4-profiling` was created from synchronized debugger head `10aae50` with no preexisting user changes. Upstream is `origin/codex/m4-profiling`, recorded base `carimatics/lang:main`, [PR #24](https://github.com/carimatics/lang/pull/24). Implementation head `356fdca` passes both-host CI; final documentation CI and merge remain open.
 
 Do not expand the completed M2 board for maintenance or reviews. Record fixes in their scoped checklist, and keep code, documentation and validation in the same change. New language/ABI/format choices still require an explicit RFC decision; experimental delegation avoids a separate owner-approval wait.
 
@@ -34,7 +34,7 @@ Tasks are listed in dependency-aware priority order within each milestone. A mil
 
 The milestone checklists below retain relative exit-gate weights: `1` is very small, `2` small, `3` medium, `5` large, and `8` very large. Their weighted completion is `completed weights / total weights × 100`, rounded to one decimal place. These coarse weights do not predict elapsed time or remaining implementation effort. Long-horizon estimates require a bottom-up review when their milestone becomes current or scope/evidence changes. For each active milestone, a separate delivery board records independently verifiable 1–3-point remaining tasks and explicit scope/estimate changes.
 
-Snapshot of exit-gate weights verified 2026-10-29 JST. Acceptance weights are separate from remaining-effort estimates; the live M4 board records the current reconciliation. Completed M2/M3 records remain unchanged.
+Snapshot of exit-gate weights verified 2026-10-30 JST. Acceptance weights are separate from remaining-effort estimates; the live M4 board records the current reconciliation. Completed M2/M3 records remain unchanged.
 
 | Milestone | Completed gate weight | Total gate weight | Gate completion |
 | --- | ---: | ---: | ---: |
@@ -42,11 +42,11 @@ Snapshot of exit-gate weights verified 2026-10-29 JST. Acceptance weights are se
 | 1 — frontend and bytecode vertical slice (complete) | 89 pt | 89 pt | **100.0%** |
 | 2 — ownership and native AOT | 113 pt | 113 pt | 100.0% |
 | 3 — concurrency and embedding (complete) | 96 pt | 96 pt | 100.0% |
-| 4 — developer toolchain | 47 pt | 63 pt | 74.6% |
+| 4 — developer toolchain | 55 pt | 63 pt | 87.3% |
 | 5 — ecosystem and compatibility | 0 pt | 65 pt | 0.0% |
 | 6 — self-hosting | 0 pt | 74 pt | 0.0% |
 | 7 — additional frontends | 0 pt | 55 pt | 0.0% |
-| **Overall** | **554 pt** | **764 pt** | **72.5%** |
+| **Overall** | **562 pt** | **764 pt** | **73.6%** |
 
 ## Milestone 0: design baseline
 
@@ -228,7 +228,7 @@ Exit: a native host can load a user script, expose a typed API, call the script,
 
 ## Milestone 4: developer toolchain
 
-**Progress: 47 / 63 pt (74.6%).**
+**Progress: 55 / 63 pt (87.3%).**
 
 Activation audit (2026-10-29 JST): use the [M4 board](milestone-4.md) for current tasks, executable checkpoints and the bottom-up 103 pt baseline. [RFC 0034](rfcs/0034-package-workspaces-and-cli-diagnostics.md) accepts the manifest/diagnostic and initial local package contract. First validate strict inspection, then execute an authorized local dependency, lock/offline replay and the create/build/run/test fixture before broader tooling. The installer distributes toolchain binaries before M5's registry, so its accepted design must establish trust roots, signed release-metadata verification and atomic update/failure recovery before downloading/installing. M5's signing work covers registry package publication/provenance. The original nine gates and weights remain unchanged; 63 pt is not a remaining-effort forecast.
 
@@ -241,7 +241,7 @@ Sequencing contract (clarified 2026-10-28 JST, retained on activation): the firs
 - [x] **P0 — Implement LSP navigation, completion, and semantic tokens.** — 8 pt
 - [x] **P0 — Implement safe rename and code actions.** — 8 pt
 - [x] **P0 — Implement a DAP adapter with mixed native/VM stacks.** — 8 pt
-- [ ] **P1 — Add compile-time/runtime profiling, allocation traces, and rebuild explanations.** — 8 pt
+- [x] **P1 — Add compile-time/runtime profiling, allocation traces, and rebuild explanations.** — 8 pt
 - [ ] **P0 — Build an install/update/channel tool comparable in role to `rustup`.** — 8 pt
 
 Exit: a new developer can install one tool, create a package, develop in an editor, test, debug, and produce a reproducible binary.

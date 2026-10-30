@@ -4,7 +4,7 @@
 
 [日本語版](../ja/rfcs/0041-bounded-toolchain-profiles.md)
 
-- Status: accepted
+- Status: implemented
 - Authors: project maintainers with Codex
 - Created: 2026-10-30
 - Last updated: 2026-10-30
@@ -141,7 +141,7 @@ Compare ordinary and profiled artifact size/input identity, compile a real decla
 
 ## Open questions
 
-Accepted under RFC 0001 experimental delegation, 2026-10-30 JST. E01/E02/E03R/E03 are verified with complete local baselines and both-host CI. E03 source `546ae69` passes 170 suites / 2,494 tests, full CI `40958978887` and all three native environments in `40958978855`. The E04 contract is accepted from the ordinary-build experiment; its implementation and validation remain open. Single timings establish no performance comparison.
+Accepted under RFC 0001 experimental delegation and implemented, 2026-10-30 JST. E01/E02/E03R/E03/E04 are verified with complete local baselines and both-host CI. Final implementation source `356fdca` passes 171 suites / 2,500 tests, full CI `40979050495` (18 success, intentional docs-only skip) and native CI `40979050348` (3/3). All four readers pass 10,000 uninstrumented smoke runs with actual report seeds; this is not a coverage/sanitizer campaign. G8 is complete. Single timings establish no performance comparison.
 
 ## Sources
 
