@@ -41,5 +41,35 @@
     "dependency_note": "Companion package added; all dependency name/version identities match the historical lock. Cargo update --precise aligned libc to 0.2.190; artifact bytes were unchanged.",
     "driver": "use lang::frontend::{self, CompileLimits};\nuse lang_bytecode::unit as wire;\nuse std::path::Path;\n\nfn main() {\n    let source = Path::new(\"/private/tmp/lang-m5-legacy-probe.lang\");\n    let limits = CompileLimits::default();\n    let analysis = frontend::analyze_file(source, source.parent().unwrap(), limits);\n    let typed = analysis.result.expect(\"historical source is valid\");\n    let program = frontend::compile_script(&typed, &analysis.sources, limits).unwrap();\n    let bytes = wire::encode(&program, wire::CodecLimits::default()).unwrap();\n    std::fs::write(\"/private/tmp/lang-m5-legacy-probe.langbc\", bytes).unwrap();\n}\n"
   },
-  "scope": "Reference experiment, not an implemented migration tool or a closed M5 gate. Historical CLI has no compile subcommand; artifact was produced through the unchanged historical library API. Both-host automatic migration remains unverified."
+  "scope": "Reference experiment, not an implemented migration tool or a closed M5 gate. Historical CLI has no compile subcommand; artifact was produced through the unchanged historical library API. Both-host automatic migration remains unverified.",
+  "wrapping_parameter_probe": {
+    "verified_date": "2026-10-31",
+    "timezone": "Asia/Tokyo",
+    "historical_commit": "69b1c4dc66d04a4a103d4eb843232df22e52eac0",
+    "current_commit": "2a3aca1be2fe60bbde69287a798821e4f4607745",
+    "historical_source": "fn bump(shared:i64)->i64{return shared+1;}\nfn main()->i64{return bump(9223372036854775807);}\n",
+    "manually_renamed_source": "fn bump(_migrated_shared_1:i64)->i64{return _migrated_shared_1+1;}\nfn main()->i64{return bump(9223372036854775807);}\n",
+    "observations": [
+      {
+        "compiler": "historical",
+        "source": "historical_source",
+        "exit_code": 0,
+        "stdout": "-9223372036854775808\n"
+      },
+      {
+        "compiler": "current",
+        "source": "historical_source",
+        "exit_code": 1,
+        "diagnostic": "SRC0024",
+        "diagnostic_count": 2
+      },
+      {
+        "compiler": "current",
+        "source": "manually_renamed_source",
+        "exit_code": 0,
+        "stdout": "-9223372036854775808\n"
+      }
+    ],
+    "scope": "Confirms RFC 0002 wrapping arithmetic and a real reserved-parameter source break. The rename was manual; this does not establish an implemented migration command or native execution."
+  }
 }

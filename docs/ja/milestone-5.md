@@ -6,11 +6,19 @@
 
 2026-10-30 JST、`3b676c5`から開始。[ロードマップ](roadmap.md#milestone-5ecosystemとcompatibility)のM5全範囲（P1の2ゲートを含む）を追跡する。M4のinstallerとlocal packageは前提条件であり、registry完了を意味しない。
 
-**2 done · 0 doing · 37 todo · 107 remaining pt**
+**5 done · 0 doing · 35 todo · 102 remaining pt**
 
-**次: M5-B01 — 検証付きfixと旧仕様移行recipeを採択する。**
+**次: M5-B05 — 旧scalar fixtureの検証付き移行をpreviewする。**
 
-現在のcheckpoint（2026-10-30 JST確認）: A01・A02でRFC 0043を実装した。code `a473cc0`で実互換性CLI、focused test 45件、fmt、Clippy、workspace test 2,522件、分離targetのrustdocが成功。両host CI `41064851495`とnative-debug CI `41064851345`も同codeで成功した。[PR #29](https://github.com/carimatics/lang/pull/29)のbaseは`main`。この文書記録の公開には最新head checkとremote mergeが残る。開始branchはcleanな`main`、追跡先`origin/main`、remoteは`git@github.com:carimatics/lang.git`、作業branchは`codex/m5-editions-and-migration`。ユーザー変更なし。B01の日英草案は採択RFC集合の外に置く。M5は継続中で9ゲートがopen。
+公開checkpoint（2026-10-31 JST）: code `01b425e`のCI `41085682122`（18 job成功、full routingにより文書専用のみ意図的省略）とnative-debug `41085682104`が成功。全local baselineは178 suite・2,536 test、fmt、厳密Clippy、rustdocが成功し、全child exitは0、source fingerprintは不変。logは`/private/tmp/lang-m5-fixes-target/m5-b03-validation-authorized/`に保持する。最初のsandbox実行はHTTPS fixture 2件のloopback待受を拒否したため、同一の固定sourceで承認済み実行を行った。失敗・取消runを成功とは数えない。最終文書headのCIとPR #30 mergeは未完了。
+
+B03完了（2026-10-31 JST確認）: `lang fix`はpreviewが既定で、`--apply`はformatterの固定入力検証・全件staging・file単位置換を再利用し、非公開の検証済みplanを再計算する。entry・testの適用前後VM実行、古いsource・依存・manifestと異なるauthority拒否、readonly・alias拒否、staging失敗cleanup、正確な適用済みprefix、再実行no-op、CLI診断、適用成功reportのsize境界を検証。取得inventory外のhardlinkが既存alias禁止要件の漏れを露出したため、両live検証でopen済みfileのlink数を確認し、RFC 0036を日英で明確化した。実装と両host CIは完了し、最終文書公開は上記の別条件として追跡する。B04は旧source移行統合を維持する。
+
+B02 local完了（2026-10-31 JST確認）: 実装`2a3aca1`は元spanを合成し、各rename後にentryと全宣言testを証明する。source固定全baselineの178 suite・2,529 test、fmt、厳密Clippy、rustdocが成功し、実終了codeを`/private/tmp/lang-m5-fixes-target/m5-validation/`に保持した。修正`5e2b593`はPOSIX専用test期待値を厳密native pathへ置換し、対象preview・整合性・fmt・Clippyが成功。公開には最新head CIが必要で、検証付き適用と旧source移行は別のB03・B05・B04成果とする。
+
+B01 checkpoint（2026-10-30 JST）: [RFC 0044](rfcs/0044-checked-source-migration.md)でpreview既定のfix、検証付き公開、明示的な旧scalar profileを採択。保持した旧`shared`・`weak` sourceは42を返し、手動alpha-rename後も現VMで42を返してnative出力を生成する。移行commandとnative実行journeyは未実装。B01検証は日英整合性7/7成功、`1ab1201`としてcommit済み。作業branch `codex/m5-checked-source-fixes`は`main`（`3b676c5`）から作成し、PR baseを`git@github.com:carimatics/lang.git`の`main`として記録。その後PR #29の前提commit `8a43f76`へfast-forwardした。checkoutは`/private/tmp/lang-m5-fixes`。元worktreeはcleanを保ち、同PRのCIを待つ。
+
+A02公開checkpoint（2026-10-31 JST確認）: 最新head `8a43f76`のCI `41072332781`とnative-debug `41072332783`（attempt 2）が成功した後、[PR #29](https://github.com/carimatics/lang/pull/29)を`1cdad09`としてmergeした。full routingにより文書専用jobだけを意図的に省略。元worktreeは`main`へ復帰し、cleanかつ`origin/main`と同期済み（ahead 0 / behind 0）。remoteは`git@github.com:carimatics/lang.git`。A01・A02のlocal baselineは2,522 test、fmt、Clippy、分離targetのrustdocが成功。[Draft PR #30](https://github.com/carimatics/lang/pull/30)で別branchの検証付きfix previewを追跡し、その全local baselineは成功、修正headのCIは未確定。M5の9ゲートはopenを維持する。
 
 ## Exit gates
 
@@ -35,10 +43,11 @@
 | --- | --- | ---: | --- | --- | --- | --- |
 | M5-A01 | done | 0 | — | G1 | edition・非推奨方針と領域別互換性表を採択 | `b654ae7` |
 | M5-A02 | done | 0 | M5-A01 | G1 | CLIで互換性を表示し未知editionと旧consumer境界を検証 | `a473cc0` |
-| M5-B01 | todo | 2 | M5-A01 | G2 | 移行レシピ・適用可能性・書込みトランザクション契約を採択 | — |
-| M5-B02 | todo | 3 | M5-B01 | G2 | 元spanを保持した実ソース修正previewと意味再検査 | — |
-| M5-B03 | todo | 3 | M5-B02 | G2 | 修正適用とstale・競合・部分書込み拒否fixture | — |
-| M5-B04 | todo | 3 | M5-B03 | G2 | edition移行CLIと両hostの移行前後実行journey | — |
+| M5-B01 | done | 0 | M5-A01 | G2 | 移行レシピ・適用可能性・書込みトランザクション契約を採択 | `1ab1201` |
+| M5-B02 | done | 0 | M5-B01 | G2 | 元spanを保持した実ソース修正previewと意味再検査 | `2a3aca1` |
+| M5-B03 | done | 0 | M5-B02 | G2 | CLI修正適用とstale・競合・部分書込み拒否fixture | `01b425e` |
+| M5-B05 | todo | 3 | M5-B01 | G2 | 旧scalar構文を受入れfresh renameを証明し実在する旧sourceをpreview | — |
+| M5-B04 | todo | 3 | M5-B03,M5-B05 | G2 | edition移行CLIと両hostの移行前後実行journey | — |
 | M5-C01 | todo | 3 | M5-A01 | G3 | identity・namespace・authority・濫用・攻撃者の脅威モデル | — |
 | M5-C02 | todo | 3 | M5-C01 | G3 | upload前にprotocol・上限・復旧・security受入ケースを採択 | — |
 | M5-D01 | todo | 3 | M5-C02 | G4 | 上限付き未信頼archiveの受入とtraversal・重複・bomb拒否 | — |
@@ -75,13 +84,23 @@
 
 ## 見積り照合
 
-**112 + 0 − 5 = 107 pt**
+**112 + 3 − 13 = 102 pt**
 
 | 基準残作業 | 純追加・再見積り | 完了時に除去 | 残作業 |
 | ---: | ---: | ---: | ---: |
-| 112 pt | +0 pt | −5 pt | 107 pt |
+| 112 pt | +3 pt | −13 pt | 102 pt |
 
 ## Delivery noteとロードマップ監査
+
+- B03完了（2026-10-31 JST）: code `01b425e`、全local baseline 2,536/2,536とfmt・Clippy・rustdoc、両host CIが成功。最終3 ptを退役し、追加・再見積りなし。B05・B04の旧source受入、検証付き移行CLI、両hostでの実旧producer・現VM・native journeyが成功するまでG2をopenとする。次はB05。他の全ゲートとP1成果も必須を維持する。
+
+- 旧source受入準備（2026-10-31 JST、delivery退役なし）: 11件の[固定producer probe](../evidence/2026-10-31-m5-scalar-admission.json)でblock scopeと関数全体の名前一意性、不変parameter、明示local型・`mut`、localによるcallable隠蔽、到達不能名の検証、必要なreturn経路、前方再帰、任意の`else`、parameter・argument末尾commaを確定した。RFC 0044の日英版に既存要件を記録。B05で予定する解決名・型の証明が必要であることを確認し、追加前提・3 ptの見積り変更なし。B03は全local検証の終了まで唯一のdoing行を維持する。
+
+- B02 local完了（2026-10-31 JST）: 実装`2a3aca1`のsource固定全baseline（2,529 test、fmt、厳密Clippy、rustdoc）が成功。修正`5e2b593`はnative pathの厳密比較を維持し、対象検証が成功。最後の3 ptを退役し、追加・再見積りなし。G2はopen。最新head CI・PR mergeは公開条件として未完了。B03だけをdoingとし、新規planのCLI・共通writerを`codex/m5-checked-source-fixes`上の一貫した続きとして進める。
+
+- B01完了（2026-10-30 JST）: `1ab1201`でRFC 0044を実験段階委任により採択し、未検証の実装前提を明示した。日英repository consistencyは7/7成功。validatorがNext markerの変更を検出したため既存markerへ戻した。B01の最終2 ptを除去し、別に監査した前提+3 ptは維持する。G2は未完了、doingはB02のみ。
+
+- B01範囲監査（2026-10-30 JST）: 実在する旧仕様からの遷移には、現editionのLNT0001 fixに加え、上限付きscalar readerと解決名の等価証明が必要。実装前にB05を3 ptで明示する（純追加+3、計40 delivery）。受入条件は実在する旧`shared`・`weak`のpreview。B04はB03・B05後のCLI統合、検証付き適用、両host VM・native実行用に3 ptを維持する。B02の3 ptは宣言test captureと総量proof課金を含み、B03の3 ptは既存公開guardを再利用する。この範囲監査でゲートを削除・完了しない。
 
 - 開始監査（2026-10-30 JST）: 元の10ゲートすべてを維持し、P1の先送りなし。積上げ39件、112 pt。upload受入より先にsecurityを設計する。registry署名信頼はRFC 0042のtoolchain配布と別契約。Wasmはcontainer生成だけでなくソースpluginを実行する。LLVMゲートは根拠に基づく評価であり、採用は必須ではない。
 - 順序: 互換性方針 → 実行互換性fixture → 移行・修正 → 認証・署名registry消費 → portable plugin実行・sandbox → hosting・検索とbackend評価 → 両host連続journey・exit監査。独立ゲートも維持する。実装doingは最大1行、前提を追加する前に再監査する。

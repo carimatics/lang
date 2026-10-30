@@ -20,7 +20,7 @@ pub(crate) struct OpenDocument {
 pub(crate) struct View {
     pub authority: PathBuf,
     pub snapshot: Snapshot,
-    pub graph: Graph,
+    pub graph: Arc<Graph>,
     pub overlays: Vec<Overlay>,
     pub limits: Limits,
 }
@@ -83,7 +83,7 @@ impl Config {
         Ok(View {
             authority,
             snapshot,
-            graph,
+            graph: Arc::new(graph),
             overlays,
             limits,
         })

@@ -104,6 +104,7 @@ source構文・native language ABI・private SDK/package formatは実験段階�
 - [RFC 0041: 上限付きtoolchain profile（implemented）](docs/ja/rfcs/0041-bounded-toolchain-profiles.md)
 - [RFC 0042: 署名付きtoolchain installation（implemented）](docs/ja/rfcs/0042-signed-toolchain-installation.md)
 - [RFC 0043: Editionと互換性方針（implemented）](docs/ja/rfcs/0043-editions-and-compatibility.md)
+- [RFC 0044: 検証付きsource修正と旧仕様からの移行（accepted）](docs/ja/rfcs/0044-checked-source-migration.md)
 - [コントリビューションガイド](CONTRIBUTING.ja.md)
 
 `cargo run -- toolchain verify --trust-root root.json --metadata channel.json --channel stable --message-format json` は現在のhost向けの上限付き署名metadataを検証し、JSON概要を出力します。rootは別経路で信頼を確認してください。この読取専用検査は新規trust contextを使い、既存installのrollback floorを参照せず、payloadの読取やinstallも行いません。[RFC 0042](docs/ja/rfcs/0042-signed-toolchain-installation.md)を参照してください。
@@ -131,6 +132,8 @@ literal code action は同じ input／version guard と package linter の rule 
 `cargo run -- compatibility --message-format json` はprojectを読まずに対応source editionと独立した互換性方針を表示します。editionは`2026`のみで、packageには明示が必要です。公開component C v1は安定化していますが、source・bytecode・package/tooling format・private native linkageはそれぞれの実験契約を維持します。[RFC 0043](docs/ja/rfcs/0043-editions-and-compatibility.md)が非推奨と将来移行の要件を定義し、[M5進捗](docs/ja/milestone-5.md)で実装状況を確認できます。
 
 `cargo run -- fmt --manifest-path target/my_app/Lang.json --check` は既存 CST formatter の要変更 file を無書込みで報告します。`--check` を省くと、選択 dependency／test を含め検証済みの source を file 単位で置換します。元 comment／span と permission を保持し、stale／不正 input は公開前に拒否します。source 変更後の古い lock は stale に保ち、通常 build／run で再生成します。file 単位公開の境界は [RFC 0036](docs/ja/rfcs/0036-checked-package-formatting.md) を参照してください。
+
+`cargo run -- fix --manifest-path target/my_app/Lang.json --message-format json` は選択entryと全宣言testの検証付き`LNT0001` renameをpreviewします。`--apply`を付けると証明を再計算して置換し、initializer・assignment・comment・無関係なbytesを保持します。依存は検査しますが編集しません。reportは対象root・file、元byte span、変更・適用件数を含み、保存したreportは適用入力にできません。`--locked`は操作前のlockを検証し、source編集後もlockは変更せずstaleに保ち、通常build／runで再生成します。公開中は協調writerの排他的書込み時間帯が必要です。全入力を再検証してfile単位でatomic置換しますが、後半I/O失敗時は適用済みprefixを報告しrollbackしません。[RFC 0044](docs/ja/rfcs/0044-checked-source-migration.md)を参照してください。旧sourceの`migrate`は未実装です。
 
 `cargo run -- package --manifest-path target/my_app/Lang.json --list` は予定する固定 source snapshot を無書込みで一覧表示します。`--list` を省くと、元 manifest／source byte、`Lang.lock`、version 付き descriptor の決定的な非圧縮 TAR を公開します。`--locked --offline` は完全一致 replay を検証します。profile 1 は directory alias を拒否し、信頼しない archive の展開や registry 公開は行いません。[RFC 0035](docs/ja/rfcs/0035-source-package-snapshots.md) を参照してください。
 

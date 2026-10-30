@@ -1,0 +1,80 @@
+{
+  "schema": 1,
+  "kind": "historical-scalar-admission-probes",
+  "verified_date": "2026-10-31",
+  "timezone": "Asia/Tokyo",
+  "historical_commit": "69b1c4dc66d04a4a103d4eb843232df22e52eac0",
+  "command": ["lang", "run", "--source-root", "DIR", "--fuel", "10000", "FILE"],
+  "cases": [
+    {
+      "name": "block-local-does-not-escape",
+      "source": "fn main()->i64{\n    if true{let mut hidden:i64=42;}else{}\n    return hidden;\n}\n",
+      "exit": 1,
+      "diagnostics": ["SRC0002"]
+    },
+    {
+      "name": "immutable-parameter",
+      "source": "fn bump(shared:i64)->i64{shared=shared+1;return shared;}\nfn main()->i64{return bump(41);}\n",
+      "exit": 1,
+      "diagnostics": ["SRC0004"]
+    },
+    {
+      "name": "local-type-required",
+      "source": "fn main()->i64{let mut shared=42;return shared;}\n",
+      "exit": 1,
+      "diagnostics": ["SRC0012", "SRC0012"]
+    },
+    {
+      "name": "local-shadows-callable",
+      "source": "fn shared()->i64{return 42;}\nfn main()->i64{let mut shared:i64=1;return shared();}\n",
+      "exit": 1,
+      "diagnostics": ["SRC0014"]
+    },
+    {
+      "name": "function-wide-uniqueness-across-branches",
+      "source": "fn main()->i64{\n    if true{let mut shared:i64=42;return shared;}else{let mut shared:i64=1;return shared;}\n}\n",
+      "exit": 1,
+      "diagnostics": ["SRC0003"]
+    },
+    {
+      "name": "unreachable-name-is-still-checked",
+      "source": "fn main()->i64{return 42;let mut shared:i64=unknown;}\n",
+      "exit": 1,
+      "diagnostics": ["SRC0002"]
+    },
+    {
+      "name": "forward-recursive-call",
+      "source": "fn main()->i64{return shared(40);}\nfn shared(weak:i64)->i64{if weak<42{return shared(weak+1);}else{return weak;}}\n",
+      "exit": 0,
+      "stdout": "42\n",
+      "diagnostics": []
+    },
+    {
+      "name": "missing-return-path",
+      "source": "fn shared(weak:bool)->i64{if weak{return 42;}else{}}\nfn main()->i64{return shared(true);}\n",
+      "exit": 1,
+      "diagnostics": ["SRC0007"]
+    },
+    {
+      "name": "optional-else",
+      "source": "fn main()->i64{if false{return 1;}return 42;}\n",
+      "exit": 0,
+      "stdout": "42\n",
+      "diagnostics": []
+    },
+    {
+      "name": "mutable-local-keyword-required",
+      "source": "fn main()->i64{let shared:i64=42;return shared;}\n",
+      "exit": 1,
+      "diagnostics": ["SRC0012"]
+    },
+    {
+      "name": "trailing-parameter-and-argument-commas",
+      "source": "fn shared(weak:i64,)->i64{return weak;}\nfn main()->i64{return shared(42,);}\n",
+      "exit": 0,
+      "stdout": "42\n",
+      "diagnostics": []
+    }
+  ],
+  "scope": "Executable observations of the pinned historical compiler for the accepted RFC 0044 scalar profile. These are admission requirements, not an implemented migration reader, automatic rename, native journey or closed M5 gate."
+}
