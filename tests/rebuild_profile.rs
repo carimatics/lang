@@ -165,6 +165,22 @@ fn actual_historical_compiler_input_is_reported_without_inventing_source_changes
         c.category,
         Category::Source | Category::Manifest | Category::Dependency | Category::Target
     )));
+
+    // Checkout must preserve the golden capture's LF bytes. An actual CRLF
+    // source edit is a real input change and must still be reported.
+    let path = temp.0.join("src/main.lang");
+    let source = std::fs::read_to_string(&path).unwrap();
+    assert!(!source.contains('\r'));
+    std::fs::write(&path, source.replace('\n', "\r\n")).unwrap();
+    let current = temp.profile(&["--target", "aarch64-apple-darwin"]).current;
+    let changed =
+        Report::compare(Some(Snapshot::capture(historical, None).unwrap()), current).unwrap();
+    assert!(
+        changed
+            .changes
+            .iter()
+            .any(|c| c.category == Category::Source && c.key == [".", "src/main.lang"])
+    );
 }
 
 #[test]

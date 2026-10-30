@@ -10,7 +10,7 @@
 
 現在のcheckoutは`codex/m4-profiling`。clean・同期済みdebugger branch `10aae50`から作成し、既存user変更はない。upstreamは`origin/codex/m4-profiling`、[draft PR #24](https://github.com/carimatics/lang/pull/24)のscopeはE01–E04。#19が`14a92df`でmergeしたため記録baseを`carimatics/lang:codex/m4-debug-adapter`から`carimatics/lang:main`へ移した。local main／origin/mainは`14a92df`で0/0。別文書PR #20–#23の祖先`be9f77c`も保持した。
 
-E04 の最終実行 checkpoint、2026-10-30 07:14 JST: source固定の作業treeはfmt、警告なし全Clippy、171 suite／2,500 test、doc、fuzz fmt／Clippy、実report全4種をseedにしたinstrumentationなしsmoke 10,000回に成功。重点検証はportable／workspace 19 testと実native package 2 testに成功。source／dependency／target変化、compiler 546ae69の保持lock、workspace選択／非選択member、検証済みSDK header変更、SDK／rustc／receipt拒否、厳密report照合、旧出力保持を実行確認した。残るE04受入はcode証拠と最新headの両host CI。G8は未完了。
+E04 の最終実行 checkpoint、2026-10-30 09:19 JST: source `3db6cb3`は完全local baseline（171 suite／2,500 test）、doc、fuzz fmt／Clippy、実report 4種のinstrumentationなしsmoke 10,000回に成功。native CI `40964364429`は3/3成功。全体CI `40964364483`でWindows checkout固有の失敗を検出した。過去LF lockとCRLF変換されたexample bytesを比較していたため、Git属性で当該exampleをLFに固定し、厳密assertionを保持した。実LF→CRLF編集は引き続きsource差分として検出する。修正treeは重点／整合性10 testと警告なし全Clippyに成功し、core.autocrlf=trueのGit filterでも過去入力4件のdigestが一致した。残る受入は修正後の完全baselineと最新headの両host CI。E04はdoing、G8は未完了。
 
 **次: M4-E04 — rebuild説明（doing、3 pt）。** E03の最終3 ptを消化し、新規作業は追加しない。残る3 ptを実lock差分、native receipt／SDK／rustc照合、report reader／CLI、source／dependency／target／toolchainと拒否fixtureへ再確認した。43 delivery、追加+17、消化90、残り30 pt。
 
