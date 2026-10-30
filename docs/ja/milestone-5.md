@@ -10,6 +10,8 @@
 
 **次: M5-B04 — 旧producer・現VM・nativeの移行journeyを両hostで検証する。**
 
+B04 host checkpoint（2026-10-31 03:42 JST確認）: `tools/check-source-migration.py`はlock不変で固定旧compilerをbuildし、元fixture 6件を実行、実際のmigration CLIを適用し、現VMと対応SDKでlinkしたnative結果を検査した。実遷移5件は保持した`shared`・`weak`、wrapping parameter、再帰、末尾comma、loop・名前衝突・UTF-8 comment・CRLF保持を検証し、変更不要の6件目でno-opを別途検査する。macOS localですべて成功し、source・compiler・lock・SDK・実行fileのhashと59 commandの観測を`/private/tmp/lang-m5-b04-journey/report.json`に保持する。既存SDK producer matrixにも同journeyを追加し、macOS 15/26・Windows 2025のreportを保持する。Windows・最終全baseline・最新head CIは未完了で、B04はdoing・2 ptを維持する。
+
 B04実行checkpoint（2026-10-31 03:32 JST確認）: `lang migrate`はprofile・edition・rootを明示必須とし、既定でpreview、新しく証明した単一source置換を共通公開境界で適用する。CLI fixtureは元bytesを変更せずpreviewし、適用後42を実行して、再実行がno-opになる。移行test 15件は旧受入・証明に加え、適用・stale bytes/identity・異なるauthority・readonly/alias・usage拒否・cwd基準/絶対source pathを検証し、既存fix 11/11・format 7/7も成功。この実行可能な統合checkpointを受け、残見積りを3から2 ptへ下げる。残る受入条件は固定旧producer・現VM・対応SDK nativeの両host journey、最終全baseline、最新head CI。このcheckpointはdelivery完了ではなく、同じ一貫したbranchでB04だけをdoingとする。
 
 B05完了（2026-10-31 03:17 JST確認）: code `7f41dd0`は実在する旧`shared`・`weak` sourceを受入れ、元token offsetと型付き解決構造を証明し、rewrite後sourceは42を返す一方、通常compileは元sourceを拒否する。integration test 8件・proof test 2件で、固定producerの受入11ケース、生成scalar実行24件、wrapping加算、燃料切れ保持、衝突・trivia・CRLF、再実行no-op、意味の反例、引上げ不可の再帰上限を含む厳密な資源境界を検証。source固定全baselineの179 suite・2,546 test、fmt・厳密Clippy・rustdocが成功し、全child exitは0、全入力fingerprintは不変。logは`/private/tmp/lang-m5-fixes-target/m5-b05-validation/`に保持する。同headのCI `41101729179`は対象18 jobすべて成功（full routingにより文書専用のみ意図的省略）、native-debug `41101727954`も3 host jobすべて成功。[PR #31](https://github.com/carimatics/lang/pull/31)は関連するB04継続用にdraftを維持し、後続headもその公開check成功を必要とする。

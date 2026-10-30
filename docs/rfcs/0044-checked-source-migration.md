@@ -131,6 +131,8 @@ Accepted under RFC 0001's experimental delegation on 2026-10-30 JST. Rationale: 
 
 Implementation checkpoint, 2026-10-31 JST: B04's standalone CLI and checked single-source application pass focused preview/apply/no-op, VM execution, stale identity/bytes, foreign authority, readonly/alias, option and capacity tests. The historical-producer/current-VM/native journey on both hosts and the final full baseline remain required; this checkpoint does not complete B04 or G2.
 
+Executable journey checkpoint, 2026-10-31 JST: `tools/check-source-migration.py` rebuilds the pinned producer with `cargo build --locked`, checks its clean revision and lock hash, then compares its actual source execution with CLI-migrated current VM and matching-SDK linked native execution. Six local macOS fixtures passed, including five real source transitions and one separately identified no-op. Reports retain exact commands, original source, edit spans and producer/lock/SDK/source/executable hashes. The SDK producer CI runs this same script on both tier-1 hosts and uploads evidence; those CI results and the final baseline are still pending.
+
 ## Sources
 
 - [RFC 0002](0002-prototype-control-flow.md), updated 2026-10-27: two's-complement wrapping addition. Correction on 2026-10-31: the original draft incorrectly called addition checked; an executable overflow probe and the canonical arithmetic contract disproved that wording. This corrects the migration specification without changing compiler semantics or compatibility.

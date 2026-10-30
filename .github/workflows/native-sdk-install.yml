@@ -53,6 +53,25 @@ jobs:
           temporary = pathlib.Path(os.environ['RUNNER_TEMP'])
           subprocess.run(['python', 'tools/build-native-sdk.py', '--release', '--output', str(temporary / 'sdk')], cwd=root, check=True)
           subprocess.run(['python', 'tools/check-native-sdk-install.py', 'bundle', '--sdk', str(temporary / 'sdk'), '--output', str(temporary / 'SDK.tar'), '--revision', os.environ['GITHUB_SHA']], cwd=root, check=True)
+      - name: Execute historical source migration through VM and native
+        shell: python
+        run: |
+          import os, pathlib, subprocess
+          root = pathlib.Path(os.environ['GITHUB_WORKSPACE'])
+          temporary = pathlib.Path(os.environ['RUNNER_TEMP'])
+          revision = '69b1c4dc66d04a4a103d4eb843232df22e52eac0'
+          historical = temporary / 'historical-source'
+          subprocess.run(['git', 'fetch', '--no-tags', 'origin', revision], cwd=root, check=True)
+          subprocess.run(['git', 'worktree', 'add', '--detach', str(historical), revision], cwd=root, check=True)
+          subprocess.run(['python', 'tools/check-source-migration.py', '--sdk', str(temporary / 'sdk'), '--historical-checkout', str(historical), '--output', str(temporary / 'source-migration')], cwd=root, check=True)
+      - name: Retain historical source migration evidence
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: source-migration-${{ matrix.os }}-${{ matrix.target }}
+          path: ${{ runner.temp }}/source-migration/report.json
+          if-no-files-found: error
+          retention-days: 30
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: native-sdk-${{ matrix.os }}-${{ matrix.target }}

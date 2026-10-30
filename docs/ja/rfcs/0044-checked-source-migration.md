@@ -131,6 +131,8 @@ frontend/editor証明adapter、package/format公開、CLI・test・文書を変�
 
 実装checkpoint（2026-10-31 JST）: B04のstandalone CLIと検証付き単一source適用は、対象preview・apply・no-op、VM実行、stale identity・bytes、異なるauthority、readonly・alias、option・容量testが成功。旧producer・現VM・nativeの両host journeyと最終全baselineは引き続き必要で、このcheckpointではB04・G2を完了しない。
 
+実行journey checkpoint（2026-10-31 JST）: `tools/check-source-migration.py`は`cargo build --locked`で固定producerを再buildし、cleanなrevisionとlock hashを検査した上で、実際のsource実行と、CLI移行後の現VM・対応SDKでlinkしたnative実行を比較する。macOS localで実遷移5件と別扱いのno-op 1件の計6 fixtureが成功した。reportは正確なcommand、元source、編集span、producer・lock・SDK・source・実行fileのhashを保持する。SDK producer CIは同scriptを両tier-1 hostで実行して証拠をuploadする。そのCI結果と最終baselineは未完了。
+
 ## Sources
 
 - [RFC 0002](0002-prototype-control-flow.md)、更新2026-10-27: 2の補数のwrapping加算。2026-10-31訂正: 当初案は加算を検査付きと誤記していたが、実行overflow probeと正本の算術契約で誤りを確認した。compiler意味・互換性は変えず、移行仕様の記述を訂正する。
