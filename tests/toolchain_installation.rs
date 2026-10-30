@@ -176,6 +176,17 @@ fn assert_old_active(fixture: &Fixture, active: &Value, executable: &Path, manif
 
 #[test]
 fn real_signed_install_preserves_active_execution_across_failed_and_interrupted_activation() {
+    if let Some(root) = std::env::var_os("LANG_UNINSTALL_TEST_ROOT") {
+        let point = std::env::var("LANG_UNINSTALL_TEST_POINT").unwrap();
+        let mut installed = Installation::open(Path::new(&root)).unwrap();
+        let _ = installed.uninstall_with(t::Channel::Stable, "0.1.0", |checkpoint| {
+            if format!("{checkpoint:?}") == point {
+                std::process::exit(78);
+            }
+            false
+        });
+        panic!("uninstall interruption checkpoint not reached");
+    }
     use lang::toolchain::installation::{Checkpoint, Request};
     // Re-execute this exact test as a real process-interruption worker. It
     // receives only public metadata; the parent's ephemeral key stays in memory.
@@ -365,11 +376,254 @@ fn real_signed_install_preserves_active_execution_across_failed_and_interrupted_
     );
     fs::write(&installed_sdk, original_sdk).unwrap();
     success(install_cli(&root, &source));
+    channel_journey(&fixture, &sdk, &source, &manifest);
+}
+fn state_cli(root: &Path, operation: &str, args: &[&str]) -> Output {
+    Command::new(env!("CARGO_BIN_EXE_lang"))
+        .args(["toolchain", operation, "--root"])
+        .arg(root)
+        .args(["--message-format", "json"])
+        .args(args)
+        .output()
+        .unwrap()
+}
+fn channel_journey(fixture: &Fixture, sdk: &Path, source: &Path, manifest: &Path) {
+    use t::installation::Checkpoint;
+    let root = fixture.installed_root();
+    let before = fs::read(root.join("state.json")).unwrap();
+    let listed: Value =
+        serde_json::from_slice(&success(state_cli(&root, "list", &[])).stdout).unwrap();
+    assert_eq!(listed["active"]["version"], "0.1.2");
+    assert_eq!(listed["installed"].as_array().unwrap().len(), 2);
+    let which: Value =
+        serde_json::from_slice(&success(state_cli(&root, "which", &[])).stdout).unwrap();
+    assert!(Path::new(which["compiler"].as_str().unwrap()).is_file());
+    assert!(
+        Path::new(which["sdk"].as_str().unwrap())
+            .join("sdk.json")
+            .is_file()
+    );
+    assert_eq!(fs::read(root.join("state.json")).unwrap(), before);
+    let run = Command::new(env!("CARGO_BIN_EXE_lang"))
+        .args(["toolchain", "run", "--root"])
+        .arg(&root)
+        .args(["--", "run", "--manifest-path"])
+        .arg(manifest)
+        .output()
+        .unwrap();
+    assert_eq!(success(run).stdout, b"42\n");
+    let invalid = state_cli(&root, "run", &["--", "unknown-command"]);
+    assert_eq!(invalid.status.code(), Some(2));
+    assert!(!String::from_utf8_lossy(&invalid.stderr).contains("toolchain_failure"));
+    let help = success(state_cli(&root, "run", &["--", "--help"]));
+    assert!(String::from_utf8_lossy(&help.stdout).contains("lang lsp"));
+    assert_eq!(state_cli(&root, "run", &[]).status.code(), Some(2));
+    assert_eq!(
+        state_cli(
+            &root,
+            "uninstall",
+            &["--channel", "stable", "--version", "0.1.2"]
+        )
+        .status
+        .code(),
+        Some(1)
+    );
+    success(state_cli(
+        &root,
+        "select",
+        &["--channel", "stable", "--version", "0.1.0"],
+    ));
+    let old: Value =
+        serde_json::from_slice(&success(state_cli(&root, "which", &[])).stdout).unwrap();
+    assert_eq!(old["active"]["version"], "0.1.0");
+    assert_eq!(
+        fixture.read_state()["channels"],
+        serde_json::from_slice::<Value>(&before).unwrap()["channels"]
+    );
+    let update = Command::new(env!("CARGO_BIN_EXE_lang"))
+        .args(["toolchain", "update", "--root"])
+        .arg(&root)
+        .arg("--source")
+        .arg(source)
+        .args(["--channel", "stable", "--message-format", "json"])
+        .output()
+        .unwrap();
+    let updated: Value = serde_json::from_slice(&success(update).stdout).unwrap();
+    assert_eq!(updated["operation"], "update");
+    assert_eq!(updated["active"]["version"], "0.1.2");
+    for point in [
+        Checkpoint::AfterUninstallMarker,
+        Checkpoint::AfterUninstallMove,
+    ] {
+        let state = fs::read(root.join("state.json")).unwrap();
+        let mut installation = Installation::open(&root).unwrap();
+        assert!(
+            installation
+                .uninstall_with(t::Channel::Stable, "0.1.0", |p| p == point)
+                .is_err()
+        );
+        drop(installation);
+        assert_eq!(fs::read(root.join("state.json")).unwrap(), state);
+        assert!(Path::new(old["compiler"].as_str().unwrap()).is_file());
+        assert!(!root.join("transaction.json").exists());
+    }
+    for point in ["AfterUninstallMove", "AfterUninstallCommit"] {
+        let state = fixture.read_state();
+        let output = Command::new(std::env::current_exe().unwrap()).args(["--exact", "real_signed_install_preserves_active_execution_across_failed_and_interrupted_activation", "--nocapture"])
+            .env("LANG_UNINSTALL_TEST_ROOT", &root).env("LANG_UNINSTALL_TEST_POINT", point).output().unwrap();
+        assert_eq!(
+            output.status.code(),
+            Some(78),
+            "{}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        assert!(root.join("transaction.json").exists());
+        assert_eq!(
+            state_cli(
+                &root,
+                "select",
+                &["--channel", "stable", "--version", "0.1.2"]
+            )
+            .status
+            .code(),
+            Some(1)
+        );
+        success(state_cli(&root, "which", &[]));
+        success(state_cli(&root, "recover", &[]));
+        assert!(!root.join("transaction.json").exists());
+        assert_eq!(fixture.read_state()["active"], state["active"]);
+        assert_eq!(fixture.read_state()["channels"], state["channels"]);
+        assert_eq!(
+            Path::new(old["compiler"].as_str().unwrap()).is_file(),
+            point == "AfterUninstallMove"
+        );
+    }
+    // A new current bundle is installed by update; the compiler bytes may stay identical.
+    fixture.distribution(sdk, "0.1.3", 15);
+    let source = t::installation::Source::local(source).unwrap();
+    let mut installation = Installation::open(&root).unwrap();
+    assert_eq!(
+        installation
+            .update(&source, t::Channel::Stable)
+            .unwrap()
+            .active
+            .unwrap()
+            .version,
+        "0.1.3"
+    );
+    installation.select(t::Channel::Stable, "0.1.2").unwrap();
+    let mut child = installation
+        .spawn(&["toolchain".into(), "identity".into()])
+        .unwrap();
+    let mut unlocked =
+        Installation::open(&root).expect("spawn releases the manager lock before wait");
+    assert!(child.wait().unwrap().success());
+    unlocked.uninstall(t::Channel::Stable, "0.1.3").unwrap();
+    unlocked.recover().unwrap();
+    assert_eq!(unlocked.list().unwrap().installed.len(), 1);
 }
 impl Drop for Fixture {
     fn drop(&mut self) {
         let _ = fs::remove_dir_all(&self.dir);
     }
+}
+
+#[test]
+fn recovery_refuses_untrusted_inventory_and_preserves_authenticated_floors() {
+    let fixture = Fixture::new();
+    let root = fixture.installed_root();
+    drop(Installation::init(&root, &fixture.root).unwrap());
+    let (receipt, generation) = fixture.signed_receipt("stable", 7);
+    let (beta, same_generation) = fixture.signed_receipt("beta", 8);
+    assert_eq!(generation, same_generation);
+    let mut value = fixture.read_state();
+    value["time_floor"] = json!(fixture.now);
+    value["channels"] =
+        json!([{"channel":"stable","receipt":receipt},{"channel":"beta","receipt":beta}]);
+    value["installed"] = json!([
+        {"channel":"stable","version":"0.1.0","generation":generation,"receipt":receipt},
+        {"channel":"beta","version":"0.1.0","generation":generation,"receipt":beta}]);
+    value["active"] = json!({"channel":"stable","version":"0.1.0","generation":generation});
+    fixture.write_state(&value);
+    let original = root.join(format!("generations/{generation}"));
+    fs::create_dir(&original).unwrap();
+    fs::write(original.join("retained"), b"keep").unwrap();
+    let mut installed = Installation::open(&root).unwrap();
+    installed.uninstall(t::Channel::Beta, "0.1.0").unwrap();
+    assert!(
+        original.join("retained").exists(),
+        "shared generation survives removal of one channel reference"
+    );
+    drop(installed);
+    let before = fs::read(root.join("state.json")).unwrap();
+    let marker = json!({"schema":1,"kind":"uninstall","root_sha256":t::digest(&fixture.root),"generation":generation});
+    for case in 0..6 {
+        let mut bad = marker.clone();
+        match case {
+            0 => bad["schema"] = json!(2),
+            1 => bad["kind"] = json!("install"),
+            2 => bad["root_sha256"] = json!("a".repeat(64)),
+            3 => bad["generation"] = json!("../escape"),
+            4 => bad["path"] = json!("outside"),
+            _ => {
+                bad.as_object_mut().unwrap().remove("generation");
+            }
+        }
+        let bytes = serde_json::to_vec(&bad).unwrap();
+        fs::write(root.join("transaction.json"), &bytes).unwrap();
+        assert!(Installation::open(&root).is_err());
+        assert_eq!(fs::read(root.join("transaction.json")).unwrap(), bytes);
+        assert_eq!(fs::read(root.join("state.json")).unwrap(), before);
+    }
+    fs::remove_file(root.join("transaction.json")).unwrap();
+    let trash = root.join(format!("trash/{generation}"));
+    fs::create_dir(&trash).unwrap();
+    assert!(
+        Installation::open(&root).is_err(),
+        "trash without a marker refuses"
+    );
+    fs::write(
+        root.join("transaction.json"),
+        serde_json::to_vec(&marker).unwrap(),
+    )
+    .unwrap();
+    assert!(
+        Installation::open(&root).unwrap().recover().is_err(),
+        "conflicting original and trash refuse"
+    );
+    fs::remove_dir(&trash).unwrap();
+    fs::rename(&original, &trash).unwrap();
+    Installation::open(&root).unwrap().recover().unwrap();
+    assert_eq!(fs::read(original.join("retained")).unwrap(), b"keep");
+    assert_eq!(fs::read(root.join("state.json")).unwrap(), before);
+    let orphan = root.join(format!("generations/{}", "f".repeat(64)));
+    fs::create_dir(&orphan).unwrap();
+    fs::write(orphan.join("unreferenced"), b"discard").unwrap();
+    fs::create_dir(root.join("staging/install")).unwrap();
+    fs::write(root.join("staging/install/partial"), b"partial").unwrap();
+    fs::write(root.join("state.next"), b"never adopt").unwrap();
+    let unknown = root.join("staging/unknown");
+    fs::create_dir(&unknown).unwrap();
+    assert!(Installation::open(&root).is_err());
+    assert!(orphan.exists());
+    fs::remove_dir(&unknown).unwrap();
+    #[cfg(unix)]
+    {
+        let link = orphan.join("link");
+        std::os::unix::fs::symlink(&original, &link).unwrap();
+        assert!(Installation::open(&root).unwrap().recover().is_err());
+        assert!(root.join("state.next").exists());
+        fs::remove_file(link).unwrap();
+    }
+    let mut installed = Installation::open(&root).unwrap();
+    installed.recover().unwrap();
+    installed.recover().unwrap();
+    assert!(!orphan.exists());
+    assert!(!root.join("state.next").exists());
+    assert!(!root.join("staging/install").exists());
+    assert_eq!(fs::read(root.join("state.json")).unwrap(), before);
+    assert_eq!(installed.time_floor(), fixture.now);
+    assert!(original.join("retained").exists());
 }
 
 #[test]

@@ -5,8 +5,13 @@ use std::{
     path::{Path, PathBuf},
     time::{SystemTime, UNIX_EPOCH},
 };
+mod operations;
 mod payload;
+mod recovery;
+mod source;
 mod storage;
+pub use operations::Location;
+pub use source::Source;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -34,6 +39,11 @@ impl Identity {
 pub enum Operation {
     Init,
     Install,
+    Update,
+    List,
+    Select,
+    Uninstall,
+    Recover,
 }
 #[derive(Clone, Debug, Serialize)]
 pub struct Summary {
@@ -67,10 +77,14 @@ pub enum Checkpoint {
     AfterPayloadVerification,
     AfterGenerationPublication,
     BeforeActivationCommit,
+    AfterUninstallMarker,
+    AfterUninstallMove,
+    AfterUninstallCommit,
 }
 #[derive(Debug)]
 pub enum Failure {
     Admission(super::Error),
+    Transport(Box<ureq::Error>),
     Storage {
         operation: &'static str,
         path: PathBuf,
@@ -89,6 +103,7 @@ impl std::fmt::Display for Error {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match &self.failure {
             Failure::Admission(e) => e.fmt(f),
+            Failure::Transport(e) => write!(f, "HTTPS distribution request failed: {e}"),
             Failure::Storage {
                 operation,
                 path,
@@ -198,6 +213,29 @@ impl Installation {
     pub fn install_with(
         &mut self,
         request: Request<'_>,
+        fail: impl FnMut(Checkpoint) -> bool,
+    ) -> Result<Report, Error> {
+        let source = Source::local(request.source)?;
+        self.install_source_with(&source, request.channel, request.version, fail)
+    }
+    pub fn install_source(
+        &mut self,
+        source: &Source,
+        channel: Channel,
+        version: Option<&str>,
+    ) -> Result<Report, Error> {
+        self.install_source_with(source, channel, version, |_| false)
+    }
+    pub fn update(&mut self, source: &Source, channel: Channel) -> Result<Report, Error> {
+        let mut report = self.install_source(source, channel, None)?;
+        report.operation = Operation::Update;
+        Ok(report)
+    }
+    fn install_source_with(
+        &mut self,
+        source: &Source,
+        channel: Channel,
+        version: Option<&str>,
         mut fail: impl FnMut(Checkpoint) -> bool,
     ) -> Result<Report, Error> {
         let checkpoint = |point, fail: &mut dyn FnMut(Checkpoint) -> bool| {
@@ -216,41 +254,33 @@ impl Installation {
             return Err(state("clock moved behind installed admission floor"));
         }
         let root = TrustedRoot::decode(&self.store.root_bytes, current)?;
-        let source =
-            cap_std::fs::Dir::open_ambient_dir(request.source, cap_std::ambient_authority())
-                .map_err(|e| io("open local distribution", request.source, e))?;
-        let name = PathBuf::from(format!(
-            "channels/{}/{}.json",
-            request.channel.text(),
-            self.store.state.target.text()
-        ));
-        let bytes = storage::read(&source, &name, MAX_METADATA_BYTES, false)?;
+        let bytes = source.metadata(channel, self.store.state.target)?;
         let previous = self
             .store
             .state
             .channels
             .iter()
-            .find(|f| f.channel == request.channel)
+            .find(|f| f.channel == channel)
             .map(|f| self.store.authenticate(&f.receipt, f.channel))
             .transpose()?;
         let admitted = super::verify(
             &root,
             &bytes,
             super::Request {
-                channel: request.channel,
+                channel,
                 target: self.store.state.target,
                 now: current,
                 previous: previous.as_ref().map(Admitted::admission),
             },
         )?;
-        let release = admitted.release(request.version)?.clone();
+        let release = admitted.release(version)?.clone();
         let generation = release.identity()?;
         let existing = self
             .store
             .state
             .installed
             .iter()
-            .find(|e| e.channel == request.channel && e.version == release.version);
+            .find(|e| e.channel == channel && e.version == release.version);
         if let Some(existing) = existing {
             if existing.generation != generation {
                 return Err(state(
@@ -268,15 +298,11 @@ impl Installation {
         let receipt = self.store.retain(&bytes, current)?;
         let mut next = self.store.state.clone();
         next.time_floor = current;
-        if let Some(floor) = next
-            .channels
-            .iter_mut()
-            .find(|f| f.channel == request.channel)
-        {
+        if let Some(floor) = next.channels.iter_mut().find(|f| f.channel == channel) {
             floor.receipt = receipt.clone();
         } else {
             next.channels.push(storage::Floor {
-                channel: request.channel,
+                channel,
                 receipt: receipt.clone(),
             });
         }
@@ -301,7 +327,7 @@ impl Installation {
             } else {
                 self.store.generation_capacity()?;
                 let stage = payload::Stage::create(&self.store)?;
-                stage.transfer(&source, &release)?;
+                stage.transfer(source, &release)?;
                 payload::verify(stage.dir(), stage.path(), &release, self.store.state.target)?;
                 checkpoint(Checkpoint::AfterPayloadVerification, &mut fail)?;
                 stage.publish(&destination)?;
@@ -311,17 +337,17 @@ impl Installation {
             if !next
                 .installed
                 .iter()
-                .any(|e| e.channel == request.channel && e.version == release.version)
+                .any(|e| e.channel == channel && e.version == release.version)
             {
                 next.installed.push(storage::Installed {
-                    channel: request.channel,
+                    channel,
                     version: release.version.clone(),
                     generation: generation.clone(),
                     receipt,
                 });
             }
             next.active = Some(storage::Selection {
-                channel: request.channel,
+                channel,
                 version: release.version,
                 generation,
             });
@@ -330,7 +356,7 @@ impl Installation {
                 &root,
                 &bytes,
                 super::Request {
-                    channel: request.channel,
+                    channel,
                     target: self.store.state.target,
                     now: now()?,
                     previous: Some(admitted.admission()),

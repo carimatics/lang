@@ -99,6 +99,18 @@ generationは署名済みfileと必要な親directoryだけを含む。元の上
 
 install／initおよび後続state操作の成功は、`schema`、`kind`、`operation`、`root_sha256`、`repository`、`target`、`active`、`installed`、`floor_advanced`を持つ閉じたschema-1 `toolchain_operation` recordとする。activeはnullまたは`{channel, version, compiler_build_id, generation}`概要、installedはその概要array。操作失敗のJSON modeは閉じた`{schema: 1, kind: "toolchain_failure", diagnostic, floor_advanced}` recordで、diagnosticは通常の構造化diagnostic。booleanは失敗前に今回操作が新sequenceまたはadmission時刻floorをcommitしたかを示す。human modeも同じ事実を示す。CLI misuseと読取専用verifyは通常diagnostic recordを維持する。出力は1 MiB以下とし署名秘密情報を含めない。
 
+### Channel operations and recovery markers
+
+F04詳細化、2026-10-30 JSTにRFC 0001の実験委任で採択。実TLS probeで証明書／hostname検証、HTTP拒否、redirect／復号なし、truncationと全体timeoutを確認した。ureq 3.5.0のrustls featureのみ、既定WebPki root、環境proxy無効、response header上限64 KiB、既存connect／全体上限10／120秒を使う。HTTPS baseは2,048 bytes以下、host必須、credential／query／fragmentなしとし、固定metadata／object pathだけを付加する。HTTP 200とContent-Encodingなしまたはidentityを要求する。他status、過大／切詰め／encoded body、TLS失敗を拒否する。private test constructorは一時test anchorと短いtimeoutを指定できるが、productionにinsecure／test-CA optionは設けない。
+
+listは各compilerを実行せず認証済みinstalled概要を返す。selectは選択generationを検証してatomic activationする。whichとrunはSDK／identityを含むactive generationを検証する。whichは閉じたschema-1 `toolchain_location` recordで`schema`、`kind`、`root_sha256`、`repository`、`target`、`active`、`compiler`、`sdk`を返す。最後の2つは明示的な絶対path。runは`--`以降だけをchild引数とし、標準streamを継承、manager成功recordを出力しない。libraryはchildのExitStatusを返し、実行fileはWindowsの全exit-code bitとUnixの通常codeを保持、Unix signal終了を128 + signalへ写す。spawn／wait失敗はmanager失敗recordとする。library内でprocess exitしない。spawn成功後、wait前にlockを解放する。updateはinstallと同transactionで署名current版をadmitし、operation updateを報告する。認証済みfloorをresetしない。
+
+uninstallの唯一のtransaction markerは閉じた1 KiB以下の`transaction.json` object `{schema: 1, kind: "uninstall", root_sha256, generation}`とする。固定digestとcanonical generationを検証し、pathを表すfieldを設けない。write／sync／closeしてからinactive generationを`trash/<generation>`へ移動する。installed entry削除をatomic commitし、trash、markerの順に削除する。他installed entryから参照される共有generationのfileは保持する。state commit前の失敗では復元を試み、復元失敗ならmarkerを復旧用に保持する。Windows move失敗はinstalled stateを保持する。marker作成後、move後、state commit後のlibrary checkpointでCLI bypassなしに失敗／中断を検証する。
+
+復旧はcommit済みstateを認証し、上限付きtransaction inventory全体を先に検証する。trashは有効markerと一致するcanonical directory最大1つとし、markerなしのtrashを拒否する。markerのgenerationが参照中なら、元がなくtrashがあれば復元し、元がありtrashがなければ保持、両方あるか両方ない場合は拒否する。commit済み参照がなければtrashを破棄するが、元とtrashの併存は拒否する。state.nextをadoptしない。その後、既知の`state.next`、`staging/install`、未参照canonical generation、installed receipt／channel floorから未参照のmetadataだけを削除する。変更前に有限name一覧を収集してWindows列挙handleを閉じる。未知entry、symlink、不正recordを拒否し、再帰削除はsymlinkを辿らない。commit済みactive identityと全floorは変更しない。他変更操作はtransaction／stagingが残れば復旧まで拒否し、読取操作は正常なactive generationを参照できる。
+
+F04残件は上限付きtransport adapter一つ、既存認証receipt上の操作、marker復旧と失敗testであり、このtask監査後も3 ptを維持する。F05は配布生成と完全な両host journeyを担当する。TLS挙動は実験済みだが、統合転送順序、Windowsの実行中file削除、全復旧checkpointは必須検証として残し、完了とは扱わない。新host formatであり、既存source／ABI／SDK移行は発生しない。
+
 ## Execution modes
 
 信頼済みhost CLIの変更である。installed VM／native実行は既存の上限、grant、source意味を維持する。package install hook、guest network capability、JIT／component／embedding実行変更はない。native SDKは既存の厳密compiler／rustc／profile検査の下でだけ利用できる。
@@ -145,6 +157,7 @@ RFC 8032公開検証vector、一時signing key、threshold／重複／弱い鍵�
 - [TUF specification 1.0.37](https://theupdateframework.github.io/specification/latest/)、更新2026-10-08、2026-10-30 JST確認。署名threshold、metadata上限、expiry、rollback、root successionを脅威modelの参考とするが、このformatはTUFではない。
 - [RFC 8032](https://www.rfc-editor.org/rfc/rfc8032)、公開2017-01、2026-10-30 JST確認。Ed25519検証と公開test vector。
 - [ed25519-dalek 3.0.0 VerifyingKey](https://docs.rs/ed25519-dalek/3.0.0/ed25519_dalek/struct.VerifyingKey.html)、release 2026-09-21、2026-10-30 JST確認。厳密検証と弱い鍵の拒否。
-- [ureq 3.5.0 configuration](https://docs.rs/ureq/3.5.0/ureq/config/struct.ConfigBuilder.html)、release 2026-10-21、2026-10-30 JST確認。上限付き同期HTTPS transport候補であり実行検証は未完了。
+- [ureq 3.5.0 configuration](https://docs.rs/ureq/3.5.0/ureq/config/struct.ConfigBuilder.html)、release 2026-10-21。別のpage更新日は非公開、2026-10-30 JST確認。有限HTTPS、header制限、proxy／redirect／encoding方針。実TLS probeで検証し、統合orderingと両host検証はF04–F05で行う。
+- [rcgen 0.14.10](https://docs.rs/rcgen/0.14.10/rcgen/fn.generate_simple_self_signed.html)、release 2026-10-20、および[rustls 0.23.46](https://docs.rs/rustls/0.23.46/rustls/)、release 2026-10-14。別のpage更新日は非公開、2026-10-30 JST確認。一時TLS test keyをmemory内だけで生成する。
 - [Rust 1.99 File locks](https://doc.rust-lang.org/1.99.0/std/fs/struct.File.html#method.try_lock)、[rustup channels](https://rust-lang.github.io/rustup/concepts/channels.html): page更新日は不明、2026-10-30 JST確認。
 - 既存native SDK snapshot／publicationとpackage admission APIを2026-10-30 JSTに確認。sourceに埋込更新日はない。上記wire field、上限、CLI／recovery policyはproject判断である。

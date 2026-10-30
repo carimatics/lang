@@ -39,18 +39,10 @@ impl Stage {
     pub fn path(&self) -> &Path {
         &self.path
     }
-    pub fn transfer(&self, source: &Dir, release: &Release) -> Result<(), Error> {
+    pub fn transfer(&self, source: &Source, release: &Release) -> Result<(), Error> {
         for file in &release.files {
-            let object = PathBuf::from(format!("objects/{}", file.sha256));
-            let input = storage::open_file(source, &object, false)?;
-            if input
-                .metadata()
-                .map_err(|e| io("inspect payload length", &object, e))?
-                .len()
-                != file.bytes
-            {
-                return Err(state("payload declared length mismatch"));
-            }
+            let object = format!("objects/{}", file.sha256);
+            let input = source.reader(&object, Some(file.bytes))?;
             let path = Path::new(&file.path);
             if let Some(parent) = path.parent() {
                 self.dir()
@@ -97,7 +89,7 @@ impl Drop for Stage {
     }
 }
 fn hash_file(
-    input: cap_std::fs::File,
+    input: impl Read,
     file: &File,
     mut output: Option<&mut fs::File>,
 ) -> Result<(), Error> {

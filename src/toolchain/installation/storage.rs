@@ -125,7 +125,7 @@ pub(super) fn read(dir: &Dir, path: &Path, limit: usize, owned: bool) -> Result<
     }
     Ok(bytes)
 }
-fn write_new(dir: &Dir, path: &Path, bytes: &[u8]) -> Result<(), Error> {
+pub(super) fn write_new(dir: &Dir, path: &Path, bytes: &[u8]) -> Result<(), Error> {
     let mut file = dir
         .open_with(path, OpenOptions::new().write(true).create_new(true))
         .map_err(|e| io("create owned file", path, e))?;
@@ -189,15 +189,7 @@ fn inventory(dir: &Dir, name: &str) -> Result<(), Error> {
 }
 impl Store {
     pub fn mutation_ready(&self) -> Result<(), Error> {
-        if self
-            .dir
-            .try_exists("state.next")
-            .map_err(|e| io("inspect pending state", "state.next", e))?
-            || self
-                .dir
-                .try_exists("staging/install")
-                .map_err(|e| io("inspect pending staging", "staging/install", e))?
-        {
+        if recovery::pending(self)?.is_pending() {
             return Err(state("interrupted installation requires recovery"));
         }
         Ok(())
@@ -320,6 +312,7 @@ impl Store {
             _lock: lock,
         };
         store.validate(target)?;
+        recovery::pending(&store)?;
         Ok(store)
     }
     pub fn authenticate(&self, receipt: &Receipt, channel: Channel) -> Result<Admitted, Error> {

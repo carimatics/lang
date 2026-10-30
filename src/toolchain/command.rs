@@ -9,7 +9,7 @@ use std::{
     time::{SystemTime, UNIX_EPOCH},
 };
 
-pub const USAGE: &str = "       lang toolchain identity [--message-format human|json]\n       lang toolchain init --root DIR --trust-root FILE [--message-format human|json]\n       lang toolchain verify --trust-root FILE --metadata FILE --channel stable|beta|nightly [--message-format human|json]\n       lang toolchain install --root DIR --source DIRECTORY --channel stable|beta|nightly [--version X.Y.Z] [--message-format human|json]\n";
+pub const USAGE: &str = "       lang toolchain identity [--message-format human|json]\n       lang toolchain init --root DIR --trust-root FILE [--message-format human|json]\n       lang toolchain verify --trust-root FILE --metadata FILE --channel stable|beta|nightly [--message-format human|json]\n       lang toolchain install --root DIR --source DIRECTORY_OR_HTTPS_BASE --channel stable|beta|nightly [--version X.Y.Z] [--message-format human|json]\n       lang toolchain update --root DIR --source DIRECTORY_OR_HTTPS_BASE --channel stable|beta|nightly [--message-format human|json]\n       lang toolchain list|which|recover --root DIR [--message-format human|json]\n       lang toolchain select|uninstall --root DIR --channel stable|beta|nightly --version X.Y.Z [--message-format human|json]\n       lang toolchain run --root DIR [--message-format human|json] -- CHILD_ARGUMENTS\n";
 struct Options {
     root: PathBuf,
     metadata: PathBuf,
@@ -169,33 +169,42 @@ fn report(options: &Options) -> Result<Vec<u8>, Diagnostic> {
     }
     Ok(bytes)
 }
-pub fn run(args: &[OsString], stdout: &mut impl Write, stderr: &mut impl Write) -> io::Result<u8> {
-    if args.iter().any(|arg| arg == "--help" || arg == "-h") {
-        stdout.write_all(USAGE.as_bytes())?;
-        return Ok(0);
-    }
+pub enum Outcome {
+    Code(u8),
+    Child(std::process::ExitStatus),
+}
+pub fn run(
+    args: &[OsString],
+    stdout: &mut impl Write,
+    stderr: &mut impl Write,
+) -> io::Result<Outcome> {
     if args
-        .first()
-        .is_some_and(|arg| matches!(arg.to_str(), Some("identity" | "init" | "install")))
+        .iter()
+        .take_while(|a| *a != "--")
+        .any(|arg| arg == "--help" || arg == "-h")
     {
+        stdout.write_all(USAGE.as_bytes())?;
+        return Ok(Outcome::Code(0));
+    }
+    if args.first().is_some_and(|arg| arg != "verify") {
         return management::run(args, stdout, stderr);
     }
     let options = match parse(args) {
         Ok(o) => o,
         Err(e) => {
             cli::emit(stderr, cli::requested_format(args), &e)?;
-            return Ok(2);
+            return Ok(Outcome::Code(2));
         }
     };
     match report(&options) {
         Ok(bytes) => {
             stdout.write_all(&bytes)?;
             writeln!(stdout)?;
-            Ok(0)
+            Ok(Outcome::Code(0))
         }
         Err(e) => {
             cli::emit(stderr, options.format, &e)?;
-            Ok(1)
+            Ok(Outcome::Code(1))
         }
     }
 }
