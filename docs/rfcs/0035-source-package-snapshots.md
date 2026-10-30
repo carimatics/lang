@@ -4,7 +4,7 @@
 
 [日本語版](../ja/rfcs/0035-source-package-snapshots.md)
 
-- Status: accepted
+- Status: implemented
 - Authors: Codex under the owner's experimental delegation
 - Created: 2026-10-29
 - Last updated: 2026-10-29
@@ -13,6 +13,8 @@
 - Superseded by: None
 
 ## Summary
+
+Implementation audited 2026-10-30 JST at `0b6591d`: deterministic archive headers and original bytes, trusted extracted execution, frozen-source replay and failure preservation are reconciled with the implementation and acceptance tests `package_archive`. The complete local baseline (174 suites / 2,514 tests, zero failures), fmt/full Clippy/doc and the macOS 15/Windows package and continuous installed-tool journeys pass. Acceptance-stage open-validation notes below are historical; this contract is implemented. This does not mean stabilized; the compatibility boundaries and non-goals below remain.
 
 Add `lang package [--list]` with the existing manifest/member/target/locked/offline/message-format options. Capture the complete selected source snapshot once. List the planned files without publication, or publish a deterministic uncompressed TAR containing those original bytes, lock and versioned descriptor.
 

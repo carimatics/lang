@@ -4,7 +4,7 @@
 
 [English](../../rfcs/0038-package-api-documentation.md)
 
-- Status: accepted
+- Status: implemented
 - Authors: project maintainers with Codex
 - Created: 2026-10-29
 - Last updated: 2026-10-29
@@ -13,6 +13,8 @@
 - Superseded by: none
 
 ## 概要
+
+実装監査、2026-10-30 JST: `0b6591d`でpublic API索引、解決済みnested type link、escapeしたsource panel、配置変更とrender／公開上限を実装と受入testへ照合した。検証対象は`package_doc; package::doc::tests`。localの全baseline（174 suite／2,514 test、失敗0）、fmt／全Clippy／docに成功し、macOS 15とWindowsのpackage／連続導入tool journeyにも成功した。採択時の未検証記述は履歴であり、この契約をimplementedとする。stabilizedを意味せず、下記の互換性境界／non-goalを維持する。
 
 `lang doc` は選択 package の検査済み frontend program から、単独で offline 閲覧できる HTML API reference を生成する。public type／function の元 signature、隣接 `///` text、解決済み type link、元 source 位置を保持する。既存の失敗時保護を備えた generation／lock protocol で `target/lang/<lock-digest>/doc/index.html` を公開する。
 

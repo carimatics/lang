@@ -40,6 +40,8 @@ The rationale and unresolved tradeoffs are documented in [the architecture basel
 
 ## Documents
 
+- [M4 developer-toolchain capability guide](docs/milestone-4-capabilities.md): package workflows, editor/debugger use, profiles, signed installation, both-host evidence and limits.
+
 - [Language and ecosystem research](docs/research.md)
 - [Benchmark evidence: M2 source/Rust/C and historical prototypes](docs/benchmarks.md)
 - [Architecture baseline](docs/architecture.md)
@@ -90,11 +92,11 @@ The rationale and unresolved tradeoffs are documented in [the architecture basel
 - [RFC 0031: Installed native task packages (implemented)](docs/rfcs/0031-installed-native-task-packages.md)
 - [RFC 0032: Installed component packages with explicit host bindings (implemented)](docs/rfcs/0032-installed-component-packages.md)
 - [RFC 0033: Component C v1 compatibility and migration (stabilized)](docs/rfcs/0033-component-v1-compatibility.md)
-- [RFC 0034: Package workspaces and CLI diagnostics (accepted)](docs/rfcs/0034-package-workspaces-and-cli-diagnostics.md)
-- [RFC 0035: Deterministic source package snapshots (accepted)](docs/rfcs/0035-source-package-snapshots.md)
-- [RFC 0036: Checked package formatting (accepted)](docs/rfcs/0036-checked-package-formatting.md)
-- [RFC 0037: Package lint diagnostics (accepted)](docs/rfcs/0037-package-lint-diagnostics.md)
-- [RFC 0038: Package API documentation (accepted)](docs/rfcs/0038-package-api-documentation.md)
+- [RFC 0034: Package workspaces and CLI diagnostics (implemented)](docs/rfcs/0034-package-workspaces-and-cli-diagnostics.md)
+- [RFC 0035: Deterministic source package snapshots (implemented)](docs/rfcs/0035-source-package-snapshots.md)
+- [RFC 0036: Checked package formatting (implemented)](docs/rfcs/0036-checked-package-formatting.md)
+- [RFC 0037: Package lint diagnostics (implemented)](docs/rfcs/0037-package-lint-diagnostics.md)
+- [RFC 0038: Package API documentation (implemented)](docs/rfcs/0038-package-api-documentation.md)
 - [RFC 0039: Package editor snapshots and checked edits (implemented)](docs/rfcs/0039-package-editor-snapshots.md)
 - [RFC 0040: Bounded debug adapter sessions (implemented)](docs/rfcs/0040-bounded-debug-adapter-sessions.md)
 - [RFC 0041: Bounded toolchain profiles (implemented)](docs/rfcs/0041-bounded-toolchain-profiles.md)

@@ -18,7 +18,9 @@ Public C v1 and existing generated clients follow stabilized RFC 0033. Source/na
 
 ## Work after M3
 
-M3 is complete. M4’s [live board](milestone-4.md) records **38 done · 1 doing · 5 todo · 14 remaining pt** across 44 deliveries. G1–G8 remain verified; G9 reopens for the reproduced lock-lifetime prerequisite F06. M4 remains active. DAP source `cf5e27f` supplies retained VM stepping/inspection, verified native source debugging, real mixed native/VM pauses and restart/termination identity isolation. It passes the complete local baseline, full CI `40937041512` and all three native-debug environments in `40937041276`. E01 compile reports are implemented at `e2f0c1d`; E02 runtime observations are verified at `7baee25`; E03R logical allocator tracing is verified at `b715b7a`; E03 allocation reports are verified at `546ae69`; E04 rebuild explanations are verified at `356fdca` with full CI `40979050495` and native CI `40979050348`. G8 is complete; F01 signed-installer design is accepted at `3a58363`; F02 signed-release verification is complete at `eb4243d`; F03 isolated installation is verified at `28bc8df`; F04 HTTPS/channel/recovery is verified at `d2fb67b`; F05 distribution production/journeys and G9 are verified at `bf14faf` with full CI `41009253145` and native CI `41009253195`. Latest-head CI `41011643812` exposes a lock-release failure; F06 is doing (2 added pt), Z01 returns to todo with its successful local journey retained, and Z02–Z05 remain required.
+M3 is complete. M4’s [live board](milestone-4.md) records **43 done · 1 doing · 0 todo · 2 remaining pt** across 44 deliveries. G1–G9 are verified after the F06 lock-lifetime fix. M4 remains active. DAP source `cf5e27f` supplies retained VM stepping/inspection, verified native source debugging, real mixed native/VM pauses and restart/termination identity isolation. It passes the complete local baseline, full CI `40937041512` and all three native-debug environments in `40937041276`. E01 compile reports are implemented at `e2f0c1d`; E02 runtime observations are verified at `7baee25`; E03R logical allocator tracing is verified at `b715b7a`; E03 allocation reports are verified at `546ae69`; E04 rebuild explanations are verified at `356fdca` with full CI `40979050495` and native CI `40979050348`. G8 is complete; F01 signed-installer design is accepted at `3a58363`; F02 signed-release verification is complete at `eb4243d`; F03 isolated installation is verified at `28bc8df`; F04 HTTPS/channel/recovery is verified at `d2fb67b`; F05 distribution production/journeys and G9 are verified at `bf14faf` with full CI `41009253145` and native CI `41009253195`. F06 `76c3698` passes 2,514 local tests, full CI `41015803408` and native CI `41015803370`. PR #25 merged as `54992c0`; main is synchronized. Z01/Z02 journeys pass on macOS/Windows at `0b6591d`; Z03 is audited, full CI `41019002147` passes, and the guide is verified at `03b707e`. Z05 is doing for latest-head CI, merge and final synchronization.
+
+See the [M4 capability guide](milestone-4-capabilities.md) for runnable commands, tooling workflows, compatibility boundaries and both-host evidence.
 
 PRs #9–#24 are merged. Profiling final head `84b17f6` passes full CI `40981001066` and native CI `40981000915`; PR #24 merged as `fa271b1`. Last verified local main/origin/main match `fa271b1`, 0/0 ahead/behind. Current `codex/m4-toolchain-installer` was created from clean profiling head `84b17f6` with no preexisting user changes. Upstream is `origin/codex/m4-toolchain-installer`; after the predecessor merged, recorded base is `carimatics/lang:main`, [draft PR #25](https://github.com/carimatics/lang/pull/25). Installer implementation and its CI/merge remain open.
 
@@ -42,11 +44,11 @@ Snapshot of exit-gate weights verified 2026-10-30 JST. Acceptance weights are se
 | 1 — frontend and bytecode vertical slice (complete) | 89 pt | 89 pt | **100.0%** |
 | 2 — ownership and native AOT | 113 pt | 113 pt | 100.0% |
 | 3 — concurrency and embedding (complete) | 96 pt | 96 pt | 100.0% |
-| 4 — developer toolchain | 55 pt | 63 pt | 87.3% |
+| 4 — developer toolchain | 63 pt | 63 pt | 100.0% |
 | 5 — ecosystem and compatibility | 0 pt | 65 pt | 0.0% |
 | 6 — self-hosting | 0 pt | 74 pt | 0.0% |
 | 7 — additional frontends | 0 pt | 55 pt | 0.0% |
-| **Overall** | **562 pt** | **764 pt** | **73.6%** |
+| **Overall** | **570 pt** | **764 pt** | **74.6%** |
 
 ## Milestone 0: design baseline
 
@@ -228,7 +230,7 @@ Exit: a native host can load a user script, expose a typed API, call the script,
 
 ## Milestone 4: developer toolchain
 
-**Progress: 55 / 63 pt (87.3%).**
+**Progress: 63 / 63 pt (100%).**
 
 Activation audit (2026-10-29 JST): use the [M4 board](milestone-4.md) for current tasks, executable checkpoints and the bottom-up 103 pt baseline. [RFC 0034](rfcs/0034-package-workspaces-and-cli-diagnostics.md) accepts the manifest/diagnostic and initial local package contract. First validate strict inspection, then execute an authorized local dependency, lock/offline replay and the create/build/run/test fixture before broader tooling. The installer distributes toolchain binaries before M5's registry, so its accepted design must establish trust roots, signed release-metadata verification and atomic update/failure recovery before downloading/installing. M5's signing work covers registry package publication/provenance. The original nine gates and weights remain unchanged; 63 pt is not a remaining-effort forecast.
 
@@ -242,7 +244,7 @@ Sequencing contract (clarified 2026-10-28 JST, retained on activation): the firs
 - [x] **P0 — Implement safe rename and code actions.** — 8 pt
 - [x] **P0 — Implement a DAP adapter with mixed native/VM stacks.** — 8 pt
 - [x] **P1 — Add compile-time/runtime profiling, allocation traces, and rebuild explanations.** — 8 pt
-- [ ] **P0 — Build an install/update/channel tool comparable in role to `rustup`.** — 8 pt
+- [x] **P0 — Build an install/update/channel tool comparable in role to `rustup`.** — 8 pt
 
 Exit: a new developer can install one tool, create a package, develop in an editor, test, debug, and produce a reproducible binary.
 

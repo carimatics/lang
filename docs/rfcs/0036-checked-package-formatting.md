@@ -4,7 +4,7 @@
 
 [日本語版](../ja/rfcs/0036-checked-package-formatting.md)
 
-- Status: accepted
+- Status: implemented
 - Authors: Codex under the owner's experimental delegation
 - Created: 2026-10-29
 - Last updated: 2026-10-29
@@ -13,6 +13,8 @@
 - Superseded by: None
 
 ## Summary
+
+Implementation audited 2026-10-30 JST at `0b6591d`: comment/Unicode retention, check-mode no writes, stale-plan barriers, permissions and per-file failure cleanup are reconciled with the implementation and acceptance tests `package_format, formatter`. The complete local baseline (174 suites / 2,514 tests, zero failures), fmt/full Clippy/doc and the macOS 15/Windows package and continuous installed-tool journeys pass. Acceptance-stage open-validation notes below are historical; this contract is implemented. This does not mean stabilized; the compatibility boundaries and non-goals below remain.
 
 Add `lang fmt [--check]` with the common manifest/member/target/locked/offline/message-format options. Format all frozen selected-graph source/test files through the existing lossless CST formatter. Check mode reports required changes without modifying files; normal mode applies checked source replacements.
 

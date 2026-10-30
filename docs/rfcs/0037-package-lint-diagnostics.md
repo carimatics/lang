@@ -4,7 +4,7 @@
 
 [日本語版](../ja/rfcs/0037-package-lint-diagnostics.md)
 
-- Status: accepted
+- Status: implemented
 - Authors: project maintainers with Codex
 - Created: 2026-10-29
 - Last updated: 2026-10-29
@@ -13,6 +13,8 @@
 - Superseded by: none
 
 ## Summary
+
+Implementation audited 2026-10-30 JST at `0b6591d`: resolved unread-binding identities/spans, warning denial without execution, diagnostic deduplication and exact collector bounds are reconciled with the implementation and acceptance tests `package_lint; package::lint::tests`. The complete local baseline (174 suites / 2,514 tests, zero failures), fmt/full Clippy/doc and the macOS 15/Windows package and continuous installed-tool journeys pass. Acceptance-stage open-validation notes below are historical; this contract is implemented. This does not mean stabilized; the compatibility boundaries and non-goals below remain.
 
 `lang lint` analyzes the selected package and its declared tests without running guest code or publishing artifacts. `--deny-warnings` makes warnings fail the command. Existing schema-1 human/JSON diagnostics retain original file paths and UTF-8 byte spans.
 

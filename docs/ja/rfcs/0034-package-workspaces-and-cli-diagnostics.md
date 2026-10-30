@@ -4,7 +4,7 @@
 
 [English](../../rfcs/0034-package-workspaces-and-cli-diagnostics.md)
 
-- Status: accepted
+- Status: implemented
 - Authors: project owner, Codex
 - Created: 2026-10-29
 - Last updated: 2026-10-29
@@ -13,6 +13,8 @@
 - Superseded by: none
 
 ## 概要
+
+実装監査、2026-10-30 JST: `0b6591d`でmanifest／graph／source admission、canonical standalone／workspace lock、実package command、native再現性を実装と受入testへ照合した。検証対象は`package_manifest, package_graph, package_source, package_lock, package_workspace, package_command, native_package`。localの全baseline（174 suite／2,514 test、失敗0）、fmt／全Clippy／docに成功し、macOS 15とWindowsのpackage／連続導入tool journeyにも成功した。採択時の未検証記述は履歴であり、この契約をimplementedとする。stabilizedを意味せず、下記の互換性境界／non-goalを維持する。
 
 明示的にバージョンを付けた `Lang.json` パッケージ／ワークスペースマニフェスト、ローカル依存解決、`Lang.lock`、改行区切り JSON の CLI 診断を導入する。これはホストのツールチェーン契約であり、ソース式、型付き MIR、実行時 capability、ABI は変更しない。
 

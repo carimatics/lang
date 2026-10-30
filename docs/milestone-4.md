@@ -4,21 +4,19 @@
 
 [日本語版](ja/milestone-4.md)
 
-Updated: 2026-10-30 JST. M4 is active. Goal start: clean main/origin/main `af9988f`, remote `git@github.com:carimatics/lang.git`. PRs #9–#24 are merged. Profiling PR #24 merged as `fa271b1`, preserving independent documentation PRs #20–#23 (`be9f77c` ancestor). Last verified local main/origin/main match `fa271b1`, 0/0 ahead/behind. The full M4 outcome and installer remain unfinished.
+Updated: 2026-10-30 JST. M4 is active. Goal start: clean main/origin/main `af9988f`, remote `git@github.com:carimatics/lang.git`. PRs #9–#25 are merged. Installer PR #25 merged as `54992c0`; local main/origin/main match that commit, 0/0 ahead/behind. Independent documentation changes are preserved. G1–G9, the final journey, exit audit and capability guide are verified. Latest-head CI, remote publication and final starting-branch synchronization remain.
 
-**38 done · 1 doing · 5 todo · 14 remaining pt**
+**43 done · 1 doing · 0 todo · 2 remaining pt**
 
-Current checkout: `codex/m4-toolchain-installer`, created from clean profiling documentation head `84b17f6`; no preexisting user changes. Its recorded remote PR base is now `carimatics/lang:main` after predecessor [PR #24](https://github.com/carimatics/lang/pull/24) merged. F01–F06 form one coherent installer outcome. Upstream is `origin/codex/m4-toolchain-installer`, [PR #25](https://github.com/carimatics/lang/pull/25). Profiling final head `84b17f6` passes [full CI](https://github.com/carimatics/lang/actions/runs/40981001066) (18 success, intentional documentation-only skip) and [native debugger execution](https://github.com/carimatics/lang/actions/runs/40981000915) (3/3). Local main/origin/main match merge `fa271b1`, 0/0. F06 proceeds on this branch in an isolated worktree; the original worktree preserves Z01 changes on `codex/m4-final-developer-journey`.
+Current checkout: `codex/m4-final-developer-journey`, created from clean installer documentation head `408eed1` with no preexisting user changes. After predecessor [PR #25](https://github.com/carimatics/lang/pull/25) merged, fast-forwarded the F06 fix and main `54992c0`; all six restored Z01 Rust files match their preservation stash byte-for-byte. The recorded PR base is now `carimatics/lang:main`. The final journey, exit audit and capability guide form one coherent outcome; return to the Goal’s starting main branch at completion. Upstream is `origin/codex/m4-final-developer-journey`, [draft PR #26](https://github.com/carimatics/lang/pull/26).
 
-F06 last executable checkpoint, 2026-10-30 15:38 JST: the ownership guard passes a deterministic live-duplicate regression for successful completion and validation-error return. The existing recovery test that failed latest-head macOS 26 CI `123918665908` also passes locally; the actual signed-distribution/SDK fixture is running. Explicit unlock replaces close-only release without retrying genuine contention. Remaining acceptance: complete focused/full local checks and corrected both-host CI. Z01’s successful installed-tool journey is retained; its interrupted full baseline (exit 143) is not a pass.
+F06 complete, 2026-10-30 16:08 JST: `76c3698` implements explicit unlock on normal/error returns and the live-duplicate regression. It passes 17 focused checks, fmt/full Clippy, 174 suites / 2,514 local tests (zero failures, one unchanged ignored test), doc, [full CI](https://github.com/carimatics/lang/actions/runs/41015803408) (18 success, intentional documentation skip) and [native-debug CI](https://github.com/carimatics/lang/actions/runs/41015803370) (3/3). Both-host logs confirm the new regression and actual installer. Close G9 and retire F06’s 2 pt.
 
-Local checkpoint: 1 new lock regression and 17 focused tests pass, including the real signed-distribution/SDK fixture (74.20 s); fmt and full workspace Clippy with warnings denied pass. The complete local baseline is running; corrected-head CI remains required.
-
-Z01 last executable checkpoint, 2026-10-30 15:17 JST: one installed-compiler/SDK journey passes package creation, local dependency, LSP definition/references/completion/tokens/rename/code action, stale-lock refusal, fmt/lint/build/test/doc/package, DAP breakpoint/stack/locals/evaluation, native execution and identical binary bytes after relocation. The real-install suite passes 6 tests; existing shared-client LSP (27), DAP (12) and consistency (6) checks also pass. Fixture-only corrections use supported addition with a negative literal and the DAP canonical authority spelling for macOS temporary-root aliases; compiler semantics and assertions are unchanged. Remaining Z01 acceptance: complete local baseline/doc, code evidence and macOS CI. The bounded integration scope is unchanged, retaining 3 pt. Z02 retains the same Windows journey and full-baseline audit.
+Z01/Z02 complete, 2026-10-30 16:36 JST: `0b6591d` passes the actual signed installed-tool create/dependency/LSP edits/test/DAP/reproducible-native journey in macOS 15 core `123941821348` (75.40 s) and Windows core-2 `123941821378` (227.32 s). Local validation passes 51 focused tests, fmt/full Clippy, 174 suites / 2,514 tests, doc and six repository checks; every applicable Windows job also passes. Retire each delivery’s 3 pt. Full CI `41019002147` subsequently completed with all 18 applicable jobs successful and the intentional documentation-only skip.
 
 F04 source `d2fb67b` passes fmt/full Clippy, 16 focused tests, the full local baseline (**173 suites / 2,512 passed / 0 failed**) and doc; root/fuzz fmt and fuzz Clippy passed for the implementation. The [Windows workspace failure](https://github.com/carimatics/lang/actions/runs/41001376849/job/123886372813) at `52555ff` was a cfg-specific needless closure, fixed by separate Unix/non-Unix status expressions without suppression or truncation. Corrected-head [full CI](https://github.com/carimatics/lang/actions/runs/41001783236) passes 18 jobs plus the intentional documentation-only skip; [native-debug CI](https://github.com/carimatics/lang/actions/runs/41001783129) passes 3/3. Retire F04’s 3 pt with zero additions.
 
-**Next: M4-F06 — release the owned installation lock before closing its file (doing, 2 pt).** Expose the newly reproduced lock-lifetime prerequisite before changing code. Z01 returns to todo with its successful executable checkpoint preserved; do not retry the CI failure or weaken nonblocking contention assertions. Across 44 deliveries: additions +19, retired 108, remaining 14 pt. G9 reopens until corrected both-host evidence is available.
+**Next: M4-Z05 — latest-head CI, PR merge and starting-branch synchronization (doing, 2 pt).** The Z04 guide at `03b707e` passes ten basic/five profile commands, matching bilingual code blocks, relative links and six repository checks. Retire the guide’s 2 pt; retain 2 pt for final verification, remote merge and synchronization. Across 44 deliveries: additions +19, retired 120, remaining 2 pt.
 
 A04 source `cf6cf5c` passes fmt, full Clippy/doc and checked opt-level 1 full tests (**158 suites / 2,384 passed / 0 failed**), plus 75 focused tests. Final head `75a2041` passes [full CI](https://github.com/carimatics/lang/actions/runs/40810065213) (all 19 jobs: 18 success; intentional documentation-only skip) and [debugger execution](https://github.com/carimatics/lang/actions/runs/40810065278) (3/3). [PR #13](https://github.com/carimatics/lang/pull/13) merged as `58527c2`; main was fast-forwarded, clean and synchronized with 0/0 ahead/behind. Workspace branch creation and its current PR/upstream are recorded above. No preexisting user changes were present.
 
@@ -54,7 +52,7 @@ The [roadmap](roadmap.md#milestone-4-developer-toolchain) retains the original 6
 | G6 | P0 | Safe rename and code actions | 8 | done |
 | G7 | P0 | DAP adapter with mixed native/VM stacks | 8 | done |
 | G8 | P1 | Compile/runtime profiles, allocation traces and rebuild explanations | 8 | done |
-| G9 | P0 | Signed install/update/channel tool with recovery | 8 | pending |
+| G9 | P0 | Signed install/update/channel tool with recovery | 8 | done |
 
 ## Deliveries
 
@@ -100,12 +98,12 @@ The [roadmap](roadmap.md#milestone-4-developer-toolchain) retains the original 6
 | M4-F03 | done | 0 | M4-F02 | G9 | Install verified tools in an isolated root; failed/interrupted installs preserve active version | `28bc8df` |
 | M4-F04 | done | 0 | M4-F03 | G9 | Channel update/select/list/uninstall with atomic activation and recovery | `d2fb67b` |
 | M4-F05 | done | 0 | M4-F04 | G9 | Signed release/distribution fixture installs and updates on both hosts | `bf14faf` |
-| M4-F06 | doing | 2 | M4-F05 | G9 | Release the owned lock with a live duplicate descriptor, including failure paths and both hosts | — |
-| M4-Z01 | todo | 3 | M4-B01,M4-B04,M4-C07,M4-D05,M4-E04,M4-F05,M4-F06 | G1,G2,G3,G4,G5,G6,G7,G8,G9 | New-developer install/create/editor/test/debug/reproducible-binary journey on macOS | — |
-| M4-Z02 | todo | 3 | M4-Z01 | G1,G2,G3,G4,G5,G6,G7,G8,G9 | Same complete journey and full baseline on Windows; diagnose any divergence | — |
-| M4-Z03 | todo | 2 | M4-Z02 | G1,G2,G3,G4,G5,G6,G7,G8,G9 | Audit every roadmap exit requirement against latest code, both-host evidence and limitations | — |
-| M4-Z04 | todo | 2 | M4-Z03 | G1,G2,G3,G4,G5,G6,G7,G8,G9 | Publish bilingual M4 capability guide with runnable commands and final reconciliation | — |
-| M4-Z05 | todo | 2 | M4-Z04 | G1,G2,G3,G4,G5,G6,G7,G8,G9 | Latest-head CI, PR merge, start-branch synchronization and clean final completion audit | — |
+| M4-F06 | done | 0 | M4-F05 | G9 | Release the owned lock with a live duplicate descriptor, including failure paths and both hosts | `76c3698` |
+| M4-Z01 | done | 0 | M4-B01,M4-B04,M4-C07,M4-D05,M4-E04,M4-F05,M4-F06 | G1,G2,G3,G4,G5,G6,G7,G8,G9 | New-developer install/create/editor/test/debug/reproducible-binary journey on macOS | `0b6591d` |
+| M4-Z02 | done | 0 | M4-Z01 | G1,G2,G3,G4,G5,G6,G7,G8,G9 | Same complete journey and full baseline on Windows; diagnose any divergence | `0b6591d` |
+| M4-Z03 | done | 0 | M4-Z02 | G1,G2,G3,G4,G5,G6,G7,G8,G9 | Audit every roadmap exit requirement against latest code, both-host evidence and limitations | `0b6591d` |
+| M4-Z04 | done | 0 | M4-Z03 | G1,G2,G3,G4,G5,G6,G7,G8,G9 | Publish bilingual M4 capability guide with runnable commands and final reconciliation | `03b707e` |
+| M4-Z05 | doing | 2 | M4-Z04 | G1,G2,G3,G4,G5,G6,G7,G8,G9 | Latest-head CI, PR merge, start-branch synchronization and clean final completion audit | — |
 
 ## Estimate reconciliation
 
@@ -113,9 +111,9 @@ Activation audit, 2026-10-29 JST: 36 observable deliveries, baseline 103 pt. The
 
 | Baseline remaining | Net added/re-estimated | Retired on completion | Remaining |
 | ---: | ---: | ---: | ---: |
-| 103 pt | +19 pt | −108 pt | 14 pt |
+| 103 pt | +19 pt | −120 pt | 2 pt |
 
-**103 + 19 − 108 = 14 pt**
+**103 + 19 − 120 = 2 pt**
 
 Namespace prerequisite audit, 2026-10-29 JST: the existing `ModuleGraph::root()` is always `ModuleId(0)`. A path provider alone cannot give each dependency its own package-root namespace or safely reuse a shared dependency identity. Split the original A02 outcome into an authorized graph (new A02R, 3 pt) and namespace/source execution integration (A02, remaining 3 pt after reviewing its task list). Net addition: +3 pt; 37 deliveries total. A01 and A02R are two prerequisites, so A02 must supply the next source execution fixture before further horizontal scaffolding. No gate is completed or deferred by this audit.
 
@@ -124,6 +122,26 @@ Snapshot lifecycle audit, 2026-10-29 JST: Windows CI executes the dependency fix
 CLI outcome audit, 2026-10-29 JST, before implementation: the accepted transaction profile exposes two executable outcomes. A04B (new, 3 pt) covers scaffold/existing-file compatibility, whole-profile build/run and immutable generation publication with a real dependency returning 42. A04 retains 3 pt after reviewing its remaining test-entry selection, multi-profile result checks and structured failure/span fixtures. Split the original combined CLI outcome into these vertical deliveries rather than hiding publication or shared-engine work inside the original estimate. Net addition +3 pt, cumulative +8 pt; 39 deliveries. Separately, retire A03's last 2 pt after corrected-source both-host CI proves its API outcome. Both CLI rows belong to one coherent command implementation branch; the lock wire API is its reviewed dependency. The independent local API baseline/PR lifecycle continues in its frozen checkout. No gate is completed or deferred.
 
 ## Delivery notes and roadmap review
+
+### Z03 exit audit (2026-10-30 JST)
+
+Reconcile `0b6591d` with accepted contracts and observable roadmap requirements. Align RFC 0034–0038 to implemented in both languages. No new semantic/compatibility change or prerequisite is introduced; this is not stabilization.
+
+| Gate | Verified requirement | Executable evidence and limits |
+| --- | --- | --- |
+| G1 | Versioned manifests, workspace selection, target conditions and diagnostics | [package_manifest.rs](../tests/package_manifest.rs), [package_workspace.rs](../tests/package_workspace.rs). Unknown fields/versions, nonregular inputs, aliases and bounds refuse. |
+| G2 | Exact local resolution, checksums, canonical locks and offline replay | [package_graph.rs](../tests/package_graph.rs), [package_lock.rs](../tests/package_lock.rs). Relocation preserves identity; changed source/bindings refuse without rewriting old output. Registry resolution remains M5. |
+| G3 | Real build/run/test commands and native package output | [package_command.rs](../tests/package_command.rs), [native_package.rs](../tests/native_package.rs). Selected tests use explicit namespaces and stop on failure; pinned SDK/toolchain inputs reproduce native bytes. |
+| G4 | Source snapshots, formatting, lint and API documentation | [package_archive.rs](../tests/package_archive.rs), [package_format.rs](../tests/package_format.rs), [package_lint.rs](../tests/package_lint.rs), [package_doc.rs](../tests/package_doc.rs). Deterministic TAR, per-file checked formatting, nonexecuting lint and escaped detached HTML are verified. Source panels include private implementation text. |
+| G5 | LSP definition/references, completion and semantic tokens | [lsp_package.rs](../tests/lsp_package.rs). Queries use captured package authority and UTF-16 positions; unsupported/stale contexts refuse. |
+| G6 | Checked rename and quickfix edits | [lsp_package.rs](../tests/lsp_package.rs), [support/lsp_client.rs](../tests/support/lsp_client.rs). Independent clients verify versions/preimages and atomic stale-edit refusal; clients apply and save edits. |
+| G7 | VM/native debugging, real mixed stacks and lifecycle isolation | [dap.rs](../tests/dap.rs), [dap_lifecycle.rs](../tests/dap_lifecycle.rs). Native/mixed tools also pass F06 native CI 41015803370 on all three environments. Copy profiles and explicit trusted mixed-host grants remain the implemented boundary. |
+| G8 | Compile/runtime observations, logical allocations and rebuild explanations | [profile.rs](../tests/profile.rs), [rebuild_profile.rs](../tests/rebuild_profile.rs). Reports reconcile actual bounded observations; fuel samples are not CPU time and logical requested bytes are not RSS. |
+| G9 | Signed distribution, install/update/channel operations and recovery | [toolchain_verification.rs](../tests/toolchain_verification.rs), [toolchain_installation.rs](../tests/toolchain_installation.rs). F06 explicit-unlock regression and real both-host signed journeys pass. Roots are explicit; no official hosted trust or automatic key rotation is implied. |
+
+The new-developer exit executes the [installed-tool fixture](../tests/support/toolchain_developer_journey.rs) continuously from the installed compiler through package creation, dependency/editor edits, testing, debugging, native generation and full executable-byte comparison after relocation. Retain the macOS 15/Windows success logs. The package metadata fuzz target exercises both manifest/lock readers, but A03’s 10,000 inputs are an uninstrumented smoke run, not a coverage/sanitizer campaign.
+
+Audit outcome: accepted under RFC 0001’s existing experimental delegation. Z04 remains the bilingual capability/limits guide; Z05 remains latest-head CI, remote merge and starting-branch synchronization. Exact-head full CI `41019002147` now passes all applicable jobs. Any later documentation head still requires its own applicable checks before merge.
 
 F06 scope addition, 2026-10-30 JST: documentation head `408eed1` exposes nondeterministic lock contention in the existing recovery test after owner drop. A duplicate-descriptor experiment reproduces the close/unlock distinction. Add 2 pt, preserve F05’s historical completion and Z01’s executable checkpoint, and reopen G9. Reconciliation is 103 + 19 − 108 = 14 pt.
 
