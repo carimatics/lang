@@ -4,9 +4,9 @@
 
 [English](../milestone-4.md)
 
-更新: 2026-10-30 JST。M4はactive。Goal開始はclean main／origin/main `af9988f`、remote `git@github.com:carimatics/lang.git`。PR #9–#25はmerge済み。installer PR #25は`54992c0`としてmergeし、local main／origin/mainは同commitで一致、ahead／behind 0/0。既存の独立文書変更も保持した。G1–G9は検証済みで、最終journey／終了監査／能力guideは未完了。
+更新: 2026-10-30 JST。M4はactive。Goal開始はclean main／origin/main `af9988f`、remote `git@github.com:carimatics/lang.git`。PR #9–#25はmerge済み。installer PR #25は`54992c0`としてmergeし、local main／origin/mainは同commitで一致、ahead／behind 0/0。既存の独立文書変更も保持した。G1–G9、最終journey、終了監査、能力guideは検証済み。最新head CI、remote公開、開始branchの最終同期が残る。
 
-**42 done · 1 doing · 1 todo · 4 remaining pt**
+**43 done · 1 doing · 0 todo · 2 remaining pt**
 
 現在のcheckoutは`codex/m4-final-developer-journey`。clean installer文書head `408eed1`から作成し、既存user変更はない。先行[PR #25](https://github.com/carimatics/lang/pull/25)のmerge後、F06修正とmain `54992c0`をfast-forwardし、Z01のRust変更6 fileが保全stashとbyte一致することを確認した。記録PR baseは`carimatics/lang:main`へ変更する。最終journey、終了監査、能力guideを一貫した成果とし、最終完了時はGoal開始branch mainへ戻る。 upstreamは`origin/codex/m4-final-developer-journey`、[draft PR #26](https://github.com/carimatics/lang/pull/26)。
 
@@ -16,7 +16,7 @@ Z01／Z02完了、2026-10-30 16:36 JST: `0b6591d`の実署名導入toolによる
 
 F04 source `d2fb67b`はfmt／全Clippy、重点16 test、完全local baseline（**173 suite／2,512成功／0失敗**）、docに成功し、実装のroot／fuzz fmtとfuzz Clippyも成功した。`52555ff`の[Windows workspace失敗](https://github.com/carimatics/lang/actions/runs/41001376849/job/123886372813)はcfg固有の不要closureで、Unix／非Unixのstatus式を分け、抑制や切詰めなしで修正した。修正版の[全体CI](https://github.com/carimatics/lang/actions/runs/41001783236)は18成功と意図した文書専用skip、[native-debug CI](https://github.com/carimatics/lang/actions/runs/41001783129)は3/3成功。F04の3 ptを消化し追加0。
 
-**次: M4-Z04 — 実行可能な例と制限を備えたbilingual能力guide（doing、2 pt）。** Z03は全9 gateと新規開発者exit、RFC lifecycleを照合し、文書整合性6件に成功した。`0b6591d`の[全体CI](https://github.com/carimatics/lang/actions/runs/41019002147)は18成功と意図した文書job skip。監査の2 ptを消化し、guideの残る章／link／例を再確認して2 ptを維持する。44 delivery、追加+19、消化118、残り4 pt。
+**次: M4-Z05 — 最新head CI、PR merge、開始branch同期（doing、2 pt）。** Z04 guideは`03b707e`で作成し、基本10／profile 5 command、英日code block一致、相対link、文書整合性6件に成功した。guideの2 ptを消化し、最終検証／remote merge／同期に2 ptを維持する。44 delivery、追加+19、消化120、残り2 pt。
 
 A04 source `cf6cf5c` は fmt、全 Clippy／doc、checked opt-level 1 全 test（**158 suite／2,384 成功／0 失敗**）、重点 75 test に成功。最終 head `75a2041` は [全 CI](https://github.com/carimatics/lang/actions/runs/40810065213)（全 19 job、18 成功、意図した文書専用 skip）と [debugger 実行](https://github.com/carimatics/lang/actions/runs/40810065278)（3/3）に成功した。[PR #13](https://github.com/carimatics/lang/pull/13) は `58527c2` として merge、main を fast-forward して clean・同期済み、ahead／behind 0/0。workspace branch 作成と現在の PR／upstream は上記に記録した。既存の user 変更はなかった。
 
@@ -102,8 +102,8 @@ F03 source `28bc8df`は重点15 test、fmt、全体／fuzz Clippy、doc、完全
 | M4-Z01 | done | 0 | M4-B01,M4-B04,M4-C07,M4-D05,M4-E04,M4-F05,M4-F06 | G1,G2,G3,G4,G5,G6,G7,G8,G9 | macOS の新規開発者 install／create／editor／test／debug／再現可能 binary journey | `0b6591d` |
 | M4-Z02 | done | 0 | M4-Z01 | G1,G2,G3,G4,G5,G6,G7,G8,G9 | Windows の同一 journey と全 baseline、差異の原因解決 | `0b6591d` |
 | M4-Z03 | done | 0 | M4-Z02 | G1,G2,G3,G4,G5,G6,G7,G8,G9 | 全 roadmap 終了条件を最新 code／両 host 証拠／限界に照らして監査 | `0b6591d` |
-| M4-Z04 | doing | 2 | M4-Z03 | G1,G2,G3,G4,G5,G6,G7,G8,G9 | 実行コマンドと最終照合を持つ日英 M4 capability guide 公開 | — |
-| M4-Z05 | todo | 2 | M4-Z04 | G1,G2,G3,G4,G5,G6,G7,G8,G9 | 最新 head CI、PR merge、開始 branch 同期、clean な最終完了監査 | — |
+| M4-Z04 | done | 0 | M4-Z03 | G1,G2,G3,G4,G5,G6,G7,G8,G9 | 実行コマンドと最終照合を持つ日英 M4 capability guide 公開 | `03b707e` |
+| M4-Z05 | doing | 2 | M4-Z04 | G1,G2,G3,G4,G5,G6,G7,G8,G9 | 最新 head CI、PR merge、開始 branch 同期、clean な最終完了監査 | — |
 
 ## 見積照合
 
@@ -111,9 +111,9 @@ F03 source `28bc8df`は重点15 test、fmt、全体／fuzz Clippy、doc、完全
 
 | Baseline remaining | Net added/re-estimated | Retired on completion | Remaining |
 | ---: | ---: | ---: | ---: |
-| 103 pt | +19 pt | −118 pt | 4 pt |
+| 103 pt | +19 pt | −120 pt | 2 pt |
 
-**103 + 19 − 118 = 4 pt**
+**103 + 19 − 120 = 2 pt**
 
 名前空間の前提監査、2026-10-29 JST: 既存 `ModuleGraph::root()` は常に `ModuleId(0)`。path provider だけでは依存ごとの package-root 名前空間や共有 dependency identity の安全な再利用を提供できない。元の A02 を、許可 graph（新規 A02R、3 pt）と名前空間／source 実行の統合（task list を見直した A02、残り 3 pt）へ分割する。純追加 +3 pt、全 37 delivery。A01 と A02R は前提二つとなるため、水平基盤を増やす前に A02 で次の source 実行 fixture を示す。この監査による gate 完了や延期はない。
 
