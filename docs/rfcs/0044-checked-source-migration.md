@@ -59,6 +59,8 @@ Read a bounded historical token/AST view. For each identifier spelling newly res
 
 There is no allocation, destruction, cancellation, unwinding, unsafe/FFI or concurrency transition in this profile. Their absence is an admission restriction, not a claim to migrate them. The recipe preserves runtime evaluation and errors; it adds no compile-time execution. A valid input with no conflicts produces an unchanged report and does not by itself demonstrate a source transition.
 
+The [pinned-producer admission probes](../evidence/2026-10-31-m5-scalar-admission.json), verified 2026-10-31 JST, make the historical rules concrete: locals need explicit types, parameters are immutable, block locals do not escape, and local names remain unique across the entire function even in disjoint branches. A local binding shadows a same-named callable and cannot be called. Unreachable names are still resolved, all required return paths are checked, and forward/recursive private calls are admitted. B05 must preserve these conditions before rewriting; successful parsing under the current grammar cannot replace them.
+
 ### Plans and publication
 
 Freeze manifests, source bytes and filesystem identities used by every analysis, including unmodified dependencies/tests. Plans have private constructors and ordered original byte spans; JSON serialization exposes information, not write authority. Validate semantic proofs and encoded output limits before staging writes.

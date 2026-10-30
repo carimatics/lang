@@ -90,6 +90,8 @@ A02公開checkpoint（2026-10-31 JST確認）: 最新head `8a43f76`のCI `410723
 
 ## Delivery noteとロードマップ監査
 
+- 旧source受入準備（2026-10-31 JST、delivery退役なし）: 8件の[固定producer probe](../evidence/2026-10-31-m5-scalar-admission.json)でblock scopeと関数全体の名前一意性、不変parameter、明示local型、localによるcallable隠蔽、到達不能名の検証、必要なreturn経路、前方再帰を確定した。RFC 0044の日英版に既存要件を記録。B05で予定する解決名・型の証明が必要であることを確認し、追加前提・3 ptの見積り変更なし。B03は全local検証の終了まで唯一のdoing行を維持する。
+
 - B02 local完了（2026-10-31 JST）: 実装`2a3aca1`のsource固定全baseline（2,529 test、fmt、厳密Clippy、rustdoc）が成功。修正`5e2b593`はnative pathの厳密比較を維持し、対象検証が成功。最後の3 ptを退役し、追加・再見積りなし。G2はopen。最新head CI・PR mergeは公開条件として未完了。B03だけをdoingとし、新規planのCLI・共通writerを`codex/m5-checked-source-fixes`上の一貫した続きとして進める。
 
 - B01完了（2026-10-30 JST）: `1ab1201`でRFC 0044を実験段階委任により採択し、未検証の実装前提を明示した。日英repository consistencyは7/7成功。validatorがNext markerの変更を検出したため既存markerへ戻した。B01の最終2 ptを除去し、別に監査した前提+3 ptは維持する。G2は未完了、doingはB02のみ。

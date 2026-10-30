@@ -90,6 +90,8 @@ Gate completion: **1/10; 5/65 historical gate weight**. Delivery points below ar
 
 ## Delivery notes and roadmap audits
 
+- Historical admission preparation, 2026-10-31 JST (no delivery retired): eight [pinned-producer probes](evidence/2026-10-31-m5-scalar-admission.json) establish lexical block scope plus function-wide name uniqueness, immutable parameters, explicit local types, local/callable shadowing, unreachable-name validation, required return paths and forward recursion. RFC 0044 records these existing requirements in both languages. This validates B05's planned resolved-name/type proof without introducing another prerequisite or changing its 3 pt estimate; B03 remains the sole doing row while its full local run finishes.
+
 - B02 completed locally, 2026-10-31 JST: implementation `2a3aca1` passes the frozen full baseline (2,529 tests, fmt, strict Clippy and rustdoc); correction `5e2b593` preserves exact native path assertions and passes focused checks. Retire its last 3 pt, no additions/re-estimates; G2 remains open. Latest-head CI and PR merge are publication gates still pending. B03 is the sole doing row; its fresh-plan CLI and shared writer are one coherent continuation on `codex/m5-checked-source-fixes`.
 
 - B01 completed, 2026-10-30 JST: RFC 0044 accepted in `1ab1201` under the experimental delegation, with explicit unverified implementation assumptions. Bilingual repository consistency passes 7/7; the board's established Next marker was restored after its validator caught a renamed marker. Retire B01's last 2 pt; keep the separately audited +3 pt prerequisite. G2 remains open. B02 is the only doing row.

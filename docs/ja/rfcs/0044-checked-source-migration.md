@@ -59,6 +59,8 @@ module・import・qualified path、公開・foreign宣言、aggregate・pattern�
 
 このprofileにallocation・destruction・cancel・unwind・unsafe・FFI・並行性の遷移はない。これは入力制限であり、それらの移行対応を意味しない。recipeは実行時評価とerrorを保持し、compile-time executionを追加しない。衝突のない有効入力にはunchanged reportを返すが、それだけでsource遷移の実証にはならない。
 
+[固定producerの受入probe](../../evidence/2026-10-31-m5-scalar-admission.json)（2026-10-31 JST確認）で旧規則を具体化した。localには明示型が必要で、parameterは不変、block localは外へ漏れず、分離したbranchを含む関数全体でlocal名を一意とする。local bindingは同名callableを隠し、callできない。到達不能な名前も解決し、必要な全return経路を検査する。前方・再帰private callは受け入れる。B05はrewrite前にこれらを維持し、現grammarでのparse成功で代用しない。
+
 ### Planと公開
 
 未変更の依存・testも含め、各解析が使うmanifest・source bytes・filesystem identityをfreezeする。planのconstructorをprivateとし、元byte span順に整列する。JSONは情報を公開し、書込み権限は渡さない。staging前に意味証明と符号化output上限を検証する。
