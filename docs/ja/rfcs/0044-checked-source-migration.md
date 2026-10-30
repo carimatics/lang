@@ -91,6 +91,8 @@ operation全体のsource bytes・root・token・AST/証明work・candidate・rep
 
 B02 previewの既定値（2026-10-31）: root 64件、fix 256件、token edit 65,536件、累積解析source 256 MiB、総量work 1,000,000,000単位、累積replacement 64 MiB、符号化report 16 MiB。既存editor・compiler上限も独立に守る。各index・proof passは実行前にeditor work許容量全体を予約し、検証付きrenameはindexとedit/proofの両passを予約する。source bytesには毎回の解析と適用予定renameのunderscore増分を課金する。保守的な予約のため、個別上限をすべて使う前に拒否する場合がある。reportは上限付きcounting writerで符号化量を測り、巨大JSON bufferを先に確保しない。これは入力受入上限であり、CPU時間や最大常駐memoryの測定値ではない。
 
+B05 previewの既定値（2026-10-31）: 1 file・最大1 MiB、符号化path 4,096 byte、token・node 65,536、関数256、comment深さ64、再帰深さ128（引上げ不可の安全上限）。既存parse・module・binding・typeの各phaseは共有16,000,000 work単位から1,000,000単位を予約し、token読取り・候補名・rewrite・構造証明も同じbudgetを消費する。累積解析sourceは8 MiB、rewrite後sourceは4 MiB、符号化JSONは8 MiB。個別上限に達する前に予約で拒否する場合がある。境界testは全設定可能上限を成功する最小値まで下げ、1少ない値を拒否し、escapeを含むreport pathも扱う。`MIG0001`は未対応・不正sourceまたは等価性失敗、`MIG0002`は移行資源上限超過。byteだけを受けるpreview libraryはfilesystem・実行authorityを持たない。これらは受入上限であり、throughput・常駐memory測定ではない。
+
 ## Security and trust boundaries
 
 source・manifestは未信頼data。解析はsource・native code・host importを実行せず、network・process capabilityを取得しない。source-root/package authorityでreadを制限し、別の明示authorityでwriteを制限する。nonregular・alias・stale入力、不正UTF-8、未対応旧構文、曖昧edit、上限超過は未検証planを公開せず拒否する。任意JSON edit programやユーザー指定applicabilityを信用しない。file単位atomicityと協調writer制限をCLI文書に明示する。
@@ -121,7 +123,7 @@ frontend/editor証明adapter、package/format公開、CLI・test・文書を変�
 
 ## Open questions
 
-2026-10-30 JST、RFC 0001の実験段階委任に基づき採択。根拠: 明示的な旧入力受入、全体でfreshな名前対応、解決済み構造の比較、既存の検証付きrename・公開境界の再利用により、通常compileを変えずに限定recipeをレビューできる。保持した旧producerで実在する遷移を確認した。上限付きreaderと証明は未実装・未測定であり、採択はG2完了ではない。具体的な総量上限とdiagnostic割当は境界testを伴う実装判断であり、grammarを広げる許可ではない。追加旧profileと将来editionには別のrecipeレビューが必要。選択sliceの設計を妨げる未決事項はない。
+2026-10-30 JST、RFC 0001の実験段階委任に基づき採択。根拠: 明示的な旧入力受入、全体でfreshな名前対応、解決済み構造の比較、既存の検証付きrename・公開境界の再利用により、通常compileを変えずに限定recipeをレビューできる。保持した旧producerで実在する遷移を確認した。2026-10-31現在、上限付きreader・proof previewの対象実行・拒否testは成功し、全baselineと両host検証は未完了。移行CLI・検証付き適用・native実行journeyはB04に残す。採択はG2完了ではない。具体的な総量上限とdiagnostic割当は境界testを伴う実装判断であり、grammarを広げる許可ではない。追加旧profileと将来editionには別のrecipeレビューが必要。選択sliceの設計を妨げる未決事項はない。
 
 ## Sources
 

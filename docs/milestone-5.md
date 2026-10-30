@@ -6,11 +6,15 @@
 
 Activated 2026-10-30 JST from `3b676c5`. This board tracks the entire M5 scope in [the roadmap](roadmap.md#milestone-5-ecosystem-and-compatibility), including both P1 gates. M4's installer and local packages are prerequisites, not registry completion.
 
-**5 done · 0 doing · 35 todo · 102 remaining pt**
+**5 done · 1 doing · 34 todo · 102 remaining pt**
 
 **Next: M5-B05 — preview a checked migration of the historical scalar fixture.**
 
-Publication checkpoint, 2026-10-31 JST: code `01b425e` passed CI `41085682122` (18 successful jobs; documentation-only intentionally skipped under full routing) and native-debug `41085682104`. Its full local baseline completed with 2,536 passing tests in 178 suites, fmt, strict Clippy and rustdoc; all child exits are 0 and the source fingerprint is unchanged. Logs are retained under `/private/tmp/lang-m5-fixes-target/m5-b03-validation-authorized/`. The first sandboxed attempt refused loopback listeners in two HTTPS fixtures; authorized execution used identical frozen source. No failed or cancelled run is counted as success. Final documentation-head CI and PR #30 merge remain pending.
+B05 executable checkpoint, verified 2026-10-31 02:24 JST: the migration-only reader resolves and type-checks the historical scalar input before choosing globally fresh names. A token/offset proof and typed resolved-structure comparison admit the real `shared`/`weak` source; the current VM returns 42 and ordinary compilation still refuses the original source. Eight integration tests and two proof tests pass, covering the eleven pinned-producer admission cases, 24 generated scalar executions, wrapping addition, preserved fuel exhaustion, collisions/trivia/CRLF, repeat no-op, semantic counterexamples and exact resource boundaries. The recursion ceiling cannot be raised by an embedding caller. Remaining acceptance: frozen full baseline and latest-head both-host CI; the CLI/publication/native migration journey remains B04. No new prerequisite or estimate is added; B05 remains the sole doing row at 3 pt until validation completes.
+
+Branch `codex/m5-historical-source-migration` was created clean from `codex/m5-checked-source-fixes` at `791237e` in `/private/tmp/lang-m5-migration`, with that prerequisite branch as its initial PR base in `git@github.com:carimatics/lang.git`. After PR #30 was confirmed merged, it fast-forwarded to `6ea2cd1` and its PR base changed to `main`. The original worktree is clean on `main`, synchronized with `origin/main` (0 ahead / 0 behind).
+
+Publication checkpoint, 2026-10-31 JST: code `01b425e` passed CI `41085682122` (18 successful jobs; documentation-only intentionally skipped under full routing) and native-debug `41085682104`. Its full local baseline completed with 2,536 passing tests in 178 suites, fmt, strict Clippy and rustdoc; all child exits are 0 and the source fingerprint is unchanged. Logs are retained under `/private/tmp/lang-m5-fixes-target/m5-b03-validation-authorized/`. The first sandboxed attempt refused loopback listeners in two HTTPS fixtures; authorized execution used identical frozen source. No failed or cancelled run is counted as success. Final head `791237e` also passed CI `41094820142` (18 applicable jobs) and native-debug `41094820280`; [PR #30](https://github.com/carimatics/lang/pull/30) merged as `6ea2cd1` and local `main` was fast-forwarded to the same remote tip.
 
 B03 completed, verified 2026-10-31 JST: `lang fix` previews by default and `--apply` recomputes a private checked plan, using the formatter's frozen-input validation, complete staging and per-file replacement. Fixtures cover entry/test VM execution before/after, stale source/dependency/manifest and foreign-authority refusal, read-only/alias refusal, cleaned staging failures, exact committed-prefix reporting, idempotent replay, CLI diagnostics and the successful-apply report size boundary. A hardlink outside the captured inventory exposed a missed existing no-alias requirement; both live validation passes now check the opened file's link count, with RFC 0036 clarified in both languages. Implementation and both-host CI are complete; final documentation publication remains separately gated above. B04 retains historical migration integration.
 
@@ -46,7 +50,7 @@ Gate completion: **1/10; 5/65 historical gate weight**. Delivery points below ar
 | M5-B01 | done | 0 | M5-A01 | G2 | Accept migration recipes, applicability and write transaction contract | `1ab1201` |
 | M5-B02 | done | 0 | M5-B01 | G2 | Preview real source fixes with original spans and semantic recheck | `2a3aca1` |
 | M5-B03 | done | 0 | M5-B02 | G2 | Apply checked fixes through CLI; stale/conflicting/partial-write refusal fixtures | `01b425e` |
-| M5-B05 | todo | 3 | M5-B01 | G2 | Admit historical scalar syntax, prove fresh renames and preview the real old-source fixture | — |
+| M5-B05 | doing | 3 | M5-B01 | G2 | Admit historical scalar syntax, prove fresh renames and preview the real old-source fixture | — |
 | M5-B04 | todo | 3 | M5-B03,M5-B05 | G2 | Edition migration CLI and both-host before/after execution journey | — |
 | M5-C01 | todo | 3 | M5-A01 | G3 | Threat model: identities, namespace, authority, abuse and adversaries | — |
 | M5-C02 | todo | 3 | M5-C01 | G3 | Accept protocol, limits, recovery and security acceptance cases before upload | — |

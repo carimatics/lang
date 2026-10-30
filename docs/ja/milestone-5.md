@@ -6,11 +6,15 @@
 
 2026-10-30 JST、`3b676c5`から開始。[ロードマップ](roadmap.md#milestone-5ecosystemとcompatibility)のM5全範囲（P1の2ゲートを含む）を追跡する。M4のinstallerとlocal packageは前提条件であり、registry完了を意味しない。
 
-**5 done · 0 doing · 35 todo · 102 remaining pt**
+**5 done · 1 doing · 34 todo · 102 remaining pt**
 
 **次: M5-B05 — 旧scalar fixtureの検証付き移行をpreviewする。**
 
-公開checkpoint（2026-10-31 JST）: code `01b425e`のCI `41085682122`（18 job成功、full routingにより文書専用のみ意図的省略）とnative-debug `41085682104`が成功。全local baselineは178 suite・2,536 test、fmt、厳密Clippy、rustdocが成功し、全child exitは0、source fingerprintは不変。logは`/private/tmp/lang-m5-fixes-target/m5-b03-validation-authorized/`に保持する。最初のsandbox実行はHTTPS fixture 2件のloopback待受を拒否したため、同一の固定sourceで承認済み実行を行った。失敗・取消runを成功とは数えない。最終文書headのCIとPR #30 mergeは未完了。
+B05実行checkpoint（2026-10-31 02:24 JST確認）: 移行専用readerは旧scalar入力の名前解決・型検査後、全体でfreshな名前を選ぶ。token・offset証明と型付き解決構造の比較で実在する`shared`・`weak` sourceを受入れ、現VMは42を返し、通常compileは元sourceの拒否を維持する。integration test 8件とproof test 2件が成功し、固定producerの受入11ケース、生成scalar実行24件、wrapping加算、燃料切れの保持、衝突・trivia・CRLF、再実行no-op、意味の反例、厳密な資源境界を検証。組込みcallerも再帰の安全上限を引き上げられない。残る受入条件はsource固定全baselineと最新headの両host CIで、CLI・公開・native移行journeyはB04に残す。新規前提・見積り追加なし。検証完了までB05だけを3 ptのdoingとして維持する。
+
+branch `codex/m5-historical-source-migration`は`codex/m5-checked-source-fixes`の`791237e`からclean状態で作成し、checkoutは`/private/tmp/lang-m5-migration`、初期PR baseは`git@github.com:carimatics/lang.git`の同前提branch。PR #30のmerge確認後、`6ea2cd1`へfast-forwardし、PR baseを`main`へ変更した。元worktreeは`main`上でcleanかつ`origin/main`と同期済み（ahead 0 / behind 0）。
+
+公開checkpoint（2026-10-31 JST）: code `01b425e`のCI `41085682122`（18 job成功、full routingにより文書専用のみ意図的省略）とnative-debug `41085682104`が成功。全local baselineは178 suite・2,536 test、fmt、厳密Clippy、rustdocが成功し、全child exitは0、source fingerprintは不変。logは`/private/tmp/lang-m5-fixes-target/m5-b03-validation-authorized/`に保持する。最初のsandbox実行はHTTPS fixture 2件のloopback待受を拒否したため、同一の固定sourceで承認済み実行を行った。失敗・取消runを成功とは数えない。最終head `791237e`もCI `41094820142`（対象18 job）とnative-debug `41094820280`が成功し、[PR #30](https://github.com/carimatics/lang/pull/30)を`6ea2cd1`としてmerge、local `main`を同じremote tipへfast-forwardした。
 
 B03完了（2026-10-31 JST確認）: `lang fix`はpreviewが既定で、`--apply`はformatterの固定入力検証・全件staging・file単位置換を再利用し、非公開の検証済みplanを再計算する。entry・testの適用前後VM実行、古いsource・依存・manifestと異なるauthority拒否、readonly・alias拒否、staging失敗cleanup、正確な適用済みprefix、再実行no-op、CLI診断、適用成功reportのsize境界を検証。取得inventory外のhardlinkが既存alias禁止要件の漏れを露出したため、両live検証でopen済みfileのlink数を確認し、RFC 0036を日英で明確化した。実装と両host CIは完了し、最終文書公開は上記の別条件として追跡する。B04は旧source移行統合を維持する。
 
@@ -46,7 +50,7 @@ A02公開checkpoint（2026-10-31 JST確認）: 最新head `8a43f76`のCI `410723
 | M5-B01 | done | 0 | M5-A01 | G2 | 移行レシピ・適用可能性・書込みトランザクション契約を採択 | `1ab1201` |
 | M5-B02 | done | 0 | M5-B01 | G2 | 元spanを保持した実ソース修正previewと意味再検査 | `2a3aca1` |
 | M5-B03 | done | 0 | M5-B02 | G2 | CLI修正適用とstale・競合・部分書込み拒否fixture | `01b425e` |
-| M5-B05 | todo | 3 | M5-B01 | G2 | 旧scalar構文を受入れfresh renameを証明し実在する旧sourceをpreview | — |
+| M5-B05 | doing | 3 | M5-B01 | G2 | 旧scalar構文を受入れfresh renameを証明し実在する旧sourceをpreview | — |
 | M5-B04 | todo | 3 | M5-B03,M5-B05 | G2 | edition移行CLIと両hostの移行前後実行journey | — |
 | M5-C01 | todo | 3 | M5-A01 | G3 | identity・namespace・authority・濫用・攻撃者の脅威モデル | — |
 | M5-C02 | todo | 3 | M5-C01 | G3 | upload前にprotocol・上限・復旧・security受入ケースを採択 | — |

@@ -252,7 +252,7 @@ Exit：新しいdeveloperが1つのtoolをinstallし、packageを作成し、edi
 
 2026-10-30 JST開始。[M5 board](milestone-5.md)に全10ゲート、39件の観測可能delivery、残作業基準112 ptを保持する。[edition・互換性方針](rfcs/0043-editions-and-compatibility.md)と実行可能な互換性・移行fixtureから開始する。registry upload前に脅威モデルを定め、署名toolchain導入をregistry provenanceと混同しない。P1の2ゲートも範囲内。完了には両host ecosystem journeyと日英能力guideを含める。
 
-**5 done · 0 doing · 35 todo · 102 remaining pt**
+**5 done · 1 doing · 34 todo · 102 remaining pt**
 
 B01監査で39件の基準deliveryに旧scalar移行の前提1件・3 ptを追加した（全40件、112 + 3 − 13 = 残102 pt）。[RFC 0044](rfcs/0044-checked-source-migration.md)で検証付きfix・移行契約を採択。B02・B03で検証付きpreviewとCLI公開を実装し、全local検証と両host code CIが成功。最終文書headの公開は未完了で、次はB05の旧scalar reader。G2と他の全残ゲートはopenを維持する。
 

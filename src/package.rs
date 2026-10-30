@@ -11,6 +11,7 @@ pub mod graph;
 pub mod lint;
 pub mod lock;
 pub mod manifest;
+pub mod migration;
 mod native;
 mod output;
 mod scaffold;
