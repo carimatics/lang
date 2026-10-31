@@ -16,7 +16,7 @@
 
 Registryがuploadを受け入れる前にidentity・authority・攻撃者・security受入義務を定義する。Package releaseのidentityは、明示registry・package名・厳密version・不変content digestで定まる。Download・認証・所有のいずれも実行やhost capability利用の許可を与えない。
 
-これはC01の脅威モデル判断である。C02はupload実装前に具体的protocol format・資源上限・復旧規則・対応する拒否caseを別途採択する。両判断が揃うまでG3はopen。G4–G6・G9は動作するstorage・認証操作・署名付き消費・hosting／検索を引き続き要する。
+これはC01の脅威モデル判断である。C02の[RFC 0046](0046-registry-protocol-and-recovery.md)はupload実装前に具体的protocol format・資源上限・復旧規則・対応する拒否caseを別途採択した（2026-10-31 JST）。両判断でG3設計ゲートは完了。G4–G6・G9は動作するstorage・認証操作・署名付き消費・hosting／検索を引き続き要する。
 
 ## Motivation
 

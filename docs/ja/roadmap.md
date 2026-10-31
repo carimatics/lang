@@ -36,7 +36,7 @@ lock寿命の修正を含むinstallerは、2026-10-30 JSTに[PR #25](https://git
 
 以下のmilestone checklistは相対的な受入条件の重みを保持します。`1`はごく小、`2`は小、`3`は中、`5`は大、`8`は非常に大です。重み付きの達成率は `完了した重み / 全重み × 100` を小数第1位へ丸めます。この粗い重みは経過時間や実装残作業を予測しません。Milestoneがcurrentになったとき、またはscope／evidenceが変わったときに、長期見積もりを積み上げで見直します。進行中milestoneごとに別の実装Todoを使い、独立検証可能な残り1〜3 ptのtaskと、明示的なscope／見積もり変更を記録します。
 
-2026-10-31（JST）に確認したexit-gate weightのsnapshotです。受入条件の重みと残作業見積りは別であり、M4の最終収支は完了ボードに記録します。M5が進行中です（**8 done · 1 doing · 31 todo · 93 remaining pt**）。完了済みM2／M3の記録は維持します。
+2026-10-31（JST）に確認したexit-gate weightのsnapshotです。受入条件の重みと残作業見積りは別であり、M4の最終収支は完了ボードに記録します。M5が進行中です（**9 done · 1 doing · 30 todo · 90 remaining pt**）。完了済みM2／M3の記録は維持します。
 
 | Milestone | 完了条件の重み | 条件の総重み | 条件達成率 |
 | --- | ---: | ---: | ---: |
@@ -45,10 +45,10 @@ lock寿命の修正を含むinstallerは、2026-10-30 JSTに[PR #25](https://git
 | 2 — ownershipとnative AOT | 113 pt | 113 pt | 100.0% |
 | 3 — concurrencyとembedding（完了） | 96 pt | 96 pt | 100.0% |
 | 4 — developer toolchain | 63 pt | 63 pt | 100.0% |
-| 5 — ecosystemとcompatibility | 13 pt | 65 pt | 20.0% |
+| 5 — ecosystemとcompatibility | 21 pt | 65 pt | 32.3% |
 | 6 — セルフホスティング | 0 pt | 74 pt | 0.0% |
 | 7 — 追加frontend | 0 pt | 55 pt | 0.0% |
-| **全体** | **583 pt** | **764 pt** | **76.3%** |
+| **全体** | **591 pt** | **764 pt** | **77.4%** |
 
 ## Milestone 0：設計baseline
 
@@ -252,15 +252,15 @@ Exit：新しいdeveloperが1つのtoolをinstallし、packageを作成し、edi
 
 2026-10-30 JST開始。[M5 board](milestone-5.md)に全10ゲート、39件の観測可能delivery、残作業基準112 ptを保持する。[edition・互換性方針](rfcs/0043-editions-and-compatibility.md)と実行可能な互換性・移行fixtureから開始する。registry upload前に脅威モデルを定め、署名toolchain導入をregistry provenanceと混同しない。P1の2ゲートも範囲内。完了には両host ecosystem journeyと日英能力guideを含める。
 
-**8 done · 1 doing · 31 todo · 93 remaining pt**
+**9 done · 1 doing · 30 todo · 90 remaining pt**
 
-B01監査で39件の基準deliveryに旧scalarの前提1件・3 ptを追加した。B04の実行可能CLIと両host journeyの各checkpointで残見積りを1 ptずつ減らした（全40件、純追加+1 pt、112 + 1 − 20 = 残93 pt）。[RFC 0044](rfcs/0044-checked-source-migration.md)で検証付きfix・移行契約を採択。B02・B03の検証付きfixはmerge済みPR #30で公開した。B05の旧scalar previewは`7f41dd0`で全baselineと両host CIが成功。B04のCLI・検証付き適用・実旧producerと現VM・link済みnativeのjourneyは両hostで成功した。固定全baselineの180 suite・2,553 test、fmt・厳密Clippy・rustdocが成功し、最終head `ab5cda8`のCI・native-debug成功後にPR #31を`46cb6a1`としてmergeした。B04の最終1 ptを退役しG2を完了する。C01の[RFC 0045脅威モデル](rfcs/0045-registry-threat-model.md)を`94a5200`で採択しrepository consistency 7/7成功、追加なしで3 ptを退役した。次はupload前のprotocol／上限／復旧を定めるC02（doing、3 pt）。P1の両成果を含むG3–G10はopenを維持する。
+B01監査で39件の基準deliveryに旧scalarの前提1件・3 ptを追加した。B04の実行可能CLIと両host journeyの各checkpointで残見積りを1 ptずつ減らした（全40件、純追加+1 pt、112 + 1 − 23 = 残90 pt）。[RFC 0044](rfcs/0044-checked-source-migration.md)で検証付きfix・移行契約を採択。B02・B03の検証付きfixはmerge済みPR #30で公開した。B05の旧scalar previewは`7f41dd0`で全baselineと両host CIが成功。B04のCLI・検証付き適用・実旧producerと現VM・link済みnativeのjourneyは両hostで成功した。固定全baselineの180 suite・2,553 test、fmt・厳密Clippy・rustdocが成功し、最終head `ab5cda8`のCI・native-debug成功後にPR #31を`46cb6a1`としてmergeした。B04の最終1 ptを退役しG2を完了する。C01の[RFC 0045脅威モデル](rfcs/0045-registry-threat-model.md)を`94a5200`で採択しrepository consistency 7/7成功、追加なしで3 ptを退役した。C02の[RFC 0046 protocol／復旧契約](rfcs/0046-registry-protocol-and-recovery.md)を`53376e5`で採択し、canonical archive実現性実験とrepository check 7/7成功、追加なしで3 ptを退役した。G3は設計ゲートとして完了。次は敵対archive受入のD01（doing、3 pt）。P1の両成果を含むG4–G10はopenを維持し、RFC採択はregistry softwareの実装を意味しない。
 
-**進捗：13 / 65 pt（20.0%）。**
+**進捗：21 / 65 pt（32.3%）。**
 
 - [x] **P0 — Edition、deprecation policy、compatibility matrixを定義する。** — 5 pt
 - [x] **P0 — Edition migration／machine-applicable fix toolを構築する。** — 8 pt
-- [ ] **P0 — Upload受付前にpublic-registry threat modelを完成させる。** — 8 pt
+- [x] **P0 — Upload受付前にpublic-registry threat modelを完成させる。** — 8 pt
 - [ ] **P0 — Registry package storage、indexing、download、immutable-version ruleを実装する。** — 5 pt
 - [ ] **P0 — Authenticated publish／yank／owner operationとaudit trailを実装する。** — 5 pt
 - [ ] **P0 — Signed release manifestとpackage provenanceを実装する。** — 8 pt

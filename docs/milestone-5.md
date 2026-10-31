@@ -6,9 +6,13 @@
 
 Activated 2026-10-30 JST from `3b676c5`. This board tracks the entire M5 scope in [the roadmap](roadmap.md#milestone-5-ecosystem-and-compatibility), including both P1 gates. M4's installer and local packages are prerequisites, not registry completion.
 
-**8 done · 1 doing · 31 todo · 93 remaining pt**
+**9 done · 1 doing · 30 todo · 90 remaining pt**
 
-**Next: M5-C02 — accept registry protocol, limits, recovery and security acceptance cases before uploads (3 pt).**
+**Next: M5-D01 — admit bounded untrusted archives and reject traversal, duplicate and bomb inputs (3 pt).**
+
+C02/G3 completed, verified 2026-10-31 11:27 JST: [RFC 0046](rfcs/0046-registry-protocol-and-recovery.md) at `53376e5` accepts the strict source archive, exact-origin wire profile, scoped mutation checks, immutable state/audit commit and bounded recovery. P01–P08 map all sixteen RFC 0045 threats. The [local archive experiment](evidence/2026-10-31-m5-registry-archive-profile.json) lists and recovers exact source bytes through an independent reader; it is format feasibility, not a hostile decoder or both-host implementation. Fresh repository consistency passed 7/7. Retire C02's last 3 pt without additions; G3 is a completed design gate, while G4–G10 remain open. [PR #32](https://github.com/carimatics/lang/pull/32) publication still requires final-head CI and merge.
+
+D01 starting checkpoint, 2026-10-31 11:27 JST: no registry decoder is implemented yet. The last executable reference is the C02 canonical archive experiment above. Remaining acceptance: bounded byte-only canonical admission, exact record/hash/UTF-8 validation, hostile header/path/duplicate/resource refusals, meaningful boundary/corpus tests and applicable local/CI validation. Keep D01 at 3 pt and the only doing row; the registry contract branch will complete publication before implementation starts.
 
 C01 completed, 2026-10-31 JST: [RFC 0045](rfcs/0045-registry-threat-model.md) at `94a5200` is accepted under experimental delegation. Sixteen threats bind origin/namespace, scoped credentials, hostile archives, immutable transactions, replay/key compromise, audit, execution and hosting to observable acceptance obligations. Fresh repository consistency passed 7/7; paired threat IDs and source URLs match. Retire the last 3 pt with no additions. C02 is the only doing row at 3 pt; G3 remains open until its protocol/recovery decision is accepted. No upload implementation has begun.
 
@@ -48,7 +52,7 @@ B05 budget audit, 2026-10-31 JST: account for all three independent task-syntax 
 | --- | --- | --- |
 | G1 | Editions, deprecation policy, compatibility matrix | done |
 | G2 | Edition migration and machine-applicable fixes | done |
-| G3 | Registry threat model accepted before uploads | open |
+| G3 | Registry threat model accepted before uploads | done |
 | G4 | Storage, indexing, download, immutable versions | open |
 | G5 | Authenticated publish/yank/owners and audit | open |
 | G6 | Signed release manifests and package provenance | open |
@@ -57,7 +61,7 @@ B05 budget audit, 2026-10-31 JST: account for all three independent task-syntax 
 | G9 | Documentation hosting and metadata search (P1) | open |
 | G10 | Published LLVM release-backend evaluation (P1) | open |
 
-Gate completion: **2/10; 13/65 historical gate weight**. Delivery points below are remaining work estimates, not elapsed time or the roadmap's gate weights.
+Gate completion: **3/10; 21/65 historical gate weight**. Delivery points below are remaining work estimates, not elapsed time or the roadmap's gate weights.
 
 ## Deliveries
 
@@ -71,8 +75,8 @@ Gate completion: **2/10; 13/65 historical gate weight**. Delivery points below a
 | M5-B05 | done | 0 | M5-B01 | G2 | Admit historical scalar syntax, prove fresh renames and preview the real old-source fixture | `7f41dd0` |
 | M5-B04 | done | 0 | M5-B03,M5-B05 | G2 | Edition migration CLI and both-host before/after execution journey | `62e742c` |
 | M5-C01 | done | 0 | M5-A01 | G3 | Threat model: identities, namespace, authority, abuse and adversaries | `94a5200` |
-| M5-C02 | doing | 3 | M5-C01 | G3 | Accept protocol, limits, recovery and security acceptance cases before upload | — |
-| M5-D01 | todo | 3 | M5-C02 | G4 | Admit bounded untrusted archives and reject traversal/duplicate/bomb inputs | — |
+| M5-C02 | done | 0 | M5-C01 | G3 | Accept protocol, limits, recovery and security acceptance cases before upload | `53376e5` |
+| M5-D01 | doing | 3 | M5-C02 | G4 | Admit bounded untrusted archives and reject traversal/duplicate/bomb inputs | — |
 | M5-D02 | todo | 3 | M5-D01 | G4 | Content-addressed storage and immutable version publication transaction | — |
 | M5-D03 | todo | 3 | M5-D02 | G4 | Versioned index and verified download with exact identity/checksums | — |
 | M5-D04 | todo | 3 | M5-D03 | G4 | Resolve a registry dependency and execute it on both hosts | — |
@@ -106,11 +110,11 @@ Gate completion: **2/10; 13/65 historical gate weight**. Delivery points below a
 
 ## Estimate reconciliation
 
-**112 + 1 − 20 = 93 pt**
+**112 + 1 − 23 = 90 pt**
 
 | Baseline remaining | Net additions/re-estimates | Retired at completion | Remaining |
 | ---: | ---: | ---: | ---: |
-| 112 pt | +1 pt | −20 pt | 93 pt |
+| 112 pt | +1 pt | −23 pt | 90 pt |
 
 ## Delivery notes and roadmap audit
 

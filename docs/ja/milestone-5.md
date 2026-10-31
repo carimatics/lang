@@ -6,9 +6,13 @@
 
 2026-10-30 JST、`3b676c5`から開始。[ロードマップ](roadmap.md#milestone-5ecosystemとcompatibility)のM5全範囲（P1の2ゲートを含む）を追跡する。M4のinstallerとlocal packageは前提条件であり、registry完了を意味しない。
 
-**8 done · 1 doing · 31 todo · 93 remaining pt**
+**9 done · 1 doing · 30 todo · 90 remaining pt**
 
-**次: M5-C02 — upload前にregistry protocol・上限・復旧・security受入ケースを採択する（3 pt）。**
+**次: M5-D01 — 上限付き未信頼archiveを受入れ、traversal・重複・bomb入力を拒否する（3 pt）。**
+
+C02・G3完了（2026-10-31 11:27 JST確認）: `53376e5`の[RFC 0046](rfcs/0046-registry-protocol-and-recovery.md)で厳密source archive・厳密origin wire profile・scope付き変更check・不変state／audit commit・有限復旧を採択。P01–P08がRFC 0045の16脅威すべてに対応する。[Local archive実験](../evidence/2026-10-31-m5-registry-archive-profile.json)は独立readerで列挙・厳密source復元に成功したが、形式実現性のみで敵対decoderや両host実装の証拠ではない。新しいrepository consistencyは7/7成功。追加なしでC02の最終3 ptを退役し、G3は設計ゲートとして完了、G4–G10はopen。[PR #32](https://github.com/carimatics/lang/pull/32)公開には最終head CIとmergeを残す。
+
+D01開始checkpoint（2026-10-31 11:27 JST）: Registry decoderは未実装。直近の実行可能な参照は上記C02 canonical archive実験。残る受入条件は、有限byte-only canonical受入、厳密record／hash／UTF-8検証、敵対header／path／重複／資源拒否、意味のある境界／corpus test、該当local／CI検証。D01を3 ptかつ唯一のdoingとし、実装前にregistry契約branchの公開を完了する。
 
 C01完了（2026-10-31 JST）: `94a5200`の[RFC 0045](rfcs/0045-registry-threat-model.md)を実験段階委任により採択。16の脅威でorigin／namespace・scope付きcredential・敵対archive・不変transaction・replay／key侵害・audit・実行・hostingを観測可能な受入義務へ結び付けた。新しいrepository consistencyは7/7成功、日英の脅威ID・出典URLも一致。追加なしで最終3 ptを退役する。C02だけをdoing（3 pt）とし、protocol／復旧判断の採択までG3はopen。Upload実装は未着手。
 
@@ -48,7 +52,7 @@ B05 budget監査（2026-10-31 JST）: 再利用するscalar検査内部の独立
 | --- | --- | --- |
 | G1 | edition・非推奨方針・互換性表 | done |
 | G2 | edition移行と機械適用可能な修正 | done |
-| G3 | upload前のregistry脅威モデル採択 | open |
+| G3 | upload前のregistry脅威モデル採択 | done |
 | G4 | storage・index・download・immutable version | open |
 | G5 | 認証publish・yank・owner操作とaudit | open |
 | G6 | 署名release manifestとpackage provenance | open |
@@ -57,7 +61,7 @@ B05 budget監査（2026-10-31 JST）: 再利用するscalar検査内部の独立
 | G9 | 文書hostingとmetadata検索（P1） | open |
 | G10 | 公開LLVM release backend評価（P1） | open |
 
-ゲート完了: **2/10; 13/65 historical gate weight**。以下は残作業見積りであり、実時間やロードマップのゲート重みではない。
+ゲート完了: **3/10; 21/65 historical gate weight**。以下は残作業見積りであり、実時間やロードマップのゲート重みではない。
 
 ## Deliveries
 
@@ -71,8 +75,8 @@ B05 budget監査（2026-10-31 JST）: 再利用するscalar検査内部の独立
 | M5-B05 | done | 0 | M5-B01 | G2 | 旧scalar構文を受入れfresh renameを証明し実在する旧sourceをpreview | `7f41dd0` |
 | M5-B04 | done | 0 | M5-B03,M5-B05 | G2 | edition移行CLIと両hostの移行前後実行journey | `62e742c` |
 | M5-C01 | done | 0 | M5-A01 | G3 | identity・namespace・authority・濫用・攻撃者の脅威モデル | `94a5200` |
-| M5-C02 | doing | 3 | M5-C01 | G3 | upload前にprotocol・上限・復旧・security受入ケースを採択 | — |
-| M5-D01 | todo | 3 | M5-C02 | G4 | 上限付き未信頼archiveの受入とtraversal・重複・bomb拒否 | — |
+| M5-C02 | done | 0 | M5-C01 | G3 | upload前にprotocol・上限・復旧・security受入ケースを採択 | `53376e5` |
+| M5-D01 | doing | 3 | M5-C02 | G4 | 上限付き未信頼archiveの受入とtraversal・重複・bomb拒否 | — |
 | M5-D02 | todo | 3 | M5-D01 | G4 | 内容address方式のstorageとimmutable version公開transaction | — |
 | M5-D03 | todo | 3 | M5-D02 | G4 | versioned indexとidentity・checksumを検証したdownload | — |
 | M5-D04 | todo | 3 | M5-D03 | G4 | registry依存を解決して両hostで実行 | — |
@@ -106,11 +110,11 @@ B05 budget監査（2026-10-31 JST）: 再利用するscalar検査内部の独立
 
 ## 見積り照合
 
-**112 + 1 − 20 = 93 pt**
+**112 + 1 − 23 = 90 pt**
 
 | 基準残作業 | 純追加・再見積り | 完了時に除去 | 残作業 |
 | ---: | ---: | ---: | ---: |
-| 112 pt | +1 pt | −20 pt | 93 pt |
+| 112 pt | +1 pt | −23 pt | 90 pt |
 
 ## Delivery noteとロードマップ監査
 

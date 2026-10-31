@@ -16,7 +16,7 @@
 
 Define identities, authorities, adversaries and security acceptance obligations before the registry accepts uploads. A package release is identified by its explicit registry, package name, exact version and immutable content digest. Downloading, authenticating or owning that release never grants permission to execute it or use host capabilities.
 
-This is the C01 threat-model decision. C02 must separately accept concrete protocol formats, resource limits, recovery rules and mapped refusal cases before upload implementation. G3 remains open until both decisions exist; G4–G6 and G9 still require working storage, authenticated operations, signed consumption and hosting/search.
+This is the C01 threat-model decision. C02's [RFC 0046](0046-registry-protocol-and-recovery.md) separately accepts concrete protocol formats, resource limits, recovery rules and mapped refusal cases before upload implementation (2026-10-31 JST). Both decisions complete the G3 design gate; G4–G6 and G9 still require working storage, authenticated operations, signed consumption and hosting/search.
 
 ## Motivation
 
