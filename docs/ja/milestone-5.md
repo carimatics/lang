@@ -6,9 +6,19 @@
 
 2026-10-30 JST、`3b676c5`から開始。[ロードマップ](roadmap.md#milestone-5ecosystemとcompatibility)のM5全範囲（P1の2ゲートを含む）を追跡する。M4のinstallerとlocal packageは前提条件であり、registry完了を意味しない。
 
-**14 done · 1 doing · 25 todo · 73 remaining pt**
+**15 done · 1 doing · 25 todo · 73 remaining pt**
 
-**次: M5-D05 — 厳密offline cache実行の検証と公開（1 pt）。**
+**次: M5-E02 — 認証host yank/unyankの検証と公開（1 pt）。**
+
+E02実行checkpoint・残scope監査（2026-10-31 18:16 JST）: canonical host yank/unyankが厳密archiveを保持し、完全な監査済みflag遷移をcommitする。Publish → yank → reopen → 別version公開 → unyankでVM/nativeが42を実行し、元publish/actionのretryは状態を再適用せず元receiptを返す。Store 30 caseが成功し、実action process中断36境界（旧34・新2）、publish/yank writerの両順序、最終時刻拒否、明示保持HEADによる照合、nonowner/失効/誤scope credential、履歴偽造9 caseを検証した。完全にhashを再計算したno-op履歴も拒否し、厳密2 MiB index上限で+1 byteとなるunyankは書込み前に拒否する。独立action/request hash、512入力変異、fmt、厳密workspace Clippy、locked fuzz Clippyが成功。E05のHTTP統合は別deliveryに維持する。E02の残受入条件は固定全検証、最新headの両host CI、公開であり、3 → 1 ptへ再見積り（純−2）、累積純−4、退役35を維持して112 − 4 − 35 = 残73 pt。新規delivery追加・完了なし。E02だけをdoingとし、以前の3 pt checkpointは履歴とする。この実装を固定して全検証へ進む。
+
+D05完了・G4監査（2026-10-31 18:03 JST確認）: 固定`43dea74`でfmt、厳密Clippy、全2,645 test / 182 suite、rustdocが成功し、source/head不変を確認した。CI `41185690356`の対象18 job（文書専用はfull-change分類により意図的skip）とnative-debug `41185690326`の3 hostが成功。Windows core-1 `124492064305`の実ログで対象cache全15 case、macOS core `124492064188`/`124492064255`でUnix専用を含む16 case、locked fuzz Clippyの成功を確認した。[PR #38](https://github.com/carimatics/lang/pull/38)は`b0d4d76`としてmergeし、元mainはclean・origin/mainと0/0同期・検証済みheadと同一treeである。D05の最終1 ptを退役し、112 − 2 − 35 = 残75 pt。D01–D05でarchive受理、不変store/index/download、両host registry graph実行、中断/競合offline replayの証拠が揃い、G4を完了とする。G5–G10と両P1はopenを維持し、署名付き本番消費はF01–F04に残る。
+
+E02選択（2026-10-31 18:03 JST）: [RFC 0051](rfcs/0051-registry-yank-transactions.md)を`0140d1e`でacceptedとし、`f318749`でE05のscopeを分離した。最終実行checkpointは17:48 JSTの純粋22-case遷移/独立encoding probeであり、実yank transactionではない。残るhost action/受理、可変flagと不変archiveのbinding分離、完全audit/履歴遷移、最新bearer/replay、VM/native/process/競合fixture、全検証・両host公開を3 ptと監査する。E02だけをdoingとし、PR #39はD05 merge後にmainへretargetした。E05は別途3 ptで追跡する。Service統合前にhost yank/unyankを通じた未変更archiveの実行へ到達する。
+
+E02/service scope監査（2026-10-31 17:57 JST）: 現HTTP serviceは1個の不変`CapturedReads`世代を所有し、認証mutation dispatch・更新世代公開・要求時store作業memory計上を持たない。E02はcanonical action、閉じたaudit/履歴遷移、現在owner/競合制約、厳密retry、process中断recovery、未変更archiveのVM/native実行という具体host結果に3 ptを維持する。別の観測可能結果である認証HTTPS publish/action/owner journey、処理中要求/store作業memory上限、read世代更新をM5-E05・3 ptとして明示する。E05はE02/E03に依存し、E04の完全な権限外操作/recovery journeyの前提となる。実装前に1 delivery・+3 ptを追加し、累積純追加・再見積りを−5 → −2、退役見積りを34に維持する。41 deliveryで112 − 2 − 34 = 残76 pt。新規完了はなく、D05だけをdoing・1 ptに維持する。以下17:39/17:48の件数は履歴とし、gateや受入条件を削除しない。
+
+E02設計準備（2026-10-31 17:48 JST確認）: [RFC 0051](rfcs/0051-registry-yank-transactions.md)で閉じたyank/unyank action、audit/result variant、未変更archive identity、最新認可による元結果replayをacceptedとした。純粋な遷移modelの22 caseが成功し、JavaScript/Pythonの独立encodingで173-byte actionとrequest digestが一致した。Policy/format証拠であり、実transactionやHTTP mutationの証明ではない。`codex/m5-registry-mutations`はD05固定`43dea74`から作成し、PR #38 mergeまで`codex/m5-registry-offline-cache`をorigin上のPR baseとして記録する。D05だけをdoing・1 ptに維持し、E02は選択時監査までtodo・3 ptとする。Delivery・point・gate完了の変更なし。D05固定全baselineと最新head CIは実行中で、source/headは不変である。
 
 D05実行checkpoint・残scope監査（2026-10-31 17:39 JST）: private cacheが完全な有界inventoryを受理し、厳密archiveとschema-3世代のinstall後にroot lockを置換し、trust constructorなしで不変offline byteをcaptureする。実HTTPS → 公開 → service停止 → reopenでVM/nativeが42/84を実行した。初期化12・公開20のprocess中断で拒否または完全な旧/新stateを保持し、結果不明は同じidentityで照合、2競合processは両variant順で1個の不変versionだけを保持する。敵対的inventory、read-onlyとcleanup権限の分離、alias、元byte、root policy、source/target変更、物理/派生index/raw-byteの厳密上限を検証した。集中実行でpackage unit 37 caseとcommand/format/lock/workspace回帰53 testが成功。残受入条件は固定全baseline、最新headの両host CI、公開であり、D05を3 → 1 ptへ再見積り（純−2）する。累積純追加・再見積りは−5 pt、完了時退役は34を維持し、112 − 5 − 34 = 残73 pt。新規done・delivery追加なし。D05を唯一のdoing、G4をopenに維持し、以下の旧3 pt noteは履歴とする。次の実装前にcodeを固定して検証する。
 
@@ -134,7 +144,7 @@ B05 budget監査（2026-10-31 JST）: 再利用するscalar検査内部の独立
 | G1 | edition・非推奨方針・互換性表 | done |
 | G2 | edition移行と機械適用可能な修正 | done |
 | G3 | upload前のregistry脅威モデル採択 | done |
-| G4 | storage・index・download・immutable version | open |
+| G4 | storage・index・download・immutable version | done |
 | G5 | 認証publish・yank・owner操作とaudit | open |
 | G6 | 署名release manifestとpackage provenance | open |
 | G7 | portable WebAssembly component plugin target | open |
@@ -161,11 +171,12 @@ B05 budget監査（2026-10-31 JST）: 再利用するscalar検査内部の独立
 | M5-D02 | done | 0 | M5-D01,M5-E01 | G4 | 内容address方式のstorageとimmutable version公開transaction | `e76dd7b` |
 | M5-D03 | done | 0 | M5-D02 | G4 | versioned indexとidentity・checksumを検証したdownload | `f58659c` |
 | M5-D04 | done | 0 | M5-D03 | G4 | registry依存を解決して両hostで実行 | `a289641` |
-| M5-D05 | doing | 1 | M5-D04 | G4 | lock・offline replay・公開中断・並行immutable検証 | — |
+| M5-D05 | done | 0 | M5-D04 | G4 | lock・offline replay・公開中断・並行immutable検証 | `43dea74` |
 | M5-E01 | done | 0 | M5-C02 | G5 | 認証identity・credential取扱い・scope付き認可 | `56f9f84` |
-| M5-E02 | todo | 3 | M5-E01,M5-D02 | G5 | owner・競合制約付きpublish・yank・unyank | — |
+| M5-E02 | doing | 1 | M5-E01,M5-D02 | G5 | owner・競合制約付きhost publish・yank・unyank transaction | — |
 | M5-E03 | todo | 3 | M5-E02 | G5 | owner追加・削除・移管と最後のowner・credential失効fixture | — |
-| M5-E04 | todo | 3 | M5-E03 | G5 | 永続audit trail・復旧・権限外操作のend-to-end検証 | — |
+| M5-E04 | todo | 3 | M5-E03,M5-E05 | G5 | 永続audit trail・復旧・権限外操作のend-to-end検証 | — |
+| M5-E05 | todo | 3 | M5-E02,M5-E03 | G5 | 認証HTTPS mutation・要求作業memory上限・read世代更新 | — |
 | M5-F01 | todo | 3 | M5-C02 | G6 | package信頼root・provenance・署名・freshness契約を採択 | — |
 | M5-F02 | todo | 3 | M5-F01,M5-D02 | G6 | 署名package release manifestと検証可能provenanceを生成 | — |
 | M5-F03 | todo | 3 | M5-F02,M5-D03 | G6 | 消費前に信頼・artifact結合・期限・replayを検証 | — |
@@ -191,11 +202,11 @@ B05 budget監査（2026-10-31 JST）: 再利用するscalar検査内部の独立
 
 ## 見積り照合
 
-**112 − 5 − 34 = 73 pt**
+**112 − 4 − 35 = 73 pt**
 
 | 基準残作業 | 純追加・再見積り | 完了時に除去 | 残作業 |
 | ---: | ---: | ---: | ---: |
-| 112 pt | −5 pt | −34 pt | 73 pt |
+| 112 pt | −4 pt | −35 pt | 73 pt |
 
 ## Delivery noteとロードマップ監査
 

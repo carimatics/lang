@@ -1,6 +1,7 @@
 //! RFC 0048's private host registry. A held exclusive lock serializes all writes.
 //! No bearer, saved actor, receipt or archive grants ambient filesystem access.
 
+mod actions;
 mod history;
 mod index;
 mod reads;
@@ -17,6 +18,7 @@ use serde::Serialize;
 use sha2::{Digest, Sha256};
 use std::fmt::{Display, Formatter};
 
+pub use actions::{YankAction, YankActionKind};
 pub use index::{Index, IndexedRelease};
 pub(crate) use reads::CapturedReads;
 pub use reads::MAX_INDEX_BYTES;
@@ -140,6 +142,7 @@ impl Receipt {
         match &self.result {
             records::AuditResult::Initialize(r) => r.state_revision,
             records::AuditResult::Publish(r) => r.state_revision,
+            records::AuditResult::Yank(r) => r.state_revision,
         }
     }
     pub fn as_bytes(&self) -> Result<Vec<u8>, Error> {

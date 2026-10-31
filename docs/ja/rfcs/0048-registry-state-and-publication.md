@@ -65,6 +65,8 @@ Audit recordは最大2 KiBで、順序付きフィールドは`format: "lang-reg
 
 初期化のsequenceは1、previous/prior hashとcredential/request fieldはnull、principalは管理者が選ぶ有効な登録ID。初期authorityに取得済みpackageはない。公開ではprevious/prior hash・credential ID・request ID・request digestをnon-nullとし、principal/credentialは最新E01認証から得る。Resultのstate revisionはsequenceと一致。D02のreasonは固定`initialize`または`publish`で、任意caller textを受け取らない。後続E02–E04 operation variantは実装前の明示RFC具体化を要し、旧readerは未知variantを推測せず拒否する。D02のreceiptは`{schema:1, audit_sha256, result}`で、package署名を主張せず、生成state hashへの循環参照を含まない。
 
+E02具体化、2026-10-31 JST accepted: [RFC 0051](0051-registry-yank-transactions.md)で閉じたyank/unyank action、audit/result variant、完全なflag遷移再構成を定める。厳密archive byte、最新authority、元結果replay、既存single HEADを維持し、旧readerは追加operation variantを拒否する。E03/E04 variantは実装前に別途明示具体化を要する。
+
 ### History validation and reachability
 
 State → last audit → prior stateで有限の後方chainを構成する。各state/auditを厳密digestとcanonical形式で読み、identity・revision・package/authority record・非減少時刻の整合性を確認する。State time floorはそのevent時刻と一致。初期化以外のeventは前stateのlast auditを参照し、後方走査のsequenceは厳密に1ずつ減る。Revision 1が一意の初期化終端。欠落・重複・不整合linkを拒否する。Commit storeを信頼する前に、到達可能な全releaseを厳密source archiveと照合する。

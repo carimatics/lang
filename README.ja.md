@@ -110,7 +110,8 @@ source構文・native language ABI・private SDK/package formatは実験段階�
 - [RFC 0047: レジストリ権限レコードと最新状態での認可（implemented）](docs/ja/rfcs/0047-registry-authority-records.md)
 - [RFC 0048: レジストリ世代と不変公開（implemented）](docs/ja/rfcs/0048-registry-state-and-publication.md)
 - [RFC 0049: 固定package graphへのregistry依存統合（accepted）](docs/ja/rfcs/0049-registry-package-integration.md)
-- [RFC 0050: Registry cache世代とoffline replay（accepted）](docs/ja/rfcs/0050-registry-cache-and-offline-replay.md)
+- [RFC 0050: Registry cache世代とoffline replay（implemented）](docs/ja/rfcs/0050-registry-cache-and-offline-replay.md)
+- [RFC 0051: 認証されたyank・unyank transaction（accepted）](docs/ja/rfcs/0051-registry-yank-transactions.md)
 - [コントリビューションガイド](CONTRIBUTING.ja.md)
 
 `cargo run -- toolchain verify --trust-root root.json --metadata channel.json --channel stable --message-format json` は現在のhost向けの上限付き署名metadataを検証し、JSON概要を出力します。rootは別経路で信頼を確認してください。この読取専用検査は新規trust contextを使い、既存installのrollback floorを参照せず、payloadの読取やinstallも行いません。[RFC 0042](docs/ja/rfcs/0042-signed-toolchain-installation.md)を参照してください。

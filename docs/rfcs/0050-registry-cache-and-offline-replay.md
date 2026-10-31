@@ -4,7 +4,7 @@
 
 [日本語版](../ja/rfcs/0050-registry-cache-and-offline-replay.md)
 
-- Status: accepted
+- Status: implemented
 - Authors: project contributors
 - Created: 2026-10-31
 - Last updated: 2026-10-31
@@ -112,7 +112,7 @@ Within existing D05: implement profile admission/capability storage and exact ge
 
 ## Test plan
 
-Local implementation checkpoint, 2026-10-31 JST: the host `Cache`/`Captured` path passes real HTTPS-to-offline VM/native execution, twelve initialization cuts, twenty publication cuts (eighteen old roots/two complete new roots), same-identity unknown-outcome reconciliation and competing processes in both variant orders. Hostile inventory refusal precedes cleanup; read-only capture preserves staging and exact reused bytes/policies. These isolated unsigned fixtures do not establish authenticated production consumption. The frozen full baseline and latest-head both-host CI/publication remain required before delivery completion.
+Implemented checkpoint, 2026-10-31 JST: host `Cache`/`Captured` at `43dea74` passes real HTTPS-to-offline VM/native execution, twelve initialization cuts, twenty publication cuts (eighteen old roots/two complete new roots), same-identity unknown-outcome reconciliation and competing processes in both variant orders. Hostile inventory refusal precedes cleanup; read-only capture preserves staging and exact bytes/policies. The frozen full baseline (2,645 tests / 182 suites, fmt, strict Clippy and rustdoc), all 18 applicable CI `41185690356` jobs and all three native-debug `41185690326` hosts pass. PR #38 merged as `b0d4d76`; main synchronization and equality to the tested tree were verified. These isolated unsigned fixtures establish neither authenticated production consumption nor performance claims.
 
 Check the independent marker/generation digests, malformed/unknown/missing entries, canonical bytes, source/hash/identity mismatches, same bytes under distinct policies, conflicting immutable versions and exact quota boundaries. Stop the real service before reopening the cache and executing 42/84 on VM/native; prove no network/credential path is called. Remove/corrupt cache bytes, alter local inputs or roots/target/compiler and require refusal without changing prior output. Exercise every create/partial-write/sync/install/root-replace process boundary, exact retry, unknown outcome and competing processes on both hosts. Verify corruption before cleanup, alias refusals and frozen execution after cache removal. Run the full compiler baseline and latest-head CI; unsigned fixtures do not establish G6 trust.
 

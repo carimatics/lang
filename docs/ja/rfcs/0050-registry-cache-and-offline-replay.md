@@ -4,7 +4,7 @@
 
 [English](../../rfcs/0050-registry-cache-and-offline-replay.md)
 
-- Status: accepted
+- Status: implemented
 - Authors: project contributors
 - Created: 2026-10-31
 - Last updated: 2026-10-31
@@ -112,7 +112,7 @@ Cache byteを敵対的入力として扱う。Digest名と閉じたcanonical rec
 
 ## Test plan
 
-Local実装checkpoint（2026-10-31 JST）: hostの`Cache`/`Captured`経路で実HTTPS-to-offline VM/native実行、初期化12境界、公開20境界（旧root 18・完全新root 2）、同じidentityでの結果不明照合、両variant順の競合processが成功した。敵対的inventoryはcleanup前に拒否し、read-only captureはstagingと厳密な再利用byte/policyを保持する。隔離された未署名fixtureで本番認証済み消費の完了を主張しない。Delivery完了には固定全baselineと最新headの両host CI/公開をなお必要とする。
+実装checkpoint（2026-10-31 JST）: `43dea74`のhost `Cache`/`Captured`経路は実HTTPS-to-offline VM/native実行、初期化12境界、公開20境界（旧root 18・完全新root 2）、同一identityの結果不明照合、両variant順の競合processに成功した。敵対的inventoryはcleanup前に拒否し、read-only captureはstagingと厳密byte/policyを保持する。固定全baseline（2,645 test / 182 suite、fmt・厳密Clippy・rustdoc）、CI `41185690356`の対象18 job、native-debug `41185690326`の3 hostが成功。PR #38は`b0d4d76`にmergeされ、main同期と検証済みtree一致を確認した。隔離された未署名fixtureで本番認証済み消費や性能は主張しない。
 
 独立marker/世代digest、不正/未知/欠落entry、canonical byte、source/hash/identity不一致、別policyの同一byte、不変version競合、厳密quota境界を検証する。実serviceを停止してからcacheを再openしVM/nativeで42/84を実行し、network/credential経路が呼ばれないことを示す。Cache byte欠落/破損やlocal入力・root/target/compiler変更は旧出力を変えず拒否する。Create/partial-write/sync/install/root-replaceの各process境界、厳密retry、結果不明、競合processを両hostで実行する。Cleanup前の破損検証、alias拒否、cache除去後の固定実行を確認する。全compiler baselineと最新head CIを行い、未署名fixtureでG6 trust完了を主張しない。
 

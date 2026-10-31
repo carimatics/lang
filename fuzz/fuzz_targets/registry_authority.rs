@@ -1,6 +1,7 @@
 #![no_main]
 
 use lang::registry::authority::{Authority, Bearer, Operation, ServiceIdentity};
+use lang::registry::store::YankAction;
 use libfuzzer_sys::fuzz_target;
 
 fuzz_target!(|bytes: &[u8]| {
@@ -13,5 +14,9 @@ fuzz_target!(|bytes: &[u8]| {
     }
     if let Err(error) = Bearer::from_input(bytes) {
         assert!(error.to_string().len() < 128);
+    }
+    match YankAction::admit("parser", bytes) {
+        Ok(action) => assert_eq!(action.as_bytes(), bytes),
+        Err(error) => assert!(error.to_string().len() < 128),
     }
 });
