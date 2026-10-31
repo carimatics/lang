@@ -6,9 +6,11 @@
 
 Activated 2026-10-30 JST from `3b676c5`. This board tracks the entire M5 scope in [the roadmap](roadmap.md#milestone-5-ecosystem-and-compatibility), including both P1 gates. M4's installer and local packages are prerequisites, not registry completion.
 
-**6 done · 1 doing · 33 todo · 98 remaining pt**
+**6 done · 1 doing · 33 todo · 97 remaining pt**
 
-**Next: M5-B04 — validate historical-producer/current-VM/native migration journeys on both hosts.**
+**Next: M5-B04 — complete the frozen full baseline and latest-head publication checks.**
+
+B04 acceptance audit, verified 2026-10-31 10:34 JST: [retained evidence](evidence/2026-10-31-m5-source-migration.json) proves six fixtures on each of macOS 15/26 and Windows 2025, including five actual historical-source transitions, current VM and linked native execution, exact edit application and repeat no-op. CLI/publication/refusal requirements are implemented; the remaining work is the complete local baseline, latest-head CI and PR publication. Re-estimate 2 → 1 pt without dropping those checks. B04 remains doing and G2 remains open; the frozen `2f905c7` test process is live, with fmt and strict Clippy passed.
 
 B04 resumed checkpoint, verified 2026-10-31 10:26 JST: CI `41154299004` at `62e742c` passed all three SDK producer migration journeys and isolated SDK installation jobs, including Windows; the remaining CI jobs are still running. The local `5480e14` baseline has no terminal result: session 60960 and its driver/Cargo/test processes are absent, and its log stopped at 10:17 JST. Preserve that interrupted attempt under `/private/tmp/lang-m5-fixes-target/m5-b04-validation-5480e14-interrupted/`; do not count its partial 645 passing tests as a complete baseline. Fast-forwarded the work branch through `2f2e2b9` and will run the full baseline on the newly frozen checkpoint. B04 stays doing at 2 pt until complete local validation and latest-head CI succeed.
 
@@ -61,7 +63,7 @@ Gate completion: **1/10; 5/65 historical gate weight**. Delivery points below ar
 | M5-B02 | done | 0 | M5-B01 | G2 | Preview real source fixes with original spans and semantic recheck | `2a3aca1` |
 | M5-B03 | done | 0 | M5-B02 | G2 | Apply checked fixes through CLI; stale/conflicting/partial-write refusal fixtures | `01b425e` |
 | M5-B05 | done | 0 | M5-B01 | G2 | Admit historical scalar syntax, prove fresh renames and preview the real old-source fixture | `7f41dd0` |
-| M5-B04 | doing | 2 | M5-B03,M5-B05 | G2 | Edition migration CLI and both-host before/after execution journey | — |
+| M5-B04 | doing | 1 | M5-B03,M5-B05 | G2 | Edition migration CLI and both-host before/after execution journey | — |
 | M5-C01 | todo | 3 | M5-A01 | G3 | Threat model: identities, namespace, authority, abuse and adversaries | — |
 | M5-C02 | todo | 3 | M5-C01 | G3 | Accept protocol, limits, recovery and security acceptance cases before upload | — |
 | M5-D01 | todo | 3 | M5-C02 | G4 | Admit bounded untrusted archives and reject traversal/duplicate/bomb inputs | — |
@@ -98,13 +100,15 @@ Gate completion: **1/10; 5/65 historical gate weight**. Delivery points below ar
 
 ## Estimate reconciliation
 
-**112 + 2 − 16 = 98 pt**
+**112 + 1 − 16 = 97 pt**
 
 | Baseline remaining | Net additions/re-estimates | Retired at completion | Remaining |
 | ---: | ---: | ---: | ---: |
-| 112 pt | +2 pt | −16 pt | 98 pt |
+| 112 pt | +1 pt | −16 pt | 97 pt |
 
 ## Delivery notes and roadmap audits
+
+- B04 acceptance audit/re-estimate, 2026-10-31 10:34 JST: the actual historical/current VM/linked-native journey now passes on both hosts, with independently inspected report and source hashes. Remaining final validation and publication are 1 pt, reduced from 2; net additions/re-estimates become +3 − 1 − 1 = +1 pt. Retired estimates stay 16 pt because B04 is not done. No delivery, gate or acceptance condition is removed.
 
 - B04 checkpoint/re-estimate, 2026-10-31 JST: the CLI and private single-source publication adapter now execute the migrated fixture. Remaining work is the both-host historical/current VM/native journey and final validation; reduce 3 → 2 pt without removing any acceptance condition. Net additions/re-estimates become +3 − 1 = +2 pt; retired estimates stay 16 pt because B04 remains doing. No new delivery is added.
 

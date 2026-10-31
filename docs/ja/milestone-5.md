@@ -6,9 +6,11 @@
 
 2026-10-30 JST、`3b676c5`から開始。[ロードマップ](roadmap.md#milestone-5ecosystemとcompatibility)のM5全範囲（P1の2ゲートを含む）を追跡する。M4のinstallerとlocal packageは前提条件であり、registry完了を意味しない。
 
-**6 done · 1 doing · 33 todo · 98 remaining pt**
+**6 done · 1 doing · 33 todo · 97 remaining pt**
 
-**次: M5-B04 — 旧producer・現VM・nativeの移行journeyを両hostで検証する。**
+**次: M5-B04 — 固定sourceの全baselineと最新headの公開checkを完了する。**
+
+B04受入監査（2026-10-31 10:34 JST確認）: [保持した証拠](../evidence/2026-10-31-m5-source-migration.json)はmacOS 15/26・Windows 2025の各6 fixtureについて、実旧source遷移5件、現VM・link済みnative実行、厳密な編集適用、再実行no-opを示す。CLI・公開・拒否要件は実装済みで、残作業はlocal全baseline・最新head CI・PR公開。これらのcheckを省かず2 → 1 ptへ再見積りする。B04はdoing、G2はopenを維持し、固定`2f905c7`のtest processは稼働中、fmt・厳密Clippyは成功している。
 
 B04再開checkpoint（2026-10-31 10:26 JST確認）: `62e742c`のCI `41154299004`はWindowsを含む3 hostのSDK producer移行journeyと隔離SDK install jobに成功し、残りのCI jobは実行中。local `5480e14` baselineに終了結果はなく、session 60960とdriver・Cargo・test processは消失し、logは10:17 JSTで停止している。中断試行は`/private/tmp/lang-m5-fixes-target/m5-b04-validation-5480e14-interrupted/`に保持し、途中の645 test成功を全baseline成功に数えない。作業branchを`2f2e2b9`までfast-forwardし、新たに固定するcheckpointで全baselineを実行する。local全検証と最新head CIが成功するまでB04はdoing・2 ptを維持する。
 
@@ -61,7 +63,7 @@ B05 budget監査（2026-10-31 JST）: 再利用するscalar検査内部の独立
 | M5-B02 | done | 0 | M5-B01 | G2 | 元spanを保持した実ソース修正previewと意味再検査 | `2a3aca1` |
 | M5-B03 | done | 0 | M5-B02 | G2 | CLI修正適用とstale・競合・部分書込み拒否fixture | `01b425e` |
 | M5-B05 | done | 0 | M5-B01 | G2 | 旧scalar構文を受入れfresh renameを証明し実在する旧sourceをpreview | `7f41dd0` |
-| M5-B04 | doing | 2 | M5-B03,M5-B05 | G2 | edition移行CLIと両hostの移行前後実行journey | — |
+| M5-B04 | doing | 1 | M5-B03,M5-B05 | G2 | edition移行CLIと両hostの移行前後実行journey | — |
 | M5-C01 | todo | 3 | M5-A01 | G3 | identity・namespace・authority・濫用・攻撃者の脅威モデル | — |
 | M5-C02 | todo | 3 | M5-C01 | G3 | upload前にprotocol・上限・復旧・security受入ケースを採択 | — |
 | M5-D01 | todo | 3 | M5-C02 | G4 | 上限付き未信頼archiveの受入とtraversal・重複・bomb拒否 | — |
@@ -98,13 +100,15 @@ B05 budget監査（2026-10-31 JST）: 再利用するscalar検査内部の独立
 
 ## 見積り照合
 
-**112 + 2 − 16 = 98 pt**
+**112 + 1 − 16 = 97 pt**
 
 | 基準残作業 | 純追加・再見積り | 完了時に除去 | 残作業 |
 | ---: | ---: | ---: | ---: |
-| 112 pt | +2 pt | −16 pt | 98 pt |
+| 112 pt | +1 pt | −16 pt | 97 pt |
 
 ## Delivery noteとロードマップ監査
+
+- B04受入監査・再見積り（2026-10-31 10:34 JST）: 実旧source・現VM・link済みnativeのjourneyが両hostで成功し、report・source hashも独立に照合した。残る最終検証・公開を2から1 ptへ下げ、純追加・再見積りは+3 − 1 − 1 = +1 ptとする。B04は未完了のため退役見積り16 ptは維持する。delivery・gate・受入条件の削除なし。
 
 - B04 checkpoint・再見積り（2026-10-31 JST）: CLIと非公開の単一source公開adapterで移行fixtureを実行できた。残作業は両hostの旧producer・現VM・native journeyと最終検証のため、受入条件を削除せず3 → 2 ptへ下げる。純追加・再見積りは+3 − 1 = +2 ptとし、B04はdoingなので退役見積り16 ptは変えない。新規delivery追加なし。
 
