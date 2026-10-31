@@ -6,9 +6,13 @@
 
 Activated 2026-10-30 JST from `3b676c5`. This board tracks the entire M5 scope in [the roadmap](roadmap.md#milestone-5-ecosystem-and-compatibility), including both P1 gates. M4's installer and local packages are prerequisites, not registry completion.
 
-**10 done · 1 doing · 29 todo · 87 remaining pt**
+**11 done · 1 doing · 28 todo · 84 remaining pt**
 
-**Next: M5-E01 — authenticated identities, credential handling and scoped authorization (3 pt).**
+**Next: M5-D02 — content-addressed storage and immutable version publication transaction (3 pt).**
+
+E01 completed, verified 2026-10-31 13:10 JST: code `56f9f84` passed the frozen full baseline with 2,572 tests in 182 suites, fmt, strict Clippy and isolated-target rustdoc. All four child exits are 0 and the source fingerprint is unchanged; actual results/logs are retained under `/private/tmp/lang-m5-fixes-target/m5-e01-validation/`. CI `41165285468` passed all 18 applicable jobs (documentation-only intentionally skipped under full routing), and native-debug `41165285479` passed all three host jobs. Ten authority tests and the compiled fuzz target cover E01's pure host boundary; no production server, commit-time storage integration or sustained fuzz campaign is claimed. Retire the last 3 pt without additions: 112 + 1 − 29 = 84 pt. [PR #34](https://github.com/carimatics/lang/pull/34) still needs final documentation-head CI and merge.
+
+D02 scope audit, 2026-10-31 13:10 JST: select D02 as the sole doing row. [RFC 0048](rfcs/0048-registry-state-and-publication.md) is accepted in `cd30c02`; the last executable checkpoint is the 13-cut macOS process/staging prototype, not a registry implementation. Retain 3 pt after auditing the remaining outcomes: private canonical generations and full-history admission, bounded staged publication with fresh E01 authorization, exact replay/conflict/quota refusal, and actual reopened-state/source-inventory/concurrency/process-exit fixtures on both hosts plus the full baseline and publication checks. G4/G5 remain open. The next dependency execution sequence remains D02 → D03 index/download → D04 source dependency execution; review it after E01/D02 without inventing another horizontal prerequisite.
 
 D01 publication, verified 2026-10-31 12:49 JST: final head `2704805` passed CI `41164333928` (18 applicable jobs; documentation-only intentionally skipped under full routing) and native-debug `41164333850` (all three hosts). [PR #33](https://github.com/carimatics/lang/pull/33) is confirmed merged as `f5084f1`. The original `main` fast-forwarded to `origin/main`, with 0 ahead / 0 behind and no uncommitted changes. [PR #34](https://github.com/carimatics/lang/pull/34), covering E01, is now based on `main`; its `56f9f84` implementation remains frozen while its full baseline and CI run. D01's older publication-pending notes below are historical.
 
@@ -85,11 +89,11 @@ Gate completion: **3/10; 21/65 historical gate weight**. Delivery points below a
 | M5-C01 | done | 0 | M5-A01 | G3 | Threat model: identities, namespace, authority, abuse and adversaries | `94a5200` |
 | M5-C02 | done | 0 | M5-C01 | G3 | Accept protocol, limits, recovery and security acceptance cases before upload | `53376e5` |
 | M5-D01 | done | 0 | M5-C02 | G4 | Admit bounded untrusted archives and reject traversal/duplicate/bomb inputs | `b3c8d1b` |
-| M5-D02 | todo | 3 | M5-D01,M5-E01 | G4 | Content-addressed storage and immutable version publication transaction | — |
+| M5-D02 | doing | 3 | M5-D01,M5-E01 | G4 | Content-addressed storage and immutable version publication transaction | — |
 | M5-D03 | todo | 3 | M5-D02 | G4 | Versioned index and verified download with exact identity/checksums | — |
 | M5-D04 | todo | 3 | M5-D03 | G4 | Resolve a registry dependency and execute it on both hosts | — |
 | M5-D05 | todo | 3 | M5-D04 | G4 | Lock/offline replay, interrupted publication and concurrent immutability tests | — |
-| M5-E01 | doing | 3 | M5-C02 | G5 | Authenticated identities, credential handling and scoped authorization | — |
+| M5-E01 | done | 0 | M5-C02 | G5 | Authenticated identities, credential handling and scoped authorization | `56f9f84` |
 | M5-E02 | todo | 3 | M5-E01,M5-D02 | G5 | Publish and yank/unyank with owner and conflict enforcement | — |
 | M5-E03 | todo | 3 | M5-E02 | G5 | Owner add/remove/transfer and last-owner/credential-revocation fixtures | — |
 | M5-E04 | todo | 3 | M5-E03 | G5 | Durable audit trail, recovery and unauthorized-operation end-to-end tests | — |
@@ -118,11 +122,11 @@ Gate completion: **3/10; 21/65 historical gate weight**. Delivery points below a
 
 ## Estimate reconciliation
 
-**112 + 1 − 26 = 87 pt**
+**112 + 1 − 29 = 84 pt**
 
 | Baseline remaining | Net additions/re-estimates | Retired at completion | Remaining |
 | ---: | ---: | ---: | ---: |
-| 112 pt | +1 pt | −26 pt | 87 pt |
+| 112 pt | +1 pt | −29 pt | 84 pt |
 
 ## Delivery notes and roadmap audit
 

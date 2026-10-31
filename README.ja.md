@@ -107,7 +107,7 @@ source構文・native language ABI・private SDK/package formatは実験段階�
 - [RFC 0044: 検証付きsource修正と旧仕様からの移行（implemented）](docs/ja/rfcs/0044-checked-source-migration.md)
 - [RFC 0045: Public registryの脅威モデル（accepted）](docs/ja/rfcs/0045-registry-threat-model.md)
 - [RFC 0046: Registry protocol・受入・復旧（accepted）](docs/ja/rfcs/0046-registry-protocol-and-recovery.md)
-- [RFC 0047: レジストリ権限レコードと最新状態での認可（accepted）](docs/ja/rfcs/0047-registry-authority-records.md)
+- [RFC 0047: レジストリ権限レコードと最新状態での認可（implemented）](docs/ja/rfcs/0047-registry-authority-records.md)
 - [RFC 0048: レジストリ世代と不変公開（accepted）](docs/ja/rfcs/0048-registry-state-and-publication.md)
 - [コントリビューションガイド](CONTRIBUTING.ja.md)
 

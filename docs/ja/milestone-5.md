@@ -6,9 +6,13 @@
 
 2026-10-30 JST、`3b676c5`から開始。[ロードマップ](roadmap.md#milestone-5ecosystemとcompatibility)のM5全範囲（P1の2ゲートを含む）を追跡する。M4のinstallerとlocal packageは前提条件であり、registry完了を意味しない。
 
-**10 done · 1 doing · 29 todo · 87 remaining pt**
+**11 done · 1 doing · 28 todo · 84 remaining pt**
 
-**次: M5-E01 — 認証identity・credential取扱い・scope付き認可（3 pt）。**
+**次: M5-D02 — 内容address方式のstorageとimmutable version公開transaction（3 pt）。**
+
+E01完了（2026-10-31 13:10 JST確認）: code `56f9f84`の固定全baselineは182 suite・2,572 test、fmt、厳密Clippy、分離targetのrustdocが成功。全4 child exitは0でsource fingerprintは不変。実結果・logを`/private/tmp/lang-m5-fixes-target/m5-e01-validation/`へ保持する。CI `41165285468`は対象18 jobすべて成功（full routingにより文書専用のみ意図的省略）、native-debug `41165285479`も全3 hostで成功。Authority 10 testとcompile済みfuzz targetはE01の純粋host境界を検証し、本番server・commit時storage統合・継続的fuzz campaignは主張しない。最終3 ptを追加なしで退役し、112 + 1 − 29 = 84 pt。[PR #34](https://github.com/carimatics/lang/pull/34)の最終文書head CIとmergeは未完了。
+
+D02範囲監査（2026-10-31 13:10 JST）: D02だけをdoingに選択する。[RFC 0048](rfcs/0048-registry-state-and-publication.md)は`cd30c02`で採択済み。最後の実行checkpointはmacOS process/staging prototypeの13切断点で、registry実装ではない。残る成果を監査し3 ptを維持する: private canonical generationと全履歴受入、最新E01認可を伴う上限付きstaged公開、厳密replay/競合/quota拒否、両hostの実reopen/source inventory/並行/process終了fixture、全baselineと公開check。G4/G5はopen。依存実行の順序はD02 → D03 index/download → D04 source依存実行を維持し、E01/D02後に水平前提を新設する前に再確認する。
 
 D01公開（2026-10-31 12:49 JST確認）: 最終head `2704805`はCI `41164333928`（対象18 job、full routingにより文書専用のみ意図的省略）とnative-debug `41164333850`（全3 host）が成功。[PR #33](https://github.com/carimatics/lang/pull/33)の`f5084f1`としてのmergeを確認した。元`main`を`origin/main`へfast-forwardし、ahead 0 / behind 0・未commit変更なし。E01の[PR #34](https://github.com/carimatics/lang/pull/34)はbaseを`main`へ変更し、実装`56f9f84`を固定したまま全baselineとCIを実行中。以下に残るD01公開待ちの記録は過去のcheckpointである。
 
@@ -85,11 +89,11 @@ B05 budget監査（2026-10-31 JST）: 再利用するscalar検査内部の独立
 | M5-C01 | done | 0 | M5-A01 | G3 | identity・namespace・authority・濫用・攻撃者の脅威モデル | `94a5200` |
 | M5-C02 | done | 0 | M5-C01 | G3 | upload前にprotocol・上限・復旧・security受入ケースを採択 | `53376e5` |
 | M5-D01 | done | 0 | M5-C02 | G4 | 上限付き未信頼archiveの受入とtraversal・重複・bomb拒否 | `b3c8d1b` |
-| M5-D02 | todo | 3 | M5-D01,M5-E01 | G4 | 内容address方式のstorageとimmutable version公開transaction | — |
+| M5-D02 | doing | 3 | M5-D01,M5-E01 | G4 | 内容address方式のstorageとimmutable version公開transaction | — |
 | M5-D03 | todo | 3 | M5-D02 | G4 | versioned indexとidentity・checksumを検証したdownload | — |
 | M5-D04 | todo | 3 | M5-D03 | G4 | registry依存を解決して両hostで実行 | — |
 | M5-D05 | todo | 3 | M5-D04 | G4 | lock・offline replay・公開中断・並行immutable検証 | — |
-| M5-E01 | doing | 3 | M5-C02 | G5 | 認証identity・credential取扱い・scope付き認可 | — |
+| M5-E01 | done | 0 | M5-C02 | G5 | 認証identity・credential取扱い・scope付き認可 | `56f9f84` |
 | M5-E02 | todo | 3 | M5-E01,M5-D02 | G5 | owner・競合制約付きpublish・yank・unyank | — |
 | M5-E03 | todo | 3 | M5-E02 | G5 | owner追加・削除・移管と最後のowner・credential失効fixture | — |
 | M5-E04 | todo | 3 | M5-E03 | G5 | 永続audit trail・復旧・権限外操作のend-to-end検証 | — |
@@ -118,11 +122,11 @@ B05 budget監査（2026-10-31 JST）: 再利用するscalar検査内部の独立
 
 ## 見積り照合
 
-**112 + 1 − 26 = 87 pt**
+**112 + 1 − 29 = 84 pt**
 
 | 基準残作業 | 純追加・再見積り | 完了時に除去 | 残作業 |
 | ---: | ---: | ---: | ---: |
-| 112 pt | +1 pt | −26 pt | 87 pt |
+| 112 pt | +1 pt | −29 pt | 84 pt |
 
 ## Delivery noteとロードマップ監査
 

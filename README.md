@@ -107,7 +107,7 @@ The rationale and unresolved tradeoffs are documented in [the architecture basel
 - [RFC 0044: Checked source fixes and historical migration (implemented)](docs/rfcs/0044-checked-source-migration.md)
 - [RFC 0045: Public registry threat model (accepted)](docs/rfcs/0045-registry-threat-model.md)
 - [RFC 0046: Registry protocol, admission and recovery (accepted)](docs/rfcs/0046-registry-protocol-and-recovery.md)
-- [RFC 0047: Registry authority records and fresh authorization (accepted)](docs/rfcs/0047-registry-authority-records.md)
+- [RFC 0047: Registry authority records and fresh authorization (implemented)](docs/rfcs/0047-registry-authority-records.md)
 - [RFC 0048: Registry generations and immutable publication (accepted)](docs/rfcs/0048-registry-state-and-publication.md)
 - [Contribution guide](CONTRIBUTING.md)
 

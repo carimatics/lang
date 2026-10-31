@@ -4,7 +4,7 @@
 
 [English version](../../rfcs/0047-registry-authority-records.md)
 
-- Status: accepted
+- Status: implemented
 - Authors: project contributors
 - Created: 2026-10-31
 - Last updated: 2026-10-31
@@ -142,7 +142,9 @@ RFC 0046 の分類に従い、不正権限レコードは `REG0001`、資源上�
 
 ## 未解決事項
 
-2026-10-31 JST、RFC 0001 の実験段階委任により採択。純粋なポリシーモデル `/private/tmp/lang-m5-authority-policy-model.js` は明示的な操作・audience・時刻の23ケースに成功し、retry成功後に資格情報失効・所有者削除を行うと同じ保持requestも拒否することを示した。これは判断用の証拠のみで、実際の認証やfilesystem transactionの実装ではない。レビューで曖昧なポート表現を修正し、受理時に独立した設定identityを要求した。監査identityと最新credential検査を分離し、E01/D02境界を明示した。本番資格情報転送、定時間比較・zeroization統合、D02の完全なstate/audit形式、実際のコミット時の最新性は未検証の実装義務として残る。採択はE01やG5の完了ではない。
+Host policy範囲の実装（2026-10-31 JST確認）: `56f9f84`で上限付きcanonical authority reader、独立service identity、秘匿/zeroizing bearer、固定長`subtle`比較、現在の操作/owner検査を実装した。対象統合10 test、決定的変異512件、fuzz entry pointのcompile、全182 suite・2,572 testのbaseline、両host CIが成功。時間特性benchmarkや継続的fuzz campaignではない。完全なstorage/audit形式はRFC 0048で採択済みとなり、本番transportと実lock内のcommit時最新性は後続の実装義務として残る。E01はpublic serviceやguest capabilityを確立しない。
+
+2026-10-31 JST、RFC 0001 の実験段階委任により採択。純粋なポリシーモデル `/private/tmp/lang-m5-authority-policy-model.js` は明示的な操作・audience・時刻の23ケースに成功し、retry成功後に資格情報失効・所有者削除を行うと同じ保持requestも拒否することを示した。これは判断用の証拠のみで、実際の認証やfilesystem transactionの実装ではない。レビューで曖昧なポート表現を修正し、受理時に独立した設定identityを要求した。監査identityと最新credential検査を分離し、E01/D02境界を明示した。採択時点では本番資格情報転送、定時間比較・zeroization統合、state/audit形式、lock内の最新性は未検証だった。その後の検証範囲は上記実装checkpointに記録し、全workflowが成功するまでG5はopenを維持する。
 
 ## 出典
 

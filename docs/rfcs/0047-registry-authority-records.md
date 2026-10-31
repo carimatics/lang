@@ -4,7 +4,7 @@
 
 [日本語版](../ja/rfcs/0047-registry-authority-records.md)
 
-- Status: accepted
+- Status: implemented
 - Authors: project contributors
 - Created: 2026-10-31
 - Last updated: 2026-10-31
@@ -142,7 +142,9 @@ Branch preparation: `codex/m5-registry-authority` starts from `codex/m5-registry
 
 ## Open questions
 
-Accepted under RFC 0001 experimental delegation on 2026-10-31 JST. The pure policy model `/private/tmp/lang-m5-authority-policy-model.js` passed 23 explicit operation/audience/time cases and demonstrated successful retry followed by refusal of the same retained request after credential revocation and owner removal. This is decision evidence only: it implements no real authentication or filesystem transaction. Review corrected ambiguous port wording and requires independent configured identity at admission. The separate audit identity and fresh credential checks make the E01/D02 boundary explicit. Production credential transport, constant-time/zeroization integration, complete D02 state/audit encoding and actual commit-time freshness remain unverified implementation obligations. Acceptance does not complete E01 or G5.
+Implemented host-policy scope, verified 2026-10-31 JST: `56f9f84` implements the bounded canonical authority reader, independent service identity, redacted/zeroizing bearer, fixed-length `subtle` comparison and current operation/owner checks. Ten focused integration tests, 512 deterministic mutations, compiled fuzz entry point, the full 2,572-test/182-suite baseline and both-host CI pass. This is not a timing benchmark or sustained fuzz campaign. RFC 0048 now accepts the complete storage/audit encoding; production transport and actual locked commit-time freshness remain subsequent implementation obligations. No public service or guest capability is established by E01.
+
+Accepted under RFC 0001 experimental delegation on 2026-10-31 JST. The pure policy model `/private/tmp/lang-m5-authority-policy-model.js` passed 23 explicit operation/audience/time cases and demonstrated successful retry followed by refusal of the same retained request after credential revocation and owner removal. This is decision evidence only: it implements no real authentication or filesystem transaction. Review corrected ambiguous port wording and requires independent configured identity at admission. The separate audit identity and fresh credential checks make the E01/D02 boundary explicit. At acceptance, credential transport, constant-time/zeroization integration, state/audit encoding and locked freshness were unverified. The implementation checkpoint above records subsequently verified scope; G5 remains open until its complete workflows pass.
 
 ## Sources
 
