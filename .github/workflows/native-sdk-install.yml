@@ -62,7 +62,9 @@ jobs:
           revision = '69b1c4dc66d04a4a103d4eb843232df22e52eac0'
           historical = temporary / 'historical-source'
           subprocess.run(['git', 'fetch', '--no-tags', 'origin', revision], cwd=root, check=True)
-          subprocess.run(['git', 'worktree', 'add', '--detach', str(historical), revision], cwd=root, check=True)
+          # Preserve the pinned producer's exact bytes on Windows as on macOS.
+          # The historical revision predates a repository line-ending policy.
+          subprocess.run(['git', '-c', 'core.autocrlf=false', 'worktree', 'add', '--detach', str(historical), revision], cwd=root, check=True)
           subprocess.run(['python', 'tools/check-source-migration.py', '--sdk', str(temporary / 'sdk'), '--historical-checkout', str(historical), '--output', str(temporary / 'source-migration')], cwd=root, check=True)
       - name: Retain historical source migration evidence
         if: always()
