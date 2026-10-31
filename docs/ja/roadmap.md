@@ -256,6 +256,8 @@ Exit：新しいdeveloperが1つのtoolをinstallし、packageを作成し、edi
 
 D05契約（2026-10-31 JST）: [RFC 0050](rfcs/0050-registry-cache-and-offline-replay.md)でprivate cache世代と厳密offline replayをacceptedとした。JavaScript/Pythonの独立marker/世代digestと既存lock-reader probeが成功し、文書整合性は8/8成功。本番認証証拠はF01–F03に残る。
 
+E02契約準備（2026-10-31 JST）: [RFC 0051](rfcs/0051-registry-yank-transactions.md)で認証yank/unyank action、閉じたaudit遷移、元結果replayをacceptedとした。純粋な22-case modelと独立canonical hash計算が成功し、実transactionと認証service統合は未実装。D05だけをdoingに維持し、件数・見積りは変更しない。
+
 全40 deliveryの収支は112 − 5 − 34 = 残73 pt。D05の実行可能cache/offline checkpointにより残見積りを3から1 ptへ減らし（純−2）、累積純追加・再見積りは−5 pt、完了時退役は34 ptを維持する。G1–G3は完了。D04の`a289641`は固定baseline（2,629 test / 182 suite）、全対象CI/debug job、両hostのregistry fixtureに成功した。PR #37は`9e81a8f`でmergeされ、mainはclean・0/0同期・検証済みtreeと同一を確認した。PR #38のD05は実HTTPS-to-cache-to-offline VM/native journeyを実行し、初期化/公開のprocess中断32境界、競合不変version、結果不明照合、敵対的入力/quota caseに成功した。集中package unit caseと既存integration回帰53 testも成功。残るのは固定全baseline、最新headの両host CI、公開だけで、D05を唯一のdoing・1 ptとする。両P1を含むG4–G10はopenを維持する。
 
 **進捗：21 / 65 pt（32.3%）。**

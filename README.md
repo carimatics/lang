@@ -111,6 +111,7 @@ The rationale and unresolved tradeoffs are documented in [the architecture basel
 - [RFC 0048: Registry generations and immutable publication (implemented)](docs/rfcs/0048-registry-state-and-publication.md)
 - [RFC 0049: Registry dependencies in frozen package graphs (accepted)](docs/rfcs/0049-registry-package-integration.md)
 - [RFC 0050: Registry cache generations and offline replay (accepted)](docs/rfcs/0050-registry-cache-and-offline-replay.md)
+- [RFC 0051: Authenticated yank and unyank transactions (accepted)](docs/rfcs/0051-registry-yank-transactions.md)
 - [Contribution guide](CONTRIBUTING.md)
 
 `cargo run -- toolchain verify --trust-root root.json --metadata channel.json --channel stable --message-format json` verifies bounded signed metadata for the current host and emits a JSON summary. The root must be trusted out of band. This read-only check uses a fresh trust context: it neither consults an installed rollback floor nor reads or installs payloads. See [RFC 0042](docs/rfcs/0042-signed-toolchain-installation.md).
