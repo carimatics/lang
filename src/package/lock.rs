@@ -20,7 +20,7 @@ pub const MAX_BYTES: usize = 1024 * 1024;
 pub const NAME: &str = "Lang.lock";
 
 pub(crate) mod explain;
-mod registry;
+pub(crate) mod registry;
 
 #[derive(Debug)]
 pub struct Lock {
@@ -343,6 +343,13 @@ impl Lock {
     /// Publish only after the caller's complete operation has succeeded.
     /// The separately supplied output capability survives source capture.
     pub fn publish(&self, directory: &Dir) -> Result<(), Diagnostic> {
+        self.publish_before_replace(directory, || {})
+    }
+    pub(crate) fn publish_before_replace(
+        &self,
+        directory: &Dir,
+        before_replace: impl FnOnce(),
+    ) -> Result<(), Diagnostic> {
         static NEXT: AtomicU64 = AtomicU64::new(0);
         for _ in 0..128 {
             let name = PathBuf::from(format!(
@@ -357,12 +364,30 @@ impl Lock {
                     Err(e) => return Err(filesystem(&name, e)),
                 };
             let stage = Stage { directory, name };
-            let written = file.write_all(&self.bytes).and_then(|_| file.sync_all());
+            #[cfg(test)]
+            super::registry::cache::checkpoint("root-create");
+            let written = (|| {
+                let split = self.bytes.len() / 2;
+                file.write_all(&self.bytes[..split])?;
+                #[cfg(test)]
+                super::registry::cache::checkpoint("root-partial-write");
+                file.write_all(&self.bytes[split..])?;
+                #[cfg(test)]
+                super::registry::cache::checkpoint("root-write");
+                file.sync_all()
+            })();
             drop(file);
             written.map_err(|e| filesystem(&stage.name, e))?;
+            #[cfg(test)]
+            super::registry::cache::checkpoint("root-sync");
+            before_replace();
+            #[cfg(test)]
+            super::registry::cache::checkpoint("before-root-replace");
             directory
                 .rename(&stage.name, directory, NAME)
                 .map_err(|e| filesystem(Path::new(NAME), e))?;
+            #[cfg(test)]
+            super::registry::cache::checkpoint("after-root-replace");
             return Ok(());
         }
         Err(capacity())

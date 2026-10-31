@@ -17,6 +17,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
+mod cache;
 mod transitive;
 
 const PRINCIPAL: &str = "00000000000000000000000000000001";

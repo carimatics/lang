@@ -104,6 +104,8 @@ Lock構造検証はreplay/trust authorityを確立しない。Captureはanalysis
 
 ### Publication and offline continuation
 
+[RFC 0050](0050-registry-cache-and-offline-replay.md)を2026-10-31 JSTにacceptedとし、D05のprivate cache profile、完全schema-3世代、root公開、有界offline/crash/race受理を詳細化した。認証済み本番証拠はF01–F03に残し、公開の未署名consumerは追加しない。
+
 D04は暗黙cacheを追加せずschema 3をcapture/受理検査する。D05はcache read/writeを個別にgrantし、再利用ごとに厳密bytesを検査し、root lock commit点より前に完全な不変世代を公開する。OfflineではDNS/network/credential lookupを行わず、bytes/証拠の欠落を拒否し、version/originを変えない。以前認証済みの厳密replayがyanked releaseを保持できるのはRFC 0046とF01の鮮度/失効規則の下だけであり、新たに観測したquarantineは拒否する。本番replayを有効にする前に、F01–F03が署名済み証拠とその永続保持を定める。
 
 ## Execution modes

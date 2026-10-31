@@ -3,6 +3,8 @@ use super::*;
 use crate::package::{manifest, registry::Binding as Policy};
 use crate::registry::authority::ServiceIdentity;
 
+pub(crate) mod cache;
+
 #[derive(Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct Record {
