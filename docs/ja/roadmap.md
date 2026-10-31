@@ -254,7 +254,7 @@ Exit：新しいdeveloperが1つのtoolをinstallし、packageを作成し、edi
 
 **11 done · 1 doing · 28 todo · 84 remaining pt**
 
-全40 deliveryの収支は112 + 1 − 29 = 残84 pt。旧scalar前提で3 ptを追加し、B04の実行可能checkpoint 2回で残見積りを各1 pt減らした。完了deliveryの退役見積りは29 pt。G1/G2の互換性と実旧source移行journeyはPR #29–#31で公開済み。G3はRFC 0045–0046の採択済みregistry設計で、PR #32で公開した。D01のcanonical archive受入はPR #33（`f5084f1`）で公開し、元mainはclean・remoteと同期済み（0/0）。E01のauthority実装`56f9f84`は182 suite・2,572 test、fmt、厳密Clippy、rustdoc、対象CI全18 job、native-debug全3 hostが成功し、最終3 ptを追加なしで退役する。PR #34の最終文書head CIとmergeは未完了。次は[RFC 0048](rfcs/0048-registry-state-and-publication.md)のgeneration/audit/staging契約採択を受け、内容address方式storageと不変公開のD02のみをdoing（3 pt）とする。Local process実験13切断点は実現性の証拠で、store完了やWindows証拠ではない。P1の両成果を含むG4–G10はopenを維持する。
+全40 deliveryの収支は112 + 1 − 29 = 残84 pt。旧scalar前提で3 ptを追加し、B04の2実行checkpointで残見積りを各1 pt減らし、完了deliveryで29 ptを退役した。G1/G2の互換性・実旧source移行journeyはPR #29–#31、G3のRFC 0045–0046採択済みregistry設計はPR #32で公開した。D01 archive受入とE01 authority policyはPR #33–#34でmerge済みで、元mainは`5cd0815`でclean・同期済み（0/0）。D02だけがdoing・3 pt。実装`f9b2069`はローカルで重点17 test（subprocess driver 3件を含む）、bootstrap 22/公開24 process切断点、writer競合、reopen後source実行、厳密Clippyが成功した。固定全baselineとPR #35の最新head両host CIは未完了で、G4/G5はopen。D03実験で派生index容量境界が判明し、RFC 0046でcommit前2 MiB index検査を既存D03の3 pt内として採択した。水平前提を追加せずD02 → D03 index/download → D04依存実行を続ける。両P1を含むG4–G10はopenを維持する。
 
 **進捗：21 / 65 pt（32.3%）。**
 

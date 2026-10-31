@@ -13,6 +13,10 @@
 
 D02実行checkpoint（2026-10-31 13:32 JST確認）: `registry::store`が明示capabilityで選んだ新規private rootを初期化し、非待機lock内でcanonical state/audit全履歴を検証、staging・sync済みfileと単一HEAD置換で不変archiveを公開する。Replay前とstaging後・置換直前に実credentialを再認証する。ローカル17 test（subprocess driver 3件を含む）が成功: bootstrap 22切断点、公開24切断点、両version順序で競合するwriter process、厳密replay/競合、独立計算したrequest digest、最終guardの失効/時刻逆行、明示unknown outcome照合、cleanup前の破損/alias拒否、byte/count/peak quota境界。Reopenした厳密source bytesは42へ実行される。Archive/authority回帰19/19と対象strict Clippyも成功。残る受入条件は固定全baseline、両hostの最新head CI、PR公開。この残作業監査後もD02だけをdoing・既存3 ptで維持し、追加・退役なし。G4/G5はopenで、このcheckpointはdelivery完了ではない。
 
+D03事前検証（2026-10-31 JST）: `/private/tmp/lang-m5-index-bound-probe.rs`で実archiveを独立構築・受理検査し、規定のcanonical indexをencodeした。Releaseごとに厳密依存128件を含む場合、29 releaseは2,033,722 byte、30 releaseは2,103,846 byteとなり、各descriptorが128 KiB未満でも既存index上限2,097,152 byteを超えた。これは受理/encodeの証拠で、storage・network公開ではない。D03はread API公開前に、公開時の派生index容量を解決する必要がある。暗黙paginationや読めない成功公開を導入せず、影響する採択済み契約を実装前に改訂する。既存D03のindex境界成果・3 pt内として扱い、新delivery・見積り追加なし。D02だけがdoingで、`f9b2069`を固定して全baselineと[PR #35](https://github.com/carimatics/lang/pull/35) CIを実行中。
+
+D03判断（2026-10-31 JST）: RFC 0046で派生indexのcommit前上限をRFC 0001委任により採択し、旧データの明示拒否と暗黙migrationなしを規定した。上記事前検証の契約対応は実装前に解決した。Roadmapをmerge済みE01、D02の実行checkpoint、不変のD02 → D03 → D04実行順に整合させた。D03はtodo・3 ptを維持し、選択にはD02全検証の完了が必要。
+
 D02 branch記録（2026-10-31 JST）: `codex/m5-registry-store`を`codex/m5-registry-authority`の`26fe3df`からclean状態で作成し、checkoutは`/private/tmp/lang-m5-registry-store`。初期PR baseは`git@github.com:carimatics/lang.git`の同前提branchで、PR #34は最終文書headを検証中。元`main`はmerge済み`f5084f1`でcleanを維持する。不変storage/公開という一貫した成果を新branchで分離し、doing行や見積りは追加しない。
 
 E01公開（2026-10-31 13:34 JST確認）: 最終head `26fe3df`はCI `41167648530`の対象18 jobすべて成功（full routingにより文書専用のみ意図的省略）、native-debug `41167648534`も全3 hostで成功。[PR #34](https://github.com/carimatics/lang/pull/34)は`5cd0815`としてmerge済みを確認。元`main`を`origin/main`へfast-forwardし、0 ahead / 0 behind・未commit変更なし。D02 branchも実装変更を保持して同前提mergeへfast-forwardし、PR baseは`main`となった。以下の古い公開待ち記録は履歴である。

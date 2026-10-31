@@ -77,6 +77,12 @@ Headerは100 byte name fieldに名前を入れ、prefix／linkname／owner／gro
 
 Index fieldは`format: "lang-registry-index"`・`schema: 1`・`registry`・`name`・`revision`・`releases`。Releaseは数値version tuple順で、`version`・`archive_sha256`・`archive_bytes`・`descriptor_sha256`・`edition`・`dependencies`・`yanked`・`quarantined`を含む。単一commit stateから派生し2 MiB以内。Production consumerは別途認証するF01 release／selection metadataとindex identity／digestが一致するまで信頼しない。HTTPSだけではこの認証にならない。未知署名profile・証拠欠落は消費拒否。D段階の分離した未署名fixtureをproduction CLIが暗黙選択できない。
 
+**派生index受入（2026-10-31 JST採択）:** D03がindex/downloadを公開する時点で、2 MiB上限を公開不変条件にもする。新candidate bytesを配置する前に、次のpackage revisionと現在flagを含む候補stateから対象packageの完全indexをencodeする。その厳密canonical encodingが2,097,152 byteを超えれば`REG0002` / HTTP 413で拒否し、等しい場合は許可する。派生indexを変える後続package変更にも同じ検査を適用する。Lock内transactionで検査し、release/依存の切詰め・暗黙pagination・不変archive bytesの変更はしない。Readerも独立して同じ上限を検査し、部分indexを返さない。
+
+実行実験`/private/tmp/lang-m5-index-bound-probe.rs`は各128依存を持つ実archiveを受理する。Canonical indexは29 versionで2,033,722 byte、30 versionで2,103,846 byteとなり、各descriptorは128 KiB未満である。したがってarchive/state/count受入だけではindex容量を証明できない。これはローカル受理/encodeの証拠で、server公開ではない。D03で厳密閾値、拒否時HEAD不変、両host transport testを追加する。
+
+互換性とrollout: field・format versionは維持するが、公開受入を厳しくする。D02は実験的private storage checkpointであり、D03はservice・consumer公開前にこの規則を実装する。上限超過の既存実験stateは明示operator検査/復元用に保持し、そのindexと当該packageへの新規変更を拒否する。切詰め・version削除・履歴reset・自動migrationはしない。RFC 0001委任に基づき、提供不能indexの公開を防ぐcommit前容量拒否を採択する。上限引上げは合意上限を弱め、paginationには別の互換性・trust契約が必要。Server統合と厳密境界fixtureはD03まで未検証。
+
 Action object共通fieldは`schema: 1`・`request_id`・`expected_revision`・`action`・`reason`（制御文字なしUTF-8 1–256 byte）。`yank`／`unyank`は`version`、`add_owner`／`remove_owner`は`principal`、`quarantine`／`unquarantine`は`version`とadmin scopeをさらに必須とする。Variantに無関係なfieldは拒否。Owner操作は最後のactive ownerを消せず、登録済みstable principalを対象とする。管理者owner復旧は別scope・reason・audit付きのlocal管理transactionを必要とし、release bytes置換や履歴resetはできない。Public endpointでprincipal登録・credential発行を行わない。
 
 変更成功はcanonical `{schema:1, registry, request_id, revision, audit_sequence, outcome}`を返す。Outcomeは`published`・`yanked`・`unyanked`・`owner_added`・`owner_removed`・`quarantined`・`unquarantined`。照合済みretryはrevision／eventを追加せず元commit結果を返す。初回publishは201、replayは200、actionは200。Public GET成功は200。拒否は400不正、401一般的認証失敗、403認可、404欠落／非提供resource、409競合／復旧必須、413上限、429busy、500I/O失敗。Error bodyは16 KiB以内の`{schema:1, code, message, request_id}`で、安全に受入れた場合以外request_idはnull。Code分類は下記診断に従い、credentialや任意入力bodyをechoしない。
