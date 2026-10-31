@@ -45,10 +45,10 @@ lock寿命の修正を含むinstallerは、2026-10-30 JSTに[PR #25](https://git
 | 2 — ownershipとnative AOT | 113 pt | 113 pt | 100.0% |
 | 3 — concurrencyとembedding（完了） | 96 pt | 96 pt | 100.0% |
 | 4 — developer toolchain | 63 pt | 63 pt | 100.0% |
-| 5 — ecosystemとcompatibility | 21 pt | 65 pt | 32.3% |
+| 5 — ecosystemとcompatibility | 26 pt | 65 pt | 40.0% |
 | 6 — セルフホスティング | 0 pt | 74 pt | 0.0% |
 | 7 — 追加frontend | 0 pt | 55 pt | 0.0% |
-| **全体** | **591 pt** | **764 pt** | **77.4%** |
+| **全体** | **596 pt** | **764 pt** | **78.0%** |
 
 ## Milestone 0：設計baseline
 
@@ -252,20 +252,20 @@ Exit：新しいdeveloperが1つのtoolをinstallし、packageを作成し、edi
 
 2026-10-30 JST開始。[M5 board](milestone-5.md)に全10ゲート、39件の観測可能delivery、残作業基準112 ptを保持する。[edition・互換性方針](rfcs/0043-editions-and-compatibility.md)と実行可能な互換性・移行fixtureから開始する。registry upload前に脅威モデルを定め、署名toolchain導入をregistry provenanceと混同しない。P1の2ゲートも範囲内。完了には両host ecosystem journeyと日英能力guideを含める。
 
-**14 done · 1 doing · 26 todo · 76 remaining pt**
+**15 done · 1 doing · 25 todo · 75 remaining pt**
 
-D05契約（2026-10-31 JST）: [RFC 0050](rfcs/0050-registry-cache-and-offline-replay.md)でprivate cache世代と厳密offline replayをacceptedとした。JavaScript/Pythonの独立marker/世代digestと既存lock-reader probeが成功し、文書整合性は8/8成功。本番認証証拠はF01–F03に残る。
+D05完了（2026-10-31 JST）: [RFC 0050](rfcs/0050-registry-cache-and-offline-replay.md)を`43dea74`で実装した。固定全baselineは2,645 test / 182 suiteとfmt・厳密Clippy・rustdocに成功し、CI `41185690356`とnative-debug `41185690326`の対象全job/hostも成功した。PR #38は`b0d4d76`としてmergeし、mainはclean・0/0同期・検証済みtreeと同一を確認した。D01–D05でG4を完了とし、認証済み本番消費はF01–F04に残す。
 
-E02/service scope監査（2026-10-31 JST）: [RFC 0051](rfcs/0051-registry-yank-transactions.md)で認証yank/unyank action、閉じたaudit遷移、元結果replayをacceptedとした。純粋な22-case modelと独立canonical hash計算が成功。実host transactionのE02を3 ptに維持し、認証HTTPS dispatch・要求/store作業memory上限・read世代更新をE05・3 ptとして追加する。E05はE02/E03後、E04前に実装する。既存の不変read-only serviceはこの統合を提供しない。D05だけをdoingに維持し、受入条件やgateは削除しない。
+E02/service scope監査（2026-10-31 JST）: [RFC 0051](rfcs/0051-registry-yank-transactions.md)で認証yank/unyank action、閉じたaudit遷移、元結果replayをacceptedとした。純粋な22-case modelと独立canonical hash計算が成功。実host transactionのE02を3 ptに維持し、認証HTTPS dispatch・要求/store作業memory上限・read世代更新をE05・3 ptとして追加する。E05はE02/E03後、E04前に実装する。既存の不変read-only serviceはこの統合を提供しない。E02だけをdoing・3 ptとし、受入条件やgateは削除しない。
 
-全41 deliveryの収支は112 − 2 − 34 = 残76 pt。実装前にE05・3 ptを追加し、累積純追加・再見積りは−2 pt、完了時退役は34 ptを維持する。G1–G3は完了。D04の`a289641`は固定baseline（2,629 test / 182 suite）、全対象CI/debug job、両hostのregistry fixtureに成功した。PR #37は`9e81a8f`でmergeされ、mainはclean・0/0同期・検証済みtreeと同一を確認した。PR #38のD05は実HTTPS-to-cache-to-offline VM/native journeyを実行し、初期化/公開のprocess中断32境界、競合不変version、結果不明照合、敵対的入力/quota caseに成功した。集中package unit caseと既存integration回帰53 testも成功。完了には固定全検証、最新headの両host CI、公開を必要とし、D05を唯一のdoing・1 ptに維持する。両P1を含むG4–G10はopenを維持する。
+全41 deliveryの収支は112 − 2 − 35 = 残75 pt。E05で3 ptを追加し、累積純追加・再見積りは−2 ptを維持、D05の最終1 ptを退役して累積退役35 ptとする。実archive/storage/index/download、両host registry graph・offline cache実行、cache process中断32境界、不変writer競合、敵対的入力/quota fixtureを証拠にG1–G4が完了した。PR #39のE02はaccepted action/audit契約と純粋22-case modelを開始checkpointとし、次に実host yank/unyankへ進む。両P1を含むG5–G10はopenを維持する。
 
-**進捗：21 / 65 pt（32.3%）。**
+**進捗：26 / 65 pt（40.0%）。**
 
 - [x] **P0 — Edition、deprecation policy、compatibility matrixを定義する。** — 5 pt
 - [x] **P0 — Edition migration／machine-applicable fix toolを構築する。** — 8 pt
 - [x] **P0 — Upload受付前にpublic-registry threat modelを完成させる。** — 8 pt
-- [ ] **P0 — Registry package storage、indexing、download、immutable-version ruleを実装する。** — 5 pt
+- [x] **P0 — Registry package storage、indexing、download、immutable-version ruleを実装する。** — 5 pt
 - [ ] **P0 — Authenticated publish／yank／owner operationとaudit trailを実装する。** — 5 pt
 - [ ] **P0 — Signed release manifestとpackage provenanceを実装する。** — 8 pt
 - [ ] **P0 — Portable plugin向けWebAssembly component targetを追加する。** — 8 pt

@@ -45,10 +45,10 @@ Snapshot of exit-gate weights verified 2026-10-31 JST. Acceptance weights are se
 | 2 — ownership and native AOT | 113 pt | 113 pt | 100.0% |
 | 3 — concurrency and embedding (complete) | 96 pt | 96 pt | 100.0% |
 | 4 — developer toolchain | 63 pt | 63 pt | 100.0% |
-| 5 — ecosystem and compatibility | 21 pt | 65 pt | 32.3% |
+| 5 — ecosystem and compatibility | 26 pt | 65 pt | 40.0% |
 | 6 — self-hosting | 0 pt | 74 pt | 0.0% |
 | 7 — additional frontends | 0 pt | 55 pt | 0.0% |
-| **Overall** | **591 pt** | **764 pt** | **77.4%** |
+| **Overall** | **596 pt** | **764 pt** | **78.0%** |
 
 ## Milestone 0: design baseline
 
@@ -252,20 +252,20 @@ Exit: a new developer can install one tool, create a package, develop in an edit
 
 Activated 2026-10-30 JST. The [M5 board](milestone-5.md) retains all ten gates, 39 observable deliveries and a 112 pt remaining-work baseline. Start with the [edition/compatibility policy](rfcs/0043-editions-and-compatibility.md) and executable compatibility/migration fixtures. Threat modeling must precede registry uploads; signed toolchain installation is not registry provenance. Both P1 gates remain in scope. Completion includes both-host ecosystem journeys and a bilingual capability guide.
 
-**14 done · 1 doing · 26 todo · 76 remaining pt**
+**15 done · 1 doing · 25 todo · 75 remaining pt**
 
-D05 contract (2026-10-31 JST): [RFC 0050](rfcs/0050-registry-cache-and-offline-replay.md) accepts private cache generations and exact offline replay. Independent JavaScript/Python marker/generation digests and the existing-lock-reader probe pass; repository consistency passed 8/8. Production authenticated evidence remains F01–F03 work.
+D05 completed (2026-10-31 JST): [RFC 0050](rfcs/0050-registry-cache-and-offline-replay.md) is implemented at `43dea74`. The full frozen baseline passes 2,645 tests / 182 suites plus fmt, strict Clippy and rustdoc; CI `41185690356` and native-debug `41185690326` pass all applicable jobs/hosts. PR #38 merged as `b0d4d76`, and main is clean, synchronized (0/0) and identical to the tested tree. D01–D05 close G4; authenticated production consumption remains F01–F04 work.
 
-E02/service scope audit (2026-10-31 JST): [RFC 0051](rfcs/0051-registry-yank-transactions.md) accepts authenticated yank/unyank actions, closed audit transitions and original-result replay. A pure 22-case model and independent canonical hash calculation pass. E02 retains 3 pt for actual host transactions; new E05 adds 3 pt for authenticated HTTPS dispatch, bounded request/store workspace and refreshed read generations after E02/E03 and before E04. The existing immutable read-only service does not provide that integration. D05 remains the only doing delivery; no acceptance condition or gate is removed.
+E02/service scope audit (2026-10-31 JST): [RFC 0051](rfcs/0051-registry-yank-transactions.md) accepts authenticated yank/unyank actions, closed audit transitions and original-result replay. A pure 22-case model and independent canonical hash calculation pass. E02 retains 3 pt for actual host transactions; new E05 adds 3 pt for authenticated HTTPS dispatch, bounded request/store workspace and refreshed read generations after E02/E03 and before E04. The existing immutable read-only service does not provide that integration. E02 is now the only doing delivery at 3 pt; no acceptance condition or gate is removed.
 
-The 41-delivery board reconciles 112 − 2 − 34 = 76 remaining pt. E05 adds 3 pt before implementation; cumulative net additions/re-estimates are now −2 pt and completed estimates remain 34 pt. G1–G3 are complete. D04's `a289641` passed the frozen baseline (2,629 tests / 182 suites), all applicable CI/debug jobs and actual both-host registry fixtures; PR #37 merged as `9e81a8f`, and main was verified clean, synchronized (0/0) and identical to the tested tree. D05 on PR #38 now executes a real HTTPS-to-cache-to-offline VM/native journey and passes 32 initialization/publication process cuts, competing immutable versions, unknown-result reconciliation and hostile-input/quota cases. Focused package unit cases and 53 existing integration regressions pass. Frozen full validation, latest-head both-host CI and publication gate completion; D05 remains the sole doing row at 1 pt. G4–G10, including both P1 gates, remain open.
+The 41-delivery board reconciles 112 − 2 − 35 = 75 remaining pt: E05 added 3 pt, cumulative net additions/re-estimates remain −2 pt, and D05 retires its last 1 pt (35 retired total). G1–G4 are complete, supported by actual archive/storage/index/download, both-host registry graph and offline-cache execution, 32 cache process cuts, immutable writer races and hostile-input/quota fixtures. E02 on PR #39 starts from the accepted action/audit contract and pure 22-case model; real host yank/unyank is next. G5–G10, including both P1 gates, remain open.
 
-**Progress: 21 / 65 pt (32.3%).**
+**Progress: 26 / 65 pt (40.0%).**
 
 - [x] **P0 — Define editions, deprecation policy, and the compatibility matrix.** — 5 pt
 - [x] **P0 — Build the edition migration and machine-applicable fix tool.** — 8 pt
 - [x] **P0 — Complete the public-registry threat model before accepting uploads.** — 8 pt
-- [ ] **P0 — Implement registry package storage, indexing, download, and immutable-version rules.** — 5 pt
+- [x] **P0 — Implement registry package storage, indexing, download, and immutable-version rules.** — 5 pt
 - [ ] **P0 — Implement authenticated publish/yank/owner operations and an audit trail.** — 5 pt
 - [ ] **P0 — Implement signed release manifests and package provenance.** — 8 pt
 - [ ] **P0 — Add a WebAssembly component target for portable plugins.** — 8 pt

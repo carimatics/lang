@@ -6,9 +6,13 @@
 
 Activated 2026-10-30 JST from `3b676c5`. This board tracks the entire M5 scope in [the roadmap](roadmap.md#milestone-5-ecosystem-and-compatibility), including both P1 gates. M4's installer and local packages are prerequisites, not registry completion.
 
-**14 done · 1 doing · 26 todo · 76 remaining pt**
+**15 done · 1 doing · 25 todo · 75 remaining pt**
 
-**Next: M5-D05 — validate and publish exact offline cache execution (1 pt).**
+**Next: M5-E02 — authenticated host yank/unyank and unchanged archive execution (3 pt).**
+
+D05 completed and G4 audited, verified 2026-10-31 18:03 JST: frozen `43dea74` passed fmt, strict Clippy, all 2,645 tests / 182 suites and rustdoc with source/head unchanged. CI `41185690356` passed all 18 applicable jobs (documentation-only intentionally skipped by the full-change classifier); native-debug `41185690326` passed all three hosts. Actual Windows core-1 `124492064305` confirms all 15 applicable cache cases; macOS core `124492064188`/`124492064255` confirm 16 including the Unix-only case, and locked fuzz Clippy passes. [PR #38](https://github.com/carimatics/lang/pull/38) merged as `b0d4d76`; original main is clean, synchronized with origin/main (0/0), and its tree equals the tested head. Retire D05's last 1 pt: 112 − 2 − 35 = 75 pt. D01–D05 now substantiate archive admission, immutable store/index/download, both-host registry graph execution and interrupted/concurrent offline replay, so G4 closes. G5–G10 and both P1 gates remain open; signed production consumption remains F01–F04.
+
+E02 selected, 2026-10-31 18:03 JST: [RFC 0051](rfcs/0051-registry-yank-transactions.md) is accepted in `0140d1e`, with the E05 scope separation in `f318749`. The last executable checkpoint is the 17:48 JST pure 22-case transition/independent encoding probe, not a real yank transaction. Audit the remaining host action/admission, mutable-flag versus immutable-archive binding, complete audit/history transition, fresh bearer/replay, VM/native/process/concurrency fixtures and full both-host publication at 3 pt. E02 is the only doing row. PR #39 is retargeted to main after D05 merge; E05 remains separately tracked at 3 pt. Next reach actual unchanged-archive execution through host yank/unyank before service integration.
 
 E02/service scope audit, 2026-10-31 17:57 JST: the current HTTP service owns one immutable `CapturedReads` generation; it has no authenticated mutation dispatch, refreshed-generation publication or request-time store-workspace accounting. Keep E02 at 3 pt for the concrete host outcome: canonical actions, closed audit/history transitions, current owner/conflict enforcement, exact retry, process-cut recovery and unchanged-archive VM/native execution. Expose M5-E05 at 3 pt for the distinct authenticated HTTPS publish/action/owner journey, bounded in-flight/store workspace and read-generation refresh. E05 depends on E02/E03 and is a prerequisite of E04's complete unauthorized/recovery journey. This adds one delivery and +3 pt before implementation: cumulative net additions/re-estimates −5 → −2, retired estimates remain 34, and 112 − 2 − 34 = 76 pt across 41 deliveries. Nothing is newly completed; D05 alone remains doing at 1 pt. The 17:39/17:48 counts below are historical. No gate or acceptance condition is removed.
 
@@ -138,7 +142,7 @@ B05 budget audit, 2026-10-31 JST: account for all three independent task-syntax 
 | G1 | Editions, deprecation policy, compatibility matrix | done |
 | G2 | Edition migration and machine-applicable fixes | done |
 | G3 | Registry threat model accepted before uploads | done |
-| G4 | Storage, indexing, download, immutable versions | open |
+| G4 | Storage, indexing, download, immutable versions | done |
 | G5 | Authenticated publish/yank/owners and audit | open |
 | G6 | Signed release manifests and package provenance | open |
 | G7 | Portable WebAssembly component plugin target | open |
@@ -165,9 +169,9 @@ Gate completion: **3/10; 21/65 historical gate weight**. Delivery points below a
 | M5-D02 | done | 0 | M5-D01,M5-E01 | G4 | Content-addressed storage and immutable version publication transaction | `e76dd7b` |
 | M5-D03 | done | 0 | M5-D02 | G4 | Versioned index and verified download with exact identity/checksums | `f58659c` |
 | M5-D04 | done | 0 | M5-D03 | G4 | Resolve a registry dependency and execute it on both hosts | `a289641` |
-| M5-D05 | doing | 1 | M5-D04 | G4 | Lock/offline replay, interrupted publication and concurrent immutability tests | — |
+| M5-D05 | done | 0 | M5-D04 | G4 | Lock/offline replay, interrupted publication and concurrent immutability tests | `43dea74` |
 | M5-E01 | done | 0 | M5-C02 | G5 | Authenticated identities, credential handling and scoped authorization | `56f9f84` |
-| M5-E02 | todo | 3 | M5-E01,M5-D02 | G5 | Host publish and yank/unyank transactions with owner and conflict enforcement | — |
+| M5-E02 | doing | 3 | M5-E01,M5-D02 | G5 | Host publish and yank/unyank transactions with owner and conflict enforcement | — |
 | M5-E03 | todo | 3 | M5-E02 | G5 | Owner add/remove/transfer and last-owner/credential-revocation fixtures | — |
 | M5-E04 | todo | 3 | M5-E03,M5-E05 | G5 | Durable audit trail, recovery and unauthorized-operation end-to-end tests | — |
 | M5-E05 | todo | 3 | M5-E02,M5-E03 | G5 | Authenticated HTTPS mutations, bounded request workspace and refreshed read generations | — |
@@ -196,11 +200,11 @@ Gate completion: **3/10; 21/65 historical gate weight**. Delivery points below a
 
 ## Estimate reconciliation
 
-**112 − 2 − 34 = 76 pt**
+**112 − 2 − 35 = 75 pt**
 
 | Baseline remaining | Net additions/re-estimates | Retired at completion | Remaining |
 | ---: | ---: | ---: | ---: |
-| 112 pt | −2 pt | −34 pt | 76 pt |
+| 112 pt | −2 pt | −35 pt | 75 pt |
 
 ## Delivery notes and roadmap audit
 

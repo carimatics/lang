@@ -110,7 +110,7 @@ The rationale and unresolved tradeoffs are documented in [the architecture basel
 - [RFC 0047: Registry authority records and fresh authorization (implemented)](docs/rfcs/0047-registry-authority-records.md)
 - [RFC 0048: Registry generations and immutable publication (implemented)](docs/rfcs/0048-registry-state-and-publication.md)
 - [RFC 0049: Registry dependencies in frozen package graphs (accepted)](docs/rfcs/0049-registry-package-integration.md)
-- [RFC 0050: Registry cache generations and offline replay (accepted)](docs/rfcs/0050-registry-cache-and-offline-replay.md)
+- [RFC 0050: Registry cache generations and offline replay (implemented)](docs/rfcs/0050-registry-cache-and-offline-replay.md)
 - [RFC 0051: Authenticated yank and unyank transactions (accepted)](docs/rfcs/0051-registry-yank-transactions.md)
 - [Contribution guide](CONTRIBUTING.md)
 

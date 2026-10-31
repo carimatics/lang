@@ -6,9 +6,13 @@
 
 2026-10-30 JST、`3b676c5`から開始。[ロードマップ](roadmap.md#milestone-5ecosystemとcompatibility)のM5全範囲（P1の2ゲートを含む）を追跡する。M4のinstallerとlocal packageは前提条件であり、registry完了を意味しない。
 
-**14 done · 1 doing · 26 todo · 76 remaining pt**
+**15 done · 1 doing · 25 todo · 75 remaining pt**
 
-**次: M5-D05 — 厳密offline cache実行の検証と公開（1 pt）。**
+**次: M5-E02 — 認証host yank/unyankと未変更archive実行（3 pt）。**
+
+D05完了・G4監査（2026-10-31 18:03 JST確認）: 固定`43dea74`でfmt、厳密Clippy、全2,645 test / 182 suite、rustdocが成功し、source/head不変を確認した。CI `41185690356`の対象18 job（文書専用はfull-change分類により意図的skip）とnative-debug `41185690326`の3 hostが成功。Windows core-1 `124492064305`の実ログで対象cache全15 case、macOS core `124492064188`/`124492064255`でUnix専用を含む16 case、locked fuzz Clippyの成功を確認した。[PR #38](https://github.com/carimatics/lang/pull/38)は`b0d4d76`としてmergeし、元mainはclean・origin/mainと0/0同期・検証済みheadと同一treeである。D05の最終1 ptを退役し、112 − 2 − 35 = 残75 pt。D01–D05でarchive受理、不変store/index/download、両host registry graph実行、中断/競合offline replayの証拠が揃い、G4を完了とする。G5–G10と両P1はopenを維持し、署名付き本番消費はF01–F04に残る。
+
+E02選択（2026-10-31 18:03 JST）: [RFC 0051](rfcs/0051-registry-yank-transactions.md)を`0140d1e`でacceptedとし、`f318749`でE05のscopeを分離した。最終実行checkpointは17:48 JSTの純粋22-case遷移/独立encoding probeであり、実yank transactionではない。残るhost action/受理、可変flagと不変archiveのbinding分離、完全audit/履歴遷移、最新bearer/replay、VM/native/process/競合fixture、全検証・両host公開を3 ptと監査する。E02だけをdoingとし、PR #39はD05 merge後にmainへretargetした。E05は別途3 ptで追跡する。Service統合前にhost yank/unyankを通じた未変更archiveの実行へ到達する。
 
 E02/service scope監査（2026-10-31 17:57 JST）: 現HTTP serviceは1個の不変`CapturedReads`世代を所有し、認証mutation dispatch・更新世代公開・要求時store作業memory計上を持たない。E02はcanonical action、閉じたaudit/履歴遷移、現在owner/競合制約、厳密retry、process中断recovery、未変更archiveのVM/native実行という具体host結果に3 ptを維持する。別の観測可能結果である認証HTTPS publish/action/owner journey、処理中要求/store作業memory上限、read世代更新をM5-E05・3 ptとして明示する。E05はE02/E03に依存し、E04の完全な権限外操作/recovery journeyの前提となる。実装前に1 delivery・+3 ptを追加し、累積純追加・再見積りを−5 → −2、退役見積りを34に維持する。41 deliveryで112 − 2 − 34 = 残76 pt。新規完了はなく、D05だけをdoing・1 ptに維持する。以下17:39/17:48の件数は履歴とし、gateや受入条件を削除しない。
 
@@ -138,7 +142,7 @@ B05 budget監査（2026-10-31 JST）: 再利用するscalar検査内部の独立
 | G1 | edition・非推奨方針・互換性表 | done |
 | G2 | edition移行と機械適用可能な修正 | done |
 | G3 | upload前のregistry脅威モデル採択 | done |
-| G4 | storage・index・download・immutable version | open |
+| G4 | storage・index・download・immutable version | done |
 | G5 | 認証publish・yank・owner操作とaudit | open |
 | G6 | 署名release manifestとpackage provenance | open |
 | G7 | portable WebAssembly component plugin target | open |
@@ -165,9 +169,9 @@ B05 budget監査（2026-10-31 JST）: 再利用するscalar検査内部の独立
 | M5-D02 | done | 0 | M5-D01,M5-E01 | G4 | 内容address方式のstorageとimmutable version公開transaction | `e76dd7b` |
 | M5-D03 | done | 0 | M5-D02 | G4 | versioned indexとidentity・checksumを検証したdownload | `f58659c` |
 | M5-D04 | done | 0 | M5-D03 | G4 | registry依存を解決して両hostで実行 | `a289641` |
-| M5-D05 | doing | 1 | M5-D04 | G4 | lock・offline replay・公開中断・並行immutable検証 | — |
+| M5-D05 | done | 0 | M5-D04 | G4 | lock・offline replay・公開中断・並行immutable検証 | `43dea74` |
 | M5-E01 | done | 0 | M5-C02 | G5 | 認証identity・credential取扱い・scope付き認可 | `56f9f84` |
-| M5-E02 | todo | 3 | M5-E01,M5-D02 | G5 | owner・競合制約付きhost publish・yank・unyank transaction | — |
+| M5-E02 | doing | 3 | M5-E01,M5-D02 | G5 | owner・競合制約付きhost publish・yank・unyank transaction | — |
 | M5-E03 | todo | 3 | M5-E02 | G5 | owner追加・削除・移管と最後のowner・credential失効fixture | — |
 | M5-E04 | todo | 3 | M5-E03,M5-E05 | G5 | 永続audit trail・復旧・権限外操作のend-to-end検証 | — |
 | M5-E05 | todo | 3 | M5-E02,M5-E03 | G5 | 認証HTTPS mutation・要求作業memory上限・read世代更新 | — |
@@ -196,11 +200,11 @@ B05 budget監査（2026-10-31 JST）: 再利用するscalar検査内部の独立
 
 ## 見積り照合
 
-**112 − 2 − 34 = 76 pt**
+**112 − 2 − 35 = 75 pt**
 
 | 基準残作業 | 純追加・再見積り | 完了時に除去 | 残作業 |
 | ---: | ---: | ---: | ---: |
-| 112 pt | −2 pt | −34 pt | 76 pt |
+| 112 pt | −2 pt | −35 pt | 75 pt |
 
 ## Delivery noteとロードマップ監査
 
