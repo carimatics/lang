@@ -24,6 +24,7 @@ pub mod lsp;
 pub mod native;
 pub mod package;
 pub mod profile;
+pub mod registry;
 pub mod repl;
 pub mod toolchain;
 

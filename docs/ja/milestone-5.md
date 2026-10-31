@@ -6,13 +6,17 @@
 
 2026-10-30 JST、`3b676c5`から開始。[ロードマップ](roadmap.md#milestone-5ecosystemとcompatibility)のM5全範囲（P1の2ゲートを含む）を追跡する。M4のinstallerとlocal packageは前提条件であり、registry完了を意味しない。
 
-**9 done · 1 doing · 30 todo · 90 remaining pt**
+**10 done · 1 doing · 29 todo · 87 remaining pt**
 
-**次: M5-D01 — 上限付き未信頼archiveを受入れ、traversal・重複・bomb入力を拒否する（3 pt）。**
+**次: M5-E01 — 認証identity・credential取扱い・scope付き認可（3 pt）。**
 
-C02・G3完了（2026-10-31 11:27 JST確認）: `53376e5`の[RFC 0046](rfcs/0046-registry-protocol-and-recovery.md)で厳密source archive・厳密origin wire profile・scope付き変更check・不変state／audit commit・有限復旧を採択。P01–P08がRFC 0045の16脅威すべてに対応する。[Local archive実験](../evidence/2026-10-31-m5-registry-archive-profile.json)は独立readerで列挙・厳密source復元に成功したが、形式実現性のみで敵対decoderや両host実装の証拠ではない。新しいrepository consistencyは7/7成功。追加なしでC02の最終3 ptを退役し、G3は設計ゲートとして完了、G4–G10はopen。[PR #32](https://github.com/carimatics/lang/pull/32)公開には最終head CIとmergeを残す。
+D01完了（2026-10-31 12:24 JST確認）: code `b3c8d1b`の固定全baselineは181 suite・2,562 test、fmt、厳密Clippy、分離targetのrustdocが成功。全4 child exitは0で全source fingerprintは不変。実結果・logを`/private/tmp/lang-m5-fixes-target/m5-d01-validation/`に保持する。CI `41161839406`は対象18 jobすべて成功（full routingにより文書専用のみ意図的省略）、native-debug `41161839444`も3 host jobすべて成功。archive 9 testは元byteのsource実行と決定的変異512件を含む。fuzz targetはcompile済みだが継続的fuzz campaignは主張しない。最終3 ptを退役し追加なし、112 + 1 − 26 = 87 pt。E01のみをdoingとし、3 ptは権限レコード仕様の採択、上限付き秘密入力・ポリシー実装、検証を含む。G4/G5はopen。[PR #33](https://github.com/carimatics/lang/pull/33)の最終文書head CIとmerge、公開完了と最終main同期は未完了。
 
-D01開始checkpoint（2026-10-31 11:27 JST）: Registry decoderは未実装。直近の実行可能な参照は上記C02 canonical archive実験。残る受入条件は、有限byte-only canonical受入、厳密record／hash／UTF-8検証、敵対header／path／重複／資源拒否、意味のある境界／corpus test、該当local／CI検証。D01を3 ptかつ唯一のdoingとし、実装前にregistry契約branchの公開を完了する。
+C02・G3完了（2026-10-31 11:27 JST確認）: `53376e5`の[RFC 0046](rfcs/0046-registry-protocol-and-recovery.md)で厳密source archive・厳密origin wire profile・scope付き変更check・不変state／audit commit・有限復旧を採択。P01–P08がRFC 0045の16脅威すべてに対応する。[Local archive実験](../evidence/2026-10-31-m5-registry-archive-profile.json)は独立readerで列挙・厳密source復元に成功したが、形式実現性のみで敵対decoderや両host実装の証拠ではない。新しいrepository consistencyは7/7成功。追加なしでC02の最終3 ptを退役し、G3は設計ゲートとして完了、G4–G10はopen。最終head `c49a9a5`のCI `41160242518`は対象18 job成功（full routingで文書専用のみ意図的省略）。Native-debugは指定source／SDK pathの変更がなく意図的に未起動。[PR #32](https://github.com/carimatics/lang/pull/32)を11:49 JSTに`9694ec3`としてmergeし、元`main`はcleanかつ`origin/main`と同期済み（ahead 0 / behind 0）。
+
+D01実行可能checkpoint（2026-10-31 11:49 JST確認）: `registry::archive::AdmittedArchive::admit`は有限canonical USTAR／JSONを、元UTF-8 bytesと厳密archive／descriptor／source digestを持つ非公開の所有inventoryへ検証し、I/O・実行authorityを持たない。独立tar-rs fixtureは保持archive hashに一致し、受入sourceは42を返す。呼出し元bytesを変更しても固定inventoryは不変。9 testで敵対header・切断／padding・closed／canonical metadata・path／device／case／prefix alias・digest／UTF-8失敗・厳密byte／record／深さ／総量上限・依存identity・決定的変異512件を検証。対象厳密Clippyとrepository consistency 7/7が成功し、libFuzzer targetもcompile成功。cargo-fuzz／nightlyは未導入のため継続fuzz実行を主張しない。残る受入条件は固定全baseline・最新head両host CI・PR公開。これらの確認まで3 ptを維持し、D01だけをdoingとする。
+
+D01順序監査（2026-10-31 JST）: PR #32の証跡JSONは既存full CI経路を選択するため、採択済みRFCに従う実装を分離branch `codex/m5-registry-archive`で進める。`codex/m5-registry-contract`（`c49a9a5`）からclean状態で作成し、checkoutは`/private/tmp/lang-m5-registry-archive`。初期PR baseは`git@github.com:carimatics/lang.git`の同契約branch。PR #32のmerge後に作業branchを`9694ec3`へfast-forwardし、PR baseを`main`へ変更した。契約公開完了まで実装を待つ旧計画を更新するが、設計採択前にuploadを受け入れるものではない。範囲はbyte-only decoderと検証済み不変inventoryのままで、network・storage公開・materializeは後続deliveryに残す。新規delivery・見積り変更なし。元の`main`はcleanを維持する。
 
 C01完了（2026-10-31 JST）: `94a5200`の[RFC 0045](rfcs/0045-registry-threat-model.md)を実験段階委任により採択。16の脅威でorigin／namespace・scope付きcredential・敵対archive・不変transaction・replay／key侵害・audit・実行・hostingを観測可能な受入義務へ結び付けた。新しいrepository consistencyは7/7成功、日英の脅威ID・出典URLも一致。追加なしで最終3 ptを退役する。C02だけをdoing（3 pt）とし、protocol／復旧判断の採択までG3はopen。Upload実装は未着手。
 
@@ -76,12 +80,12 @@ B05 budget監査（2026-10-31 JST）: 再利用するscalar検査内部の独立
 | M5-B04 | done | 0 | M5-B03,M5-B05 | G2 | edition移行CLIと両hostの移行前後実行journey | `62e742c` |
 | M5-C01 | done | 0 | M5-A01 | G3 | identity・namespace・authority・濫用・攻撃者の脅威モデル | `94a5200` |
 | M5-C02 | done | 0 | M5-C01 | G3 | upload前にprotocol・上限・復旧・security受入ケースを採択 | `53376e5` |
-| M5-D01 | doing | 3 | M5-C02 | G4 | 上限付き未信頼archiveの受入とtraversal・重複・bomb拒否 | — |
-| M5-D02 | todo | 3 | M5-D01 | G4 | 内容address方式のstorageとimmutable version公開transaction | — |
+| M5-D01 | done | 0 | M5-C02 | G4 | 上限付き未信頼archiveの受入とtraversal・重複・bomb拒否 | `b3c8d1b` |
+| M5-D02 | todo | 3 | M5-D01,M5-E01 | G4 | 内容address方式のstorageとimmutable version公開transaction | — |
 | M5-D03 | todo | 3 | M5-D02 | G4 | versioned indexとidentity・checksumを検証したdownload | — |
 | M5-D04 | todo | 3 | M5-D03 | G4 | registry依存を解決して両hostで実行 | — |
 | M5-D05 | todo | 3 | M5-D04 | G4 | lock・offline replay・公開中断・並行immutable検証 | — |
-| M5-E01 | todo | 3 | M5-C02 | G5 | 認証identity・credential取扱い・scope付き認可 | — |
+| M5-E01 | doing | 3 | M5-C02 | G5 | 認証identity・credential取扱い・scope付き認可 | — |
 | M5-E02 | todo | 3 | M5-E01,M5-D02 | G5 | owner・競合制約付きpublish・yank・unyank | — |
 | M5-E03 | todo | 3 | M5-E02 | G5 | owner追加・削除・移管と最後のowner・credential失効fixture | — |
 | M5-E04 | todo | 3 | M5-E03 | G5 | 永続audit trail・復旧・権限外操作のend-to-end検証 | — |
@@ -110,13 +114,15 @@ B05 budget監査（2026-10-31 JST）: 再利用するscalar検査内部の独立
 
 ## 見積り照合
 
-**112 + 1 − 23 = 90 pt**
+**112 + 1 − 26 = 87 pt**
 
 | 基準残作業 | 純追加・再見積り | 完了時に除去 | 残作業 |
 | ---: | ---: | ---: | ---: |
-| 112 pt | +1 pt | −23 pt | 90 pt |
+| 112 pt | +1 pt | −26 pt | 87 pt |
 
 ## Delivery noteとロードマップ監査
+
+- Registry順序監査（2026-10-31 JST）: 選択済みD01だけをdoingに維持。既存計画のE01認証／credential／scope境界をD02より先に実装し、不変公開がlock内の最新stateで再認可できるようにする。D02はD01・E01へ依存し、E01の依存は採択済みC02のまま。Memory内transactionの探索ではcrash／retryの6切断点と異payloadの両順序を確認し、古い事前認可で失効後のpublishを許可できない理由を示した。これは設計証拠のみでfilesystem・認証実装ではない。既存installerのfile／lock処理は参考になるが、そのstateにはregistry owner／release／auditのatomicityがない。新規delivery・見積り変更なしで残90 ptの照合を維持する。予定するE01／D02の2前提後に次のsource実行fixtureを再監査する。
 
 - B04完了（2026-10-31 JST）: local全baseline・最終head CI・PR merge確認後に最終1 ptを退役。退役見積りは17 pt、純追加は+1 ptを維持する。C01だけをdoing（3 pt）とする。新規作業・範囲削減なし。G2完了、8ゲートはopen。
 

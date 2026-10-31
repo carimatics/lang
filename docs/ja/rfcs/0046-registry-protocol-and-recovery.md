@@ -55,6 +55,8 @@ Publisherは明示的に固定した入力snapshotと、明示registry依存bind
 
 File pathは1–100 byteのASCII slash pathで、非empty componentは英字・数字・dot・underscore・hyphenのみ。絶対／backslash／colon path、`.`／`..`、末尾dot、Windows予約device stem（最初のdotより前をcase-insensitive比較）、case-fold重複、file／directory prefix衝突を拒否する。`.lang-package.json`と子孫を予約し、先頭componentの`.git`・`.codex`・`target`をcase-insensitiveに拒否。通常fileはすべて`.lang`で終わる。100 byte制限でlong-name extensionを不要にするため、local packageで使えるsource pathも公開時には正確なpath診断付きで拒否する場合がある。
 
+D01明確化（2026-10-31 JST）: Case衝突検査は暗黙directory prefixにも適用する。`src/a.lang`と`Src/b.lang`がcase-sensitive／insensitive hostで別source treeを生まないようにする。同一表記directoryの再使用は許すが、fileをdirectory prefixにもできない。既存portable alias禁止要件を明確化したもので、公開済みformatは変えない。Profile 1は未実装である。
+
 Headerは100 byte name fieldに名前を入れ、prefix／linkname／owner／group fieldはzero、type `0`、mode 0644、uid／gid／mtime zero、magic `ustar\0`、version `00`、device major／minor zero、未使用byte zeroとする。数値fieldはzero padding付きASCII octalと末尾NUL。Checksumは6 octal桁・NUL・spaceで、checksum fieldを8 spaceとして計算する。Payload paddingはzero。末尾は正確に2 zero blockとし、追加bytes・連結archive・base-256数値・directory／link／device entry・PAX／GNU extension・sparse file・圧縮を拒否する。受入archiveの再encodeは元bytesと一致必須。Descriptor JSONはcanonical、file size／hashは厳密で、全列挙fileが正確に1回存在する。Hashは展開fileだけでなくencode済みarchive全体を識別する。
 
 最大18 MiBと超過検知1 byteまで読む。Descriptor 128 KiB、source 256 file、file単位1 MiB、source計16 MiB、依存128、test128、JSON深さ16を上限とする。Allocation前にheader・payload／padding・decode recordを課金する。Byteのみの受入APIは非公開の検証済み不変inventoryを返し、別materializerが明示directory authorityを受け、新規destinationを排他的作成し、検証regular bytesだけを書き、失敗時は認識したprivate stagingをcleanupする。未信頼入力を汎用extractorへ渡さない。両hostの実open／公開境界でsource／destination aliasとnonregular fileを拒否する。
@@ -149,6 +151,8 @@ Upload・download・復旧・index構築でsource・native tool・package hook�
 - 可変fileとbest-effort auditは単純だが、version置換とcrash後の成功／履歴分離を許すため不採用。
 
 ## Implementation plan
+
+順序明確化（2026-10-31 JST）: 既存E01の認証・scope付き認可deliveryをD02公開より先に実装する。D02は新たにlockしたstateを使いcommit前にその方針を検査し、byte受入や古い認証結果だけで後の変更を認可しない。既存依存を明示したものでdelivery・見積りを追加せず、E02–E04の操作／audit統合を維持する。全baseline・CIの終了まではD01を実装中とする。
 
 Upload前にC02をレビューする。D01はbyte-only archive受入と拒否corpus、D02は具体化した不変state transaction、D03はindex／download identity検証、D04はpackage統合を具体化して両hostで実依存を実行、D05はoffline／競合／crash journeyを加える。E01–E04は同じtransactionでtoken／owner／audit操作を実装。署名production消費にF01、hosting／検索にI01が先行する。新実行fixtureなしに前提deliveryを2件終えたら既存board規則で順序を再監査する。本書で新実装deliveryは追加しない。
 

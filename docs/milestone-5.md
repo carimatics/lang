@@ -6,13 +6,17 @@
 
 Activated 2026-10-30 JST from `3b676c5`. This board tracks the entire M5 scope in [the roadmap](roadmap.md#milestone-5-ecosystem-and-compatibility), including both P1 gates. M4's installer and local packages are prerequisites, not registry completion.
 
-**9 done · 1 doing · 30 todo · 90 remaining pt**
+**10 done · 1 doing · 29 todo · 87 remaining pt**
 
-**Next: M5-D01 — admit bounded untrusted archives and reject traversal, duplicate and bomb inputs (3 pt).**
+**Next: M5-E01 — authenticated identities, credential handling and scoped authorization (3 pt).**
 
-C02/G3 completed, verified 2026-10-31 11:27 JST: [RFC 0046](rfcs/0046-registry-protocol-and-recovery.md) at `53376e5` accepts the strict source archive, exact-origin wire profile, scoped mutation checks, immutable state/audit commit and bounded recovery. P01–P08 map all sixteen RFC 0045 threats. The [local archive experiment](evidence/2026-10-31-m5-registry-archive-profile.json) lists and recovers exact source bytes through an independent reader; it is format feasibility, not a hostile decoder or both-host implementation. Fresh repository consistency passed 7/7. Retire C02's last 3 pt without additions; G3 is a completed design gate, while G4–G10 remain open. [PR #32](https://github.com/carimatics/lang/pull/32) publication still requires final-head CI and merge.
+D01 completed, verified 2026-10-31 12:24 JST: code `b3c8d1b` passed the frozen full baseline with 2,562 tests in 181 suites, fmt, strict Clippy and isolated-target rustdoc. All four child exits are 0 and the complete source fingerprint is unchanged; actual results/logs are retained under `/private/tmp/lang-m5-fixes-target/m5-d01-validation/`. CI `41161839406` passed all 18 applicable jobs (documentation-only intentionally skipped under full routing), and native-debug `41161839444` passed all three host jobs. The nine archive tests include exact-byte source execution and 512 deterministic mutations. The fuzz target compiles; a sustained fuzz campaign is not claimed. Retire the last 3 pt without additions: 112 + 1 − 26 = 87 pt. E01 is the sole doing row; its 3 pt cover authority-record acceptance, bounded secret/policy implementation and validation. G4/G5 remain open. [PR #33](https://github.com/carimatics/lang/pull/33) still needs final documentation-head CI and merge; publication and final main synchronization are not yet complete.
 
-D01 starting checkpoint, 2026-10-31 11:27 JST: no registry decoder is implemented yet. The last executable reference is the C02 canonical archive experiment above. Remaining acceptance: bounded byte-only canonical admission, exact record/hash/UTF-8 validation, hostile header/path/duplicate/resource refusals, meaningful boundary/corpus tests and applicable local/CI validation. Keep D01 at 3 pt and the only doing row; the registry contract branch will complete publication before implementation starts.
+C02/G3 completed, verified 2026-10-31 11:27 JST: [RFC 0046](rfcs/0046-registry-protocol-and-recovery.md) at `53376e5` accepts the strict source archive, exact-origin wire profile, scoped mutation checks, immutable state/audit commit and bounded recovery. P01–P08 map all sixteen RFC 0045 threats. The [local archive experiment](evidence/2026-10-31-m5-registry-archive-profile.json) lists and recovers exact source bytes through an independent reader; it is format feasibility, not a hostile decoder or both-host implementation. Fresh repository consistency passed 7/7. Retire C02's last 3 pt without additions; G3 is a completed design gate, while G4–G10 remain open. Final head `c49a9a5` passed CI `41160242518` (18 applicable jobs; documentation-only intentionally skipped under full routing). Native-debug was intentionally absent because no configured source/SDK path changed. [PR #32](https://github.com/carimatics/lang/pull/32) merged as `9694ec3` at 11:49 JST; original `main` is clean and synchronized with `origin/main` (0 ahead / 0 behind).
+
+D01 executable checkpoint, verified 2026-10-31 11:49 JST: `registry::archive::AdmittedArchive::admit` validates bounded canonical USTAR/JSON into a private owned inventory with original UTF-8 bytes and exact archive/descriptor/source digests, without I/O or execution authority. An independent tar-rs fixture matches the retained archive hash and its admitted source executes to 42; the frozen inventory survives mutation of the caller's bytes. Nine tests cover hostile headers, truncation/padding, closed/canonical metadata, path/device/case/prefix aliases, digest/UTF-8 failures, exact byte/record/depth/aggregate limits, dependency identities and 512 deterministic mutations. Focused strict Clippy and repository consistency 7/7 passed; the libFuzzer target compiles. Continuous fuzz execution is not claimed: cargo-fuzz/nightly are not installed. Remaining acceptance: frozen full baseline, latest-head both-host CI and PR publication. Retain 3 pt pending those checks, with D01 the only doing row.
+
+D01 sequencing audit, 2026-10-31 JST: PR #32's evidence JSON selects the existing full CI route. Continue implementation from the already accepted RFCs on isolated branch `codex/m5-registry-archive`, created clean from `codex/m5-registry-contract` (`c49a9a5`) in `/private/tmp/lang-m5-registry-archive`. Its initial PR base was that contract branch in `git@github.com:carimatics/lang.git`; after PR #32 merged, the work branch fast-forwarded to `9694ec3` and its PR base is now `main`. This supersedes the earlier plan to wait for contract publication before beginning code, without accepting uploads before design acceptance. Scope remains the byte-only decoder and verified immutable inventory; network, storage publication and materialization stay with their subsequent deliveries. No new delivery or estimate change. Original `main` remains clean.
 
 C01 completed, 2026-10-31 JST: [RFC 0045](rfcs/0045-registry-threat-model.md) at `94a5200` is accepted under experimental delegation. Sixteen threats bind origin/namespace, scoped credentials, hostile archives, immutable transactions, replay/key compromise, audit, execution and hosting to observable acceptance obligations. Fresh repository consistency passed 7/7; paired threat IDs and source URLs match. Retire the last 3 pt with no additions. C02 is the only doing row at 3 pt; G3 remains open until its protocol/recovery decision is accepted. No upload implementation has begun.
 
@@ -76,12 +80,12 @@ Gate completion: **3/10; 21/65 historical gate weight**. Delivery points below a
 | M5-B04 | done | 0 | M5-B03,M5-B05 | G2 | Edition migration CLI and both-host before/after execution journey | `62e742c` |
 | M5-C01 | done | 0 | M5-A01 | G3 | Threat model: identities, namespace, authority, abuse and adversaries | `94a5200` |
 | M5-C02 | done | 0 | M5-C01 | G3 | Accept protocol, limits, recovery and security acceptance cases before upload | `53376e5` |
-| M5-D01 | doing | 3 | M5-C02 | G4 | Admit bounded untrusted archives and reject traversal/duplicate/bomb inputs | — |
-| M5-D02 | todo | 3 | M5-D01 | G4 | Content-addressed storage and immutable version publication transaction | — |
+| M5-D01 | done | 0 | M5-C02 | G4 | Admit bounded untrusted archives and reject traversal/duplicate/bomb inputs | `b3c8d1b` |
+| M5-D02 | todo | 3 | M5-D01,M5-E01 | G4 | Content-addressed storage and immutable version publication transaction | — |
 | M5-D03 | todo | 3 | M5-D02 | G4 | Versioned index and verified download with exact identity/checksums | — |
 | M5-D04 | todo | 3 | M5-D03 | G4 | Resolve a registry dependency and execute it on both hosts | — |
 | M5-D05 | todo | 3 | M5-D04 | G4 | Lock/offline replay, interrupted publication and concurrent immutability tests | — |
-| M5-E01 | todo | 3 | M5-C02 | G5 | Authenticated identities, credential handling and scoped authorization | — |
+| M5-E01 | doing | 3 | M5-C02 | G5 | Authenticated identities, credential handling and scoped authorization | — |
 | M5-E02 | todo | 3 | M5-E01,M5-D02 | G5 | Publish and yank/unyank with owner and conflict enforcement | — |
 | M5-E03 | todo | 3 | M5-E02 | G5 | Owner add/remove/transfer and last-owner/credential-revocation fixtures | — |
 | M5-E04 | todo | 3 | M5-E03 | G5 | Durable audit trail, recovery and unauthorized-operation end-to-end tests | — |
@@ -110,13 +114,15 @@ Gate completion: **3/10; 21/65 historical gate weight**. Delivery points below a
 
 ## Estimate reconciliation
 
-**112 + 1 − 23 = 90 pt**
+**112 + 1 − 26 = 87 pt**
 
 | Baseline remaining | Net additions/re-estimates | Retired at completion | Remaining |
 | ---: | ---: | ---: | ---: |
-| 112 pt | +1 pt | −23 pt | 90 pt |
+| 112 pt | +1 pt | −26 pt | 87 pt |
 
 ## Delivery notes and roadmap audit
+
+- Registry order audit, 2026-10-31 JST: the selected D01 remains the only doing delivery. Execute the already planned E01 authentication/credential/scope boundary before D02, so immutable publication can reauthorize against the current locked state. D02 now depends on D01 and E01; E01 still depends on accepted C02. An in-memory transaction exploration checked six crash/retry cuts and both distinct-payload orders, and showed why cached preflight authorization cannot authorize a publish after revocation. This is design evidence only, not filesystem or authentication implementation. The existing installer supplies useful file/lock patterns, but its state lacks registry owner/release/audit atomicity. No new delivery or estimate change: the 90 pt reconciliation is unchanged. Re-audit the next source execution fixture after the two planned E01/D02 prerequisites.
 
 - B04 completion, 2026-10-31 JST: retire its last 1 pt after the complete local baseline, final-head CI and confirmed PR merge. Retired estimates become 17 pt; net additions remain +1 pt. C01 becomes the only doing row at 3 pt. No new work or scope reduction; G2 completes and eight gates remain open.s
 
