@@ -10,6 +10,10 @@
 
 **次: M5-D03 — versioned indexと検証付きdownload（3 pt）。**
 
+D03 CI修正checkpoint（2026-10-31 15:38 JST確認）: 固定`5317901`はsource不変で全baseline 4 commandに成功（182 suite・2,609 test）した。Windows job `124464445376`ではclient TLS読取り修正とtransport 15 test成功を確認したが、8 handshakeのstop testが変更していない2秒上限を超えた。Cancelは各socket timeoutを最大100 msに制限して共有stop flagを確認し、絶対deadlineと実worker joinまでの予約を維持する。Shutdownも追加の起床手段として残す。Shutdownなしのread/write cancelを含むlocal transport全18 testが成功。別件のmacOS CI失敗も再現し、`fuzz/Cargo.lock`で新しい直接production依存2件の記載が欠けていた。Cargoでその2行を再生成し、locked offline fuzz Clippyは成功した。残る受入条件は修正後の固定全baseline、最新headのmacOS/Windows CI、PR公開。D03だけをdoing・3 ptに維持し、見積りの追加・退役なし。
+
+D04実行可能性確認（2026-10-31 15:38 JST）: `/private/tmp/lang-m5-registry-source-probe.rs`で隔離した未署名archiveを実際に公開し、証明書検証付きHTTPSでindex/archiveを取得した。Service停止・削除後に固定依存をVM/native JITで実行し、両方42を返した。別の2 namespace fixtureは84を返し、元のCRLF/UTF-8 sourceを保持する。未宣言edgeは`SRC0013`となりgraphを作らない。URL形の診断pathは既存MIRの`InvalidPath`で拒否されるため、そのpath形式にorigin identityを埋め込めない。これはlocalの統合/設計実験でありD04完了ではない。Manifest/lock encodingの受理、本番trust、実resolver/cache統合、両host証拠は残る。D04はD03直後のtodo・3 ptを維持する。
+
 D03 server checkpoint（2026-10-31 15:17 JST確認）: 読取専用HTTPS serviceが排他lock中に完全検証済み世代を保持し、上限付きindexを共有、HEADを再確認して参照済みarchiveの厳密bytesだけを配信する。共有data、上限付きTLS/worker/header記憶域、送信archive bufferを受理前に256 MiBへ予約する。最大8接続には未完了handshakeを含み、超過peerをapplication queueなしで閉じ、stopは全workerをjoinする。Transport全16 testが成功し、実local socket fixtureでは16 MiBの元source、line/header/field数と集約budgetの厳密境界、未公開/link/改変object、pipeline拒否、低速peer、cancelを含む。取得済み旧超過indexの拒否を追加したstore全20 testも成功。RFC 0046/0048にはread snapshotと論理memory計上の契約を実装前に明記した。残る受入条件は固定全baseline、最新headのmacOS/Windows CI、実platform結果の確認、PR公開である。D03だけを3 ptに維持し、追加・退役なし。次はD04のsource依存実行。
 
 D03 Windows追跡（2026-10-31 15:17 JST）: client head `cb849f2`のnative-debug `41174823189`は成功したが、CI `41174823192`のjob `124460498312`は、変更していないfixtureの2秒connect deadlineで正当なTLS読取りに失敗した。逐次connectorは最初のDNS addressだけで全deadlineを消費でき、後続候補（例: IPv4 listenerに対し先に返るIPv6 localhost）を試せなかった。絶対deadlineを維持しつつ残予算を残address数へ配分し、正当caseのassertionへhost情報を追加した。変更後のlocal transport全16 testは成功したが、Windowsの原因/修正確認には新headのCI証拠が必要。Timeout・assertion・CI範囲は弱めず、旧失敗runを成功とは扱わない。

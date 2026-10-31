@@ -315,7 +315,8 @@ fn eight_handshakes_are_counted_and_stop_joins_all_workers() {
     }
     let start = Instant::now();
     server.stop().unwrap();
-    assert!(start.elapsed() < Duration::from_secs(2));
+    let elapsed = start.elapsed();
+    assert!(elapsed < Duration::from_secs(2), "stop elapsed {elapsed:?}");
     assert_eq!(active(&server), 0);
     drop(peers);
     Registry::open(&fixture.parent, "registry", &fixture.identity).unwrap();

@@ -28,7 +28,7 @@ struct Shared {
     _reservation: Reservation,
 }
 struct Control {
-    stopped: AtomicBool,
+    stopped: Arc<AtomicBool>,
     sockets: Mutex<[Option<TcpStream>; MAX_CONNECTIONS]>,
 }
 impl Control {
@@ -119,7 +119,7 @@ impl Server {
         let address = listener.local_addr()?;
         listener.set_nonblocking(true)?;
         let control = Arc::new(Control {
-            stopped: AtomicBool::new(false),
+            stopped: Arc::new(AtomicBool::new(false)),
             sockets: Mutex::new(std::array::from_fn(|_| None)),
         });
         let worker_control = control.clone();
@@ -201,11 +201,12 @@ fn run(listener: TcpListener, shared: Arc<Shared>, control: Arc<Control>) -> Res
                 slot
             };
             let shared = shared.clone();
+            let stopped = control.stopped.clone();
             let task = thread::Builder::new()
                 .name("registry-read".into())
                 .stack_size(WORKER_STACK)
                 .spawn(move || {
-                    let _ = serve(stream, &shared, deadlines);
+                    let _ = serve(stream, &shared, deadlines, stopped);
                 });
             match task {
                 Ok(task) => workers.push(Worker {
@@ -312,7 +313,12 @@ fn failure<'a>(e: Error) -> Response<'a> {
     }
 }
 
-fn serve(stream: TcpStream, shared: &Shared, deadlines: Deadlines) -> Result<(), Error> {
+fn serve(
+    stream: TcpStream,
+    shared: &Shared,
+    deadlines: Deadlines,
+    stopped: Arc<AtomicBool>,
+) -> Result<(), Error> {
     let mut conn = rustls::ServerConnection::new(shared.tls.clone())
         .map_err(|_| error(ErrorKind::Transport))?;
     conn.set_buffer_limit(Some(TLS_BUFFER_BYTES));
@@ -321,6 +327,7 @@ fn serve(stream: TcpStream, shared: &Shared, deadlines: Deadlines) -> Result<(),
         Socket {
             stream,
             end: deadlines.connect,
+            stopped: Some(stopped),
         },
     );
     while stream.conn.is_handshaking() {

@@ -326,6 +326,7 @@ fn low_level_deadline_does_not_restart_after_progress() {
     let mut socket = socket::Socket {
         stream: socket,
         end: Instant::now(),
+        stopped: None,
     };
     assert_eq!(
         socket.read(&mut [0]).unwrap_err().kind(),
@@ -346,6 +347,7 @@ fn socket_write_deadline_bounds_a_nonreading_peer() {
     let mut socket = socket::Socket {
         stream,
         end: start + Duration::from_millis(200),
+        stopped: None,
     };
     let bytes = [b'X'; 64 * 1024];
     let mut sent = 0;
@@ -366,4 +368,51 @@ fn socket_write_deadline_bounds_a_nonreading_peer() {
     }
     assert!(sent > 0);
     assert!(start.elapsed() < Duration::from_secs(2));
+}
+
+fn cancellation_without_shutdown(write: bool) {
+    use std::sync::atomic::{AtomicBool, Ordering};
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    let stream = TcpStream::connect(listener.local_addr().unwrap()).unwrap();
+    let (_peer, _) = listener.accept().unwrap();
+    let stopped = Arc::new(AtomicBool::new(false));
+    let start = Instant::now();
+    let mut socket = socket::Socket {
+        stream,
+        end: start + Duration::from_secs(10),
+        stopped: Some(stopped.clone()),
+    };
+    let bytes = [b'X'; 64 * 1024];
+    if write {
+        assert!(socket.write(&bytes).unwrap() > 0);
+    }
+    let cancel = std::thread::spawn(move || {
+        std::thread::sleep(Duration::from_millis(100));
+        // No socket shutdown/close: cancellation itself must wake the I/O
+        // loop well before its unchanged ten-second absolute deadline.
+        stopped.store(true, Ordering::Release);
+    });
+    let error = if write {
+        loop {
+            match socket.write(&bytes) {
+                Ok(n) => assert!(n > 0),
+                Err(error) => break error,
+            }
+        }
+    } else {
+        socket.read(&mut [0]).unwrap_err()
+    };
+    cancel.join().unwrap();
+    assert_eq!(error.kind(), io::ErrorKind::ConnectionAborted);
+    assert!(start.elapsed() < Duration::from_secs(2));
+}
+
+#[test]
+fn cancellation_retires_a_blocked_socket_read_without_shutdown() {
+    cancellation_without_shutdown(false);
+}
+
+#[test]
+fn cancellation_retires_a_blocked_socket_write_without_shutdown() {
+    cancellation_without_shutdown(true);
 }
