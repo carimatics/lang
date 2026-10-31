@@ -19,6 +19,8 @@ D03事前検証（2026-10-31 JST）: `/private/tmp/lang-m5-index-bound-probe.rs`
 
 D03判断（2026-10-31 JST）: RFC 0046で派生indexのcommit前上限をRFC 0001委任により採択し、旧データの明示拒否と暗黙migrationなしを規定した。上記事前検証の契約対応は実装前に解決した。Roadmapをmerge済みE01、D02の実行checkpoint、不変のD02 → D03 → D04実行順に整合させた。D03はtodo・3 ptを維持し、選択にはD02全検証の完了が必要。
 
+D03 transport実験（2026-10-31 JST）: `/private/tmp/lang-m5-http-framing-probe.rs`でlock済みureq 3.5.0のメモリ内transportを使用した（network/TLSではない）。1 byte宣言の厳密入力は1 byteを返し残り0 byte。4 byte余分な入力も1 byteの正常EOFを返し、wireの残り4 byteは呼び出し側から隠れる。5 byte宣言で1 byteしかない場合は正しく失敗した。したがって既存の高水準body reader単独ではRFC 0046の余分なresponse拒否を実現できない。D03は保守されるHTTP/TLS部品を使いつつ上限付きraw framingを検査可能にし、両hostで厳密/不足/余分な実transport fixtureを加える。これは範囲を限定した統合制約で、library脆弱性の主張やM4動作変更ではない。D03はtodo・3 ptを維持する。
+
 D02 branch記録（2026-10-31 JST）: `codex/m5-registry-store`を`codex/m5-registry-authority`の`26fe3df`からclean状態で作成し、checkoutは`/private/tmp/lang-m5-registry-store`。初期PR baseは`git@github.com:carimatics/lang.git`の同前提branchで、PR #34は最終文書headを検証中。元`main`はmerge済み`f5084f1`でcleanを維持する。不変storage/公開という一貫した成果を新branchで分離し、doing行や見積りは追加しない。
 
 E01公開（2026-10-31 13:34 JST確認）: 最終head `26fe3df`はCI `41167648530`の対象18 jobすべて成功（full routingにより文書専用のみ意図的省略）、native-debug `41167648534`も全3 hostで成功。[PR #34](https://github.com/carimatics/lang/pull/34)は`5cd0815`としてmerge済みを確認。元`main`を`origin/main`へfast-forwardし、0 ahead / 0 behind・未commit変更なし。D02 branchも実装変更を保持して同前提mergeへfast-forwardし、PR baseは`main`となった。以下の古い公開待ち記録は履歴である。
