@@ -3,6 +3,51 @@ use crate::registry::budget::Budget;
 use crate::registry::transport::MAX_REQUEST_MEMORY;
 
 #[test]
+fn metered_receipt_reserves_before_transition_and_outlives_the_registry_owner() {
+    let tmp = Temp::new();
+    let parent = parent(tmp.path());
+    let budget = Budget::new(MAX_REQUEST_MEMORY);
+    let mut metered =
+        MeteredRegistry::with_budget(initialize(&parent), budget.clone(), &At(100)).unwrap();
+    let source = archive("0.1.0");
+    let baseline = budget.used();
+    let pressure = budget
+        .reserve(MAX_REQUEST_MEMORY - baseline - records::MAX_AUDIT + 1)
+        .unwrap();
+    let before = snapshot(tmp.path());
+    assert_eq!(
+        metered
+            .publish(
+                &bearer(),
+                source.as_bytes(),
+                &"a".repeat(32),
+                ExpectedRevision::Absent,
+                &At(110)
+            )
+            .unwrap_err()
+            .kind,
+        ErrorKind::Busy
+    );
+    assert_eq!(snapshot(tmp.path()), before);
+    drop(pressure);
+    assert_eq!(budget.used(), baseline);
+    let receipt = metered
+        .publish(
+            &bearer(),
+            source.as_bytes(),
+            &"a".repeat(32),
+            ExpectedRevision::Absent,
+            &At(110),
+        )
+        .unwrap();
+    drop(metered);
+    assert_eq!(budget.used(), records::MAX_AUDIT);
+    assert_eq!(receipt.state_revision(), 2);
+    assert!(receipt.as_bytes().unwrap().len() <= records::MAX_AUDIT);
+    drop(receipt);
+    assert_eq!(budget.used(), 0);
+}
+#[test]
 fn metered_publish_refresh_retry_and_source_execute_with_exact_bytes() {
     let tmp = Temp::new();
     let parent = parent(tmp.path());
@@ -232,20 +277,18 @@ fn committed_refresh_failure_refuses_reads_and_reconciles_only_after_reopen() {
         path,
     };
     let source = archive("0.1.0");
-    assert_eq!(
-        metered
-            .publish(
-                &bearer(),
-                source.as_bytes(),
-                REQUEST,
-                ExpectedRevision::Absent,
-                &clock
-            )
-            .err()
-            .unwrap()
-            .kind,
-        ErrorKind::State
-    );
+    let refusal = metered
+        .publish(
+            &bearer(),
+            source.as_bytes(),
+            REQUEST,
+            ExpectedRevision::Absent,
+            &clock,
+        )
+        .err()
+        .unwrap();
+    assert_eq!(refusal.kind, ErrorKind::State);
+    assert_eq!(refusal.outcome, PublicationOutcome::Unknown);
     assert_ne!(std::fs::read(&clock.path).unwrap(), clock.old);
     assert_eq!(budget.used(), baseline);
     assert_eq!(
@@ -581,5 +624,98 @@ fn retained_generation_capacity_refuses_one_byte_short_without_cleanup() {
             );
         }
         assert_eq!(snapshot(tmp.path()), before);
+    }
+}
+
+#[test]
+fn http_body_lease_must_cover_the_same_budget_and_is_not_charged_twice_at_admission() {
+    for adjustment in [-1isize, 0, 1] {
+        let tmp = Temp::new();
+        let parent = parent(tmp.path());
+        let registry = initialize(&parent);
+        let root = tmp.path().join("registry");
+        let state_bytes = std::fs::read_dir(root.join("states"))
+            .unwrap()
+            .next()
+            .unwrap()
+            .unwrap()
+            .metadata()
+            .unwrap()
+            .len() as usize;
+        let entries = std::fs::read_dir(&root).unwrap().count()
+            + ["states", "audits", "objects", "staging"]
+                .iter()
+                .map(|name| std::fs::read_dir(root.join(name)).unwrap().count())
+                .sum::<usize>();
+        let source = archive("0.1.0");
+        let candidate = state_bytes + 2 * archive::MAX_DESCRIPTOR_BYTES + 4096;
+        let workspace =
+            96 * candidate + 6 * source.as_bytes().len() + 8192 * (entries + 8) + 2 * 1024 * 1024;
+        let generation = 2 * candidate + (1024 + 8192) * 1024 + 4096;
+        // Independent RFC envelope plus the old empty generation, input body
+        // and caller's already-reserved bounded response record.
+        let maximum =
+            (workspace + generation + 4096 + source.as_bytes().len() + records::MAX_AUDIT)
+                .checked_add_signed(adjustment)
+                .unwrap();
+        let budget = Budget::new(maximum);
+        let mut metered = MeteredRegistry::with_budget(registry, budget.clone(), &At(100)).unwrap();
+        let response_lease = budget.reserve(records::MAX_AUDIT).unwrap();
+        let before = snapshot(tmp.path());
+        let foreign = Budget::new(source.as_bytes().len())
+            .reserve(source.as_bytes().len())
+            .unwrap();
+        let short = budget.reserve(source.as_bytes().len() - 1).unwrap();
+        for lease in [&foreign, &short] {
+            assert_eq!(
+                metered
+                    .publish_http(
+                        HttpPublication {
+                            bearer: &bearer(),
+                            bytes: source.as_bytes(),
+                            lease,
+                            route: ("answer", "0.1.0"),
+                            request_id: REQUEST,
+                            expected: ExpectedRevision::Absent
+                        },
+                        &At(110)
+                    )
+                    .unwrap_err()
+                    .kind,
+                ErrorKind::Limit
+            );
+            assert_eq!(snapshot(tmp.path()), before);
+        }
+        drop(short);
+        drop(foreign);
+        let input_lease = budget.reserve(source.as_bytes().len()).unwrap();
+        let result = metered.publish_http(
+            HttpPublication {
+                bearer: &bearer(),
+                bytes: source.as_bytes(),
+                lease: &input_lease,
+                route: ("answer", "0.1.0"),
+                request_id: REQUEST,
+                expected: ExpectedRevision::Absent,
+            },
+            &At(110),
+        );
+        if adjustment < 0 {
+            assert_eq!(result.unwrap_err().kind, ErrorKind::Busy);
+            assert_eq!(snapshot(tmp.path()), before);
+        } else {
+            let (receipt, created) = result.unwrap();
+            assert!(created);
+            assert_eq!(receipt.state_revision(), 2);
+            yank::execute(
+                &AdmittedArchive::admit(metered.archive(source.sha256()).unwrap().as_bytes())
+                    .unwrap(),
+            );
+        }
+        drop(metered);
+        assert_eq!(budget.used(), source.as_bytes().len() + records::MAX_AUDIT);
+        drop(input_lease);
+        drop(response_lease);
+        assert_eq!(budget.used(), 0);
     }
 }

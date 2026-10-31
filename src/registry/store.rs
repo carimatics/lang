@@ -27,7 +27,8 @@ pub use index::{Index, IndexedRelease};
 pub use owners::{MAX_OWNER_BYTES, OwnerAction, OwnerActionKind};
 pub(crate) use reads::CapturedReads;
 pub use reads::MAX_INDEX_BYTES;
-pub use workspace::{MeteredBytes, MeteredRegistry};
+pub(crate) use workspace::{HttpPublication, RequestControl};
+pub use workspace::{MeteredBytes, MeteredReceipt, MeteredRegistry};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum ErrorKind {
@@ -155,6 +156,27 @@ impl Receipt {
     }
     pub fn as_bytes(&self) -> Result<Vec<u8>, Error> {
         records::encode(self, records::MAX_AUDIT)
+    }
+
+    /// Closed wire-result projection; initialization and local administration
+    /// have no HTTP mutation receipt. No receipt confers authority.
+    pub(crate) fn package_result(&self) -> Option<(u64, &'static str)> {
+        Some(match &self.result {
+            records::AuditResult::Publish(r) => (r.package_revision, "published"),
+            records::AuditResult::Yank(r) => (
+                r.package_revision,
+                if r.yanked { "yanked" } else { "unyanked" },
+            ),
+            records::AuditResult::Owner(r) => (
+                r.package_revision,
+                if r.member {
+                    "owner_added"
+                } else {
+                    "owner_removed"
+                },
+            ),
+            _ => return None,
+        })
     }
 }
 

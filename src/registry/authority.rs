@@ -153,6 +153,18 @@ impl Bearer {
     pub fn authenticator_sha256(&self) -> String {
         codec::hex(&self.authenticator())
     }
+
+    // The caller owns the explicit secret and a clearing header buffer. Never
+    // create an ordinary temporary String containing the bearer.
+    pub(crate) fn append_http(&self, header: &mut Zeroizing<String>) {
+        const HEX: &[u8; 16] = b"0123456789abcdef";
+        header.push_str("Authorization: Bearer ");
+        for byte in self.0.iter() {
+            header.push(HEX[(byte >> 4) as usize] as char);
+            header.push(HEX[(byte & 15) as usize] as char);
+        }
+        header.push_str("\r\n");
+    }
 }
 
 /// A request adapter derives this from the admitted mutation, never caller claims.

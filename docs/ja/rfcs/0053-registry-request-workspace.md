@@ -16,6 +16,16 @@ Host実装checkpoint（2026-10-31 JST確認）: `MeteredRegistry::new`は保持�
 
 ## 概要
 
+E05実装checkpoint（2026-10-31 JST確認）: 実TLS fixtureで同一budgetの入力lease、応答/worker lease保持、非待機access、元deadline、協調cancellation、recovery-required照合を検証した。単独receiptと受信bodyの境界試験では書込み前拒否、厳密受理、解放後のゼロを確認した。Localのtransport 32-test runと重点workspace caseが成功した。Implementedへの変更には固定全検証と最新headの両host CI/公開が残り、以前の準備checkpointは履歴とする。
+
+同じ監査により、HEAD変更後のrefresh失敗を含むrecovery-requiredのhost errorは`PublicationOutcome::Unknown`を持つ必要がある。Commit後に静的state診断と誤解を招く未公開outcomeを併存させない。HTTP clientもこの不確実性を維持する。
+
+保持結果の明確化（2026-10-31 JST採択）: E05の寿命監査で、単独の計上済みmutationが一時予約の破棄後に所有host receiptを返していると分かった。破棄まで保守的な2 KiB receipt leaseを保持する`MeteredReceipt`を返し、情報用receiptは借用可能とする。呼出側が明示的に行う複製・直列化は呼出側所有のallocationである。Transaction前にこのleaseを予約する。HTTP adapterは既存のconnection/worker予約内で有界host/wire receiptを応答破棄・joinまで保持し、受信bodyの予約が同じbudgetに属することを検証して二重計上せず借用する。既存E05の寿命監査内で保持結果の不足を修正し、delivery・前提・直列化formatは追加・変更しない。実験段階の計上済みhost戻り型は変わるが、通常の非計上host receipt APIは維持する。HTTP deadline/cancellation制御は元のrequestにscopeを限定し、すべての終了経路で解除する。制御の期限切れだけをHEAD変更と分類したり、未commit世代を使用不能にしたりしてはならない。
+
+Host公開checkpoint（2026-10-31 20:01 JST確認）: E06 `db22857`でsource不変の全baseline（2,676 test/182 suite・fmt・厳密workspace Clippy・rustdoc）、locked fuzz Clippy、CI 41193493354の対象全18 job、native-debug 41193493309の全3 hostが成功した。PR #41は`2ad0c10`としてmergeし、mainはclean・同期済み・検証済みtreeと同一である。計上済みhostの前提は完了したが、E05のHTTPS deadline/cancellation・transport寿命義務は残るため、本RFCをacceptedに維持する。以前の公開待ち記述は履歴とする。
+
+E05準備checkpoint（2026-10-31 JST確認）: 明示的な読取専用entry pointを維持し、計上済みhost経路にmutable service dispatchを追加する。応答が選択世代を使う間は排他service accessを保持し、所有するrequest/response bufferは破棄まで実leaseを維持する。Network adapterは元の全request deadlineとcancellationを最終host guardへ伝え、すべてのretryで現在権限を確認する。外部HTTP契約model 54 caseが成功し、Python/JavaScriptの独立canonical encodingで初回receiptは161 byte、SHA-256 `300692a251654d70e6dd653e6454ef6e5648e4bf68ffc3004da3e0aae792ebbf`となった。Policy/encoding証拠のみで、実networkやallocation適用の主張はない。E06のfull baseline/CI中はその固定sourceを変更しない。
+
 認証HTTPS mutationを有効化する前に、有界host作業memory受理と置換可能な検証済みread世代を準備する。Metadataのみのpreflightで保守的なallocation上限を導出し、body decode・recovery・state複製前に共有budgetから予約する。実store経路でも観測した上限を再検査する。Mutationはcommit前に置換read世代を予約し、commit後の更新に失敗したら古いservice readを拒否する。
 
 2026-10-31のallocation/lifetime監査で提案state係数48を96へ改訂し、RFC 0001委任により以下の保守的modelをacceptする。layout実験とpolicy modelは設計の根拠であり、本番での適用、peak RSS、実装、gate完了を示さない。E06は不正入力とcommit後refreshを含め、allocation前に上限を適用する必要がある。

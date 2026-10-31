@@ -42,6 +42,10 @@ pub(crate) struct Reservation {
     bytes: usize,
 }
 impl Reservation {
+    pub(crate) fn covers(&self, budget: &Arc<Budget>, bytes: usize) -> bool {
+        Arc::ptr_eq(&self.budget, budget) && self.bytes >= bytes
+    }
+
     pub(crate) fn grow(&mut self, bytes: usize) -> Result<(), Exhausted> {
         let additional = bytes.checked_sub(self.bytes).ok_or(Exhausted)?;
         self.budget

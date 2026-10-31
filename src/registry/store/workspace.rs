@@ -1,14 +1,51 @@
 use super::*;
 use crate::registry::budget::{Budget, Reservation};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::time::Instant;
 
 const PROBE_MEMORY: usize = 2 * 1024 * 1024;
+
+pub(crate) struct RequestControl {
+    pub deadline: Instant,
+    pub stopped: Arc<AtomicBool>,
+}
+impl RequestControl {
+    pub(super) fn check(&self) -> Result<(), Error> {
+        if self.stopped.load(Ordering::Acquire) || Instant::now() >= self.deadline {
+            return Err(error(ErrorKind::Io, "registry request retired"));
+        }
+        Ok(())
+    }
+}
+
+pub(crate) struct RequestScope<'a>(&'a mut MeteredRegistry);
+impl std::ops::Deref for RequestScope<'_> {
+    type Target = MeteredRegistry;
+    fn deref(&self) -> &Self::Target {
+        self.0
+    }
+}
+impl std::ops::DerefMut for RequestScope<'_> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        self.0
+    }
+}
+impl Drop for RequestScope<'_> {
+    fn drop(&mut self) {
+        self.0.registry.storage.control = None;
+    }
+}
 
 fn busy() -> Error {
     error(ErrorKind::Busy, "registry request budget is busy")
 }
 fn recovery() -> Error {
-    error(ErrorKind::State, "registry requires explicit recovery")
+    Error {
+        kind: ErrorKind::State,
+        outcome: PublicationOutcome::Unknown,
+        message: "registry requires explicit recovery",
+    }
 }
 
 #[derive(Clone, Copy)]
@@ -92,7 +129,7 @@ struct Workspace<'a> {
     registry: &'a mut Registry,
     plan: Plan,
     _workspace: Reservation,
-    _body: Reservation,
+    _body: Option<Reservation>,
     generation: Option<Reservation>,
 }
 impl<'a> Workspace<'a> {
@@ -102,6 +139,18 @@ impl<'a> Workspace<'a> {
         input: Input,
         clock: &impl Clock,
     ) -> Result<Self, Error> {
+        Self::begin_reserved(registry, budget, input, clock, None)
+    }
+    fn begin_reserved(
+        registry: &'a mut Registry,
+        budget: &Arc<Budget>,
+        input: Input,
+        clock: &impl Clock,
+        prepaid: Option<&Reservation>,
+    ) -> Result<Self, Error> {
+        if prepaid.is_some_and(|lease| !lease.covers(budget, input.bytes())) {
+            return Err(capacity());
+        }
         if registry.storage.envelope.is_some() {
             return Err(recovery());
         }
@@ -121,7 +170,11 @@ impl<'a> Workspace<'a> {
         // Grow the probe's real lease atomically; no uncharged gap or duplicate
         // scratch reservation distorts the exact shared-budget boundary.
         workspace.grow(plan.workspace).map_err(|_| busy())?;
-        let body = budget.reserve(input.bytes()).map_err(|_| busy())?;
+        let body = if prepaid.is_some() {
+            None
+        } else {
+            Some(budget.reserve(input.bytes()).map_err(|_| busy())?)
+        };
         let generation = budget.reserve(plan.generation).map_err(|_| busy())?;
         clock.now()?;
         if registry.storage.head()? != plan.head {
@@ -164,7 +217,27 @@ pub struct MeteredRegistry {
     generation: LeasedGeneration,
     recovery_required: bool,
 }
+
+pub(crate) struct HttpPublication<'a> {
+    pub bearer: &'a Bearer,
+    pub bytes: &'a [u8],
+    pub lease: &'a Reservation,
+    pub route: (&'a str, &'a str),
+    pub request_id: &'a str,
+    pub expected: ExpectedRevision,
+}
 impl MeteredRegistry {
+    pub(crate) fn request_scope(
+        &mut self,
+        control: RequestControl,
+    ) -> Result<RequestScope<'_>, Error> {
+        if self.registry.storage.control.is_some() {
+            return Err(recovery());
+        }
+        control.check()?;
+        self.registry.storage.control = Some(control);
+        Ok(RequestScope(self))
+    }
     /// Capture a fully validated initial generation under the 256 MiB budget.
     pub fn new(registry: Registry, clock: &impl Clock) -> Result<Self, Error> {
         Self::with_budget(
@@ -188,6 +261,7 @@ impl MeteredRegistry {
         })
     }
     fn ready(&self) -> Result<(), Error> {
+        self.registry.storage.check_request()?;
         if self.recovery_required {
             return Err(recovery());
         }
@@ -202,9 +276,19 @@ impl MeteredRegistry {
         clock: &impl Clock,
         operation: impl FnOnce(&mut Registry) -> Result<T, Error>,
     ) -> Result<T, Error> {
+        self.execute_reserved(input, clock, None, operation)
+    }
+    fn execute_reserved<T>(
+        &mut self,
+        input: Input,
+        clock: &impl Clock,
+        prepaid: Option<&Reservation>,
+        operation: impl FnOnce(&mut Registry) -> Result<T, Error>,
+    ) -> Result<T, Error> {
         self.ready()?;
         let result: Result<(T, Option<LeasedGeneration>), Error> = (|| {
-            let workspace = Workspace::begin(&mut self.registry, &self.budget, input, clock)?;
+            let workspace =
+                Workspace::begin_reserved(&mut self.registry, &self.budget, input, clock, prepaid)?;
             let value = operation(workspace.registry)?;
             // Exact retry returns its original receipt but keeps today's generation.
             if workspace.registry.storage.head()? == workspace.plan.head {
@@ -221,7 +305,13 @@ impl MeteredRegistry {
                 Ok(value)
             }
             Err(e) => {
-                if self.generation.reads.check_head(&self.registry).is_err() {
+                // A retired request still needs one bounded HEAD comparison to
+                // distinguish a changed generation from an uncommitted refusal.
+                // Do not mistake the expired control itself for changed storage.
+                let control = self.registry.storage.control.take();
+                let changed = self.generation.reads.check_head(&self.registry).is_err();
+                self.registry.storage.control = control;
+                if changed {
                     self.recovery_required = true;
                     return Err(recovery());
                 }
@@ -240,8 +330,8 @@ impl MeteredRegistry {
         request_id: &str,
         expected: ExpectedRevision,
         clock: &impl Clock,
-    ) -> Result<Receipt, Error> {
-        self.execute(Input::Publication(bytes.len()), clock, |registry| {
+    ) -> Result<MeteredReceipt, Error> {
+        self.execute_receipt(Input::Publication(bytes.len()), clock, |registry| {
             let archive = AdmittedArchive::admit(bytes).map_err(|e| {
                 error(
                     match e.kind {
@@ -255,6 +345,83 @@ impl MeteredRegistry {
             registry.publish(bearer, &archive, request_id, expected, clock)
         })
     }
+
+    pub(crate) fn identity(&self) -> &ServiceIdentity {
+        &self.registry.identity
+    }
+
+    pub(crate) fn check_head(&self) -> Result<(), Error> {
+        self.ready()
+    }
+
+    // The adapter retains the body and its real shared-budget lease throughout
+    // this call and response transmission. Validate that lease before borrowing
+    // it; do not charge the same allocation twice or accept another budget.
+    pub(crate) fn publish_http(
+        &mut self,
+        request: HttpPublication<'_>,
+        clock: &impl Clock,
+    ) -> Result<(Receipt, bool), Error> {
+        let HttpPublication {
+            bearer,
+            bytes,
+            lease,
+            route,
+            request_id,
+            expected,
+        } = request;
+        let previous = self.generation.reads.state_revision;
+        let receipt = self.execute_reserved(
+            Input::Publication(bytes.len()),
+            clock,
+            Some(lease),
+            |registry| {
+                let archive = AdmittedArchive::admit(bytes).map_err(|e| {
+                    error(
+                        match e.kind {
+                            archive::ErrorKind::Malformed => ErrorKind::Malformed,
+                            archive::ErrorKind::Limit => ErrorKind::Limit,
+                            archive::ErrorKind::Integrity => ErrorKind::Integrity,
+                        },
+                        "invalid registry source archive",
+                    )
+                })?;
+                if archive.descriptor().package().name() != route.0
+                    || archive.descriptor().package().version() != route.1
+                {
+                    return Err(error(
+                        ErrorKind::Integrity,
+                        "registry route differs from archive identity",
+                    ));
+                }
+                registry.publish(bearer, &archive, request_id, expected, clock)
+            },
+        )?;
+        let committed = receipt.state_revision() > previous;
+        Ok((receipt, committed))
+    }
+    /// Apply one canonical yank/unyank action under the same workspace guard.
+    pub(crate) fn action_http(
+        &mut self,
+        bearer: &Bearer,
+        name: &str,
+        bytes: &[u8],
+        lease: &Reservation,
+        clock: &impl Clock,
+    ) -> Result<(Receipt, String), Error> {
+        self.execute_reserved(Input::Action(bytes.len()), clock, Some(lease), |registry| {
+            // Each closed admitter independently validates canonical bytes and
+            // inapplicable fields. Neither body kind supplies authority.
+            if let Ok(action) = YankAction::admit(name, bytes) {
+                let receipt = registry.yank(bearer, &action, clock)?;
+                return Ok((receipt, action.request_id().to_owned()));
+            }
+            let action = OwnerAction::admit(name, bytes)?;
+            let receipt = registry.change_owner(bearer, &action, clock)?;
+            Ok((receipt, action.request_id().to_owned()))
+        })
+    }
+
     /// Apply one canonical yank/unyank action under the same workspace guard.
     pub fn yank(
         &mut self,
@@ -262,8 +429,8 @@ impl MeteredRegistry {
         name: &str,
         bytes: &[u8],
         clock: &impl Clock,
-    ) -> Result<Receipt, Error> {
-        self.execute(Input::Action(bytes.len()), clock, |registry| {
+    ) -> Result<MeteredReceipt, Error> {
+        self.execute_receipt(Input::Action(bytes.len()), clock, |registry| {
             registry.yank(bearer, &YankAction::admit(name, bytes)?, clock)
         })
     }
@@ -274,9 +441,27 @@ impl MeteredRegistry {
         name: &str,
         bytes: &[u8],
         clock: &impl Clock,
-    ) -> Result<Receipt, Error> {
-        self.execute(Input::Action(bytes.len()), clock, |registry| {
+    ) -> Result<MeteredReceipt, Error> {
+        self.execute_receipt(Input::Action(bytes.len()), clock, |registry| {
             registry.change_owner(bearer, &OwnerAction::admit(name, bytes)?, clock)
+        })
+    }
+    fn execute_receipt(
+        &mut self,
+        input: Input,
+        clock: &impl Clock,
+        operation: impl FnOnce(&mut Registry) -> Result<Receipt, Error>,
+    ) -> Result<MeteredReceipt, Error> {
+        // Every closed receipt's retained strings and record fit the 2 KiB
+        // audit allowance. Reserve it before any possible state transition.
+        let reservation = self
+            .budget
+            .reserve(records::MAX_AUDIT)
+            .map_err(|_| busy())?;
+        let receipt = self.execute(input, clock, operation)?;
+        Ok(MeteredReceipt {
+            receipt,
+            _reservation: reservation,
         })
     }
     /// Borrow a public index from the latest fully validated generation.
@@ -315,6 +500,30 @@ impl MeteredRegistry {
         })
     }
 }
+
+/// A host receipt retaining its logical allocation lease until dropped.
+/// Explicit caller copies/serialization allocate outside this owner's budget.
+pub struct MeteredReceipt {
+    receipt: Receipt,
+    _reservation: Reservation,
+}
+impl std::ops::Deref for MeteredReceipt {
+    type Target = Receipt;
+    fn deref(&self) -> &Self::Target {
+        &self.receipt
+    }
+}
+impl std::fmt::Debug for MeteredReceipt {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        self.receipt.fmt(f)
+    }
+}
+impl PartialEq for MeteredReceipt {
+    fn eq(&self, other: &Self) -> bool {
+        self.receipt == other.receipt
+    }
+}
+impl Eq for MeteredReceipt {}
 
 /// A bounded response retaining its request-budget reservation until dropped.
 pub struct MeteredBytes {

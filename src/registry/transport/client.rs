@@ -6,7 +6,7 @@ use rustls::pki_types::ServerName;
 use std::io::Write;
 use std::sync::Arc;
 
-/// Host-only read capability for exactly one configured origin and explicitly
+/// Host-only read/mutation capability for exactly one configured origin and explicitly
 /// supplied TLS roots. No proxy, redirects, ambient credentials, cache writes,
 /// package trust decision or production CLI unsigned-consumption path exists.
 pub struct Client {
@@ -19,6 +19,7 @@ impl Client {
             .with_root_certificates(roots)
             .with_no_client_auth();
         tls.alpn_protocols = vec![b"http/1.1".to_vec()];
+        tls.resumption = rustls::client::Resumption::disabled();
         Self {
             identity,
             tls: Arc::new(tls),
@@ -76,30 +77,8 @@ impl Client {
         exact: Option<usize>,
         deadlines: Deadlines,
     ) -> Result<Vec<u8>, Error> {
+        let mut stream = self.connect(deadlines)?;
         let authority = authority(&self.identity);
-        let (host, port) = authority
-            .rsplit_once(':')
-            .map_or((authority, 443), |(host, port)| {
-                (host, port.parse().expect("validated port"))
-            });
-        let name = ServerName::try_from(host.to_owned()).map_err(|_| malformed())?;
-        let socket = Socket::connect(host, port, deadlines.connect)?;
-        let connection = rustls::ClientConnection::new(self.tls.clone(), name)
-            .map_err(|_| error(ErrorKind::Transport))?;
-        let mut stream = rustls::StreamOwned::new(connection, socket);
-        while stream.conn.is_handshaking() {
-            remaining(deadlines.connect)?;
-            stream.conn.complete_io(&mut stream.sock)?;
-        }
-        remaining(deadlines.connect)?;
-        if stream
-            .conn
-            .alpn_protocol()
-            .is_some_and(|protocol| protocol != b"http/1.1")
-        {
-            return Err(malformed());
-        }
-        stream.sock.end = deadlines.request;
         let request = format!(
             "GET {path} HTTP/1.1\r\nHost: {authority}\r\nConnection: close\r\nContent-Length: 0\r\n\r\n"
         );
@@ -119,10 +98,40 @@ impl Client {
         wire::eof(&mut stream, deadlines.request)?;
         remaining(deadlines.request)?;
         if response.status != 200 {
-            // Never follow Location or interpret arbitrary error text as a
-            // destination, credential challenge or user-facing diagnostic.
             return Err(wire::error_body(&bytes, response.status)?);
         }
         Ok(bytes)
+    }
+
+    pub(super) fn connect(
+        &self,
+        deadlines: Deadlines,
+    ) -> Result<rustls::StreamOwned<rustls::ClientConnection, Socket>, Error> {
+        let authority = authority(&self.identity);
+        let (host, port) = authority
+            .rsplit_once(':')
+            .map_or((authority, 443), |(host, port)| {
+                (host, port.parse().expect("validated port"))
+            });
+        let name = ServerName::try_from(host.to_owned()).map_err(|_| malformed())?;
+        let socket = Socket::connect(host, port, deadlines.connect)?;
+        let mut connection = rustls::ClientConnection::new(self.tls.clone(), name)
+            .map_err(|_| error(ErrorKind::Transport))?;
+        connection.set_buffer_limit(Some(64 * 1024));
+        let mut stream = rustls::StreamOwned::new(connection, socket);
+        while stream.conn.is_handshaking() {
+            remaining(deadlines.connect)?;
+            stream.conn.complete_io(&mut stream.sock)?;
+        }
+        remaining(deadlines.connect)?;
+        if stream
+            .conn
+            .alpn_protocol()
+            .is_some_and(|protocol| protocol != b"http/1.1")
+        {
+            return Err(malformed());
+        }
+        stream.sock.end = deadlines.request;
+        Ok(stream)
     }
 }

@@ -5,27 +5,65 @@ use rustls::pki_types::{CertificateDer, PrivateKeyDer};
 use std::io::Write;
 use std::net::{Shutdown, SocketAddr, TcpListener, TcpStream};
 use std::sync::{
-    Arc, Mutex,
+    Arc, Mutex, TryLockError,
     atomic::{AtomicBool, Ordering},
 };
 use std::thread::{self, JoinHandle};
 
 const WORKER_STACK: usize = 2 * 1024 * 1024;
 // The worker's explicit 2 MiB stack plus a conservative 6 MiB allowance for
-// bounded rustls handshake/record buffers, HTTP headers, errors and handles.
+// bounded rustls handshake/record buffers, HTTP headers, errors, small host/wire
+// receipts (each below the 16 KiB response allowance) and handles. These retained
+// records are charged here before a transaction's transient workspace retires.
 // rustls 0.23.46 caps handshake messages at 0xffff; outgoing buffers are 64 KiB.
 const CONNECTION_MEMORY: usize = 8 * 1024 * 1024;
 const SERVER_MEMORY: usize = 4 * 1024 * 1024;
 const TLS_BUFFER_BYTES: usize = 64 * 1024;
 
 struct Shared {
-    reads: store::CapturedReads,
+    service: Service,
+    identity: ServiceIdentity,
     tls: Arc<rustls::ServerConfig>,
     budget: Arc<Budget>,
     connect_timeout: Duration,
     request_timeout: Duration,
     // Shared retained data above is dropped before its reservation.
     _reservation: Reservation,
+}
+enum Service {
+    ReadOnly(store::CapturedReads),
+    Mutable {
+        registry: Mutex<store::MeteredRegistry>,
+        clock: Arc<dyn store::Clock + Send + Sync>,
+    },
+}
+
+struct ServiceClock<'a> {
+    inner: &'a dyn store::Clock,
+    end: Option<Instant>,
+    stopped: Option<&'a AtomicBool>,
+}
+impl store::Clock for ServiceClock<'_> {
+    fn now(&self) -> Result<u64, store::Error> {
+        let check = || {
+            if self.end.is_some_and(|end| remaining(end).is_err())
+                || self
+                    .stopped
+                    .is_some_and(|flag| flag.load(Ordering::Acquire))
+            {
+                return Err(store::Error {
+                    kind: store::ErrorKind::Io,
+                    outcome: store::PublicationOutcome::NotPublished,
+                    message: "registry request retired",
+                });
+            }
+            Ok(())
+        };
+        check()?;
+        let time = self.inner.now()?;
+        check()?;
+        Ok(time)
+    }
 }
 struct Control {
     stopped: Arc<AtomicBool>,
@@ -51,7 +89,8 @@ struct Worker {
     _reservation: Reservation,
 }
 
-/// A host-only read service owning an explicitly granted listener and registry.
+/// A host-only service with explicit read-only and mutable entry points.
+/// It owns an explicitly granted listener and registry.
 /// Startup validates a complete immutable generation before accepting peers.
 /// Dropping/stopping the server closes active sockets and joins every worker.
 pub struct Server {
@@ -66,32 +105,68 @@ impl Server {
         certificates: Vec<CertificateDer<'static>>,
         key: PrivateKeyDer<'static>,
     ) -> Result<Self, Error> {
-        if certificates.is_empty()
-            || certificates.len() > 8
-            || certificates
-                .iter()
-                .map(|c| c.len())
-                .try_fold(0usize, usize::checked_add)
-                .is_none_or(|size| size > TLS_BUFFER_BYTES)
-            || key.secret_der().len() > TLS_BUFFER_BYTES
-        {
-            return Err(limit());
-        }
-        let mut tls = rustls::ServerConfig::builder()
-            .with_no_client_auth()
-            .with_single_cert(certificates, key)
-            .map_err(|_| malformed())?;
-        tls.alpn_protocols = vec![b"http/1.1".to_vec()];
-        tls.session_storage = Arc::new(rustls::server::NoServerSessionStorage {});
-        tls.send_tls13_tickets = 0;
+        let tls = configuration(certificates, key)?;
         Self::start(
             store::CapturedReads::capture(registry)?,
             listener,
-            Arc::new(tls),
+            tls,
             MAX_REQUEST_MEMORY,
             CONNECT_TIMEOUT,
             REQUEST_TIMEOUT,
         )
+    }
+
+    /// Explicit mutable service capability with trusted, independently supplied time.
+    pub fn spawn_mutable(
+        registry: store::Registry,
+        listener: TcpListener,
+        certificates: Vec<CertificateDer<'static>>,
+        key: PrivateKeyDer<'static>,
+        clock: Arc<dyn store::Clock + Send + Sync>,
+    ) -> Result<Self, Error> {
+        let tls = configuration(certificates, key)?;
+        let budget = Budget::new(MAX_REQUEST_MEMORY);
+        Self::start_mutable(
+            registry,
+            listener,
+            tls,
+            budget,
+            CONNECT_TIMEOUT,
+            REQUEST_TIMEOUT,
+            clock,
+        )
+    }
+
+    fn start_mutable(
+        registry: store::Registry,
+        listener: TcpListener,
+        tls: Arc<rustls::ServerConfig>,
+        budget: Arc<Budget>,
+        connect_timeout: Duration,
+        request_timeout: Duration,
+        clock: Arc<dyn store::Clock + Send + Sync>,
+    ) -> Result<Self, Error> {
+        let reservation = budget.reserve(SERVER_MEMORY)?;
+        let time = ServiceClock {
+            inner: clock.as_ref(),
+            end: None,
+            stopped: None,
+        };
+        let registry = store::MeteredRegistry::with_budget(registry, budget.clone(), &time)?;
+        let identity = registry.identity().clone();
+        let shared = Arc::new(Shared {
+            service: Service::Mutable {
+                registry: Mutex::new(registry),
+                clock,
+            },
+            identity,
+            tls,
+            budget,
+            connect_timeout,
+            request_timeout,
+            _reservation: reservation,
+        });
+        Self::launch(shared, listener)
     }
 
     fn start(
@@ -108,14 +183,20 @@ impl Server {
             .checked_add(SERVER_MEMORY)
             .ok_or_else(limit)?;
         let reservation = budget.reserve(baseline)?;
+        let identity = reads.identity().clone();
         let shared = Arc::new(Shared {
-            reads,
+            service: Service::ReadOnly(reads),
+            identity,
             tls,
             budget,
             connect_timeout,
             request_timeout,
             _reservation: reservation,
         });
+        Self::launch(shared, listener)
+    }
+
+    fn launch(shared: Arc<Shared>, listener: TcpListener) -> Result<Self, Error> {
         let address = listener.local_addr()?;
         listener.set_nonblocking(true)?;
         let control = Arc::new(Control {
@@ -146,6 +227,31 @@ impl Server {
         }
         Ok(())
     }
+}
+
+fn configuration(
+    certificates: Vec<CertificateDer<'static>>,
+    key: PrivateKeyDer<'static>,
+) -> Result<Arc<rustls::ServerConfig>, Error> {
+    if certificates.is_empty()
+        || certificates.len() > 8
+        || certificates
+            .iter()
+            .map(|c| c.len())
+            .try_fold(0usize, usize::checked_add)
+            .is_none_or(|size| size > TLS_BUFFER_BYTES)
+        || key.secret_der().len() > TLS_BUFFER_BYTES
+    {
+        return Err(limit());
+    }
+    let mut tls = rustls::ServerConfig::builder()
+        .with_no_client_auth()
+        .with_single_cert(certificates, key)
+        .map_err(|_| malformed())?;
+    tls.alpn_protocols = vec![b"http/1.1".to_vec()];
+    tls.session_storage = Arc::new(rustls::server::NoServerSessionStorage {});
+    tls.send_tls13_tickets = 0;
+    Ok(Arc::new(tls))
 }
 impl Drop for Server {
     fn drop(&mut self) {
@@ -242,12 +348,14 @@ enum Body<'a> {
         _reservation: Reservation,
     },
     Error(Vec<u8>),
+    Metered(store::MeteredBytes),
 }
 impl Body<'_> {
     fn bytes(&self) -> &[u8] {
         match self {
             Self::Index(bytes) => bytes,
             Self::Archive { bytes, .. } | Self::Error(bytes) => bytes,
+            Self::Metered(bytes) => bytes.as_bytes(),
         }
     }
 }
@@ -257,13 +365,17 @@ struct Response<'a> {
     body: Body<'a>,
 }
 
-fn prepare<'a>(request: wire::Request<'_>, shared: &'a Shared) -> Result<Response<'a>, Error> {
+fn prepare<'a>(
+    request: wire::Request<'_>,
+    shared: &Shared,
+    reads: &'a store::CapturedReads,
+) -> Result<Response<'a>, Error> {
     let (content_type, body) = match request {
-        wire::Request::Index(name) => ("application/json", Body::Index(shared.reads.index(name)?)),
+        wire::Request::Index(name) => ("application/json", Body::Index(reads.index(name)?)),
         wire::Request::Archive(hash) => {
-            let length = shared.reads.archive_length(hash)?;
+            let length = reads.archive_length(hash)?;
             let reservation = shared.budget.reserve(length)?;
-            let bytes = shared.reads.archive(hash)?;
+            let bytes = reads.archive(hash)?;
             (
                 "application/x-tar",
                 Body::Archive {
@@ -272,9 +384,89 @@ fn prepare<'a>(request: wire::Request<'_>, shared: &'a Shared) -> Result<Respons
                 },
             )
         }
+        wire::Request::Publish { .. }
+        | wire::Request::Action { .. }
+        | wire::Request::Owners { .. } => return Err(error(ErrorKind::NotFound)),
     };
     Ok(Response {
         status: 200,
+        content_type,
+        body,
+    })
+}
+
+fn prepare_mutable<'a>(
+    request: wire::Request<'_>,
+    shared: &Shared,
+    registry: &'a mut store::MeteredRegistry,
+    stream: &mut impl std::io::Read,
+    clock: &ServiceClock<'_>,
+    incoming: &mut Option<(Vec<u8>, Reservation)>,
+) -> Result<Response<'a>, Error> {
+    let mut status = 200;
+    let (content_type, body) = match request {
+        wire::Request::Index(name) => ("application/json", Body::Index(registry.index(name)?)),
+        wire::Request::Archive(hash) => {
+            let bytes = registry.archive(hash)?;
+            registry.check_head()?;
+            ("application/x-tar", Body::Metered(bytes))
+        }
+        wire::Request::Owners { name, bearer } => {
+            let bytes = registry.owners(&bearer, name, clock)?;
+            registry.check_head()?;
+            ("application/json", Body::Metered(bytes))
+        }
+        wire::Request::Action {
+            name,
+            bearer,
+            length,
+        } => {
+            let lease = shared.budget.reserve(length)?;
+            let bytes = wire::body(stream, length, 2048, clock.end.expect("request clock"))?;
+            *incoming = Some((bytes, lease));
+            let (bytes, lease) = incoming.as_ref().expect("admitted body");
+            let (receipt, id) = registry.action_http(&bearer, name, bytes, lease, clock)?;
+            let bytes = MutationReceipt::from_host(&shared.identity, &id, &receipt)?.encode()?;
+            registry.check_head()?;
+            ("application/json", Body::Error(bytes))
+        }
+        wire::Request::Publish {
+            name,
+            version,
+            bearer,
+            request_id,
+            expected,
+            length,
+        } => {
+            let lease = shared.budget.reserve(length)?;
+            let bytes = wire::body(
+                stream,
+                length,
+                super::super::archive::MAX_ARCHIVE_BYTES,
+                clock.end.expect("request clock"),
+            )?;
+            *incoming = Some((bytes, lease));
+            let (bytes, lease) = incoming.as_ref().expect("admitted body");
+            let (receipt, created) = registry.publish_http(
+                store::HttpPublication {
+                    bearer: &bearer,
+                    bytes,
+                    lease,
+                    route: (name, version),
+                    request_id,
+                    expected,
+                },
+                clock,
+            )?;
+            status = if created { 201 } else { 200 };
+            let bytes =
+                MutationReceipt::from_host(&shared.identity, request_id, &receipt)?.encode()?;
+            registry.check_head()?;
+            ("application/json", Body::Error(bytes))
+        }
+    };
+    Ok(Response {
+        status,
         content_type,
         body,
     })
@@ -327,7 +519,7 @@ fn serve(
         Socket {
             stream,
             end: deadlines.connect,
-            stopped: Some(stopped),
+            stopped: Some(stopped.clone()),
         },
     );
     while stream.conn.is_handshaking() {
@@ -336,23 +528,84 @@ fn serve(
     }
     remaining(deadlines.connect)?;
     stream.sock.end = deadlines.request;
-    let prepared = wire::head(&mut stream, deadlines.request).and_then(|bytes| {
-        prepare(
-            wire::request(&bytes, authority(shared.reads.identity()))?,
-            shared,
-        )
-    });
-    remaining(deadlines.request)?;
-    let response = match shared.reads.check_head() {
-        Ok(()) => prepared.unwrap_or_else(failure),
-        Err(e) => {
-            drop(prepared);
-            failure(e.into())
+    let header = wire::head(&mut stream, deadlines.request);
+    let request = header
+        .as_ref()
+        .map_err(|e| *e)
+        .and_then(|bytes| wire::request(bytes, authority(&shared.identity)));
+    match &shared.service {
+        Service::ReadOnly(reads) => {
+            let prepared = request.and_then(|request| prepare(request, shared, reads));
+            let response = match reads.check_head() {
+                Ok(()) => prepared.unwrap_or_else(failure),
+                Err(e) => {
+                    drop(prepared);
+                    failure(e.into())
+                }
+            };
+            send_response(&mut stream, response, deadlines.request)
         }
-    };
-    remaining(deadlines.request)?;
+        Service::Mutable { registry, clock } => {
+            let mut registry = match registry.try_lock() {
+                Ok(registry) => registry,
+                Err(TryLockError::WouldBlock) => {
+                    return send_response(
+                        &mut stream,
+                        failure(error(ErrorKind::Busy)),
+                        deadlines.request,
+                    );
+                }
+                Err(TryLockError::Poisoned(_)) => {
+                    return send_response(
+                        &mut stream,
+                        failure(error(ErrorKind::State)),
+                        deadlines.request,
+                    );
+                }
+            };
+            let clock = ServiceClock {
+                inner: clock.as_ref(),
+                end: Some(deadlines.request),
+                stopped: Some(&stopped),
+            };
+            let mut registry = registry.request_scope(store::RequestControl {
+                deadline: deadlines.request,
+                stopped: stopped.clone(),
+            })?;
+            let mut incoming = None;
+            let prepared = registry
+                .check_head()
+                .map_err(Error::from)
+                .and(request)
+                .and_then(|request| {
+                    prepare_mutable(
+                        request,
+                        shared,
+                        &mut registry,
+                        &mut stream,
+                        &clock,
+                        &mut incoming,
+                    )
+                });
+            // The lock, input allocation and its lease all outlive transmission.
+            send_response(
+                &mut stream,
+                prepared.unwrap_or_else(failure),
+                deadlines.request,
+            )
+        }
+    }
+}
+
+fn send_response(
+    stream: &mut rustls::StreamOwned<rustls::ServerConnection, Socket>,
+    response: Response<'_>,
+    end: Instant,
+) -> Result<(), Error> {
+    remaining(end)?;
     let reason = match response.status {
         200 => "OK",
+        201 => "Created",
         400 => "Bad Request",
         401 => "Unauthorized",
         403 => "Forbidden",
@@ -371,12 +624,12 @@ fn serve(
     );
     stream.write_all(header.as_bytes())?;
     for bytes in body.chunks(TLS_BUFFER_BYTES) {
-        remaining(deadlines.request)?;
+        remaining(end)?;
         stream.write_all(bytes)?;
     }
     stream.conn.send_close_notify();
     stream.flush()?;
-    remaining(deadlines.request)?;
+    remaining(end)?;
     Ok(())
 }
 
