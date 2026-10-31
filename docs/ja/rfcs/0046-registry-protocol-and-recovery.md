@@ -93,7 +93,7 @@ Token recordはstable principal・registry audience・issued／expires時刻・r
 
 Storage rootは明示許可private directoryでありarchive pathではない。Initは新rootと監査bootstrap stateを排他的作成し、既存rootをresetしない。Regularな非blocking排他lockを持つwriterは1つ。上限はpackage名1,024、version／name128、release計8,192、principal／token各4,096、owner／name128、commit audit event65,536、現state16 MiB、staging／履歴を含む管理storage計4 GiB。管理entryと各復旧列挙は262,144を上限とし、未知entryは削除や無限走査でなく拒否する。Consumer cacheもgraph上限とは別に4 GiB／262,144 entryを上限とする。全算術をcheckedにする。上限到達時は変更前に拒否しreadは継続。Profile 1のquotaでありinternet規模capacityの主張ではない。Audit暗黙削除・identity自動再利用・quota起因trust resetはない。
 
-Content-addressed object・不変canonical state generation・audit recordをprivate固定namespaceへ永続化する。小さなcanonical HEADは`{schema:1, state_sha256}`だけを含む。Stateはregistry identity・単調revision／time floor・package／version／owner／quarantine record・登録principal／token hash／scope・末尾audit sequence／hashを持つ。Stored valueからhost pathを作らない。厳密closed state field encodingとcommit audit link encodingはD02／E01実装前にRFCを具体化して定め、ここでatomicity・上限・authorityを固定する。Private versioned formatでも厳密受入を免除しない。
+Content-addressed object・不変canonical state generation・audit recordをprivate固定namespaceへ永続化する。小さなcanonical HEADは`{schema:1, state_sha256}`だけを含む。Stateはregistry identity・単調revision／time floor・package／version／owner／quarantine record・登録principal／token hash／scope・末尾audit sequence／hashを持つ。Stored valueからhost pathを作らない。[RFC 0047](0047-registry-authority-records.md)でE01前にclosed authority recordを具体化し、完全なgeneration/stateとcommit audit link encodingはD02前に採択する。2026-10-31 JSTに採択したこの順序明確化により、独立して書けるauthority fileを作らず純粋なpolicyを実装できる。必要なatomicity・上限・authorityはここで固定したまま。Private versioned formatでも厳密受入を免除しない。
 
 Audit eventはsequence・前commit event hash・前state hash・受入時刻・principal・秘密でないcredential identifier・操作・request ID／digest・対象identity・reason・commit結果／revisionを記録する。最大2 KiBでcredential secret・source bytes・filesystem pathは含めない。Token準備／失効・管理復旧を含む全state変更にeventがある。Hash chainは保持headに対する破損を検知し、悪意operatorの消去を防ぐものではない。Export可能な検証receipt／checkpointはF01／E04の作業として残る。
 
@@ -166,7 +166,7 @@ P01–P08の入力・state／副作用観測と厳密test commitを保持する�
 
 [Canonical archive実験](../../evidence/2026-10-31-m5-registry-archive-profile.json)は指定headerとCRLF scalar sourceから3,072 byteを構築した。導入済みの独立TAR readerで2 recordを列挙し、元source bytesを厳密復元した（両exit 0）。これはlocal形式実現性だけを示し、敵対入力decoder実装や両host適合の証拠ではない。全受入recordの保守的上界17,172,223 byteはencode上限18,874,368 byte内に収まる。性能主張は行わない。
 
-C02を妨げる未決設計事項はない。Private state／audit encodingはD02／E01、manifest／lock encodingはD04、署名／root／freshnessはF01、hostingはI01で明示具体化し、いずれも実装前に採択する。上限はproduction capacity／使いやすさの測定を伴わない保守的project判断。TLS parser統合・両hostのatomic置換・実際の敵対入力／cancel挙動は該当deliveryまで未検証。Public service・production rootは確立せず、採択は実装／安定化を意味しない。
+C02を妨げる未決設計事項はない。RFC 0047でE01 authority recordを採択した。完全なstate／audit encodingはD02、manifest／lock encodingはD04、署名／root／freshnessはF01、hostingはI01で明示具体化し、いずれも実装前に採択する。上限はproduction capacity／使いやすさの測定を伴わない保守的project判断。TLS parser統合・両hostのatomic置換・実際の敵対入力／cancel挙動は該当deliveryまで未検証。Public service・production rootは確立せず、採択は実装／安定化を意味しない。
 
 ## Sources
 
