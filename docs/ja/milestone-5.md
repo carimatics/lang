@@ -2,6 +2,8 @@
 
 # Milestone 5 delivery board
 
+E05準備（2026-10-31 19:45 JST）: 別branch `codex/m5-registry-https-mutations`は固定E06 `db22857`からcleanで作成し、#41 mergeまでGitHub repository `carimatics/lang`の`origin/codex/m5-registry-authenticated-service`をPR baseとする。E06だけをdoingとし、ここではHTTPS実装・見積り/件数/gate変更を行わない。外部の条件header/receipt/送信段階model 54 caseが成功し、Python/JavaScriptの独立encoderで初回wire receiptの161 byteが一致した。実HTTP parser・TLS・bearer・storage・deadline・Windowsの証拠ではない。E05には保守されたparserによるdispatch、明示認証client入力、canonical wire receipt、共有budget/非blocking service access、全requestのdeadline/cancellation、両hostの実publish/action/owner経路、停止/失効/reopenが残る。残作業確認後も既存3 ptを維持し、前提追加はない。
+
 E06残scope監査（2026-10-31 19:35 JST）: Workspace 8 fixtureで実publish/owner/yank、private read、response lease保持、厳密budget/generation境界、metadata変更、cleanup受理、recovery-required refresh/reopenが成功した。並行budget増加、整形、厳密workspace Clippy、locked fuzz Clippy、repository consistencyも成功し、以前のstore 47-test回帰は最終境界追加前の記録である。実装は固定full baselineと最新headの両host CI/公開へ進める状態になった。この残受入条件によりE06を3 → 1 ptへ再見積りし、累積純−3 → −5、退役37を維持、112 − 5 − 37 = 残70 ptとする。新delivery・前提・gate完了はない。E06だけをdoingとし、以下の以前の3-point checkpointは履歴とする。
 
 E06実行checkpoint（2026-10-31 19:27 JST確認）: 作業treeで実budget guard付きpublish → 更新index/archive → VM/nativeで42を実行した。2回目の公開と旧ID再試行でも世代が巻き戻らない。Workspace 5 testで、書込み前の共有budget拒否、response lease寿命、不正upload後の回復、probe後のstate/entry増大をdecode/cleanup前に拒否、commit後refresh失敗と明示reopen/照合を確認した。Store全47 testと整形が成功。E06完了やgate完了は主張しない。残る受入条件はguard付きowner/yank/read-response、厳密budget/generation/cleanup境界と最終的な復旧結果分類、厳密lint/fuzz、全baseline、最新headの両host CI/公開である。残作業監査により3 ptを維持し、前提/scope追加はない。以下の以前の未実装/checkpoint記録は履歴とする。

@@ -14,6 +14,8 @@
 
 ## Summary
 
+E05 adapter preparation, verified 2026-10-31 JST: owner changes use the same authenticated action route as yank/unyank; private owner reads use the owner GET route. The HTTP receipt is distinct from the host audit receipt and carries original package revision plus global audit sequence. Publication distinguishes first commit (201) from reconciliation (200); actions return 200. A transport failure once request bytes may have been sent remains unknown, and a validated recovery-required refusal does not prove rollback. An authentication refusal describes the current attempt, not an earlier same-ID attempt. The 54-case external `/private/tmp/lang-m5-http-contract-probe.py` checks conditional-header policy, receipt association and transmission-phase classification only; actual TLS, fresh authority, framing, deadline/cancellation and both-host evidence remain E05 requirements.
+
 Add closed yank/unyank actions and audit transitions to the existing immutable registry. An authorized current owner changes a release's selection flag without changing its archive, ownership or identity. One HEAD replacement publishes the flag, package revision and audit event together; a freshly authorized retry returns its original result.
 
 ## Motivation

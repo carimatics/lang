@@ -16,6 +16,8 @@ Host実装checkpoint（2026-10-31 JST確認）: `MeteredRegistry::new`は保持�
 
 ## 概要
 
+E05準備checkpoint（2026-10-31 JST確認）: 明示的な読取専用entry pointを維持し、計上済みhost経路にmutable service dispatchを追加する。応答が選択世代を使う間は排他service accessを保持し、所有するrequest/response bufferは破棄まで実leaseを維持する。Network adapterは元の全request deadlineとcancellationを最終host guardへ伝え、すべてのretryで現在権限を確認する。外部HTTP契約model 54 caseが成功し、Python/JavaScriptの独立canonical encodingで初回receiptは161 byte、SHA-256 `300692a251654d70e6dd653e6454ef6e5648e4bf68ffc3004da3e0aae792ebbf`となった。Policy/encoding証拠のみで、実networkやallocation適用の主張はない。E06のfull baseline/CI中はその固定sourceを変更しない。
+
 認証HTTPS mutationを有効化する前に、有界host作業memory受理と置換可能な検証済みread世代を準備する。Metadataのみのpreflightで保守的なallocation上限を導出し、body decode・recovery・state複製前に共有budgetから予約する。実store経路でも観測した上限を再検査する。Mutationはcommit前に置換read世代を予約し、commit後の更新に失敗したら古いservice readを拒否する。
 
 2026-10-31のallocation/lifetime監査で提案state係数48を96へ改訂し、RFC 0001委任により以下の保守的modelをacceptする。layout実験とpolicy modelは設計の根拠であり、本番での適用、peak RSS、実装、gate完了を示さない。E06は不正入力とcommit後refreshを含め、allocation前に上限を適用する必要がある。
