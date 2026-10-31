@@ -166,6 +166,8 @@ D03の読取境界では、`Registry::index`と`Registry::archive`が完全検�
 
 Host専用`registry::transport::Client`は明示TLS root、上限付きraw HTTP framing、絶対deadlineにより設定originの証明書を検証します。`Server`は明示listenerと排他的read snapshotを所有し、共有index・TLS/worker・送信bodyを256 MiBへ計上し、handshakeを含め最大8接続を受理します。応答ごとに取得済みHEAD、archiveごとに厳密file長さ/EOF/hashを再検査します。Stopはcancelを通知してsocketをshutdownし、全workerをjoinしてから予約を退役します。Server I/Oは各socket timeoutを100 ms以下に制限してshutdownと独立にcancelを確認し、絶対deadlineを延長しません。現在のplatform検証と公開は[M5 board](milestone-5.md)で追跡し、署名付き本番消費は別の境界です。
 
+[RFC 0050](rfcs/0050-registry-cache-and-offline-replay.md)でD05のprivate cache profileをacceptedとし、厳密archive object、完全canonical schema-3 lock世代、有界inventory/復旧、全参照byteのinstall完了後だけのroot-lock公開を定めた。Offline captureは既存graph/lock replay前にbyteと厳密な型付きbindingを再検証する。Markerと合成世代には独立digest fixtureがあるが、cache実装は未完である。仮のtrust receiptは保存せず、本番消費前にF01–F03が証拠を独立認証して永続保持しなければならない。
+
 公開M5 registry全体は未完成です。[RFC 0045](rfcs/0045-registry-threat-model.md)で明示origin／name／version／digest identity、現在stateに対するscope付き認可、不変release／audit transaction、testに対応する16の脅威を採択しました。[RFC 0046](rfcs/0046-registry-protocol-and-recovery.md)でupload実装前に厳密portable source archive・有限の厳密origin protocol・不変state／audit復旧契約を採択しました。Package信頼／provenanceはRFC 0042のtoolchain配布と分離し、署名は実行capabilityを与えません。
 
 [RFC 0021](rfcs/0021-bounded-structured-task-driver.md)の有界FIFO driverと[RFC 0022](rfcs/0022-source-structured-tasks.md)・[0023](rfcs/0023-task-mir-boundaries.md)のsource/MIR契約を実装済みです。scope付きtask claim、join、所有引数/結果、suspension loan規則、取消、子から親のcleanupはVMと生成native continuation、受理済み別リンクobjectで共通です。未回収所有結果はescrowとlive-cell計上を保持し、子のjoinと結果退役が親localのcleanupに先行します。taskは1 invocation内の論理taskであり、複数OS threadでguestを実行しません。

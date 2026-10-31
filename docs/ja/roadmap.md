@@ -254,6 +254,8 @@ Exit：新しいdeveloperが1つのtoolをinstallし、packageを作成し、edi
 
 **13 done · 1 doing · 26 todo · 76 remaining pt**
 
+D05準備（2026-10-31 JST）: [RFC 0050](rfcs/0050-registry-cache-and-offline-replay.md)でprivate cache世代と厳密offline replayをacceptedとし、marker/世代hashを独立計算して既存lock readerの実行probeを確認した。D04修正headのCI/公開を待つ間の設計準備であり、D05はtodo・3 ptを維持し、下記件数/照合は変更しない。本番認証証拠はF01–F03に残る。
+
 全40 deliveryの収支は112 − 3 − 33 = 残76 pt。旧scalar前提+3 pt、B04の2 checkpointで各−1 pt、D02全baseline後の−2 ptによりD04実装checkpointの−2 ptも加え、純追加・再見積りは−3 pt、完了時退役は33 pt。G1–G3は完了し、D01/E01はPR #33–#34でmerge済み。D02はPR #35で`50eeeb3`としてmergeされた。D03はdoneとなり、固定`f58659c`はsource不変で182 suite・2,611 test、fmt・厳密Clippy・rustdocに成功。最新headのCI run `41177539886`は対象18 job、native-debug run `41177539882`は3 hostすべて成功した。Windows実ログで上限付きcancelと実TLS clientを含むtransport全18 testを確認し、macOSのlocked fuzz Clippyも成功した。PR #36は`723e2eb`としてmergeされ、元mainはclean・remoteと0/0で同期を確認済み。D04を唯一のdoing・1 ptとし、PR #37をmainベースに変更した。[RFC 0049](rfcs/0049-registry-package-integration.md)で明示manifest/lockと不変source契約を独立計算fixtureとともに採択済み。分離したHTTPS取得→VM/native実験は42、local/registry論理identityを区別する実験は84を返した。Schema 2 admissionと型付きregistry graph captureをcheckpointとして実装し、実HTTPS graphは42、registry形local path/共有aliasのcaseはVM/native JITで84を返した。Canonical schema-3 captureは独立fixtureと一致し、formatは元local bindingを選択する。Adapterのないhybrid editor操作は明示拒否する。推移diamondは84を実行し、package/edge/sourceの厳密境界、pin不一致、非active host拒否を確認した。D04の残作業は固定全baseline、最新headの両host CI、公開だけとなり、検証中心の残作業監査で3から1 ptへ再見積りする。水平前提を追加せずD04を継続し、両P1を含むG4–G10をopenに維持する。
 
 **進捗：21 / 65 pt（32.3%）。**

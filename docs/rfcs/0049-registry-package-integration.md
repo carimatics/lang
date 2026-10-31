@@ -104,6 +104,8 @@ Structural lock validation establishes no replay/trust authority. Capture derive
 
 ### Publication and offline continuation
 
+[RFC 0050](0050-registry-cache-and-offline-replay.md), accepted 2026-10-31 JST, elaborates D05's private cache profile, complete schema-3 generations, root publication and bounded offline/crash/race admission. It leaves authenticated production evidence under F01–F03 and adds no public unsigned consumer.
+
 D04 captures/admit-checks schema 3 without adding an implicit cache. D05 must grant cache reads/writes separately, verify exact bytes on every reuse, and publish a complete immutable generation before its root lock commit point. Offline mode performs no DNS, network or credential lookup, refuses missing bytes/evidence and never changes version/origin. Exact previously authenticated replay may retain a yanked release only under RFC 0046 and F01's freshness/revocation rules; newly observed quarantine refuses. F01–F03 define the signed evidence and its durable retention before production replay is enabled.
 
 ## Execution modes
