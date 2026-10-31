@@ -10,6 +10,8 @@
 
 **次: M5-D03 — versioned indexと検証付きdownload（3 pt）。**
 
+D04設計準備（2026-10-31 JST）: `codex/m5-registry-dependencies`を`codex/m5-registry-reads`の`f58659c`から`/private/tmp/lang-m5-registry-dependencies`に作成した。初期PR baseは`git@github.com:carimatics/lang.git`の前提branchである。実装前に[RFC 0049](rfcs/0049-registry-package-integration.md)をRFC 0001委任でacceptedとした。明示manifest-2 edge、型付き不変origin、相互分離した論理source key、lock schema 3でlocal挙動を維持し、独立した本番trustを要求する。保持した3,619-byte fixtureをJavaScript/Pythonで独立計算し、Rust archive再構築と現行VM/native JITは42、local/registry path衝突caseは84を返した。これは設計/fixture証拠でありresolver実装ではない。D04はtodo・3 ptに維持し、修正後baseline/CI実行中のD03だけをimplementation doingとする。Delivery/point追加・退役なし。D03をmerge/同期してからD04実装を選択する。
+
 D03 CI修正checkpoint（2026-10-31 15:38 JST確認）: 固定`5317901`はsource不変で全baseline 4 commandに成功（182 suite・2,609 test）した。Windows job `124464445376`ではclient TLS読取り修正とtransport 15 test成功を確認したが、8 handshakeのstop testが変更していない2秒上限を超えた。Cancelは各socket timeoutを最大100 msに制限して共有stop flagを確認し、絶対deadlineと実worker joinまでの予約を維持する。Shutdownも追加の起床手段として残す。Shutdownなしのread/write cancelを含むlocal transport全18 testが成功。別件のmacOS CI失敗も再現し、`fuzz/Cargo.lock`で新しい直接production依存2件の記載が欠けていた。Cargoでその2行を再生成し、locked offline fuzz Clippyは成功した。残る受入条件は修正後の固定全baseline、最新headのmacOS/Windows CI、PR公開。D03だけをdoing・3 ptに維持し、見積りの追加・退役なし。
 
 D04実行可能性確認（2026-10-31 15:38 JST）: `/private/tmp/lang-m5-registry-source-probe.rs`で隔離した未署名archiveを実際に公開し、証明書検証付きHTTPSでindex/archiveを取得した。Service停止・削除後に固定依存をVM/native JITで実行し、両方42を返した。別の2 namespace fixtureは84を返し、元のCRLF/UTF-8 sourceを保持する。未宣言edgeは`SRC0013`となりgraphを作らない。URL形の診断pathは既存MIRの`InvalidPath`で拒否されるため、そのpath形式にorigin identityを埋め込めない。これはlocalの統合/設計実験でありD04完了ではない。Manifest/lock encodingの受理、本番trust、実resolver/cache統合、両host証拠は残る。D04はD03直後のtodo・3 ptを維持する。

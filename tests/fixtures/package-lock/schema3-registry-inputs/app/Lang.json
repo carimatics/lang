@@ -1,0 +1,17 @@
+{
+  "schema": 2,
+  "package": {
+    "name": "app",
+    "version": "1.0.0",
+    "edition": "2026",
+    "entry": "src/main.lang"
+  },
+  "dependencies": {
+    "math": {
+      "source": "registry",
+      "registry": "example",
+      "name": "math",
+      "version": "1.0.0"
+    }
+  }
+}
