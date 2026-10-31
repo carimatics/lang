@@ -36,7 +36,7 @@ lock寿命の修正を含むinstallerは、2026-10-30 JSTに[PR #25](https://git
 
 以下のmilestone checklistは相対的な受入条件の重みを保持します。`1`はごく小、`2`は小、`3`は中、`5`は大、`8`は非常に大です。重み付きの達成率は `完了した重み / 全重み × 100` を小数第1位へ丸めます。この粗い重みは経過時間や実装残作業を予測しません。Milestoneがcurrentになったとき、またはscope／evidenceが変わったときに、長期見積もりを積み上げで見直します。進行中milestoneごとに別の実装Todoを使い、独立検証可能な残り1〜3 ptのtaskと、明示的なscope／見積もり変更を記録します。
 
-2026-10-31（JST）に確認したexit-gate weightのsnapshotです。受入条件の重みと残作業見積りは別であり、M4の最終収支は完了ボードに記録します。M5が進行中です（**16 done · 1 doing · 24 todo · 70 remaining pt**）。完了済みM2／M3の記録は維持します。
+2026-10-31（JST）に確認したexit-gate weightのsnapshotです。受入条件の重みと残作業見積りは別であり、M4の最終収支は完了ボードに記録します。M5が進行中です（**17 done · 1 doing · 24 todo · 70 remaining pt**）。完了済みM2／M3の記録は維持します。
 
 | Milestone | 完了条件の重み | 条件の総重み | 条件達成率 |
 | --- | ---: | ---: | ---: |
@@ -250,9 +250,13 @@ Exit：新しいdeveloperが1つのtoolをinstallし、packageを作成し、edi
 
 ## Milestone 5：ecosystemとcompatibility
 
+E06 scope監査（2026-10-31 19:35 JST）: Local host fixture、厳密workspace/fuzz Clippy、整形、repository consistencyが成功した。固定full baseline・最新headの両host CI・公開が残る。Scope追加やgate完了なしでE06を3 → 1 ptへ再見積りし、累積純−5・退役37・残70とする。以下の以前のcheckpoint件数は履歴である。
+
+現在のE03/E06 checkpoint（2026-10-31 JST）: E03は`18b2128`で完了（2,667 test/182 suite・両host CI・3 host native debug）し、#40経由で`ee0d985`としてmergeした。元のmainはclean・同期済み。E06を唯一のdoingとし、実guard付きpublish → VM/native実行、有界世代refresh、最新owner/yank権限、lease付き応答がworkspace 8 fixtureで成功した。厳密budget/generation境界とcommit後refreshのrecovery-requiredを含む。厳密workspace Clippyは成功し、全baseline・最新head CI/公開が残る。G5完了は主張しない。E03の最終1 ptを退役し、scope追加なしで残72 pt。以下の以前のcheckpoint状態は履歴とし、現在証拠は[delivery board](milestone-5.md)を参照する。
+
 2026-10-30 JST開始。[M5 board](milestone-5.md)に全10ゲート、39件の観測可能delivery、残作業基準112 ptを保持する。[edition・互換性方針](rfcs/0043-editions-and-compatibility.md)と実行可能な互換性・移行fixtureから開始する。registry upload前に脅威モデルを定め、署名toolchain導入をregistry provenanceと混同しない。P1の2ゲートも範囲内。完了には両host ecosystem journeyと日英能力guideを含める。
 
-**16 done · 1 doing · 24 todo · 70 remaining pt**
+**17 done · 1 doing · 24 todo · 70 remaining pt**
 
 D05完了（2026-10-31 JST）: [RFC 0050](rfcs/0050-registry-cache-and-offline-replay.md)を`43dea74`で実装した。固定全baselineは2,645 test / 182 suiteとfmt・厳密Clippy・rustdocに成功し、CI `41185690356`とnative-debug `41185690326`の対象全job/hostも成功した。PR #38は`b0d4d76`としてmergeし、mainはclean・0/0同期・検証済みtreeと同一を確認した。D01–D05でG4を完了とし、認証済み本番消費はF01–F04に残す。
 
@@ -263,6 +267,8 @@ E02/service scope監査（2026-10-31 JST）: [RFC 0051](rfcs/0051-registry-yank-
 E03実行checkpoint・残scope監査（2026-10-31 18:49 JST）: 実owner移管 → B公開と独立local失効で厳密source実行（VM/nativeで42）を維持した。Store 42/42が成功し、元owner/失効bearerの最新拒否、private read、128-owner上限、process中断72境界（旧68・新4）、owner/admin競合の両順序、全hash再計算済み偽造18 case、最終時刻、結果不明の明示照合、期限切れ/inactive credential対象、operation間identity衝突を含む。独立vectorと受理入力変異1,024件が成功し、妥当stateのpreflightでrevision 99 → 100が厳密index上限を+1 byte超えることを確認した。Fmt、厳密workspace Clippy、locked fuzz Clippyが成功。残受入条件は固定全baseline、最新headの両host CI、公開であり、E03を3 → 1 ptへ再見積り（純−2）、累積純−6、退役36を維持して112 − 6 − 36 = 残70 ptとする。新規完了・追加deliveryなし。E03だけをdoingとし、E04/E05は別途維持する。本実装を固定して全検証へ進む。
 
 E02完了・公開（2026-10-31 18:39 JST確認）: 固定`f40d643`でfmt、厳密Clippy、全2,655 test / 182 suite、rustdocが成功し、source/head不変を確認した。CI `41188137283`の対象18 job（22個の実装/未分類pathにより文書専用は意図的skip）とnative-debug `41188137315`の3 hostが成功。Windows core-1 `124499182307`、macOS core `124499182172`/`124499182204`でyank全10 fixtureと厳密index上限拒否、locked fuzz Clippyを確認した。[PR #39](https://github.com/carimatics/lang/pull/39)は`f74428c`としてmergeし、元mainはclean・origin/mainと0/0同期・検証済みtreeと同一である。E02の最終1 ptを退役し純−4を維持、112 − 4 − 36 = 残72 pt。E03/E04/E05に対してG5はopen、G1–G4は完了を維持する。
+
+E05/作業memory scope監査（2026-10-31 19:00 JST）: `18b2128`のsource確認で、HTTP body予約はinventory map、完全record decode、replay/履歴保持、state/authority複製、置換世代captureを覆わないと分かった。既存E05結果を3 → 6 ptへ再見積りし、新M5-E06（guard付きhost作業memory・有界な検証済みread世代、3 pt）と後続E05（認証HTTPS publish/action/owner統合、3 pt）へ分割する。E06はE02/E03、E05は追加でE06に依存し、E04はE03/E05依存を維持する。実装前に前提1件・+3 ptを明示し、全42 delivery、累積純−6 → −3、退役36、112 − 3 − 36 = 残73 ptとする。Delivery/gateの完了なし。E03だけをdoing・1 ptとしsource/head固定を維持する。[RFC 0053](rfcs/0053-registry-request-workspace.md)はallocation/lifetime証拠待ちのproposedである。30-case policy/計算modelと独立Python計算は成功したが、実allocation上限の証明ではない。以前の件数は履歴とする。準備branchはE03 `18b2128`から作成し、#40 mergeまでorigin/codex/m5-registry-owner-controlをPR baseとする。
 
 E03選択（2026-10-31 18:39 JST）: [RFC 0052](rfcs/0052-registry-owner-and-credential-control.md)を`31240ab`でacceptedとした。最終実行checkpointは24-case policy/独立encoding modelであり、永続owner mutationではない。Owner action/read受理、完全遷移/retry、実移管 → B公開 → VM/native実行、独立local失効、敵対履歴/process/競合境界、両host公開の残作業を既存3 ptと監査する。E03だけをdoingとし、新規delivery・再見積りなし。[PR #40](https://github.com/carimatics/lang/pull/40)は#39 merge後にmainへretargetした。以下の旧E02/E03準備件数は履歴とする。
 

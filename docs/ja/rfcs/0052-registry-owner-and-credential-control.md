@@ -4,13 +4,15 @@
 
 [English](../../rfcs/0052-registry-owner-and-credential-control.md)
 
-- Status: accepted
+- Status: implemented
 - Authors: project contributors
 - Created: 2026-10-31
 - Last updated: 2026-10-31
 - Tracking issue: M5-E03
 - Supersedes: なし。RFC 0046–0048と0051を具体化
 - Superseded by: なし
+
+公開checkpoint（2026-10-31 19:15 JST確認）: `18b2128`でfmt、厳密workspace Clippy、2,667 test/182 suite、rustdoc、locked fuzz Clippyが成功した。CI 41190281059は対象18 job、native-debug 41190281058は3 hostすべて成功し、Windowsと両macOS logでowner/失効・index-capacity fixtureを確認した。PR #40は`ee0d985`としてmergeし、mainはclean・同期済み・検証済みtreeと同一である。以下の以前の検証待ち記録は履歴とする。Local host契約を実装済みとし、HTTPS統合はRFC 0053/E06の作業memory支援を使うRFC 0051/E05に残す。
 
 ## 概要
 

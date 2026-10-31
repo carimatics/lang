@@ -10,6 +10,7 @@ pub(super) struct Replay {
 pub(super) struct View {
     pub head: String,
     pub state: State,
+    pub state_limit: usize,
     pub inventory: Inventory,
     pub reachable: BTreeSet<(Space, String)>,
     pub requests: BTreeMap<(String, String), Replay>,
@@ -352,6 +353,7 @@ pub(super) fn load(store: &Storage, identity: &ServiceIdentity) -> Result<View, 
     Ok(View {
         head,
         state,
+        state_limit: store.state_limit(),
         inventory,
         reachable,
         requests,

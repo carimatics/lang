@@ -107,6 +107,8 @@ Actionやreceiptはcapabilityではない。実bearer所持、現在の登録/�
 
 ## 実装計画
 
+2026-10-31のscope監査: E05の認証HTTPS統合前に、E06でguard付きstore作業memoryと有界read世代captureを実装する。[RFC 0053](0053-registry-request-workspace.md)は監査した保守的予約modelをacceptし、本番適用をE06/E05完了条件に残す。本RFCのaccepted budgetや受入要件を緩和しない。
+
 E03具体化: 2026-10-31 JST acceptedの[RFC 0052](0052-registry-owner-and-credential-control.md)がowner追加・削除・読取り、2段階移管、独立local credential失効を定義する。本transaction/replay境界を維持し、E05が認証HTTPS統合を提供する。
 
 1. D05を唯一のdoing deliveryに維持し、検証headを固定したまま本具体化を受理・準備する。2026-10-31 17:57 JSTのscope監査で、host transactionにE02・3 pointを維持し、認証HTTP統合を実装前にE05・3 pointとして明示する。受入条件は削除しない。

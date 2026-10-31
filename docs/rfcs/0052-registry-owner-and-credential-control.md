@@ -4,13 +4,15 @@
 
 [日本語版](../ja/rfcs/0052-registry-owner-and-credential-control.md)
 
-- Status: accepted
+- Status: implemented
 - Authors: project contributors
 - Created: 2026-10-31
 - Last updated: 2026-10-31
 - Tracking issue: M5-E03
 - Supersedes: none; elaborates RFCs 0046–0048 and 0051
 - Superseded by: none
+
+Publication checkpoint, verified 2026-10-31 19:15 JST: `18b2128` passes fmt, strict workspace Clippy, 2,667 tests/182 suites, rustdoc and locked fuzz Clippy. CI 41190281059 passes 18 applicable jobs and native-debug 41190281058 passes all three hosts. Windows and both macOS logs confirm owner/revocation and index-capacity fixtures. PR #40 merged as `ee0d985`; main is clean, synchronized and identical to the tested tree. Earlier pending-validation notes below are historical. This implements the local host contract; HTTPS integration remains RFC 0051/E05 with RFC 0053/E06 workspace support.
 
 ## Summary
 

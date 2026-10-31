@@ -11,6 +11,7 @@ mod records;
 mod storage;
 #[cfg(test)]
 mod tests;
+mod workspace;
 
 use super::{archive, authority};
 use archive::AdmittedArchive;
@@ -26,6 +27,7 @@ pub use index::{Index, IndexedRelease};
 pub use owners::{MAX_OWNER_BYTES, OwnerAction, OwnerActionKind};
 pub(crate) use reads::CapturedReads;
 pub use reads::MAX_INDEX_BYTES;
+pub use workspace::{MeteredBytes, MeteredRegistry};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum ErrorKind {
@@ -445,7 +447,7 @@ impl Publication {
         let audit_bytes = records::encode(&audit, records::MAX_AUDIT)?;
         let audit_hash = digest(&audit_bytes);
         state.last_audit_sha256 = audit_hash.clone();
-        let state_bytes = records::encode(&state, records::MAX_STATE)?;
+        let state_bytes = records::encode(&state, view.state_limit)?;
         let state_hash = digest(&state_bytes);
         let head_bytes = head_bytes(&state_hash)?;
         let receipt = Receipt {

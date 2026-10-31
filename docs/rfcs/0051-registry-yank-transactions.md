@@ -107,6 +107,8 @@ An action or receipt is not a capability. Real bearer possession, current enroll
 
 ## Implementation plan
 
+Scope audit, 2026-10-31: E06 implements guarded store workspace and bounded read-generation capture before E05 authenticated HTTPS integration. [RFC 0053](0053-registry-request-workspace.md) accepts the audited conservative reservation model; production enforcement remains an E06/E05 completion condition. It does not relax this RFC's accepted budget or acceptance requirements.
+
 E03 elaboration: [RFC 0052](0052-registry-owner-and-credential-control.md), accepted 2026-10-31 JST, defines owner add/remove/read, two-step transfer and separate local credential revocation. It retains this transaction/replay boundary; E05 supplies authenticated HTTPS integration.
 
 1. Prepare this accepted elaboration while D05 remains the sole doing delivery; preserve its frozen verification head. The 2026-10-31 17:57 JST scope audit retains E02 at 3 points for the host transaction and exposes E05 at 3 points for authenticated HTTP integration before implementation. No acceptance condition is removed.

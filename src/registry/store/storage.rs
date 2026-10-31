@@ -49,6 +49,7 @@ impl Space {
 pub(super) struct Inventory {
     pub bytes: u64,
     pub entries: usize,
+    pub(super) entry_limit: usize,
     pub immutable: BTreeMap<(Space, String), u64>,
     pub bindings: BTreeMap<String, String>,
     pub staged: Vec<String>,
@@ -57,7 +58,7 @@ impl Inventory {
     pub fn charge(&mut self, bytes: u64, entries: usize) -> Result<(), Error> {
         self.bytes = self.bytes.checked_add(bytes).ok_or_else(capacity)?;
         self.entries = self.entries.checked_add(entries).ok_or_else(capacity)?;
-        if self.bytes > MAX_BYTES || self.entries > MAX_ENTRIES {
+        if self.bytes > MAX_BYTES || self.entries > self.entry_limit {
             return Err(capacity());
         }
         Ok(())
@@ -78,16 +79,31 @@ impl Inventory {
         }
         bytes = bytes.checked_add(head_bytes as u64).ok_or_else(capacity)?;
         entries = entries.checked_add(1).ok_or_else(capacity)?;
-        if bytes > MAX_BYTES || entries > MAX_ENTRIES {
+        if bytes > MAX_BYTES || entries > self.entry_limit {
             return Err(capacity());
         }
         Ok(())
     }
 }
 
+#[derive(Clone, Copy)]
+pub(super) struct Envelope {
+    pub state: usize,
+    pub object: usize,
+    pub entries: usize,
+}
+
+pub(super) struct Probe {
+    pub state: usize,
+    pub object: usize,
+    pub entries: usize,
+    pub head: String,
+}
+
 pub(super) struct Storage {
     pub dir: Dir,
     _lock: Lock,
+    pub envelope: Option<Envelope>,
 }
 struct Lock(std::fs::File);
 impl Drop for Lock {
@@ -184,9 +200,152 @@ impl Storage {
         Ok(Self {
             dir,
             _lock: Lock(file),
+            envelope: None,
         })
     }
+    pub fn state_limit(&self) -> usize {
+        self.envelope.map_or(records::MAX_STATE, |e| e.state)
+    }
+    fn space_limit(&self, space: Space) -> usize {
+        match (space, self.envelope) {
+            (Space::State, Some(e)) => e.state,
+            (Space::Object, Some(e)) => e.object,
+            _ => space.limit(),
+        }
+    }
+    // The caller already owns the store lock and a fixed probe reservation.
+    // Inspect one directory entry at a time; never decode records or clean up.
+    pub fn probe(&self, clock: &impl Clock) -> Result<Probe, Error> {
+        let mut probe = Probe {
+            state: 0,
+            object: 0,
+            entries: 0,
+            head: String::new(),
+        };
+        let mut bytes = 0u64;
+        let mut seen = 0u8;
+        for entry in self.dir.entries().map_err(|_| io())? {
+            clock.now()?;
+            probe.entries = probe.entries.checked_add(1).ok_or_else(capacity)?;
+            if probe.entries > MAX_ENTRIES {
+                return Err(capacity());
+            }
+            let name = entry
+                .map_err(|_| io())?
+                .file_name()
+                .into_string()
+                .map_err(|_| corrupt())?;
+            let bit = match name.as_str() {
+                "LOCK" => {
+                    if open_file(&self.dir, &name, false)?
+                        .metadata()
+                        .map_err(|_| io())?
+                        .len()
+                        != 0
+                    {
+                        return Err(corrupt());
+                    }
+                    1
+                }
+                "HEAD" => {
+                    let len = open_file(&self.dir, &name, false)?
+                        .metadata()
+                        .map_err(|_| io())?
+                        .len();
+                    if len > records::MAX_HEAD as u64 {
+                        return Err(capacity());
+                    }
+                    bytes = bytes.checked_add(len).ok_or_else(capacity)?;
+                    2
+                }
+                "objects" => {
+                    directory(&self.dir, &name)?;
+                    4
+                }
+                "states" => {
+                    directory(&self.dir, &name)?;
+                    8
+                }
+                "audits" => {
+                    directory(&self.dir, &name)?;
+                    16
+                }
+                "staging" => {
+                    directory(&self.dir, &name)?;
+                    32
+                }
+                _ => return Err(corrupt()),
+            };
+            if seen & bit != 0 {
+                return Err(corrupt());
+            }
+            seen |= bit;
+        }
+        if seen != 63 {
+            return Err(corrupt());
+        }
+        for namespace in DIRECTORIES {
+            let child = directory(&self.dir, namespace)?;
+            for entry in child.entries().map_err(|_| io())? {
+                clock.now()?;
+                probe.entries = probe.entries.checked_add(1).ok_or_else(capacity)?;
+                if probe.entries > MAX_ENTRIES {
+                    return Err(capacity());
+                }
+                let filename = entry
+                    .map_err(|_| io())?
+                    .file_name()
+                    .into_string()
+                    .map_err(|_| corrupt())?;
+                let (space, hash) = match namespace {
+                    "objects" => (Space::Object, filename.as_str()),
+                    "states" => (Space::State, filename.as_str()),
+                    "audits" => (Space::Audit, filename.as_str()),
+                    "staging" => {
+                        let (prefix, hash) = filename.split_once('-').ok_or_else(corrupt)?;
+                        let space = match prefix {
+                            "object" => Space::Object,
+                            "state" => Space::State,
+                            "audit" => Space::Audit,
+                            "head" => Space::Head,
+                            _ => return Err(corrupt()),
+                        };
+                        (space, hash)
+                    }
+                    _ => return Err(corrupt()),
+                };
+                records::hex::<32>(hash)?;
+                let len = open_file(&child, &filename, false)?
+                    .metadata()
+                    .map_err(|_| io())?
+                    .len();
+                if len > space.limit() as u64 {
+                    return Err(capacity());
+                }
+                bytes = bytes.checked_add(len).ok_or_else(capacity)?;
+                if bytes > MAX_BYTES {
+                    return Err(capacity());
+                }
+                let len = usize::try_from(len).map_err(|_| capacity())?;
+                match space {
+                    Space::State => probe.state = probe.state.max(len),
+                    Space::Object => probe.object = probe.object.max(len),
+                    _ => (),
+                }
+            }
+        }
+        clock.now()?;
+        probe.head = self.head()?;
+        Ok(probe)
+    }
     pub fn read(&self, path: &str, limit: usize) -> Result<Vec<u8>, Error> {
+        let limit = if path.starts_with("states/") || path.starts_with("staging/state-") {
+            limit.min(self.state_limit())
+        } else if path.starts_with("objects/") || path.starts_with("staging/object-") {
+            limit.min(self.space_limit(Space::Object))
+        } else {
+            limit
+        };
         let file = open_file(&self.dir, path, false)?;
         if file.metadata().map_err(|_| io())?.len() > limit as u64 {
             return Err(capacity());
@@ -242,6 +401,7 @@ impl Storage {
         let mut inventory = Inventory {
             bytes: 0,
             entries: 0,
+            entry_limit: self.envelope.map_or(MAX_ENTRIES, |e| e.entries),
             immutable: BTreeMap::new(),
             bindings: BTreeMap::new(),
             staged: Vec::new(),
@@ -367,6 +527,9 @@ impl Storage {
     }
     pub fn install(&self, space: Space, hash: &str, bytes: &[u8]) -> Result<(), Error> {
         records::hex::<32>(hash)?;
+        if bytes.len() > self.space_limit(space) {
+            return Err(capacity());
+        }
         if bytes.len() > space.limit() || digest(bytes) != hash {
             return Err(corrupt());
         }
