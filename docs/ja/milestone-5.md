@@ -10,6 +10,8 @@
 
 **次: M5-B04 — 旧producer・現VM・nativeの移行journeyを両hostで検証する。**
 
+B04再開checkpoint（2026-10-31 10:26 JST確認）: `62e742c`のCI `41154299004`はWindowsを含む3 hostのSDK producer移行journeyと隔離SDK install jobに成功し、残りのCI jobは実行中。local `5480e14` baselineに終了結果はなく、session 60960とdriver・Cargo・test processは消失し、logは10:17 JSTで停止している。中断試行は`/private/tmp/lang-m5-fixes-target/m5-b04-validation-5480e14-interrupted/`に保持し、途中の645 test成功を全baseline成功に数えない。作業branchを`2f2e2b9`までfast-forwardし、新たに固定するcheckpointで全baselineを実行する。local全検証と最新head CIが成功するまでB04はdoing・2 ptを維持する。
+
 B04 CI修正（2026-10-31 JST）: run `41109397767`はmacOSの移行journeyに成功したが、WindowsではGitの自動CRLF変換が固定旧lockのbytesを変え、実行前に拒否した。一時checkoutで`core.autocrlf=true`の不一致と`false`の保持hash一致を再現した。旧worktree作成時だけ変換を無効にし、厳密なlock検査は維持する。このCIだけの修正は`5480e14`から作った`/private/tmp/lang-m5-migration-ci`に隔離し、元worktreeでRust baselineの入力を不変に保って継続する。同branch・PRに公開し、baseline終了後に元worktreeをfast-forwardする。失敗CIをgate完了に数えず、deliveryの範囲・見積りも変更しない。
 
 B04 host checkpoint（2026-10-31 03:42 JST確認）: `tools/check-source-migration.py`はlock不変で固定旧compilerをbuildし、元fixture 6件を実行、実際のmigration CLIを適用し、現VMと対応SDKでlinkしたnative結果を検査した。実遷移5件は保持した`shared`・`weak`、wrapping parameter、再帰、末尾comma、loop・名前衝突・UTF-8 comment・CRLF保持を検証し、変更不要の6件目でno-opを別途検査する。macOS localですべて成功し、source・compiler・lock・SDK・実行fileのhashと59 commandの観測を`/private/tmp/lang-m5-b04-journey/report.json`に保持する。既存SDK producer matrixにも同journeyを追加し、macOS 15/26・Windows 2025のreportを保持する。Windows・最終全baseline・最新head CIは未完了で、B04はdoing・2 ptを維持する。
