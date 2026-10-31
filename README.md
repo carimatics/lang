@@ -117,6 +117,7 @@ The rationale and unresolved tradeoffs are documented in [the architecture basel
 - [RFC 0054: Audited registry quarantine transactions (implemented)](docs/rfcs/0054-registry-quarantine-transactions.md)
 - [RFC 0055: Registry local lifecycle and scoped owner recovery (accepted)](docs/rfcs/0055-registry-local-administration.md)
 - [RFC 0056: Retained registry checkpoints and receipt verification (accepted)](docs/rfcs/0056-registry-retained-checkpoints.md)
+- [RFC 0057: Package signing roots, provenance and freshness (proposed)](docs/rfcs/0057-package-signing-and-freshness.md)
 - [Contribution guide](CONTRIBUTING.md)
 
 `cargo run -- toolchain verify --trust-root root.json --metadata channel.json --channel stable --message-format json` verifies bounded signed metadata for the current host and emits a JSON summary. The root must be trusted out of band. This read-only check uses a fresh trust context: it neither consults an installed rollback floor nor reads or installs payloads. See [RFC 0042](docs/rfcs/0042-signed-toolchain-installation.md).

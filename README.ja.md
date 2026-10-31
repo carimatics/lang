@@ -117,6 +117,7 @@ source構文・native language ABI・private SDK/package formatは実験段階�
 - [RFC 0054: 監査付きregistry quarantine transaction（implemented）](docs/ja/rfcs/0054-registry-quarantine-transactions.md)
 - [RFC 0055: Registryのローカルlifecycleとscope付きowner復旧（accepted）](docs/ja/rfcs/0055-registry-local-administration.md)
 - [RFC 0056: 保持したregistry checkpointとreceipt検証（accepted）](docs/ja/rfcs/0056-registry-retained-checkpoints.md)
+- [RFC 0057: Package署名root・provenance・freshness（proposed）](docs/ja/rfcs/0057-package-signing-and-freshness.md)
 - [コントリビューションガイド](CONTRIBUTING.ja.md)
 
 `cargo run -- toolchain verify --trust-root root.json --metadata channel.json --channel stable --message-format json` は現在のhost向けの上限付き署名metadataを検証し、JSON概要を出力します。rootは別経路で信頼を確認してください。この読取専用検査は新規trust contextを使い、既存installのrollback floorを参照せず、payloadの読取やinstallも行いません。[RFC 0042](docs/ja/rfcs/0042-signed-toolchain-installation.md)を参照してください。
