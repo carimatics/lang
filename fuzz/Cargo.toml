@@ -163,3 +163,9 @@ path = "fuzz_targets/native_record_decoder.rs"
 test = false
 doc = false
 bench = false
+[[bin]]
+name = "registry_authority"
+path = "fuzz_targets/registry_authority.rs"
+test = false
+doc = false
+bench = false

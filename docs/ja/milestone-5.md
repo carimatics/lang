@@ -6,9 +6,17 @@
 
 2026-10-30 JST、`3b676c5`から開始。[ロードマップ](roadmap.md#milestone-5ecosystemとcompatibility)のM5全範囲（P1の2ゲートを含む）を追跡する。M4のinstallerとlocal packageは前提条件であり、registry完了を意味しない。
 
-**10 done · 1 doing · 29 todo · 87 remaining pt**
+**11 done · 1 doing · 28 todo · 84 remaining pt**
 
-**次: M5-E01 — 認証identity・credential取扱い・scope付き認可（3 pt）。**
+**次: M5-D02 — 内容address方式のstorageとimmutable version公開transaction（3 pt）。**
+
+E01完了（2026-10-31 13:10 JST確認）: code `56f9f84`の固定全baselineは182 suite・2,572 test、fmt、厳密Clippy、分離targetのrustdocが成功。全4 child exitは0でsource fingerprintは不変。実結果・logを`/private/tmp/lang-m5-fixes-target/m5-e01-validation/`へ保持する。CI `41165285468`は対象18 jobすべて成功（full routingにより文書専用のみ意図的省略）、native-debug `41165285479`も全3 hostで成功。Authority 10 testとcompile済みfuzz targetはE01の純粋host境界を検証し、本番server・commit時storage統合・継続的fuzz campaignは主張しない。最終3 ptを追加なしで退役し、112 + 1 − 29 = 84 pt。[PR #34](https://github.com/carimatics/lang/pull/34)の最終文書head CIとmergeは未完了。
+
+D02範囲監査（2026-10-31 13:10 JST）: D02だけをdoingに選択する。[RFC 0048](rfcs/0048-registry-state-and-publication.md)は`cd30c02`で採択済み。最後の実行checkpointはmacOS process/staging prototypeの13切断点で、registry実装ではない。残る成果を監査し3 ptを維持する: private canonical generationと全履歴受入、最新E01認可を伴う上限付きstaged公開、厳密replay/競合/quota拒否、両hostの実reopen/source inventory/並行/process終了fixture、全baselineと公開check。G4/G5はopen。依存実行の順序はD02 → D03 index/download → D04 source依存実行を維持し、E01/D02後に水平前提を新設する前に再確認する。
+
+D01公開（2026-10-31 12:49 JST確認）: 最終head `2704805`はCI `41164333928`（対象18 job、full routingにより文書専用のみ意図的省略）とnative-debug `41164333850`（全3 host）が成功。[PR #33](https://github.com/carimatics/lang/pull/33)の`f5084f1`としてのmergeを確認した。元`main`を`origin/main`へfast-forwardし、ahead 0 / behind 0・未commit変更なし。E01の[PR #34](https://github.com/carimatics/lang/pull/34)はbaseを`main`へ変更し、実装`56f9f84`を固定したまま全baselineとCIを実行中。以下に残るD01公開待ちの記録は過去のcheckpointである。
+
+E01実行checkpoint（2026-10-31 12:36 JST確認）: policy modelの23 scenarioと失効・owner削除後のretry拒否を確認し、[RFC 0047](rfcs/0047-registry-authority-records.md)を実験段階委任で採択した。`registry::authority`は独立した設定identityに対して上限付きcanonical viewを受理し、秘匿・消去する明示bearer入力と、現在の認証・操作／所有権scopeを評価する。独立計算authenticator、決定的入力変異512件、byte／depth／collection境界、4,096 recordの末尾credential、失効・時刻・ownerの再評価拒否を含む統合10 testが成功。archive回帰9/9、repository consistency 7/7、対象厳密Clippy、fuzz targetのcompileも成功。残る受入条件は固定全baseline・最新head両host CI・PR公開。E01のみをdoing、3 ptに維持し、見積り追加・退役なし。D02では完全なstate/audit形式と実lock内の再認可統合が必要。準備した`codex/m5-registry-authority`は`codex/m5-registry-archive`の`b3c8d1b`から開始し、`2704805`へfast-forwardした。記録した初期PR baseは`git@github.com:carimatics/lang.git`のarchive branchで、PR #33のmerge待ち。元の`main`は変更せずcleanを維持する。
 
 D01完了（2026-10-31 12:24 JST確認）: code `b3c8d1b`の固定全baselineは181 suite・2,562 test、fmt、厳密Clippy、分離targetのrustdocが成功。全4 child exitは0で全source fingerprintは不変。実結果・logを`/private/tmp/lang-m5-fixes-target/m5-d01-validation/`に保持する。CI `41161839406`は対象18 jobすべて成功（full routingにより文書専用のみ意図的省略）、native-debug `41161839444`も3 host jobすべて成功。archive 9 testは元byteのsource実行と決定的変異512件を含む。fuzz targetはcompile済みだが継続的fuzz campaignは主張しない。最終3 ptを退役し追加なし、112 + 1 − 26 = 87 pt。E01のみをdoingとし、3 ptは権限レコード仕様の採択、上限付き秘密入力・ポリシー実装、検証を含む。G4/G5はopen。[PR #33](https://github.com/carimatics/lang/pull/33)の最終文書head CIとmerge、公開完了と最終main同期は未完了。
 
@@ -81,11 +89,11 @@ B05 budget監査（2026-10-31 JST）: 再利用するscalar検査内部の独立
 | M5-C01 | done | 0 | M5-A01 | G3 | identity・namespace・authority・濫用・攻撃者の脅威モデル | `94a5200` |
 | M5-C02 | done | 0 | M5-C01 | G3 | upload前にprotocol・上限・復旧・security受入ケースを採択 | `53376e5` |
 | M5-D01 | done | 0 | M5-C02 | G4 | 上限付き未信頼archiveの受入とtraversal・重複・bomb拒否 | `b3c8d1b` |
-| M5-D02 | todo | 3 | M5-D01,M5-E01 | G4 | 内容address方式のstorageとimmutable version公開transaction | — |
+| M5-D02 | doing | 3 | M5-D01,M5-E01 | G4 | 内容address方式のstorageとimmutable version公開transaction | — |
 | M5-D03 | todo | 3 | M5-D02 | G4 | versioned indexとidentity・checksumを検証したdownload | — |
 | M5-D04 | todo | 3 | M5-D03 | G4 | registry依存を解決して両hostで実行 | — |
 | M5-D05 | todo | 3 | M5-D04 | G4 | lock・offline replay・公開中断・並行immutable検証 | — |
-| M5-E01 | doing | 3 | M5-C02 | G5 | 認証identity・credential取扱い・scope付き認可 | — |
+| M5-E01 | done | 0 | M5-C02 | G5 | 認証identity・credential取扱い・scope付き認可 | `56f9f84` |
 | M5-E02 | todo | 3 | M5-E01,M5-D02 | G5 | owner・競合制約付きpublish・yank・unyank | — |
 | M5-E03 | todo | 3 | M5-E02 | G5 | owner追加・削除・移管と最後のowner・credential失効fixture | — |
 | M5-E04 | todo | 3 | M5-E03 | G5 | 永続audit trail・復旧・権限外操作のend-to-end検証 | — |
@@ -114,13 +122,15 @@ B05 budget監査（2026-10-31 JST）: 再利用するscalar検査内部の独立
 
 ## 見積り照合
 
-**112 + 1 − 26 = 87 pt**
+**112 + 1 − 29 = 84 pt**
 
 | 基準残作業 | 純追加・再見積り | 完了時に除去 | 残作業 |
 | ---: | ---: | ---: | ---: |
-| 112 pt | +1 pt | −26 pt | 87 pt |
+| 112 pt | +1 pt | −29 pt | 84 pt |
 
 ## Delivery noteとロードマップ監査
+
+- D02準備（2026-10-31 JST）: [RFC 0048](rfcs/0048-registry-state-and-publication.md)で厳密generation/audit/receipt record、全commit履歴保持、orphan cleanupを実験段階委任で採択し、storage実装は未開始。レビューで不変名への直接書込みをsync済みstagingへ変更し、完全な遷移検証と明示的な公開結果不明を追加した。拡張したlocal macOS probeはobject/audit/state/HEADの部分書込みを含むprocess終了13切断点に成功し、初期の全書込み後6切断点を置き換えた。配置済み不変candidateは全件完全でdigest一致し、可視stateは完全な旧状態か新状態だった。Windows・電源断・実認証・lock・完全な敵対的recoveryは未検証。固定baseline/CI実行中のE01だけをdoingとし、D02は既存3 ptのtodoを維持。Delivery・見積りの追加・退役・削減なし。準備作業は固定checkoutから分離している。
 
 - Registry順序監査（2026-10-31 JST）: 選択済みD01だけをdoingに維持。既存計画のE01認証／credential／scope境界をD02より先に実装し、不変公開がlock内の最新stateで再認可できるようにする。D02はD01・E01へ依存し、E01の依存は採択済みC02のまま。Memory内transactionの探索ではcrash／retryの6切断点と異payloadの両順序を確認し、古い事前認可で失効後のpublishを許可できない理由を示した。これは設計証拠のみでfilesystem・認証実装ではない。既存installerのfile／lock処理は参考になるが、そのstateにはregistry owner／release／auditのatomicityがない。新規delivery・見積り変更なしで残90 ptの照合を維持する。予定するE01／D02の2前提後に次のsource実行fixtureを再監査する。
 

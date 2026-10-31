@@ -653,9 +653,11 @@ dependencies = [
  "serde",
  "serde_json",
  "sha2",
+ "subtle",
  "tar",
  "ureq",
  "windows-sys 0.61.2",
+ "zeroize",
 ]
 
 [[package]]
