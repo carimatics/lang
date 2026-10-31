@@ -3,6 +3,7 @@ use super::{
     Diagnostic,
     graph::{Graph, input_path},
     lock::{self, Lock},
+    manifest::DependencySource,
     output::MAX_OUTPUT,
 };
 use serde::Serialize;
@@ -53,6 +54,15 @@ fn normal(path: &Path) -> Option<PathBuf> {
     Some(result)
 }
 pub(super) fn canonical_directories(graph: &Graph) -> Result<(), Diagnostic> {
+    if graph.has_registry() {
+        return Err(invalid(
+            Path::new("."),
+            "source snapshot profile 1 requires a local-only graph",
+        ));
+    }
+    canonical_local_directories(graph)
+}
+pub(super) fn canonical_local_directories(graph: &Graph) -> Result<(), Diagnostic> {
     let inputs = graph.inputs()?;
     for scope in inputs.scopes.values() {
         if let Some(path) = scope.aliases.keys().next() {
@@ -83,13 +93,20 @@ pub(super) fn canonical_directories(graph: &Graph) -> Result<(), Diagnostic> {
         }
     }
     for package in graph.packages() {
+        let Some(local) = package.local() else {
+            continue;
+        };
         for (alias, id) in package.dependencies() {
-            let declared = input_path(
-                package.root(),
-                Path::new(&package.manifest().dependencies[alias].path),
-            );
-            let target = graph.package(*id).expect("resolved dependency").root();
-            if normal(&declared) != normal(target) {
+            let DependencySource::Local { path } =
+                &package.manifest().expect("local graph").dependencies[alias].source
+            else {
+                continue;
+            };
+            let declared = input_path(&local.root, Path::new(path));
+            let target = graph.package(*id).and_then(|p| p.local()).ok_or_else(|| {
+                invalid(&declared, "local dependency requires a physical binding")
+            })?;
+            if normal(&declared) != normal(&target.root) {
                 return Err(invalid(
                     &declared,
                     "source dependency directory must be canonical",

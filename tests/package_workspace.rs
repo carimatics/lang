@@ -123,6 +123,25 @@ fn run(graph: &Graph) -> i64 {
 }
 
 #[test]
+fn manifest_two_local_workspace_executes_with_schema_two_lock() {
+    let files = Files::new();
+    for (path, text) in [("Lang.json", ROOT), ("app/Lang.json", APP)] {
+        let mut value: Value = serde_json::from_str(text).unwrap();
+        value["schema"] = json!(2);
+        if path == "app/Lang.json" {
+            value["dependencies"]["helper"]["source"] = json!("local");
+        }
+        files.write(path, &value.to_string());
+    }
+    let graph = files.graph("app");
+    assert_eq!(run(&graph), 42);
+    let lock = Lock::capture(&graph).unwrap();
+    let value: Value = serde_json::from_slice(lock.as_bytes()).unwrap();
+    assert_eq!(value["schema"], 2);
+    validate_encoding(lock.as_bytes()).unwrap();
+}
+
+#[test]
 fn rebuild_profile_reconciles_workspace_selection_and_inactive_member_catalogue() {
     use lang::profile::rebuild::{Category, Report};
     let files = Files::new();

@@ -128,11 +128,7 @@ fn sorted_diamond_edges_share_one_identity_and_keep_original_snapshots() {
     let root = br#"{"schema":1,"package":{"name":"app","version":"0.1.0","edition":"2026","entry":"src/main.lang"},"dependencies":{"b":{"path":"deps/b","version":"0.1.0"},"a":{"path":"deps/a","version":"0.1.0"}}}"#;
     fs::write(f.manifest(), root).unwrap();
     let g = f.resolve().unwrap();
-    let names: Vec<_> = g
-        .packages()
-        .iter()
-        .map(|p| p.manifest().package.as_ref().unwrap().name.as_str())
-        .collect();
+    let names: Vec<_> = g.packages().iter().map(|p| p.name()).collect();
     assert_eq!(names, ["app", "a", "shared", "b"]);
     assert_eq!(g.target(), TARGET);
     let main = g.package(g.root()).unwrap();
@@ -147,6 +143,50 @@ fn sorted_diamond_edges_share_one_identity_and_keep_original_snapshots() {
     fs::write(f.root().join("src/main.lang"), b"changed source").unwrap();
     assert_eq!(main.manifest_bytes(), root);
     assert_eq!(main.entry_bytes(), SOURCE);
+}
+
+#[test]
+fn schema_two_local_edges_keep_local_identity_and_lock_schema() {
+    let f = Files::new();
+    f.package("deps/helper", "helper", json!({}));
+    f.package(
+        "",
+        "app",
+        json!({"helper":{"source":"local","path":"deps/helper","version":"0.1.0"}}),
+    );
+    let mut value: Value = serde_json::from_slice(&fs::read(f.manifest()).unwrap()).unwrap();
+    value["schema"] = json!(2);
+    fs::write(f.manifest(), serde_json::to_vec(&value).unwrap()).unwrap();
+    let g = f.resolve().unwrap();
+    let root = g.package(g.root()).unwrap();
+    assert_eq!(root.root(), Path::new("."));
+    assert_eq!(
+        g.package(root.dependencies()["helper"]).unwrap().root(),
+        Path::new("deps/helper")
+    );
+    let lock = lang::package::lock::Lock::capture(&g).unwrap();
+    let value: Value = serde_json::from_slice(lock.as_bytes()).unwrap();
+    assert_eq!(value["schema"], 1);
+    lang::package::archive::Archive::capture(&g).unwrap();
+}
+
+#[test]
+fn registry_edges_require_context_only_when_active_and_never_use_local_aliases() {
+    let f = Files::new();
+    f.package("helper", "helper", json!({}));
+    f.package("", "app", json!({"helper":{"source":"registry","registry":"example","name":"math","version":"1.0.0","targets":["x86_64-pc-windows-msvc"]}}));
+    let mut value: Value = serde_json::from_slice(&fs::read(f.manifest()).unwrap()).unwrap();
+    value["schema"] = json!(2);
+    fs::write(f.manifest(), serde_json::to_vec(&value).unwrap()).unwrap();
+    assert_eq!(f.resolve().unwrap().packages().len(), 1);
+    let error =
+        Graph::resolve(&f.manifest(), "x86_64-pc-windows-msvc", Limits::default()).unwrap_err();
+    assert_eq!(error.code, "PKG0006");
+    assert!(
+        error
+            .message
+            .contains("helper requires an authenticated registry context")
+    );
 }
 
 #[test]

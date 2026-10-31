@@ -80,6 +80,9 @@ fn indexed_entry(
             Diagnostic::error("PKG0003", "overlay is not an admitted canonical source")
                 .at_path(path)
         })?;
+        if file.physical.is_none() {
+            return Err(Diagnostic::error("PKG0003", "registry source is read-only").at_path(path));
+        }
         if replacements
             .insert(file.identity, bytes)
             .is_some_and(|old| old != bytes)
@@ -200,7 +203,13 @@ fn input_error(path: &Path, message: impl Into<String>) -> ModuleLoadError {
 }
 
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
-pub(crate) struct Identity(u64, u64);
+pub(crate) enum Identity {
+    Local(u64, u64),
+    Registry {
+        package: super::graph::PackageId,
+        file: usize,
+    },
+}
 pub(super) fn identity(
     metadata: &cap_std::fs::Metadata,
     path: &Path,
@@ -209,7 +218,7 @@ pub(super) fn identity(
     {
         use cap_std::fs::MetadataExt;
         let _ = path;
-        Ok(Identity(metadata.dev(), metadata.ino()))
+        Ok(Identity::Local(metadata.dev(), metadata.ino()))
     }
     #[cfg(windows)]
     {
@@ -217,7 +226,7 @@ pub(super) fn identity(
         // graph::read obtains metadata from the opened regular File, as
         // required by cap-fs-ext's Windows dev()/ino() contract.
         let _ = path;
-        Ok(Identity(metadata.dev(), metadata.ino()))
+        Ok(Identity::Local(metadata.dev(), metadata.ino()))
     }
     #[cfg(not(any(unix, windows)))]
     {

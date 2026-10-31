@@ -1,0 +1,24 @@
+{
+  "format": "lang-registry-source",
+  "schema": 1,
+  "package": {
+    "name": "math",
+    "version": "1.0.0",
+    "edition": "2026",
+    "entry": "src/lib.lang"
+  },
+  "tests": [],
+  "dependencies": [],
+  "files": [
+    {
+      "path": "src/detail.lang",
+      "bytes": 61,
+      "sha256": "c9649349e0f642a548045f82c04aa300ecbaabe89ba0f69e0bb3e70e35c3afe5"
+    },
+    {
+      "path": "src/lib.lang",
+      "bytes": 64,
+      "sha256": "57fb6908c4ecdb6ce7c7fb3174ab736bc86bc5e569ad7dcc6927734c2c48383f"
+    }
+  ]
+}

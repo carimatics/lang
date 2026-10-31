@@ -1,0 +1,1 @@
+mod math; fn main() -> i64 { return math::answer(); }

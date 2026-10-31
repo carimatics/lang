@@ -20,6 +20,7 @@ pub const MAX_BYTES: usize = 1024 * 1024;
 pub const NAME: &str = "Lang.lock";
 
 pub(crate) mod explain;
+mod registry;
 
 #[derive(Debug)]
 pub struct Lock {
@@ -201,6 +202,9 @@ impl Lock {
     /// Capture and validate every bounded input before lock verification.
     /// This never reads the previous lock, publishes output or executes code.
     pub fn capture(graph: &Graph) -> Result<Self, Diagnostic> {
+        if graph.has_registry() {
+            return registry::capture(graph);
+        }
         let inputs = graph.inputs()?;
         let mut identities = BTreeMap::new();
         for (key, file) in &inputs.files {
@@ -268,16 +272,11 @@ impl Lock {
                     root: path(graph.package(*id).expect("resolved dependency").root())?,
                 });
             }
-            let identity = snapshot
-                .manifest()
-                .package
-                .as_ref()
-                .expect("resolved package");
             packages.push(Package {
                 root: path(snapshot.root())?,
-                name: identity.name.clone(),
-                version: identity.version.clone(),
-                edition: identity.edition.clone(),
+                name: snapshot.name().into(),
+                version: snapshot.version().into(),
+                edition: snapshot.edition().into(),
                 manifest_path: path(snapshot.manifest_path())?,
                 manifest_sha256: digest(snapshot.manifest_bytes()),
                 sources,
@@ -389,6 +388,7 @@ pub fn validate_encoding(bytes: &[u8]) -> Result<(), Diagnostic> {
         2 => {
             let _: WorkspaceRecord = serde_json::from_slice(bytes).map_err(invalid)?;
         }
+        3 => registry::validate(bytes)?,
         _ => {
             return Err(
                 Diagnostic::error("PKG0002", "unsupported lock schema").at_path(Path::new(NAME))

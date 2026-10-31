@@ -1,0 +1,86 @@
+{
+  "schema": 3,
+  "target": "aarch64-apple-darwin",
+  "compiler_version": "0.1.0",
+  "compiler_build_id": "<compiler_build_id>",
+  "root": "local",
+  "workspace": null,
+  "packages": [
+    {
+      "id": "local",
+      "origin": {
+        "kind": "local",
+        "root": "."
+      },
+      "name": "app",
+      "version": "1.0.0",
+      "edition": "2026",
+      "metadata": {
+        "kind": "manifest",
+        "path": "local/Lang.json",
+        "sha256": "b1c4b572eafa4ffd827307afb106f95c930f76080f060f203492ff071ee9f7b3"
+      },
+      "sources": [
+        {
+          "path": "local/src/main.lang",
+          "sha256": "72e848d681e35ebac515c3d5e362b8f890e5df62e905426f59b7154b63b80cb7"
+        }
+      ],
+      "dependencies": [
+        {
+          "alias": "math",
+          "id": "registry/21ccc6bc6516ce62c75c6f34d3990e619db61fc8000ce53d452940845371d0c9/math/1.0.0/5b94f073ed533cc26edfff1f357c83d9cf94d68a6289822678bdd36336a58fea"
+        }
+      ],
+      "bindings": [
+        {
+          "kind": "entry",
+          "scope": "local/src",
+          "path": "local/src/main.lang",
+          "target": "local/src/main.lang"
+        }
+      ],
+      "checksum": "3cec99cdc1c8eadb7fd8badaf0a627d371821de53aba25943f77c134d2de2538"
+    },
+    {
+      "id": "registry/21ccc6bc6516ce62c75c6f34d3990e619db61fc8000ce53d452940845371d0c9/math/1.0.0/5b94f073ed533cc26edfff1f357c83d9cf94d68a6289822678bdd36336a58fea",
+      "origin": {
+        "kind": "registry",
+        "registry": "example",
+        "origin": "https://registry.example",
+        "root_sha256": "2222222222222222222222222222222222222222222222222222222222222222",
+        "archive_sha256": "5b94f073ed533cc26edfff1f357c83d9cf94d68a6289822678bdd36336a58fea",
+        "archive_bytes": 4608,
+        "descriptor_sha256": "672308e6c14969733af5ca82e2f05fe8190e60e0dbf2e6443be5778a78769cf5"
+      },
+      "name": "math",
+      "version": "1.0.0",
+      "edition": "2026",
+      "metadata": {
+        "kind": "descriptor",
+        "path": "registry/21ccc6bc6516ce62c75c6f34d3990e619db61fc8000ce53d452940845371d0c9/math/1.0.0/5b94f073ed533cc26edfff1f357c83d9cf94d68a6289822678bdd36336a58fea/.lang-package.json",
+        "sha256": "672308e6c14969733af5ca82e2f05fe8190e60e0dbf2e6443be5778a78769cf5"
+      },
+      "sources": [
+        {
+          "path": "registry/21ccc6bc6516ce62c75c6f34d3990e619db61fc8000ce53d452940845371d0c9/math/1.0.0/5b94f073ed533cc26edfff1f357c83d9cf94d68a6289822678bdd36336a58fea/src/detail.lang",
+          "sha256": "c9649349e0f642a548045f82c04aa300ecbaabe89ba0f69e0bb3e70e35c3afe5"
+        },
+        {
+          "path": "registry/21ccc6bc6516ce62c75c6f34d3990e619db61fc8000ce53d452940845371d0c9/math/1.0.0/5b94f073ed533cc26edfff1f357c83d9cf94d68a6289822678bdd36336a58fea/src/lib.lang",
+          "sha256": "57fb6908c4ecdb6ce7c7fb3174ab736bc86bc5e569ad7dcc6927734c2c48383f"
+        }
+      ],
+      "dependencies": [],
+      "bindings": [
+        {
+          "kind": "entry",
+          "scope": "registry/21ccc6bc6516ce62c75c6f34d3990e619db61fc8000ce53d452940845371d0c9/math/1.0.0/5b94f073ed533cc26edfff1f357c83d9cf94d68a6289822678bdd36336a58fea/src",
+          "path": "registry/21ccc6bc6516ce62c75c6f34d3990e619db61fc8000ce53d452940845371d0c9/math/1.0.0/5b94f073ed533cc26edfff1f357c83d9cf94d68a6289822678bdd36336a58fea/src/lib.lang",
+          "target": "registry/21ccc6bc6516ce62c75c6f34d3990e619db61fc8000ce53d452940845371d0c9/math/1.0.0/5b94f073ed533cc26edfff1f357c83d9cf94d68a6289822678bdd36336a58fea/src/lib.lang"
+        }
+      ],
+      "checksum": "ac38271807a61aad98e890479af04eaf9e180f66aa5fe2c52e6e2896d189e6bd"
+    }
+  ]
+}

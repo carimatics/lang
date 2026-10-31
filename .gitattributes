@@ -9,6 +9,8 @@
 
 # Canonical lock fixtures must retain the schema's exact LF wire encoding.
 /tests/fixtures/package-lock/*.json text eol=lf
+# Original inputs are hashed by the independent schema-3 fixture as well.
+/tests/fixtures/package-lock/schema3-registry-inputs/** text eol=lf
 
 # This public example is the exact byte source of a historical rebuild lock.
 /examples/packages/local-dependency/** text eol=lf

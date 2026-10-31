@@ -117,7 +117,7 @@ HEAD置換前のprocess中断は旧commit state、置換後は完成した新sta
 
 新規解決はyank／quarantine versionを除く。厳密lock再現は、F01 receipt／期限／失効方針の下で、後からyankされても以前認証した非quarantine releaseを使える。Quarantineは新serviceと新たに観測したquarantine replayを拒否するがoffline copy消去を主張しない。新規受入に必要な信頼が未知／期限切れならofflineで迂回できない。Local bytes欠落は別package／version／originを選ばず失敗。RFC 0034のgraph上限（package／module256、source16 MiB、edge4,096）を維持し、再訪も課金して依存cycleを拒否する。
 
-D04は実装前に本RFCまたは後続RFCでmanifest schemaとlock表現を具体化する。Local schema-1／2 lock挙動を維持し、明示versioned registry edge形式を追加し、registry／root／target／toolchain／source identityを固定、厳密canonical replayを保つ。上記archive／edge protocolは固定済みで、任意cache pathからregistry identityを再構築してはならない。これはD04の予定統合作業であり、実装済みpackage featureや暗黙schema拡張ではない。
+D04が必要とする実装前の具体化を[RFC 0049](0049-registry-package-integration.md)で採択した。Local schema-1/2 lockを維持し、manifest schema 2のregistry edgeとlock schema 3を追加してregistry/root/target/toolchain/source identityを固定し、厳密canonical replayを保つ。上記archive/edge protocolは変更せず、任意cache pathからregistry identityを再構築してはならない。採択済み設計と独立fixtureは、実装済みpackage featureや暗黙schema拡張を意味しない。
 
 ## Execution modes
 
@@ -174,7 +174,7 @@ P01–P08の入力・state／副作用観測と厳密test commitを保持する�
 
 [Canonical archive実験](../../evidence/2026-10-31-m5-registry-archive-profile.json)は指定headerとCRLF scalar sourceから3,072 byteを構築した。導入済みの独立TAR readerで2 recordを列挙し、元source bytesを厳密復元した（両exit 0）。これはlocal形式実現性だけを示し、敵対入力decoder実装や両host適合の証拠ではない。全受入recordの保守的上界17,172,223 byteはencode上限18,874,368 byte内に収まる。性能主張は行わない。
 
-C02を妨げる未決設計事項はない。RFC 0047でE01 authority record、RFC 0048でD02 state/audit encodingを採択した。Manifest／lock encodingはD04、署名／root／freshnessはF01、hostingはI01で明示具体化し、いずれも実装前に採択する。上限はproduction capacity／使いやすさの測定を伴わない保守的project判断。TLS parser統合・両hostのatomic置換・実際の敵対入力／cancel挙動は該当deliveryまで未検証。Public service・production rootは確立せず、採択は実装／安定化を意味しない。
+C02を妨げる未決設計事項はない。RFC 0047でE01 authority record、RFC 0048でD02 state/audit encoding、RFC 0049でD04 manifest/lock統合を採択した。署名/root/freshnessはF01、hostingはI01で実装前に採択する。上限はproduction capacity/使いやすさの測定を伴わない保守的project判断。TLS parser統合・両hostのatomic置換・実際の敵対入力/cancel挙動には該当deliveryの証拠が必要である。Public service・production rootは確立せず、採択は実装/安定化を意味しない。
 
 ## Sources
 

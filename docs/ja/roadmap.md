@@ -36,7 +36,7 @@ lock寿命の修正を含むinstallerは、2026-10-30 JSTに[PR #25](https://git
 
 以下のmilestone checklistは相対的な受入条件の重みを保持します。`1`はごく小、`2`は小、`3`は中、`5`は大、`8`は非常に大です。重み付きの達成率は `完了した重み / 全重み × 100` を小数第1位へ丸めます。この粗い重みは経過時間や実装残作業を予測しません。Milestoneがcurrentになったとき、またはscope／evidenceが変わったときに、長期見積もりを積み上げで見直します。進行中milestoneごとに別の実装Todoを使い、独立検証可能な残り1〜3 ptのtaskと、明示的なscope／見積もり変更を記録します。
 
-2026-10-31（JST）に確認したexit-gate weightのsnapshotです。受入条件の重みと残作業見積りは別であり、M4の最終収支は完了ボードに記録します。M5が進行中です（**12 done · 1 doing · 27 todo · 81 remaining pt**）。完了済みM2／M3の記録は維持します。
+2026-10-31（JST）に確認したexit-gate weightのsnapshotです。受入条件の重みと残作業見積りは別であり、M4の最終収支は完了ボードに記録します。M5が進行中です（**13 done · 1 doing · 26 todo · 76 remaining pt**）。完了済みM2／M3の記録は維持します。
 
 | Milestone | 完了条件の重み | 条件の総重み | 条件達成率 |
 | --- | ---: | ---: | ---: |
@@ -252,9 +252,9 @@ Exit：新しいdeveloperが1つのtoolをinstallし、packageを作成し、edi
 
 2026-10-30 JST開始。[M5 board](milestone-5.md)に全10ゲート、39件の観測可能delivery、残作業基準112 ptを保持する。[edition・互換性方針](rfcs/0043-editions-and-compatibility.md)と実行可能な互換性・移行fixtureから開始する。registry upload前に脅威モデルを定め、署名toolchain導入をregistry provenanceと混同しない。P1の2ゲートも範囲内。完了には両host ecosystem journeyと日英能力guideを含める。
 
-**12 done · 1 doing · 27 todo · 81 remaining pt**
+**13 done · 1 doing · 26 todo · 76 remaining pt**
 
-全40 deliveryの収支は112 − 1 − 30 = 残81 pt。旧scalar前提+3 pt、B04の2 checkpointで各−1 pt、D02全baseline後の−2 ptにより純追加・再見積りは−1 pt、完了時退役は30 pt。G1–G3は完了し、D01/E01はPR #33–#34でmerge済み。D02は最終2,590 testのbaselineと対象CI/debugger全job成功後、PR #35が`50eeeb3`としてmergeされdoneとなった。元mainはclean・remoteと0/0で同期済み、D03 PR #36はmainベース。D03だけをdoing・3 ptに維持する。Commit済み読取り、厳密archive結合、上限付きHTTPS client/server、容量検証はstore 20 testとtransport 18 testに成功し、16 MiB sourceも含む。固定`5317901`はsource不変で182 suite・2,609 test、fmt・厳密Clippy・rustdocに成功した。そのWindows CIではclient接続修正を確認したがworker cancel遅延が判明し、macOSではfuzz lockの更新不足が判明した。Deadline/testを弱めずcancel pollingを追加し、Cargoによるfuzz lock 2項目更新はlocked Clippyに成功。修正後の固定全baseline、最新headの両host CI、公開は残る。D04のlocal HTTPS取得→VM/native実験は42を返したが、manifest/lock契約、resolver統合、両host証拠はtodoである。水平前提を追加せずD03 → D04を継続し、両P1を含むG4–G10をopenに維持する。
+全40 deliveryの収支は112 − 3 − 33 = 残76 pt。旧scalar前提+3 pt、B04の2 checkpointで各−1 pt、D02全baseline後の−2 ptによりD04実装checkpointの−2 ptも加え、純追加・再見積りは−3 pt、完了時退役は33 pt。G1–G3は完了し、D01/E01はPR #33–#34でmerge済み。D02はPR #35で`50eeeb3`としてmergeされた。D03はdoneとなり、固定`f58659c`はsource不変で182 suite・2,611 test、fmt・厳密Clippy・rustdocに成功。最新headのCI run `41177539886`は対象18 job、native-debug run `41177539882`は3 hostすべて成功した。Windows実ログで上限付きcancelと実TLS clientを含むtransport全18 testを確認し、macOSのlocked fuzz Clippyも成功した。PR #36は`723e2eb`としてmergeされ、元mainはclean・remoteと0/0で同期を確認済み。D04を唯一のdoing・1 ptとし、PR #37をmainベースに変更した。[RFC 0049](rfcs/0049-registry-package-integration.md)で明示manifest/lockと不変source契約を独立計算fixtureとともに採択済み。分離したHTTPS取得→VM/native実験は42、local/registry論理identityを区別する実験は84を返した。Schema 2 admissionと型付きregistry graph captureをcheckpointとして実装し、実HTTPS graphは42、registry形local path/共有aliasのcaseはVM/native JITで84を返した。Canonical schema-3 captureは独立fixtureと一致し、formatは元local bindingを選択する。Adapterのないhybrid editor操作は明示拒否する。推移diamondは84を実行し、package/edge/sourceの厳密境界、pin不一致、非active host拒否を確認した。D04の残作業は固定全baseline、最新headの両host CI、公開だけとなり、検証中心の残作業監査で3から1 ptへ再見積りする。水平前提を追加せずD04を継続し、両P1を含むG4–G10をopenに維持する。
 
 **進捗：21 / 65 pt（32.3%）。**
 

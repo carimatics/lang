@@ -1,4 +1,4 @@
-use lang::package::manifest::{MAX_BYTES, MAX_ENTRIES, Manifest};
+use lang::package::manifest::{DependencySource, MAX_BYTES, MAX_ENTRIES, Manifest};
 use serde_json::{Value, json};
 use std::path::PathBuf;
 use std::process::Command;
@@ -38,10 +38,135 @@ fn package_and_workspace_contracts_are_admitted_without_dependency_io() {
     value["tests"] = json!(["tests/smoke.lang"]);
     value["workspace"] = json!({"members":["app","helper"]});
     let manifest = parse(&value).unwrap();
-    assert_eq!(manifest.dependencies["helper"].path, "../helper");
+    assert_eq!(
+        manifest.dependencies["helper"].source,
+        DependencySource::Local {
+            path: "../helper".into()
+        }
+    );
     assert_eq!(manifest.tests, ["tests/smoke.lang"]);
     let root = parse(&json!({"schema":1,"workspace":{"members":["app"]}})).unwrap();
     assert!(root.package.is_none());
+}
+
+#[test]
+fn schema_two_sources_are_explicit_and_do_not_grant_authority() {
+    let mut value = package();
+    value["schema"] = json!(2);
+    value["dependencies"] = json!({
+        "helper":{"source":"local","path":"../helper","version":"1.2.3"},
+        "renamed":{"source":"registry","registry":"example","name":"math","version":"1.0.0","targets":["aarch64-apple-darwin"]}
+    });
+    let manifest = parse(&value).unwrap();
+    assert_eq!(manifest.schema, 2);
+    assert_eq!(
+        manifest.dependencies["helper"].source,
+        DependencySource::Local {
+            path: "../helper".into()
+        }
+    );
+    assert_eq!(
+        manifest.dependencies["renamed"].source,
+        DependencySource::Registry {
+            registry: "example".into(),
+            name: "math".into()
+        }
+    );
+    assert_eq!(manifest.dependencies["renamed"].version, "1.0.0");
+    assert_eq!(
+        manifest.dependencies["renamed"].targets.as_deref(),
+        Some(["aarch64-apple-darwin".to_owned()].as_slice())
+    );
+    value["schema"] = json!(1);
+    assert_eq!(parse(&value).unwrap_err().code, "PKG0001");
+    Manifest::parse(include_bytes!(
+        "fixtures/package-lock/schema3-registry-inputs/app/Lang.json"
+    ))
+    .unwrap();
+    parse(&json!({"schema":2,"workspace":{"members":["app"]}})).unwrap();
+}
+
+#[test]
+fn schema_two_rejects_ambiguous_duplicate_and_authority_fields() {
+    for declaration in [
+        r#"{"path":"helper","version":"1.0.0"}"#,
+        r#"{"source":"local","source":"registry","path":"helper","version":"1.0.0"}"#,
+        r#"{"source":"local","path":"helper","path":"other","version":"1.0.0"}"#,
+        r#"{"source":"local","path":"helper","version":"1.0.0","registry":"example"}"#,
+        r#"{"source":"registry","registry":"example","name":"math","version":"1.0.0","path":"helper"}"#,
+        r#"{"source":"registry","registry":"example","name":"math","name":"other","version":"1.0.0"}"#,
+        r#"{"source":"registry","registry":"example","version":"1.0.0"}"#,
+        r#"{"source":"Registry","registry":"example","name":"math","version":"1.0.0"}"#,
+        r#"{"source":"local","path":"helper","version":"1.0.0","targets":null}"#,
+        r#"{"source":"registry","registry":"example","name":"math","version":"1.0.0","targets":null}"#,
+        r#"{"source":"registry","registry":"example","name":"math","version":"1.0.0","targets":[],"targets":[]}"#,
+    ] {
+        let input = format!(
+            r#"{{"schema":2,"package":{},"dependencies":{{"helper":{declaration}}}}}"#,
+            package()["package"]
+        );
+        assert_eq!(
+            Manifest::parse(input.as_bytes()).unwrap_err().code,
+            "PKG0001",
+            "{declaration}"
+        );
+    }
+    for field in ["url", "origin", "credentials", "root_sha256", "cache"] {
+        let mut value = package();
+        value["schema"] = json!(2);
+        value["dependencies"] = json!({"helper":{"source":"registry","registry":"example","name":"math","version":"1.0.0"}});
+        value["dependencies"]["helper"][field] = json!("untrusted");
+        assert_eq!(parse(&value).unwrap_err().code, "PKG0001", "{field}");
+    }
+    let duplicate = br#"{"schema":2,"package":{"name":"app","version":"1.0.0","edition":"2026","entry":"src/main.lang"},"dependencies":{"x":{"source":"local","path":"x","version":"1.0.0"},"x":{"source":"local","path":"y","version":"1.0.0"}}}"#;
+    assert!(
+        Manifest::parse(duplicate)
+            .unwrap_err()
+            .message
+            .contains("duplicate dependency alias")
+    );
+    let tag_last = br#"{"schema":2,"package":{"name":"app","version":"1.0.0","edition":"2026","entry":"src/main.lang"},"dependencies":{"x":{"registry":"example","name":"math","version":"1.0.0","source":"registry"}}}"#;
+    Manifest::parse(tag_last).unwrap();
+}
+
+#[test]
+fn schema_two_validates_inactive_registry_declarations_and_shared_limits() {
+    let mut value = package();
+    value["schema"] = json!(2);
+    value["dependencies"] = json!({"helper":{"source":"registry","registry":"example","name":"math","version":"1.0.0","targets":["x86_64-pc-windows-msvc"]}});
+    for (field, invalid) in [
+        ("registry", json!("https://registry.example")),
+        ("name", json!("../math")),
+        ("version", json!("^1.0.0")),
+        ("targets", json!([])),
+        ("targets", json!(["unknown"])),
+        (
+            "targets",
+            json!(["x86_64-pc-windows-msvc", "x86_64-pc-windows-msvc"]),
+        ),
+    ] {
+        let mut invalid_value = value.clone();
+        invalid_value["dependencies"]["helper"][field] = invalid;
+        assert_eq!(
+            parse(&invalid_value).unwrap_err().code,
+            "PKG0003",
+            "{field}"
+        );
+    }
+    value["dependencies"] = Value::Object(
+        (0..MAX_ENTRIES)
+            .map(|i| (format!("d{i}"), value["dependencies"]["helper"].clone()))
+            .collect(),
+    );
+    assert_eq!(parse(&value).unwrap().dependencies.len(), MAX_ENTRIES);
+    value["dependencies"]["overflow"] = value["dependencies"]["d0"].clone();
+    assert_eq!(parse(&value).unwrap_err().code, "PKG0004");
+    value["dependencies"] = json!({});
+    let mut bytes = serde_json::to_vec(&value).unwrap();
+    bytes.resize(MAX_BYTES, b' ');
+    Manifest::parse(&bytes).unwrap();
+    bytes.push(b' ');
+    assert_eq!(Manifest::parse(&bytes).unwrap_err().code, "PKG0004");
 }
 
 #[test]
@@ -78,7 +203,7 @@ fn versions_names_editions_and_required_fields_fail_closed() {
         value["package"].as_object_mut().unwrap().remove(field);
         assert_eq!(parse(&value).unwrap_err().code, "PKG0001");
     }
-    assert_eq!(parse(&json!({"schema":2})).unwrap_err().code, "PKG0002");
+    assert_eq!(parse(&json!({"schema":3})).unwrap_err().code, "PKG0002");
     assert_eq!(parse(&json!({"schema":1})).unwrap_err().code, "PKG0003");
 }
 
@@ -202,6 +327,14 @@ fn real_cli_emits_single_json_diagnostic_and_preserves_exit_codes() {
     let success = invoke(&[]);
     assert!(success.status.success());
     assert!(success.stdout.is_empty() && success.stderr.is_empty());
+    std::fs::write(
+        &path,
+        include_bytes!("fixtures/package-lock/schema3-registry-inputs/app/Lang.json"),
+    )
+    .unwrap();
+    let registry = invoke(&[]);
+    assert!(registry.status.success());
+    assert!(registry.stdout.is_empty() && registry.stderr.is_empty());
     std::fs::write(&path, b"{\n invalid}").unwrap();
     let failure = invoke(&[]);
     assert_eq!(failure.status.code(), Some(1));

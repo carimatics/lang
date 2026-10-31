@@ -6,9 +6,25 @@
 
 2026-10-30 JST、`3b676c5`から開始。[ロードマップ](roadmap.md#milestone-5ecosystemとcompatibility)のM5全範囲（P1の2ゲートを含む）を追跡する。M4のinstallerとlocal packageは前提条件であり、registry完了を意味しない。
 
-**12 done · 1 doing · 27 todo · 81 remaining pt**
+**13 done · 1 doing · 26 todo · 76 remaining pt**
 
-**次: M5-D03 — versioned indexと検証付きdownload（3 pt）。**
+**次: M5-D04 — registry source実行の検証と公開（1 pt）。**
+
+D04 host検証checkpoint（2026-10-31 16:54 JST確認）: 固定`e6b15f0`でfmt、厳密Clippy、182 suiteの全2,629 test、rustdocが成功し、4 commandとも終了0・source不変を確認した。一方、Windows core-1 job `124479059969`は新しい入れ子の入力fileがGitによりCRLF変換されたためregistry fixture 8件を拒否した。最上位のcanonical lockにはLF属性があったが、元入力にはなかった。`core.autocrlf=true`の再現でcanonical descriptorを含む4入力すべてが変化した。既存LF属性をこの入力directoryにも適用し、同じ変換後に独立計算のdescriptor・lockを含む全元byte/hashが保持されることを確認した。期待dataの変更やarchive受理の緩和は行わない。Native-debug `41181189973`は3 hostすべて成功。修正headは全baseline、最新headの両host CI、公開をなお必要とするため、D04だけをdoing・1 ptに維持し、残76 ptの照合は変更しない。検証修正でありdelivery完了や新規前提ではない。
+
+D04残scope監査（2026-10-31 16:32 JST）: 推移fixture全3 testが成功した。実5-package diamondが1個のpin済みmath archiveを共有し、CRLF/UTF-8を保持してVM/native JITで84を実行する。Package=5、edge=5、source-file=6、保持source byteの厳密境界は成功し、各上限−1は拒否する。新規/キャッシュ済み推移hash不一致、非active/active host binding規則、異なるorigin/root policyで同一archive byteを保持するidentityを確認した。最初のfixtureは空descriptor targetを正しく拒否され、archive受理を変えず両対応targetを明示した。実装checklistは実行可能checkpointまで完了し、残る受入条件は固定全baseline、最新headの両host CI、公開である。D04を3から1 ptへ再見積り（純−2）し、累積純追加・再見積りは−3 pt、完了時退役は33 ptを維持する。112 − 3 − 33 = 残76 pt。新規done・delivery追加なし。D04を唯一のdoing、G4をopenに維持し、以前の3 pt noteは履歴とする。D05実装を始める前にこのcheckpointを固定して検証する。
+
+D04 lock/local-edit checkpoint（2026-10-31 16:28 JST確認）: schema-3 captureがcompiler-ID置換後の独立fixtureとbyte完全一致する。閉じたcanonical受理でorigin付きID、checksum、source/edge/binding参照、graph到達性/循環、必須workspace、深さ16、1 MiB上限を検証する。Golden fixtureがlocal root keyの余分な末尾区切りを検出し修正した。Workspace captureは元の未選択metadataを保持する。Formatと検証済み置換は保持したlocal物理bindingを使い、論理keyがlocal物理pathと一致してもregistry編集を拒否し、固定proofにはregistry入力を保持する。Package unit全18 testとarchive/editor/fix/format/lock/source/workspace回帰71 test、workspace/all-target/all-featureの厳密Clippyが成功。本番認証済みreplay/cacheはD05/F01–F03に残し、adapterのないhybrid editor操作とsnapshot profile 1は明示拒否する。残るD04受入条件は推移graph/拒否実行と境界fixture、固定全baseline、最新headの両host CI、公開である。この監査後もD04だけをdoing・3 ptに維持し、delivery追加や見積り変更は行わない。次は推移source実行fixtureを追加する。
+
+D04 graph実行checkpoint（2026-10-31 16:19 JST確認）: 既存Graph/inventory/providerが型付きlocal入力または封じたregistry入力をcaptureし、元descriptor/source byteと独立したlocal物理bindingを保持する。Unit全4 testが成功し、実HTTPS取得後にservice/sourceを除去してVM/native JITで42を実行、registry形local pathと改名/共有registry aliasを持つ実hybrid graphでidentityを区別して84を実行、registry overlayの拒否、明示host bindingと独立policy-key fixtureを確認した。未署名constructorは`cfg(test)`内だけに置き、本番constructor・CLI fallback・trustの主張は追加していない。Localのmanifest/graph/lock/workspace/archive回帰は全54 test成功。残作業はlock schema 3、型付きlocal専用format/editor対応、推移/固定version/root-policy/拒否case、両host証拠、固定全baseline、最終公開である。現在lock/edit consumerはhybrid graphを明示拒否し、snapshot profile 1は契約どおりlocal専用を維持する。この残作業監査後もD04をdoing・3 ptに維持し、前提追加や見積り変更は行わない。次のcheckpointは同じ実行経路のlock captureとlocal toolingを実装する。
+
+D04 manifest checkpoint（2026-10-31 16:11 JST確認）: 厳密schema-2受理がschema 1の文法、重複/未知/null拒否、共通上限を維持する。型付きlocal/registry宣言に権限は含めず、active registry edgeは認証済みcontextを明示要求し、local fallbackを行わない。Manifest/graph/lock/workspace/archiveの対象全54 testが成功し、実CLIと、既存lock schema 1/2を維持するschema-2 local workspaceの42実行を含む。Repository consistencyは8/8、fmtとworkspace/all-target/all-featureの厳密Clippyも成功。これは実行可能な中間checkpointであり、D04完了でも全baseline証拠でもない。残る受入条件は、型付きregistry graph/source captureと読取専用tooling guardの統合、厳密lock-3 capture、両hostの推移/identity/拒否VM/native fixture、全baselineと最新head公開検証。この残作業監査後もD04を唯一のdoing・3 ptに維持し、追加・退役なし。次は受理した取得sourceを実行へ接続する。
+
+D04 scope監査（2026-10-31 16:03 JST）: D03 merge後にD04を唯一のdoingとして選択する。RFC 0049は`4054b0c`でaccepted。最後の実行checkpointは、実HTTPS取得後のVM/native JITによる42、独立再現したschema-3 fixture、local/registry namespace衝突での84である。これはlocal実行可能性の証拠で、統合resolverではない。残る受入条件は、local互換性を保つ厳密manifest-2受理、型付き認証済みregistry graph/source captureと読取専用tooling guard、厳密lock-3 capture、両hostの実推移/identity/拒否VM/native fixture、全baselineと最新head公開検証。この残作業監査後も3 ptを維持し、新たな前提や見積り追加は行わない。[PR #37](https://github.com/carimatics/lang/pull/37)はmainベースとなり、branchへD03のremote mergeを取り込んだ。最初の実装checkpointで宣言を受理し、registry contextなしの消費を明示拒否する。次のcheckpointでは取得sourceを実行へ接続する。
+
+D03完了・公開（2026-10-31 16:03 JST確認）: code `f58659c`はsource不変で固定全baselineに成功（182 suite・2,611 test、fmt・厳密Clippy・rustdoc、全4 exit 0）し、CI `41177539886`（対象18 job、full routingにより文書専用だけ意図的省略）、native-debug `41177539882`（全3 host）も成功した。Windows job `124468380664`の実logでtransport全18、store対象19 testを確認し、8 handshakeのstop、shutdownなしのread/write cancel、証明書検証付きlocalhost読取り、厳密16 MiB sourceを含む。macOSでもlocked fuzz Clippyを確認した。[PR #36](https://github.com/carimatics/lang/pull/36)は`723e2eb`としてmerge済み。元mainはorigin/mainと一致し、clean・ahead/behind 0/0で、treeは`f58659c`と一致する。D03の最後の3 ptを退役し、112 − 1 − 33 = 残78 pt。G4と署名はopenに維持する。下のD03未完了noteは履歴である。
+
+D04設計準備（2026-10-31 JST）: `codex/m5-registry-dependencies`を`codex/m5-registry-reads`の`f58659c`から`/private/tmp/lang-m5-registry-dependencies`に作成した。初期PR baseは`git@github.com:carimatics/lang.git`の前提branchである。実装前に[RFC 0049](rfcs/0049-registry-package-integration.md)をRFC 0001委任でacceptedとした。明示manifest-2 edge、型付き不変origin、相互分離した論理source key、lock schema 3でlocal挙動を維持し、独立した本番trustを要求する。保持した3,619-byte fixtureをJavaScript/Pythonで独立計算し、Rust archive再構築と現行VM/native JITは42、local/registry path衝突caseは84を返した。これは設計/fixture証拠でありresolver実装ではない。D04はtodo・3 ptに維持し、修正後baseline/CI実行中のD03だけをimplementation doingとする。Delivery/point追加・退役なし。D03をmerge/同期してからD04実装を選択する。
 
 D03 CI修正checkpoint（2026-10-31 15:38 JST確認）: 固定`5317901`はsource不変で全baseline 4 commandに成功（182 suite・2,609 test）した。Windows job `124464445376`ではclient TLS読取り修正とtransport 15 test成功を確認したが、8 handshakeのstop testが変更していない2秒上限を超えた。Cancelは各socket timeoutを最大100 msに制限して共有stop flagを確認し、絶対deadlineと実worker joinまでの予約を維持する。Shutdownも追加の起床手段として残す。Shutdownなしのread/write cancelを含むlocal transport全18 testが成功。別件のmacOS CI失敗も再現し、`fuzz/Cargo.lock`で新しい直接production依存2件の記載が欠けていた。Cargoでその2行を再生成し、locked offline fuzz Clippyは成功した。残る受入条件は修正後の固定全baseline、最新headのmacOS/Windows CI、PR公開。D03だけをdoing・3 ptに維持し、見積りの追加・退役なし。
 
@@ -135,8 +151,8 @@ B05 budget監査（2026-10-31 JST）: 再利用するscalar検査内部の独立
 | M5-C02 | done | 0 | M5-C01 | G3 | upload前にprotocol・上限・復旧・security受入ケースを採択 | `53376e5` |
 | M5-D01 | done | 0 | M5-C02 | G4 | 上限付き未信頼archiveの受入とtraversal・重複・bomb拒否 | `b3c8d1b` |
 | M5-D02 | done | 0 | M5-D01,M5-E01 | G4 | 内容address方式のstorageとimmutable version公開transaction | `e76dd7b` |
-| M5-D03 | doing | 3 | M5-D02 | G4 | versioned indexとidentity・checksumを検証したdownload | — |
-| M5-D04 | todo | 3 | M5-D03 | G4 | registry依存を解決して両hostで実行 | — |
+| M5-D03 | done | 0 | M5-D02 | G4 | versioned indexとidentity・checksumを検証したdownload | `f58659c` |
+| M5-D04 | doing | 1 | M5-D03 | G4 | registry依存を解決して両hostで実行 | — |
 | M5-D05 | todo | 3 | M5-D04 | G4 | lock・offline replay・公開中断・並行immutable検証 | — |
 | M5-E01 | done | 0 | M5-C02 | G5 | 認証identity・credential取扱い・scope付き認可 | `56f9f84` |
 | M5-E02 | todo | 3 | M5-E01,M5-D02 | G5 | owner・競合制約付きpublish・yank・unyank | — |
@@ -167,11 +183,11 @@ B05 budget監査（2026-10-31 JST）: 再利用するscalar検査内部の独立
 
 ## 見積り照合
 
-**112 − 1 − 30 = 81 pt**
+**112 − 3 − 33 = 76 pt**
 
 | 基準残作業 | 純追加・再見積り | 完了時に除去 | 残作業 |
 | ---: | ---: | ---: | ---: |
-| 112 pt | −1 pt | −30 pt | 81 pt |
+| 112 pt | −3 pt | −33 pt | 76 pt |
 
 ## Delivery noteとロードマップ監査
 

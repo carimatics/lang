@@ -1,4 +1,4 @@
-//! Strict, bounded schema 1 parsing. Filesystem authority is a resolver concern.
+//! Strict, bounded schema 1/2 parsing. Source authority is a resolver concern.
 use super::Diagnostic;
 use serde::{Deserialize, Deserializer, de};
 use std::collections::{BTreeMap, BTreeSet};
@@ -10,18 +10,43 @@ pub const MAX_BYTES: usize = 64 * 1024;
 pub const MAX_ENTRIES: usize = 128;
 pub const TARGETS: [&str; 2] = ["aarch64-apple-darwin", "x86_64-pc-windows-msvc"];
 
-#[derive(Clone, Debug, Eq, PartialEq, Deserialize)]
-#[serde(deny_unknown_fields)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Manifest {
     pub schema: u32,
-    #[serde(default, deserialize_with = "present")]
     pub package: Option<Package>,
-    #[serde(default, deserialize_with = "present")]
     pub workspace: Option<Workspace>,
-    #[serde(default, deserialize_with = "dependencies")]
     pub dependencies: BTreeMap<String, Dependency>,
-    #[serde(default)]
     pub tests: Vec<String>,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields, bound(deserialize = "D: Deserialize<'de>"))]
+struct WireManifest<D> {
+    schema: u32,
+    #[serde(default, deserialize_with = "present")]
+    package: Option<Package>,
+    #[serde(default, deserialize_with = "present")]
+    workspace: Option<Workspace>,
+    #[serde(default, deserialize_with = "dependencies")]
+    dependencies: BTreeMap<String, D>,
+    #[serde(default)]
+    tests: Vec<String>,
+}
+
+impl<D: Into<Dependency>> From<WireManifest<D>> for Manifest {
+    fn from(wire: WireManifest<D>) -> Self {
+        Self {
+            schema: wire.schema,
+            package: wire.package,
+            workspace: wire.workspace,
+            dependencies: wire
+                .dependencies
+                .into_iter()
+                .map(|(a, d)| (a, d.into()))
+                .collect(),
+            tests: wire.tests,
+        }
+    }
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Deserialize)]
@@ -39,13 +64,80 @@ pub struct Workspace {
     pub members: Vec<String>,
 }
 
-#[derive(Clone, Debug, Eq, PartialEq, Deserialize)]
-#[serde(deny_unknown_fields)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Dependency {
-    pub path: String,
+    pub source: DependencySource,
     pub version: String,
-    #[serde(default, deserialize_with = "present")]
     pub targets: Option<Vec<String>>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum DependencySource {
+    Local { path: String },
+    Registry { registry: String, name: String },
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct LegacyDependency {
+    path: String,
+    version: String,
+    #[serde(default, deserialize_with = "present")]
+    targets: Option<Vec<String>>,
+}
+
+#[derive(Deserialize)]
+#[serde(tag = "source", rename_all = "lowercase", deny_unknown_fields)]
+enum TaggedDependency {
+    Local {
+        path: String,
+        version: String,
+        #[serde(default, deserialize_with = "present")]
+        targets: Option<Vec<String>>,
+    },
+    Registry {
+        registry: String,
+        name: String,
+        version: String,
+        #[serde(default, deserialize_with = "present")]
+        targets: Option<Vec<String>>,
+    },
+}
+
+impl From<LegacyDependency> for Dependency {
+    fn from(wire: LegacyDependency) -> Self {
+        Self {
+            source: DependencySource::Local { path: wire.path },
+            version: wire.version,
+            targets: wire.targets,
+        }
+    }
+}
+
+impl From<TaggedDependency> for Dependency {
+    fn from(wire: TaggedDependency) -> Self {
+        match wire {
+            TaggedDependency::Local {
+                path,
+                version,
+                targets,
+            } => Self {
+                source: DependencySource::Local { path },
+                version,
+                targets,
+            },
+            TaggedDependency::Registry {
+                registry,
+                name,
+                version,
+                targets,
+            } => Self {
+                source: DependencySource::Registry { registry, name },
+                version,
+                targets,
+            },
+        }
+    }
 }
 
 fn present<'de, D, T>(deserializer: D) -> Result<Option<T>, D::Error>
@@ -57,19 +149,20 @@ where
 }
 
 // Derived structs reject repeated fields; maps need their own duplicate check.
-fn dependencies<'de, D>(deserializer: D) -> Result<BTreeMap<String, Dependency>, D::Error>
+fn dependencies<'de, D, T>(deserializer: D) -> Result<BTreeMap<String, T>, D::Error>
 where
     D: Deserializer<'de>,
+    T: Deserialize<'de>,
 {
-    struct Visitor;
-    impl<'de> de::Visitor<'de> for Visitor {
-        type Value = BTreeMap<String, Dependency>;
+    struct Visitor<T>(std::marker::PhantomData<T>);
+    impl<'de, T: Deserialize<'de>> de::Visitor<'de> for Visitor<T> {
+        type Value = BTreeMap<String, T>;
         fn expecting(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
             f.write_str("a dependency object with unique aliases")
         }
         fn visit_map<A: de::MapAccess<'de>>(self, mut map: A) -> Result<Self::Value, A::Error> {
             let mut entries = BTreeMap::new();
-            while let Some((key, value)) = map.next_entry::<String, Dependency>()? {
+            while let Some((key, value)) = map.next_entry::<String, T>()? {
                 if entries.insert(key, value).is_some() {
                     return Err(de::Error::custom("duplicate dependency alias"));
                 }
@@ -77,7 +170,7 @@ where
             Ok(entries)
         }
     }
-    deserializer.deserialize_map(Visitor)
+    deserializer.deserialize_map(Visitor(std::marker::PhantomData))
 }
 
 fn invalid(message: impl Into<String>) -> Diagnostic {
@@ -133,8 +226,28 @@ impl Manifest {
         if bytes.len() > MAX_BYTES {
             return Err(Diagnostic::error("PKG0004", "manifest exceeds 64 KiB"));
         }
-        let manifest: Self = serde_json::from_slice(bytes)
-            .map_err(|e| Diagnostic::error("PKG0001", format!("invalid manifest JSON: {e}")))?;
+        #[derive(Deserialize)]
+        struct Header {
+            schema: u32,
+        }
+        let invalid_json = |e| Diagnostic::error("PKG0001", format!("invalid manifest JSON: {e}"));
+        // Dispatch without flattening through a JSON value: duplicate fields and
+        // aliases must still reach the strict version-specific deserializers.
+        let header: Header = serde_json::from_slice(bytes).map_err(invalid_json)?;
+        let manifest: Self = match header.schema {
+            1 => serde_json::from_slice::<WireManifest<LegacyDependency>>(bytes)
+                .map_err(invalid_json)?
+                .into(),
+            2 => serde_json::from_slice::<WireManifest<TaggedDependency>>(bytes)
+                .map_err(invalid_json)?
+                .into(),
+            _ => {
+                return Err(Diagnostic::error(
+                    "PKG0002",
+                    "unsupported manifest schema; expected 1 or 2",
+                ));
+            }
+        };
         manifest.validate()?;
         Ok(manifest)
     }
@@ -168,12 +281,6 @@ impl Manifest {
     }
 
     fn validate(&self) -> Result<(), Diagnostic> {
-        if self.schema != 1 {
-            return Err(Diagnostic::error(
-                "PKG0002",
-                "unsupported manifest schema; expected 1",
-            ));
-        }
         if self.package.is_none() && self.workspace.is_none() {
             return Err(invalid("manifest requires package or workspace"));
         }
@@ -210,8 +317,18 @@ impl Manifest {
             if !valid_name(alias) || !valid_version(&dependency.version) {
                 return Err(invalid("invalid dependency alias or exact version"));
             }
-            if !valid_path(&dependency.path, true) {
-                return Err(invalid(format!("invalid dependency path for {alias}")));
+            match &dependency.source {
+                DependencySource::Local { path } if !valid_path(path, true) => {
+                    return Err(invalid(format!("invalid dependency path for {alias}")));
+                }
+                DependencySource::Registry { registry, name }
+                    if !valid_name(registry) || !valid_name(name) =>
+                {
+                    return Err(invalid(format!(
+                        "invalid registry or package name for {alias}"
+                    )));
+                }
+                _ => {}
             }
             if let Some(targets) = &dependency.targets {
                 let unique: BTreeSet<_> = targets.iter().collect();

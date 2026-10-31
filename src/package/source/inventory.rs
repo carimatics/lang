@@ -15,6 +15,7 @@ pub(crate) struct File {
     pub bytes: Vec<u8>,
     pub display: PathBuf,
     pub identity: Identity,
+    pub physical: Option<PathBuf>,
 }
 #[derive(Debug, Default)]
 pub(crate) struct Scope {
@@ -96,13 +97,13 @@ pub(crate) fn capture(graph: &Graph) -> Result<Inventory, Diagnostic> {
         .take()
         .ok_or_else(|| error(graph.authority_root(), "source authority already consumed"))?;
     let mut roots = BTreeMap::new();
-    for package in graph.packages() {
+    for package in graph.packages().iter().filter_map(|p| p.local()) {
         let dir = package
             .source_directory
             .lock()
-            .map_err(|_| error(package.root(), "source directory lock poisoned"))?
+            .map_err(|_| error(&package.root, "source directory lock poisoned"))?
             .take()
-            .ok_or_else(|| error(package.root(), "source directory already consumed"))?;
+            .ok_or_else(|| error(&package.root, "source directory already consumed"))?;
         roots.entry(package.source_root.clone()).or_insert(dir);
     }
     let mut builder = Builder {
@@ -112,10 +113,14 @@ pub(crate) fn capture(graph: &Graph) -> Result<Inventory, Diagnostic> {
         entries: 0,
     };
     let mut seeds = Vec::new();
-    for package in graph.packages() {
-        let path = package
+    for (package, local) in graph
+        .packages()
+        .iter()
+        .filter_map(|p| p.local().map(|l| (p, l)))
+    {
+        let path = local
             .source_root
-            .join(package.entry_path().file_name().expect("entry filename"));
+            .join(local.entry_path.file_name().expect("entry filename"));
         builder
             .data
             .declared
@@ -123,8 +128,8 @@ pub(crate) fn capture(graph: &Graph) -> Result<Inventory, Diagnostic> {
             .or_default()
             .push(Declared {
                 kind: BindingKind::Entry,
-                scope: package.source_root.clone(),
-                path: package.entry_path().to_path_buf(),
+                scope: local.source_root.clone(),
+                path: local.entry_path.clone(),
                 target: path.clone(),
             });
         builder.charge_bytes(package.entry_bytes().len())?;
@@ -132,13 +137,14 @@ pub(crate) fn capture(graph: &Graph) -> Result<Inventory, Diagnostic> {
             path.clone(),
             File {
                 bytes: package.entry_bytes().to_vec(),
-                display: package.entry_path().to_path_buf(),
-                identity: identity(&package.entry_metadata, &path).map_err(package_io)?,
+                display: local.entry_path.clone(),
+                identity: identity(&local.entry_metadata, &path).map_err(package_io)?,
+                physical: Some(path.clone()),
             },
         )?;
-        seeds.push((package.source_root.clone(), path));
-        for test in &package.manifest().tests {
-            let requested = normal(package.root()).join(test);
+        seeds.push((local.source_root.clone(), path));
+        for test in package.tests() {
+            let requested = normal(&local.root).join(test);
             let root = normal(
                 &authority
                     .canonicalize(requested.parent().expect("test directory").join("."))
@@ -176,6 +182,7 @@ pub(crate) fn capture(graph: &Graph) -> Result<Inventory, Diagnostic> {
                     identity: identity(&input.metadata, &path).map_err(package_io)?,
                     bytes: input.bytes,
                     display: requested,
+                    physical: Some(path.clone()),
                 },
             )?;
             seeds.push((root, path));
@@ -190,6 +197,102 @@ pub(crate) fn capture(graph: &Graph) -> Result<Inventory, Diagnostic> {
         }
         builder.walk(&root, &dir, &mut scope)?;
         builder.data.scopes.insert(root, scope);
+    }
+    if graph.has_registry() {
+        let mut data = std::mem::take(&mut builder.data);
+        data.files = data
+            .files
+            .into_iter()
+            .map(|(path, mut file)| {
+                file.display = graph::local_key(&file.display);
+                (graph::local_key(&path), file)
+            })
+            .collect();
+        data.scopes = data
+            .scopes
+            .into_iter()
+            .map(|(root, scope)| {
+                (
+                    graph::local_key(&root),
+                    Scope {
+                        files: scope
+                            .files
+                            .into_iter()
+                            .map(|p| graph::local_key(&p))
+                            .collect(),
+                        aliases: scope
+                            .aliases
+                            .into_iter()
+                            .map(|(p, t)| (graph::local_key(&p), graph::local_key(&t)))
+                            .collect(),
+                    },
+                )
+            })
+            .collect();
+        for bindings in data.declared.values_mut() {
+            for binding in bindings {
+                binding.scope = graph::local_key(&binding.scope);
+                binding.path = graph::local_key(&binding.path);
+                binding.target = graph::local_key(&binding.target);
+            }
+        }
+        builder.data = data;
+        for package in graph.packages() {
+            let Some(consumed) = package.registry() else {
+                continue;
+            };
+            let archive = consumed.archive();
+            for (index, file) in archive.descriptor().files().iter().enumerate() {
+                let bytes = archive.source(file.path()).expect("admitted source");
+                builder.charge_bytes(bytes.len())?;
+                let path = package.root().join(file.path());
+                builder.file(
+                    path.clone(),
+                    File {
+                        bytes: bytes.to_vec(),
+                        display: path,
+                        identity: Identity::Registry {
+                            package: package.id(),
+                            file: index,
+                        },
+                        physical: None,
+                    },
+                )?;
+            }
+            let descriptor = archive.descriptor();
+            let declarations = std::iter::once((BindingKind::Entry, descriptor.package().entry()))
+                .chain(
+                    descriptor
+                        .tests()
+                        .iter()
+                        .map(|t| (BindingKind::Test, t.as_str())),
+                );
+            for (kind, path) in declarations {
+                let path = package.root().join(path);
+                let scope = path.parent().expect("admitted source path").to_path_buf();
+                let files = descriptor
+                    .files()
+                    .iter()
+                    .map(|f| package.root().join(f.path()))
+                    .filter(|p| p.starts_with(&scope))
+                    .collect();
+                builder.data.scopes.entry(scope.clone()).or_insert(Scope {
+                    files,
+                    aliases: BTreeMap::new(),
+                });
+                builder
+                    .data
+                    .declared
+                    .entry(package.id())
+                    .or_default()
+                    .push(Declared {
+                        kind,
+                        scope,
+                        path: path.clone(),
+                        target: path,
+                    });
+            }
+        }
     }
     Ok(builder.data)
 }
@@ -343,6 +446,7 @@ impl Builder<'_> {
                                 identity: identity(&input.metadata, &global).map_err(package_io)?,
                                 bytes: input.bytes,
                                 display: global.clone(),
+                                physical: Some(global.clone()),
                             },
                         )?;
                     }
