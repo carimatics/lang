@@ -4,7 +4,7 @@
 
 [日本語版](../ja/rfcs/0053-registry-request-workspace.md)
 
-- Status: proposed
+- Status: accepted
 - Authors: project contributors
 - Created: 2026-10-31
 - Last updated: 2026-10-31
@@ -16,7 +16,7 @@
 
 Prepare bounded host workspace admission and replaceable validated read generations before enabling authenticated HTTPS mutations. A metadata-only preflight derives a conservative allocation envelope; the shared budget reserves it before body decoding, recovery or state cloning. The actual store path enforces the observed limits again. A mutation reserves its replacement read generation before commit and refuses stale service reads if refresh fails afterward.
 
-The proposed numerical coefficients below are not yet an established allocation bound. This RFC stays proposed until their type/allocation/lifetime audit is complete. The 30-case model establishes policy/arithmetic only. No implementation or gate completion follows from this proposal.
+The 2026-10-31 allocation/lifetime audit replaces the proposed state coefficient 48 with 96 and accepts the conservative model below under RFC 0001 delegation. The layout experiment and policy model support this design; they do not establish production enforcement, peak RSS, implementation or gate completion. E06 must enforce the envelope before allocating, including malformed input and postcommit refresh.
 
 ## Motivation
 
@@ -59,10 +59,10 @@ Reserve the conservative workspace and candidate-generation allowances from the 
 
 ### Proposed allocation envelope
 
-Let `S` be the largest observed state record, `A` the maximum of observed object length and admitted upload length, and `E` the physical entry count. Let `C = min(16 MiB, S + growth)`, with proposed growth `2 × 128 KiB + 4 KiB` for publication and `4 KiB` for owner/yank actions. The physical state ceiling still applies independently. Proposed reservations are:
+Let `S` be the largest observed state record, `A` the maximum of observed object length and admitted upload length, and `E` the physical entry count. Let `C = min(16 MiB, S + growth)`, with growth `2 × 128 KiB + 4 KiB` for publication and `4 KiB` for owner/yank actions. The physical state ceiling still applies independently. Reservations are:
 
 ```text
-workspace = 48 × C + 6 × A + 8192 × (E + 8) + 2 MiB
+workspace = 96 × C + 6 × A + 8192 × (E + 8) + 2 MiB
 generation = 2 × C + (1024 + 8192) × 1024 + 4096
 ```
 
@@ -70,7 +70,23 @@ All arithmetic is checked before allocation. Input bounds remain state 16 MiB, a
 
 Audit obligations for these coefficients: bound simultaneously live decoded adjacent/history/expected states, authority copies/authenticator tables, both prepared publication buffers, canonical re-encoding capacity, archive input/frozen copies and bounded descriptor/binding scratch; bound inventory/binding/reachable/staging/replay structures by physical entries; and bound new index/map storage from state bytes and existing package/release count ceilings. Include collection capacity growth and the pinned implementations' requested allocation sizes. The two fixed collection ceilings in `generation` deliberately over-reserve small registries. Existing valid large stores can be refused by this conservative service budget without becoming invalid stores.
 
-Before accepting this RFC, establish the coefficients from the actual pinned types, codecs, collection behavior and lifetimes, with executable boundary checks. If this audit fails, revise the formula before implementation; do not present a successful arithmetic model or observed RSS as proof. Later record/layout/clone-lifetime changes must re-audit the envelope rather than silently retain it.
+The audit below is the design basis. Production boundary checks must confirm its assumptions; any failed assumption requires revising the envelope before enabling the service. An arithmetic model or observed RSS is not proof. Later record/layout/clone-lifetime changes must re-audit the envelope rather than silently retain it.
+
+### Allocation and lifetime audit
+
+The audit uses the `18b2128` store, Rust 1.99.0, serde 1.0.229 and serde_json 1.0.154 on supported 64-bit targets. It accounts for requested collection capacity, not allocator arenas, OS page cache or process RSS. Canonical validation happens after deserialization/re-encoding, so compact malformed JSON is included.
+
+| Allocation class | Conservative accounting |
+| --- | --- |
+| Noncanonical decode | Empty string elements can retain two 24-byte vector slots per roughly three input bytes. Allow 16 times input bytes for decoded records, 32 for pretty-encoding capacity at depth at most 16, and 4 for input/serde scratch: 52 times in total. Fixed roots/minimum capacities use the fixed allowance and remaining state margin. |
+| Other state storage | Canonical indentation and required field names bound the audited record layouts within 4 times canonical bytes. Reserve six state equivalents, or 24 times candidate bytes, despite adjacent-history walking and prepared publications retaining serialized bytes rather than decoded states. The overlapping 52 + 24 = 76 factors fit under 96; the remaining 20 covers canonical buffers, authority validation tables, index encoding and conservative overlap. The original 48 factor is superseded before implementation. |
+| Archive and scratch | Six times the largest object/upload covers read-buffer capacity and input/frozen archive copies. Descriptor/binding, audit/head/action and fixed metadata scratch also have 2 MiB. Large index encoding uses the state allowance. Source payloads remain ranges into one frozen archive. |
+| Physical-entry structures | Inventory, binding, reachability, staging and replay share 8 KiB per entry, including B-tree spare slots and bounded identifier strings. Replay retains neither reason/body nor decoded state; each audit is at most 2 KiB. Eight candidate entries do not enlarge the physical quota. |
+| Read generation | Index encoding borrows releases and retains boxed bytes; aggregate content fits twice candidate-state bytes. Maps separately reserve 1 KiB per maximum package/release plus a root. Old generation memory remains charged until dropped. |
+
+The external mirrored-layout experiment passes 72 compact/canonical cases and 8,192 vector-growth checks. Observed maxima, rounded upward, are decoded/canonical 3.196, decoded/compact 14.299, and retained input + decoded state + canonical-buffer capacity/compact 20.749. Measured byte sizes are state 304, authority records 160, principal 32, token 168, grant 32, owner group 48, package 56, release 136 and dependency 144. Cases include invalid empty strings and oversized collection shapes. Ordinary serde visitors make this a layout/capacity check, not production admission or peak-allocation measurement.
+
+Bind the reservation to the owned store and exclusive service operation. Recheck file length and entry ceilings before each read/decode, cap actual reads even if metadata changes, and enforce candidate/generation bounds before allocation and HEAD publication. Reserve before archive admission, full inventory/recovery, cleanup, authority construction or transaction preparation. Keep the guard through refresh/response completion; only a bounded metadata probe precedes reservation. Both supported host families must exercise these paths before E06/E05 completion.
 
 ### Read-generation ownership and commit
 
@@ -117,7 +133,7 @@ All payloads still cross full admission and current authorization. The metadata 
 
 ## Implementation plan
 
-1. Audit the proposed coefficients and lifetime proof, then accept or revise this RFC under RFC 0001 delegation. E03 remains the only doing delivery while its frozen baseline/CI runs.
+1. The 2026-10-31 audit accepts the revised coefficients under RFC 0001 delegation. E03 remains the only doing delivery until frozen baseline/CI/publication completes; then select E06 and implement the audited guard before E05.
 2. E06: implement bounded metadata preflight, enforced guarded workspace, replacement-generation reservation/capture and the real guarded host execution fixture. Test limits before allocation, races, cancellation and unchanged HEAD on refusal. Keep it at 3 pt only after its selection audit.
 3. E05: integrate the explicit mutable HTTPS entry point and client, strict framing/credentials/receipts, serialized generation publication, recovery-required behavior and real both-host execution/revocation journey. Preserve its 3 pt for this distinct outcome.
 4. Run each required local baseline and latest-head CI, publish evidence and audit remaining G5 work. E04 remains after E05; no gate closes on workspace preparation alone.
@@ -135,9 +151,9 @@ Preparation branch `codex/m5-registry-authenticated-service` starts from `codex/
 
 ## Open questions
 
-**Needs prototype/measurement:** establish the proposed coefficients and an enforceable store envelope before acceptance. The current `/private/tmp/lang-m5-service-policy-probe.js` passes 30 policy/arithmetic cases for finite connection admission, exclusive service access, current-authority replay, old/new lease overlap, precommit refusal and recovery-required postcommit refresh. Independent JavaScript/Python calculations agree for `S=1024`, `A=3072`, `E=6`, publication: candidate 267,264 bytes, workspace 15,058,944 bytes, generation 9,975,808 bytes. This proves neither real allocation bounds nor TLS, bearer, storage or Windows behavior.
+**Accepted under experimental delegation, 2026-10-31 JST:** conservative reservation, exclusive mutable service access and separately charged read generations preserve the accepted protocol budget. The revised state factor explicitly includes noncanonical decoding. The current `/private/tmp/lang-m5-service-policy-probe.js` covers 30 policy/arithmetic cases for finite connections, exclusive access, current-authority replay, old/new lease overlap, precommit refusal and recovery-required refresh. For `S=1024`, `A=3072`, `E=6`, publication, revised values are candidate 267,264 bytes, workspace 27,887,616 bytes, generation 9,975,808 bytes. The Rust probe is `/private/tmp/lang-m5-workspace-probe`. These experiments do not prove production enforcement, TLS, bearer, storage or Windows behavior; actual guarded execution and both-host boundary tests remain E06/E05 acceptance conditions.
 
-The 2026-10-31 source audit identifies the missing request guard and ownership split; it does not measure performance. E06 is newly exposed by re-estimating E05's existing scope 3 → 6 pt, split 3+3. No user decision is required for that planning correction; acceptance is pending technical evidence, not permission.
+The 2026-10-31 source audit identifies the missing request guard and ownership split; it does not measure performance. E06 is newly exposed by re-estimating E05's existing scope 3 → 6 pt, split 3+3. The planning correction and delegated design acceptance do not complete implementation or a gate.
 
 ## Sources
 
@@ -145,4 +161,4 @@ The 2026-10-31 source audit identifies the missing request guard and ownership s
 - [RFC 0048](0048-registry-state-and-publication.md), updated 2026-10-31: complete history, quotas and single-HEAD outcomes.
 - [RFC 0051](0051-registry-yank-transactions.md), updated 2026-10-31: explicit mutation service and retained/new read-memory requirements.
 - [RFC 0052](0052-registry-owner-and-credential-control.md), updated 2026-10-31: current owner/revocation semantics and local stop/reopen administration.
-- Local source audit at `18b2128` and 30-case model, verified 2026-10-31 JST; project evidence only, no external allocation or performance claim.
+- Local source audit at `18b2128`, 30-case policy model and 72-case/8,192-growth-check mirrored Rust probe, verified 2026-10-31 JST; project evidence only, no external allocation or performance claim.

@@ -4,7 +4,7 @@
 
 [English](../../rfcs/0053-registry-request-workspace.md)
 
-- Status: proposed
+- Status: accepted
 - Authors: project contributors
 - Created: 2026-10-31
 - Last updated: 2026-10-31
@@ -16,7 +16,7 @@
 
 認証HTTPS mutationを有効化する前に、有界host作業memory受理と置換可能な検証済みread世代を準備する。Metadataのみのpreflightで保守的なallocation上限を導出し、body decode・recovery・state複製前に共有budgetから予約する。実store経路でも観測した上限を再検査する。Mutationはcommit前に置換read世代を予約し、commit後の更新に失敗したら古いservice readを拒否する。
 
-以下の提案係数は確立済みallocation上限ではない。型・allocation・lifetime監査の完了まで本RFCをproposedとする。30-case modelはpolicy/計算だけを示す。本提案による実装・gate完了の主張はない。
+2026-10-31のallocation/lifetime監査で提案state係数48を96へ改訂し、RFC 0001委任により以下の保守的modelをacceptする。layout実験とpolicy modelは設計の根拠であり、本番での適用、peak RSS、実装、gate完了を示さない。E06は不正入力とcommit後refreshを含め、allocation前に上限を適用する必要がある。
 
 ## 動機
 
@@ -59,10 +59,10 @@ Archive/action decodeと完全recoveryの前に、保守的な作業memoryとcan
 
 ### 提案allocation上限
 
-最大観測state recordを`S`、観測object長と受理upload長の最大を`A`、物理entry数を`E`とする。`C = min(16 MiB, S + growth)`とし、growth案は公開で`2 × 128 KiB + 4 KiB`、owner/yank actionで`4 KiB`とする。物理state上限も独立に適用する。予約案は次のとおり。
+最大観測state recordを`S`、観測object長と受理upload長の最大を`A`、物理entry数を`E`とする。`C = min(16 MiB, S + growth)`とし、growthは公開で`2 × 128 KiB + 4 KiB`、owner/yank actionで`4 KiB`とする。物理state上限も独立に適用する。予約は次のとおり。
 
 ```text
-workspace = 48 × C + 6 × A + 8192 × (E + 8) + 2 MiB
+workspace = 96 × C + 6 × A + 8192 × (E + 8) + 2 MiB
 generation = 2 × C + (1024 + 8192) × 1024 + 4096
 ```
 
@@ -70,7 +70,23 @@ generation = 2 × C + (1024 + 8192) × 1024 + 4096
 
 係数監査の責務: 同時に生存する隣接/履歴/期待stateのdecode結果、authority複製/authenticator table、両prepared publication buffer、canonical再encoding capacity、archive入力/frozen複製、有界descriptor/binding scratchを上限化する。Inventory/binding/reachable/staging/replay構造を物理entry数で上限化し、新index/map保持量をstate byteと既存package/release件数上限から導く。Collection capacity増加と固定実装の要求allocation sizeを含める。`generation`の固定collection上限2個は、小さいregistryに対して意図的に余分に予約する。妥当な既存の大storeが保守的service budgetで拒否されても、不正storeになるわけではない。
 
-本RFCのaccept前に、実際の固定型・codec・collection挙動・lifetimeから係数を確立し、実行可能な境界検査を添える。監査できなければ実装前に式を改訂し、計算modelの成功や観測RSSを証明と扱わない。後続record/layout/clone lifetime変更でも、無条件に上限を維持せず再監査する。
+以下の監査を設計根拠とする。本番境界検査で前提を確認し、成立しない前提があればserviceを有効化する前に上限を改訂する。計算modelや観測RSSは証明ではない。後続record/layout/clone lifetime変更でも、無条件に上限を維持せず再監査する。
+
+### Allocationとlifetimeの監査
+
+対象は`18b2128`のstore、Rust 1.99.0、serde 1.0.229、serde_json 1.0.154と対応64-bit targetである。要求collection capacityを扱い、allocator arena、OS page cache、process RSSは扱わない。canonical検証はdeserialize/re-encode後なので、圧縮された不正JSONも含める。
+
+| Allocation区分 | 保守的な計上 |
+| --- | --- |
+| Noncanonical decode | 空文字要素は約3入力byteに対して24-byte vector slotを2個保持しうる。decoded recordに入力の16倍、深さ最大16のpretty-encoding capacityに32倍、入力/serde scratchに4倍、合計52倍を見込む。固定root/最小capacityは固定枠とstate残余枠を使う。 |
+| その他のstate保持 | canonicalのindentationと必須field名により、監査したrecord layoutはcanonical byteの4倍以内になる。隣接履歴walkと、decoded stateではなくserialized byteを保持する準備済みpublicationに対しても、state 6個分、candidate byteの24倍を予約する。重複を含む52 + 24 = 76は96内に収まり、残り20倍でcanonical buffer、authority検証table、index encoding、保守的な重複を扱う。元の係数48は実装前に置き換える。 |
+| Archiveとscratch | 最大object/uploadの6倍でread-buffer capacityと入力/frozen archive複製を扱う。descriptor/binding、audit/head/action、固定metadata scratchには追加2 MiBを持つ。大きなindex encodingはstate枠を使う。source payloadは単一frozen archive内のrangeを維持する。 |
+| 物理entry構造 | inventory、binding、reachability、staging、replayを、B-tree空slotと有界識別子文字列を含めentry当たり8 KiBでまとめて計上する。replayはreason/bodyやdecoded stateを保持せず、auditは最大2 KiB。candidate 8 entryは物理quotaを増やさない。 |
+| Read世代 | index encodingはreleaseを借用してboxed byteを保持し、合計内容をcandidate-state byteの2倍以内で扱う。mapは最大package/release当たり別途1 KiBとrootを予約する。旧世代memoryはdropまで課金を維持する。 |
+
+外部のlayout mirror実験はcompact/canonical 72 caseとvector増加8,192 caseに成功した。切り上げた観測最大比はdecoded/canonical 3.196、decoded/compact 14.299、保持入力 + decoded state + canonical-buffer capacity/compact 20.749。実測byteサイズはstate 304、authority records 160、principal 32、token 168、grant 32、owner group 48、package 56、release 136、dependency 144。不正な空文字列や件数超過の形状も含む。通常serde visitorを使うためlayout/capacity検査であり、本番admissionやpeak-allocation測定ではない。
+
+予約を所有storeと排他service操作に結び付ける。各read/decode前にfile長とentry上限を再検査し、metadataが変化しても実readを上限化し、allocationとHEAD公開前にcandidate/generation上限を適用する。archive admission、完全inventory/recovery、cleanup、authority構築、transaction準備より前に予約する。guardをrefresh/response完了まで保持し、予約前のfilesystem処理は有界metadata probeだけとする。E06/E05完了前に両対応host系統でこれらの経路を検証する。
 
 ### Read世代の所有とcommit
 
@@ -117,7 +133,7 @@ Metadata preflightは有界な線形directory passを追加し、既存完全inv
 
 ## 実装計画
 
-1. 提案係数とlifetime証明を監査してから、RFC 0001委任でacceptまたは改訂する。固定baseline/CI中はE03を唯一のdoingに維持する。
+1. 2026-10-31監査で改訂係数をRFC 0001委任によりacceptする。固定baseline/CI/公開完了まではE03を唯一のdoingとし、その後E06を選択してE05前に監査済みguardを実装する。
 2. E06: 有界metadata preflight、guard付き作業memory適用、置換世代予約/capture、実guard付きhost実行fixtureを実装する。確保前上限・race・cancel・拒否時HEAD不変を検証し、選択時監査後にのみ3 ptを維持する。
 3. E05: 明示mutable HTTPS entry pointとclient、厳密framing/credential/receipt、直列世代公開、recovery-required挙動、両hostの実行/失効journeyを統合する。この独立した結果に3 ptを維持する。
 4. 必須local baselineと最新head CIを実行し、証拠を公開して残G5作業を監査する。E04はE05後を維持し、作業memory準備だけでgateを完了にしない。
@@ -135,9 +151,9 @@ Metadata preflightは有界な線形directory passを追加し、既存完全inv
 
 ## 未解決事項
 
-**Needs prototype/measurement:** accept前に提案係数と適用可能なstore上限を確立する。現在の`/private/tmp/lang-m5-service-policy-probe.js`は有限connection受理、排他service access、現在権限replay、旧/新lease重複、commit前拒否、commit後更新失敗のrecovery-requiredを含む30 policy/計算caseに成功した。独立JavaScript/Python計算は公開の`S=1024`、`A=3072`、`E=6`について一致し、candidate 267,264 byte、workspace 15,058,944 byte、generation 9,975,808 byteである。実allocation上限、TLS、bearer、storage、Windows挙動の証拠ではない。
+**Accepted under experimental delegation, 2026-10-31 JST:** 保守的予約、排他mutable service access、別課金read世代により受理済みprotocol budgetを維持する。改訂state係数はnoncanonical decodeを明示的に含む。現在の`/private/tmp/lang-m5-service-policy-probe.js`は有限connection、排他access、現在権限replay、旧/新lease重複、commit前拒否、recovery-required refreshの30 policy/計算caseを扱う。公開の`S=1024`、`A=3072`、`E=6`では、改訂値はcandidate 267,264 byte、workspace 27,887,616 byte、generation 9,975,808 byteとなる。Rust probeは`/private/tmp/lang-m5-workspace-probe`にある。これらの実験は本番適用、TLS、bearer、storage、Windows挙動を証明せず、実guard実行と両hostの境界検査をE06/E05受け入れ条件に残す。
 
-2026-10-31のsource監査は要求guardと所有分離の欠落を特定したが、性能測定ではない。E05の既存scopeを3 → 6 ptへ再見積りし、3+3へ分割してE06を明示する。このplanning訂正にuser判断は不要であり、acceptance待ちは技術証拠の不足によるもので、permission待ちではない。
+2026-10-31のsource監査は要求guardと所有分離の欠落を特定したが、性能測定ではない。E05の既存scopeを3 → 6 ptへ再見積りし、3+3へ分割してE06を明示する。Planning訂正と委任による設計acceptanceは、実装やgateの完了を意味しない。
 
 ## 出典
 
@@ -145,4 +161,4 @@ Metadata preflightは有界な線形directory passを追加し、既存完全inv
 - [RFC 0048](0048-registry-state-and-publication.md)、更新2026-10-31: 完全履歴、quota、単一HEAD結果。
 - [RFC 0051](0051-registry-yank-transactions.md)、更新2026-10-31: 明示mutation serviceと旧/新read memory要件。
 - [RFC 0052](0052-registry-owner-and-credential-control.md)、更新2026-10-31: 現在owner/失効semanticsとlocal停止/reopen管理。
-- `18b2128`でのlocal source監査と30-case model、2026-10-31 JST確認。Project証拠のみで、外部allocation/性能の主張はない。
+- `18b2128`でのlocal source監査、30-case policy model、Rust mirror probeの72 case/増加8,192 caseを2026-10-31 JST確認。Project証拠のみで、外部allocation/性能の主張はない。

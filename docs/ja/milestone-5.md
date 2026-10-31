@@ -2,6 +2,8 @@
 
 # Milestone 5 delivery board
 
+E06設計監査（2026-10-31 JST）: source/lifetime確認と外部Rust mirror実験（layout 72 case・増加8,192 case）後、RFC 0053を実験期委任でacceptした。不正noncanonical decodeを明示的に含めるためstate係数を48 → 96へ増やし、改訂30-case policy modelも成功した。これらの実験は本番適用や両host挙動を証明しない。E03だけをdoingとし、guard付き実行/境界fixtureをE06/E05受入条件に残す。本監査による見積り・完了件数・gate変更はなく、以下の以前のproposed状態は履歴である。
+
 [English](../milestone-5.md)
 
 2026-10-30 JST、`3b676c5`から開始。[ロードマップ](roadmap.md#milestone-5ecosystemとcompatibility)のM5全範囲（P1の2ゲートを含む）を追跡する。M4のinstallerとlocal packageは前提条件であり、registry完了を意味しない。

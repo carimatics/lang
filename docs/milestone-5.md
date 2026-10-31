@@ -2,6 +2,8 @@
 
 # Milestone 5 delivery board
 
+E06 design audit, 2026-10-31 JST: RFC 0053 is accepted under experimental delegation after source/lifetime review and an external mirrored Rust experiment (72 layout cases and 8,192 growth checks). The state coefficient increases 48 → 96 to include malformed noncanonical decoding explicitly; the revised 30-case policy model passes. These experiments do not prove production enforcement or both-host behavior. E03 remains the sole doing delivery, and guarded execution/boundary fixtures remain E06/E05 acceptance conditions. No estimate, completion count or gate changes in this audit; the earlier proposed status below is historical.
+
 [日本語版](ja/milestone-5.md)
 
 Activated 2026-10-30 JST from `3b676c5`. This board tracks the entire M5 scope in [the roadmap](roadmap.md#milestone-5-ecosystem-and-compatibility), including both P1 gates. M4's installer and local packages are prerequisites, not registry completion.
