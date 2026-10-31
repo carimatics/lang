@@ -65,11 +65,12 @@ impl Release {
             quarantined: false,
         }
     }
-    // Archive metadata is immutable; the separately audited yank flag is not
-    // archive content. Normalize it only in this ephemeral binding fingerprint.
+    // Archive metadata is immutable; separately audited selection/availability
+    // flags are not archive content. Normalize only this ephemeral fingerprint.
     pub fn binding(&self, name: &str) -> Result<String, Error> {
         let mut immutable = self.clone();
         immutable.yanked = false;
+        immutable.quarantined = false;
         Ok(digest(&encode(
             &(name, &immutable),
             archive::MAX_DESCRIPTOR_BYTES,
@@ -107,6 +108,16 @@ pub(super) enum AuditOperation {
         version: String,
         archive_sha256: String,
     },
+    Quarantine {
+        name: String,
+        version: String,
+        archive_sha256: String,
+    },
+    Unquarantine {
+        name: String,
+        version: String,
+        archive_sha256: String,
+    },
 }
 #[derive(Clone, Debug, Deserialize, Serialize, Eq, PartialEq)]
 #[serde(deny_unknown_fields)]
@@ -133,11 +144,22 @@ pub(super) struct YankResult {
     pub yanked: bool,
 }
 #[derive(Clone, Debug, Deserialize, Serialize, Eq, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub(super) struct QuarantineResult {
+    pub state_revision: u64,
+    pub package_revision: u64,
+    pub name: String,
+    pub version: String,
+    pub archive_sha256: String,
+    pub quarantined: bool,
+}
+#[derive(Clone, Debug, Deserialize, Serialize, Eq, PartialEq)]
 #[serde(untagged)]
 pub(super) enum AuditResult {
     Initialize(InitialResult),
     Publish(PublishResult),
     Yank(YankResult),
+    Quarantine(QuarantineResult),
     Owner(OwnerResult),
     Revocation(RevocationResult),
 }
@@ -260,9 +282,7 @@ impl State {
                 previous = Some(v);
                 hex::<32>(&r.archive_sha256)?;
                 hex::<32>(&r.descriptor_sha256)?;
-                if r.archive_bytes > archive::MAX_ARCHIVE_BYTES as u64
-                    || r.dependencies.len() > 128
-                    || r.quarantined
+                if r.archive_bytes > archive::MAX_ARCHIVE_BYTES as u64 || r.dependencies.len() > 128
                 {
                     return Err(corrupt());
                 }
@@ -364,6 +384,40 @@ impl Audit {
                     || r.version != *v
                     || r.archive_sha256 != *h
                     || r.yanked != matches!(operation, AuditOperation::Yank { .. })
+                    || !actions::valid_reason(&self.reason)
+                {
+                    return Err(corrupt());
+                }
+            }
+            (
+                operation @ (AuditOperation::Quarantine {
+                    name: n,
+                    version: v,
+                    archive_sha256: h,
+                }
+                | AuditOperation::Unquarantine {
+                    name: n,
+                    version: v,
+                    archive_sha256: h,
+                }),
+                AuditResult::Quarantine(r),
+            ) => {
+                name(n)?;
+                version(v)?;
+                hex::<32>(h)?;
+                hex::<32>(self.previous_audit_sha256.as_deref().ok_or_else(corrupt)?)?;
+                hex::<32>(self.prior_state_sha256.as_deref().ok_or_else(corrupt)?)?;
+                hex::<16>(self.credential_id.as_deref().ok_or_else(corrupt)?)?;
+                hex::<16>(self.request_id.as_deref().ok_or_else(corrupt)?)?;
+                hex::<32>(self.request_sha256.as_deref().ok_or_else(corrupt)?)?;
+                if self.sequence <= 1
+                    || r.state_revision != self.sequence
+                    || r.package_revision == 0
+                    || r.package_revision >= self.sequence
+                    || r.name != *n
+                    || r.version != *v
+                    || r.archive_sha256 != *h
+                    || r.quarantined != matches!(operation, AuditOperation::Quarantine { .. })
                     || !actions::valid_reason(&self.reason)
                 {
                     return Err(corrupt());

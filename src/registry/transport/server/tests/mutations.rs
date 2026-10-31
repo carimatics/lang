@@ -118,6 +118,100 @@ fn execute(archive: &AdmittedArchive) {
 }
 
 #[test]
+fn actual_https_quarantine_refresh_refuses_stale_download_and_restores_identical_source() {
+    let mut fixture = owner_fixture_with(|records| {
+        records.tokens[1].grants = vec![authority::codec::Grant {
+            action: authority::codec::Action::Admin,
+            name: "answer".into(),
+        }];
+    });
+    let budget = Budget::new(MAX_REQUEST_MEMORY);
+    let (mut server, client, _) = controlled_service(
+        &mut fixture,
+        Arc::new(At(110)),
+        Duration::from_secs(120),
+        budget.clone(),
+    );
+    let owner = Bearer::from_input("11".repeat(32).as_bytes()).unwrap();
+    let admin = Bearer::from_input("22".repeat(32).as_bytes()).unwrap();
+    client
+        .publish(
+            &owner,
+            &fixture.archive,
+            &"a".repeat(32),
+            ExpectedRevision::Absent,
+        )
+        .unwrap();
+    let prior = client.index("answer").unwrap();
+    execute(&client.archive(&prior, "1.0.0").unwrap());
+    let quarantine = store::QuarantineAction::new(
+        "answer",
+        "1.0.0",
+        &"b".repeat(32),
+        1,
+        store::QuarantineActionKind::Quarantine,
+        "security review",
+    )
+    .unwrap();
+    let refusal = client.quarantine(&owner, &quarantine).unwrap_err();
+    assert_eq!(refusal.error.kind, ErrorKind::Authorization);
+    assert_eq!(refusal.delivery, Delivery::Refused);
+    let receipt = client.quarantine(&admin, &quarantine).unwrap();
+    assert_eq!(receipt.outcome(), MutationOutcome::Quarantined);
+    assert_eq!(receipt.revision(), 2);
+    assert_eq!(receipt.audit_sequence(), 3);
+    let quarantined = client.index("answer").unwrap();
+    assert!(quarantined.release("1.0.0").unwrap().quarantined());
+    // A caller retaining the previously admitted index still reaches the new
+    // server generation; quarantine must not be merely a client-side check.
+    assert_eq!(
+        client.archive(&prior, "1.0.0").err().unwrap().kind,
+        ErrorKind::NotFound
+    );
+    let yank = store::YankAction::new(
+        "answer",
+        "1.0.0",
+        &"c".repeat(32),
+        2,
+        store::YankActionKind::Yank,
+        "owner selection",
+    )
+    .unwrap();
+    client.yank(&owner, &yank).unwrap();
+    assert_eq!(
+        client.archive(&prior, "1.0.0").err().unwrap().kind,
+        ErrorKind::NotFound
+    );
+    let restore = store::QuarantineAction::new(
+        "answer",
+        "1.0.0",
+        &"d".repeat(32),
+        3,
+        store::QuarantineActionKind::Unquarantine,
+        "review completed",
+    )
+    .unwrap();
+    let restored = client.quarantine(&admin, &restore).unwrap();
+    assert_eq!(restored.outcome(), MutationOutcome::Unquarantined);
+    assert_eq!(restored.revision(), 4);
+    let current = client.index("answer").unwrap();
+    assert!(!current.release("1.0.0").unwrap().quarantined());
+    assert!(current.release("1.0.0").unwrap().yanked());
+    let exact = client.archive(&current, "1.0.0").unwrap();
+    assert_eq!(exact.as_bytes(), fixture.archive.as_bytes());
+    execute(&exact);
+    assert_eq!(client.quarantine(&admin, &quarantine).unwrap(), receipt);
+    let current = client.index("answer").unwrap();
+    assert_eq!(current.revision(), 4);
+    assert!(!current.release("1.0.0").unwrap().quarantined());
+    execute(&client.archive(&current, "1.0.0").unwrap());
+    server.stop().unwrap();
+    assert_eq!(budget.used(), 0);
+    let registry = Registry::open(&fixture.parent, "registry", &fixture.identity).unwrap();
+    execute(&registry.archive(fixture.archive.sha256()).unwrap());
+}
+
+#[test]
 fn actual_https_publication_replay_and_refreshed_download_execute_in_vm_and_native() {
     let archive =
         crate::registry::transport::tests::binding::archive(b"fn main() -> i64 { return 42; }\r\n");

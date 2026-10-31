@@ -12,6 +12,32 @@ struct OracleIndex<'a> {
     releases: &'a [records::Release],
 }
 
+fn capacity_registry(parent: &Dir) -> Registry {
+    let mut r: authority::codec::Records =
+        records::decode(&authority_bytes(), authority::MAX_BYTES).unwrap();
+    for action in [
+        authority::codec::Action::Admin,
+        authority::codec::Action::Yank,
+    ] {
+        r.tokens[0].grants.push(authority::codec::Grant {
+            action,
+            name: "answer".into(),
+        });
+    }
+    r.tokens[0]
+        .grants
+        .sort_by(|a, b| (a.action, &a.name).cmp(&(b.action, &b.name)));
+    Registry::initialize(
+        parent,
+        "registry",
+        &identity(),
+        &records::encode(&r, authority::MAX_BYTES).unwrap(),
+        PRINCIPAL,
+        &At(100),
+    )
+    .unwrap()
+}
+
 // Copy only our own closed, validated fixture after releasing its lock. These
 // are independent files, never hardlink aliases or an untrusted extraction.
 fn copy_fixture(source: &std::path::Path, destination: &std::path::Path) {
@@ -98,7 +124,7 @@ fn legacy_publication(registry: &Registry, archive: &AdmittedArchive) {
 fn exact_index_capacity_is_admitted_before_any_candidate_write() {
     let base = Temp::new();
     let parent = parent(base.path());
-    let mut registry = super::yank::initialize_yank(&parent);
+    let mut registry = capacity_registry(&parent);
     for version in 0..29 {
         registry
             .publish(
@@ -224,6 +250,7 @@ fn exact_index_capacity_is_admitted_before_any_candidate_write() {
         }
     }
     unyank_cannot_make_an_exact_capacity_index_unservable(base.path());
+    unquarantine_cannot_make_an_exact_capacity_index_unservable(base.path());
 }
 
 fn unyank_cannot_make_an_exact_capacity_index_unservable(base: &std::path::Path) {
@@ -380,4 +407,84 @@ fn large_archive(version: u32, trim: usize) -> AdmittedArchive {
         builder.append(&h, data).unwrap();
     }
     AdmittedArchive::admit(&builder.into_inner().unwrap()).unwrap()
+}
+
+fn unquarantine_cannot_make_an_exact_capacity_index_unservable(base: &std::path::Path) {
+    let tmp = Temp::new();
+    copy_fixture(&base.join("registry"), &tmp.path().join("registry"));
+    let parent = parent(tmp.path());
+    let mut registry = reopen(&parent);
+    let first = large_archive(0, 0);
+    let quarantine = QuarantineAction::new(
+        "answer",
+        "0.0.0",
+        &"f".repeat(32),
+        29,
+        QuarantineActionKind::Quarantine,
+        "capacity fixture",
+    )
+    .unwrap();
+    registry
+        .quarantine(&bearer(), &quarantine, &At(110))
+        .unwrap();
+    // true is one byte shorter than false. The independent +1 publication
+    // fixture now fits exactly, so clearing that flag must refuse before writes.
+    let candidate = large_archive(29, 6693);
+    registry
+        .publish(
+            &bearer(),
+            &candidate,
+            &format!("{:032x}", 29),
+            ExpectedRevision::Revision(30),
+            &At(110),
+        )
+        .unwrap();
+    let index = registry.index("answer").unwrap();
+    assert_eq!(index.len(), MAX_INDEX_BYTES);
+    let before = snapshot(&tmp.path().join("registry"));
+    let unquarantine = QuarantineAction::new(
+        "answer",
+        "0.0.0",
+        &"e".repeat(32),
+        31,
+        QuarantineActionKind::Unquarantine,
+        "capacity fixture",
+    )
+    .unwrap();
+    let failure = registry
+        .quarantine(&bearer(), &unquarantine, &At(110))
+        .unwrap_err();
+    assert_eq!(failure.kind, ErrorKind::Limit);
+    assert_eq!(failure.outcome, PublicationOutcome::NotPublished);
+    assert_eq!(snapshot(&tmp.path().join("registry")), before);
+    assert_eq!(registry.index("answer").unwrap(), index);
+    assert_eq!(registry.revision().unwrap(), 32);
+    assert_eq!(
+        registry.archive(first.sha256()).err().unwrap().kind,
+        ErrorKind::NotFound
+    );
+    assert_eq!(
+        registry
+            .storage
+            .immutable(storage::Space::Object, first.sha256())
+            .unwrap(),
+        first.as_bytes()
+    );
+    let admitted = Index::admit(&index, &identity(), "answer").unwrap();
+    assert!(admitted.release("0.0.0").unwrap().quarantined());
+    let view = history::load(&registry.storage, &identity()).unwrap();
+    let (next, _) =
+        history::advance_quarantine(&view.state, "answer", "0.0.0", false, "", 110).unwrap();
+    assert_eq!(
+        json(&OracleIndex {
+            format: "lang-registry-index",
+            schema: 1,
+            registry: "example",
+            name: "answer",
+            revision: 32,
+            releases: &next.packages[0].releases
+        })
+        .len(),
+        MAX_INDEX_BYTES + 1
+    );
 }

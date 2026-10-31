@@ -33,6 +33,8 @@ pub enum MutationOutcome {
     Published,
     Yanked,
     Unyanked,
+    Quarantined,
+    Unquarantined,
     OwnerAdded,
     OwnerRemoved,
 }
@@ -74,6 +76,8 @@ impl MutationReceipt {
             "published" => MutationOutcome::Published,
             "yanked" => MutationOutcome::Yanked,
             "unyanked" => MutationOutcome::Unyanked,
+            "quarantined" => MutationOutcome::Quarantined,
+            "unquarantined" => MutationOutcome::Unquarantined,
             "owner_added" => MutationOutcome::OwnerAdded,
             "owner_removed" => MutationOutcome::OwnerRemoved,
             _ => return Err(error(ErrorKind::State)),
@@ -227,6 +231,26 @@ impl Client {
                 outcome: match action.kind() {
                     store::YankActionKind::Yank => MutationOutcome::Yanked,
                     store::YankActionKind::Unyank => MutationOutcome::Unyanked,
+                },
+            },
+        )
+    }
+
+    pub fn quarantine(
+        &self,
+        bearer: &Bearer,
+        action: &store::QuarantineAction,
+    ) -> Result<MutationReceipt, MutationError> {
+        self.action(
+            bearer,
+            ActionRequest {
+                name: action.name(),
+                bytes: action.as_bytes(),
+                id: action.request_id(),
+                revision: action.expected_revision(),
+                outcome: match action.kind() {
+                    store::QuarantineActionKind::Quarantine => MutationOutcome::Quarantined,
+                    store::QuarantineActionKind::Unquarantine => MutationOutcome::Unquarantined,
                 },
             },
         )

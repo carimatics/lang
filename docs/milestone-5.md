@@ -2,6 +2,14 @@
 
 # Milestone 5 delivery board
 
+E07 executable checkpoint and remaining-scope audit, verified 2026-10-31 22:40 JST: actual HTTPS quarantine → stale-index download refusal → restoration executes identical source as 42 in VM/native and retires all service leases. All 62 store tests pass, including 36 process cuts, both publish/quarantine writer orders, 12 rehashed forgeries, current scope/local revocation, final-time/unknown-result reconciliation, exact index +1-byte refusal and workspace −1/equality/+1. Independent canonical/request vectors, 512 admission mutations, fmt and strict workspace Clippy pass. The implementation checklist is complete; frozen full baseline, locked fuzz lint, latest-head both-host CI and publication remain. Re-estimate E07 3 → 1 pt: cumulative net −3 → −5, retired estimates stay 39, and 112 − 5 − 39 = 68 pt. No delivery, prerequisite or gate is added or completed. E07 alone remains doing; freeze this implementation for validation. Earlier checkpoints below are historical.
+
+E07 executable checkpoint, verified 2026-10-31 21:23 JST: two focused tests pass. The actual host journey publishes and executes 42, refuses owner-only quarantine, commits administrator quarantine and refuses download, preserves an independent owner yank, reopens/restores the exact archive, executes 42 in VM/native again and reconciles the old receipt without rolling back flags. The canonical body matches the independent 175-byte vector. E07 remains doing at 3 pt; metered/HTTPS integration, complete hostile-history/authority/process/limit cases, lint, full baseline and latest-head both-host publication remain. No added scope or gate credit; earlier model-only checkpoints are historical.
+
+E05 completion / E07 selection, 2026-10-31 21:19 JST: frozen `2ae39fb` passes fmt, strict workspace Clippy, 2,692 tests/182 suites and rustdoc with unchanged source, plus locked fuzz Clippy. CI 41199138805 passes all 18 applicable jobs; 27 implementation/unclassified paths intentionally omit the documentation-only job. Native-debug 41199138761 passes all three hosts. Actual Windows/macOS 15/macOS 26 logs each confirm all 32 transport and 10 workspace tests. [PR #42](https://github.com/carimatics/lang/pull/42) merged as `7378073`; original main is clean, synchronized 0/0 and identical to the tested tree. Retire E05's final 1 pt: 19 done, net −3, retired 39, remaining 70. G5 stays open. E07 alone becomes doing at 3 pt on [PR #43](https://github.com/carimatics/lang/pull/43), now targeting main. Its last executable checkpoint is the 30-check policy/encoding model (21:03 JST); inherited E05 real HTTPS → VM/native 42 is validated by this baseline, but quarantine is not implemented. Remaining acceptance is the closed admin action/full-history transition, immutable flags/read-generation behavior, actual quarantine/refusal/restoration source journey, authority/replay/forgery/process/limit boundaries and full both-host publication. This review retains 3 pt with no added scope. Earlier pending/count statements below are historical.
+
+E04 remaining-requirement audit / E07 preparation, 2026-10-31 21:03 JST: RFC 0046 requires quarantine, audited local enrollment/provisioning and owner recovery; RFC 0052 leaves the local principal lifecycle to E04. These remain unimplemented after E05 and are not merely an end-to-end test task. Re-estimate E04's combined 3 pt outcome to 7 pt and split into E07 (3 pt: authenticated quarantine/restoration and unchanged source execution), E08 (3 pt: audited local principal/credential lifecycle and owner recovery), then E04 (1 pt: combined durable-recovery/unauthorized-operation exit audit). Add two deliveries and net +4 before implementation: 44 deliveries, cumulative net −7 → −3, retired 38, 112 − 3 − 38 = 71 pt. No delivery or gate is completed. E05 stays the sole doing row at frozen `2ae39fb` for full baseline/CI. `codex/m5-registry-quarantine-recovery` starts clean from that branch/head; its initial PR base is origin/codex/m5-registry-https-mutations in `git@github.com:carimatics/lang.git`, until #42 merges. RFC 0054 is accepted under experimental delegation; its 30-check external policy/encoding model proves no production enforcement. E07 stays todo pending E05 publication; earlier counts below are historical.
+
 E05 executable checkpoint and remaining-scope audit, verified 2026-10-31 20:58 JST: all 32 transport tests pass, including actual TLS publication → refreshed source → VM/native 42, owner transfer/yank/revocation journeys, final-guard expiry, original deadline/cancellation, malformed framing/actions and independent hostile receipt association. Focused workspace runs cover retained receipts and same-budget body reservations at refusal/equality/+1 boundaries. Fmt and strict workspace Clippy pass. The implementation/lifetime checklist is complete; frozen full baseline, locked fuzz lint, latest-head both-host CI and publication remain. Re-estimate E05 3 → 1 pt: net −5 → −7, retired estimates stay 38, and 112 − 7 − 38 = 67 pt. No delivery, prerequisite or gate is added or completed. E05 alone remains doing; freeze this implementation for validation. Earlier checkpoints below are historical.
 
 E05 executable checkpoint, verified 2026-10-31 20:22 JST: the first actual TLS fixture passes authenticated PUT → refreshed index/archive → VM/native 42, first 201 versus exact-replay 200, current conditional conflict, pre-send invalid-ID refusal and stop/reopen. This is one focused macOS fixture, not full transport/both-host evidence. E05 remains doing at 3 pt: canonical action/owner integration, response/input lease lifetime audit, hostile framing and receipt association, original deadline/cancellation, lost-result reconciliation, stop/revoke/reopen, full baseline and latest-head CI/publication remain. No gate or estimate changes; earlier unimplemented statements below are historical.
@@ -22,9 +30,9 @@ E06 design audit, 2026-10-31 JST: RFC 0053 is accepted under experimental delega
 
 Activated 2026-10-30 JST from `3b676c5`. This board tracks the entire M5 scope in [the roadmap](roadmap.md#milestone-5-ecosystem-and-compatibility), including both P1 gates. M4's installer and local packages are prerequisites, not registry completion.
 
-**18 done · 1 doing · 23 todo · 67 remaining pt**
+**19 done · 1 doing · 24 todo · 68 remaining pt**
 
-**Next: M5-E05 — authenticated HTTPS publication/action/owner journeys (1 pt: frozen baseline, both-host CI and publication).**
+**Next: M5-E07 — audited authenticated quarantine/restoration (1 pt: frozen baseline, both-host CI and publication).**
 
 E03 executable checkpoint and remaining-scope audit, 2026-10-31 18:49 JST: actual owner transfer → B publication and separate local revocation retain exact source execution (42 in VM/native). Store 42/42 passes: fresh former-owner/revoked refusal, private reads, 128-owner capacity, 72 process cuts (68 old/four new), both owner/admin writer orders, 18 fully rehashed forgeries, final time, explicit unknown-result reconciliation, expired/inactive credential targets and cross-operation identity conflicts. Independent vectors and 1,024 admission mutations pass; the valid-state preflight proves revision 99 → 100 causes +1 byte at the exact index ceiling. Fmt, strict workspace Clippy and locked fuzz Clippy pass. Remaining acceptance is frozen full baseline, latest-head both-host CI and publication: re-estimate E03 3 → 1 pt (net −2), cumulative net −6, retired estimates unchanged at 36, and 112 − 6 − 36 = 70 pt. No delivery is newly completed or added; E03 alone remains doing. E04/E05 stay separate. Freeze this implementation for full validation.
 
@@ -201,9 +209,11 @@ Gate completion: **3/10; 21/65 historical gate weight**. Delivery points below a
 | M5-E01 | done | 0 | M5-C02 | G5 | Authenticated identities, credential handling and scoped authorization | `56f9f84` |
 | M5-E02 | done | 0 | M5-E01,M5-D02 | G5 | Host publish and yank/unyank transactions with owner and conflict enforcement | `f40d643` |
 | M5-E03 | done | 0 | M5-E02 | G5 | Owner add/remove/transfer and last-owner/credential-revocation fixtures | `18b2128` |
-| M5-E04 | todo | 3 | M5-E03,M5-E05 | G5 | Durable audit trail, recovery and unauthorized-operation end-to-end tests | — |
-| M5-E05 | doing | 1 | M5-E02,M5-E03,M5-E06 | G5 | Authenticated HTTPS publish/actions/owners with fresh generations and recovery refusals | — |
+| M5-E04 | todo | 1 | M5-E03,M5-E05,M5-E07,M5-E08 | G5 | Combined durable recovery, unauthorized-operation journey and G5 exit audit | — |
+| M5-E05 | done | 0 | M5-E02,M5-E03,M5-E06 | G5 | Authenticated HTTPS publish/actions/owners with fresh generations and recovery refusals | `2ae39fb` |
 | M5-E06 | done | 0 | M5-E02,M5-E03 | G5 | Metered host recovery/transactions and bounded validated read-generation capture | `db22857` |
+| M5-E07 | doing | 1 | M5-E05 | G5 | Audited authenticated quarantine/restoration with unchanged source execution | — |
+| M5-E08 | todo | 3 | M5-E03,M5-E05 | G5 | Audited local principal/credential lifecycle and scoped owner recovery | — |
 | M5-F01 | todo | 3 | M5-C02 | G6 | Accept package trust roots, provenance, signature and freshness contract | — |
 | M5-F02 | todo | 3 | M5-F01,M5-D02 | G6 | Produce signed package release manifests and verifiable provenance | — |
 | M5-F03 | todo | 3 | M5-F02,M5-D03 | G6 | Verify trust, artifact binding, expiry and replay before consumption | — |
@@ -229,11 +239,11 @@ Gate completion: **3/10; 21/65 historical gate weight**. Delivery points below a
 
 ## Estimate reconciliation
 
-**112 − 7 − 38 = 67 pt**
+**112 − 5 − 39 = 68 pt**
 
 | Baseline remaining | Net additions/re-estimates | Retired at completion | Remaining |
 | ---: | ---: | ---: | ---: |
-| 112 pt | −7 pt | −38 pt | 67 pt |
+| 112 pt | −5 pt | −39 pt | 68 pt |
 
 ## Delivery notes and roadmap audit
 

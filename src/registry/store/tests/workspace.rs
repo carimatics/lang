@@ -3,6 +3,91 @@ use crate::registry::budget::Budget;
 use crate::registry::transport::MAX_REQUEST_MEMORY;
 
 #[test]
+fn metered_quarantine_admits_exact_workspace_and_retains_its_receipt_lease() {
+    for adjustment in [-1isize, 0, 1] {
+        let tmp = Temp::new();
+        let parent = parent(tmp.path());
+        let mut registry = quarantine::initialize(&parent);
+        let source = archive("0.1.0");
+        registry
+            .publish(
+                &bearer(),
+                &source,
+                REQUEST,
+                ExpectedRevision::Absent,
+                &At(101),
+            )
+            .unwrap();
+        let budget = Budget::new(MAX_REQUEST_MEMORY);
+        let mut metered = MeteredRegistry::with_budget(registry, budget.clone(), &At(102)).unwrap();
+        let root = tmp.path().join("registry");
+        let state_bytes = std::fs::read_dir(root.join("states"))
+            .unwrap()
+            .map(|e| e.unwrap().metadata().unwrap().len() as usize)
+            .max()
+            .unwrap();
+        let entries = std::fs::read_dir(&root).unwrap().count()
+            + ["states", "audits", "objects", "staging"]
+                .iter()
+                .map(|n| std::fs::read_dir(root.join(n)).unwrap().count())
+                .sum::<usize>();
+        let request = QuarantineAction::new(
+            "answer",
+            "0.1.0",
+            &"a".repeat(32),
+            1,
+            QuarantineActionKind::Quarantine,
+            "security review",
+        )
+        .unwrap();
+        // Independent physical inventory and RFC 0053 action envelope, including
+        // the caller-retained receipt and the still-live current generation.
+        let candidate = state_bytes + 4096;
+        let workspace =
+            96 * candidate + 6 * source.as_bytes().len() + 8192 * (entries + 8) + 2 * 1024 * 1024;
+        let generation = 2 * candidate + (1024 + 8192) * 1024 + 4096;
+        let required = workspace + generation + request.as_bytes().len() + records::MAX_AUDIT;
+        let available = required.checked_add_signed(adjustment).unwrap();
+        let pressure = budget
+            .reserve(MAX_REQUEST_MEMORY - budget.used() - available)
+            .unwrap();
+        let before = snapshot(tmp.path());
+        let result =
+            metered.quarantine(&quarantine::admin(), "answer", request.as_bytes(), &At(103));
+        let receipt = if adjustment < 0 {
+            assert_eq!(result.unwrap_err().kind, ErrorKind::Busy);
+            assert_eq!(snapshot(tmp.path()), before);
+            None
+        } else {
+            let receipt = result.unwrap();
+            assert_eq!(receipt.state_revision(), 3);
+            let index =
+                Index::admit(metered.index("answer").unwrap(), &identity(), "answer").unwrap();
+            assert!(index.release("0.1.0").unwrap().quarantined());
+            Some(receipt)
+        };
+        drop(pressure);
+        if receipt.is_some() {
+            assert_eq!(
+                metered.archive(source.sha256()).err().unwrap().kind,
+                ErrorKind::NotFound
+            );
+        }
+        drop(metered);
+        assert_eq!(
+            budget.used(),
+            if receipt.is_some() {
+                records::MAX_AUDIT
+            } else {
+                0
+            }
+        );
+        drop(receipt);
+        assert_eq!(budget.used(), 0);
+    }
+}
+
+#[test]
 fn metered_receipt_reserves_before_transition_and_outlives_the_registry_owner() {
     let tmp = Temp::new();
     let parent = parent(tmp.path());

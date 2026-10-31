@@ -3,6 +3,7 @@ use std::cell::Cell;
 mod adversarial;
 mod index_capacity;
 mod owners;
+mod quarantine;
 mod reads;
 mod workspace;
 mod yank;
