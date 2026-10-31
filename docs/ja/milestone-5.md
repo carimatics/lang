@@ -10,6 +10,8 @@
 
 **次: M5-D02 — 内容address方式のstorageとimmutable version公開transaction（3 pt）。**
 
+D02 CI修正（2026-10-31 13:44 JST確認）: CI `41169200725`のWindows workspace job `124443312245`が、Unixだけでmodeを変更するdirectory builderの不要mutを拒否した。警告を抑制せず、mutable bindingをUnix block内に限定する。修正後のローカルfmt、厳密Clippy、重点17 testは成功。旧`f9b2069`の全baselineは、このsource修正に伴って明示終了した（session exit 143・process group残存なしを確認）。完了や一時timeoutとは扱わない。修正commitを固定して全baselineと最新head CIをやり直し、D02はdoing・3 ptを維持する。
+
 
 D02実行checkpoint（2026-10-31 13:32 JST確認）: `registry::store`が明示capabilityで選んだ新規private rootを初期化し、非待機lock内でcanonical state/audit全履歴を検証、staging・sync済みfileと単一HEAD置換で不変archiveを公開する。Replay前とstaging後・置換直前に実credentialを再認証する。ローカル17 test（subprocess driver 3件を含む）が成功: bootstrap 22切断点、公開24切断点、両version順序で競合するwriter process、厳密replay/競合、独立計算したrequest digest、最終guardの失効/時刻逆行、明示unknown outcome照合、cleanup前の破損/alias拒否、byte/count/peak quota境界。Reopenした厳密source bytesは42へ実行される。Archive/authority回帰19/19と対象strict Clippyも成功。残る受入条件は固定全baseline、両hostの最新head CI、PR公開。この残作業監査後もD02だけをdoing・既存3 ptで維持し、追加・退役なし。G4/G5はopenで、このcheckpointはdelivery完了ではない。
 

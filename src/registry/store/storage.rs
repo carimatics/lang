@@ -152,12 +152,14 @@ fn open_file(dir: &Dir, path: &str, write: bool) -> Result<cap_std::fs::File, Er
 impl Storage {
     pub fn create(parent: &Dir, child: &str) -> Result<Self, Error> {
         component(child)?;
-        let mut builder = cap_std::fs::DirBuilder::new();
+        let builder = cap_std::fs::DirBuilder::new();
         #[cfg(unix)]
-        {
+        let builder = {
             use cap_std::fs::DirBuilderExt;
+            let mut builder = builder;
             builder.mode(0o700);
-        }
+            builder
+        };
         parent.create_dir_with(child, &builder).map_err(|_| io())?;
         let dir = directory(parent, child)?;
         for name in DIRECTORIES {
