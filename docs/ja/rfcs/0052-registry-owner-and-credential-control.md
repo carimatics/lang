@@ -32,7 +32,7 @@ RFC 0047は現在のowner/credential policyと実mutationを分離した。E02�
 ## 非目標
 
 - atomic transfer action、公開principal登録、credential発行、network credential管理endpoint。
-- principal無効化、後続provisioning、管理者によるowner回復、quarantine workflow。これらはE04の具体化に残す。
+- principal無効化、後続provisioning、管理者によるowner回復、quarantine workflow。[RFC 0054](0054-registry-quarantine-transactions.md)と[RFC 0055](0055-registry-local-administration.md)でE07/E08として別途具体化し、その後E04で統合監査する。通常の2段階owner移管は維持する。
 - 署名provenance、本番消費、source言語変更、電源断時availability、悪意あるoperatorの認証。
 
 ## ガイドレベル設計

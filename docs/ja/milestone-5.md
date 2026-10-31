@@ -2,6 +2,8 @@
 
 # Milestone 5 delivery board
 
+E08準備（2026-10-31 22:49 JST）: 監査付きlocal登録・credential hash追加・無効化・別途構築する厳密package scopeのowner置換としてRFC 0055を採択する。外部policy model 23 checkは全128-owner復旧と後続stateを保持するreplayを含み、token 15,694 byte / digest operation 179 byteの実験が2 KiB audit上限維持を裏付ける。設計証拠のみである。E08はtodo・3 pt、E07だけをdoing・1 ptとし、`e3fa55c`をfull baseline/最新head CI向けに固定する。件数と112 − 5 − 39 = 残68 ptは不変。`codex/m5-registry-local-recovery`は`codex/m5-registry-quarantine-recovery`の`e3fa55c`からcleanで開始し、#43 mergeまで`git@github.com:carimatics/lang.git`のorigin/codex/m5-registry-quarantine-recoveryを初期PR baseとする。Source実装、新delivery、gate完了は主張しない。
+
 E07実行checkpoint・残scope監査（2026-10-31 22:40 JST確認）: 実HTTPSのquarantine → 旧index download拒否 → 復元で同一sourceがVM/nativeの42として実行され、service leaseを全解放した。Store全62 testが成功し、36 process中断、publish/quarantine writerの両順序、再hash偽造12件、現在scope/local失効、最終時刻/結果不明の照合、厳密index +1-byte拒否、workspace −1/等号/+1を含む。独立canonical/request vector、受理入力変異512件、fmt、厳密workspace Clippyが成功した。実装checklistは完了し、固定full baseline・locked fuzz lint・最新headの両host CI・公開が残る。E07を3 → 1 ptへ再見積りし、累積純−3 → −5、退役39を維持、112 − 5 − 39 = 残68 ptとする。Delivery・前提・gateの追加/完了なし。E07だけをdoingとし、検証のため本実装を固定する。以下の以前のcheckpointは履歴とする。
 
 E07実行checkpoint（2026-10-31 21:23 JST確認）: 重点2 testが成功した。実host journeyで公開と42実行、owner専用quarantine拒否、管理者quarantine commitとdownload拒否、独立owner yank保持、reopen/厳密archive復元、VM/nativeでの42再実行、flagを戻さない旧receipt照合を確認した。Canonical bodyは独立175-byte vectorと一致した。E07はdoing・3 ptを維持し、計上/HTTPS統合、完全な敵対履歴/権限/process/上限case、lint、full baseline、最新headの両host公開が残る。Scope追加・gate creditなし。以前のmodelのみのcheckpointは履歴とする。
