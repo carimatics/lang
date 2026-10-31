@@ -10,6 +10,8 @@
 
 **次: M5-D03 — versioned indexと検証付きdownload（3 pt）。**
 
+D03 HTTPS client checkpoint（2026-10-31 14:58 JST確認）: `registry::transport::Client`が明示TLS rootと単一設定origin、rustls/httparseによる上限付きraw HTTP/1.1 framing、絶対connect/request deadline、未完了DNS worker上限を実装した。実TLSのlocal 7 testで、厳密index/archive照合、同versionの内容差替え、別origin/証明書、欠損/余剰byte、header上限、非対応framing、遅いheader/body/handshake、response EOFなしを検証。公開読取りはcredentialを送らず、checksum/TLS受理もpackage署名・鮮度・実行authorityを付与しない。Root packageの厳密Clippyも成功。Handshake受理から最大8接続、集約memory計上、cancelを含むserverは未実装で、両host/全検証と公開も残る。この残作業監査でもD03だけを3 ptに維持し、追加・退役なし、D03 → D04実行順を保つ。先行するstoreの20 testは別の証拠である。
+
 D02公開（2026-10-31 14:45 JST確認）: 最終head `9361092`の固定全baseline（182 suite・2,590 test、fmt・厳密Clippy・rustdoc、source不変）、CI `41172448771`（対象18 jobすべて成功、文書専用のみ意図的省略）、native-debug `41172448726`（全3 host）が成功した。最終Windows logでもregistry対象16 testを確認。[PR #35](https://github.com/carimatics/lang/pull/35)は`50eeeb3`としてmerge済みで、元`main`を`origin/main`へfast-forwardし、未commit変更なし・0 ahead / 0 behindを確認した。Merge treeは`9361092`と完全一致する。[D03 PR #36](https://github.com/carimatics/lang/pull/36)はbaseを`main`へ変更し、最初のread checkpointは`3a89172`。以下の古い公開待ち記録は履歴である。
 
 D03実装checkpoint（2026-10-31 14:41 JST確認）: Canonicalなcommit済みindex/archive読取り、型付き外部index受理、厳密archive結合、commit前index容量guardを実装した。重点20 testが成功し、2 MiB−1/等値の実publishと+1 byteの全file不変拒否、旧超過stateの保持とindex/新規公開拒否を含む。Archive/authority回帰19件、repository consistency 8件、fmt・厳密Clippyも成功。署名・鮮度の証明は付与せず、HTTPS統合・両host・全baseline/公開は残る。D03だけをdoing・3 ptに維持する。

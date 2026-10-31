@@ -254,7 +254,7 @@ Exit：新しいdeveloperが1つのtoolをinstallし、packageを作成し、edi
 
 **12 done · 1 doing · 27 todo · 81 remaining pt**
 
-全40 deliveryの収支は112 − 1 − 30 = 残81 pt。旧scalar前提+3 pt、B04の2 checkpointで各−1 pt、D02全baseline後の−2 ptにより純追加・再見積りは−1 pt、完了時退役は30 pt。G1–G3は完了し、D01/E01はPR #33–#34でmerge済み。D02の最後の1 ptを退役し、D03だけがdoing・3 pt。固定`e76dd7b`の182 suite・2,589 test、fmt・厳密Clippy・rustdocがsource不変で成功し、native-debugも全3 hostで成功。D02のCIは対象18 job成功し、Windows実logでもregistry対象16 testを確認した。PR #35は最終headの全baseline（2,590 test）とCI成功後、`50eeeb3`としてmerge済み。元mainはclean・remoteと0/0で同期済み、D03 PR #36はmainベースとなった。G4/G5はopen。D03のcommit済み読取り・型付きindex受理・厳密archive結合・commit前容量guardは重点20 testに成功し、旧超過状態も保持する。HTTPS統合・両host/全検証は残る。水平前提を追加せずD02 → D03 index/download → D04依存実行を続け、両P1を含むG4–G10をopenに維持する。
+全40 deliveryの収支は112 − 1 − 30 = 残81 pt。旧scalar前提+3 pt、B04の2 checkpointで各−1 pt、D02全baseline後の−2 ptにより純追加・再見積りは−1 pt、完了時退役は30 pt。G1–G3は完了し、D01/E01はPR #33–#34でmerge済み。D02の最後の1 ptを退役し、D03だけがdoing・3 pt。固定`e76dd7b`の182 suite・2,589 test、fmt・厳密Clippy・rustdocがsource不変で成功し、native-debugも全3 hostで成功。D02のCIは対象18 job成功し、Windows実logでもregistry対象16 testを確認した。PR #35は最終headの全baseline（2,590 test）とCI成功後、`50eeeb3`としてmerge済み。元mainはclean・remoteと0/0で同期済み、D03 PR #36はmainベースとなった。G4/G5はopen。D03のcommit済み読取り・型付きindex受理・厳密archive結合・commit前容量guardは重点20 testに成功し、旧超過状態も保持する。明示originのHTTPS clientは実TLSのframing・deadline・厳密照合7 testに成功し、接続/memory受理を含むserver・両host/全検証・公開は残る。水平前提を追加せずD02 → D03 index/download → D04依存実行を続け、両P1を含むG4–G10をopenに維持する。
 
 **進捗：21 / 65 pt（32.3%）。**
 
