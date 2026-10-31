@@ -2,6 +2,8 @@
 
 # Milestone 5 delivery board
 
+E04 retained-evidence audit and preparation, 2026-10-31 23:32 JST: RFC 0045 R12/R16 and RFC 0046 require externally retained evidence; source review at `16a8e80` finds receipt export but no retained-checkpoint inclusion or receipt verification API. Re-estimate E04 1 → 3 pt for that bounded host API, a combined recovery/source-execution journey and the G5 exit audit. No delivery is added: 44 total, 20 done, net −7 → −5, retired 40, 112 − 5 − 40 = 67 pt. [RFC 0056](rfcs/0056-registry-retained-checkpoints.md) is accepted under experimental delegation after a 22-check policy model and independent Python/JavaScript canonical vector; this is not production or platform evidence. Signed external authentication remains F01–F04. E04 stays todo; E08 alone stays doing at 1 pt, frozen at `16a8e80` for baseline/CI/publication, with fmt and strict workspace Clippy successful. Its remaining acceptance is the full tests/rustdoc and latest-head both-host publication. `codex/m5-registry-exit-audit` starts clean from that head on `codex/m5-registry-local-recovery`, with initial PR base origin/codex/m5-registry-local-recovery in `git@github.com:carimatics/lang.git` until #44 merges. Earlier counts are historical; no gate closes.
+
 E08 executable checkpoint and remaining-scope audit, verified 2026-10-31 23:26 JST: actual stop/local-enrollment/provision/recovery/restart HTTPS publication executes unchanged source as 42 in VM/native, and later deactivation refuses the old credential and retry. The 75-test store run plus the cross-operation identity fixture pass: 72 process cuts, 40 fully rehashed forgeries, both local/registry writer orders, full 128-owner replacement, retained principal/token 4,096-entry equality/overflow and revoked ID/hash reuse, final-time/unknown-result reconciliation, legacy index +1-byte refusal, large-provision-history workspace −1/equality/+1 and 1,024 admission mutations. Independent canonical/request/record vectors, fmt and strict workspace/locked fuzz Clippy pass. RFC 0055 re-audits allocation overlap without changing the service envelope. Implementation is complete; frozen full baseline (including added HTTP local-action refusal cases), latest-head both-host CI and publication remain. Re-estimate E08 3 → 1 pt: net −5 → −7, retired estimates stay 40, and 112 − 7 − 40 = 65 pt. No delivery, prerequisite or gate is added or completed. E08 alone remains doing; freeze this implementation for validation. Earlier checkpoints below are historical.
 
 E08 executable checkpoint, verified 2026-10-31 23:11 JST: two focused tests pass. Actual local enrollment → credential-hash provisioning → scoped owner replacement → B publication executes unchanged source as 42 in VM/native. Former-owner publication is refused; old recovery/provision/enrollment receipts do not undo subsequent owner additions, revocation or deactivation, including expired provision replay. All four action/request and token-record digests match independent pretty-canonical vectors; the first vector experiment used compact JSON and was corrected without changing production encoding. E08 alone remains doing at 3 pt. Remaining acceptance is real stop/admin/restart HTTPS integration, complete authority/replay/forgery/process/concurrency/limit cases, fuzz/lint, frozen baseline and latest-head both-host publication. No delivery or gate credit; previous checkpoints are historical.
@@ -38,7 +40,7 @@ E06 design audit, 2026-10-31 JST: RFC 0053 is accepted under experimental delega
 
 Activated 2026-10-30 JST from `3b676c5`. This board tracks the entire M5 scope in [the roadmap](roadmap.md#milestone-5-ecosystem-and-compatibility), including both P1 gates. M4's installer and local packages are prerequisites, not registry completion.
 
-**20 done · 1 doing · 23 todo · 65 remaining pt**
+**20 done · 1 doing · 23 todo · 67 remaining pt**
 
 **Next: M5-E08 — audited local lifecycle and scoped owner recovery (1 pt: frozen baseline, both-host CI and publication).**
 
@@ -217,7 +219,7 @@ Gate completion: **3/10; 21/65 historical gate weight**. Delivery points below a
 | M5-E01 | done | 0 | M5-C02 | G5 | Authenticated identities, credential handling and scoped authorization | `56f9f84` |
 | M5-E02 | done | 0 | M5-E01,M5-D02 | G5 | Host publish and yank/unyank transactions with owner and conflict enforcement | `f40d643` |
 | M5-E03 | done | 0 | M5-E02 | G5 | Owner add/remove/transfer and last-owner/credential-revocation fixtures | `18b2128` |
-| M5-E04 | todo | 1 | M5-E03,M5-E05,M5-E07,M5-E08 | G5 | Combined durable recovery, unauthorized-operation journey and G5 exit audit | — |
+| M5-E04 | todo | 3 | M5-E03,M5-E05,M5-E07,M5-E08 | G5 | Retained checkpoint/receipt verification, combined recovery journey and G5 exit audit | — |
 | M5-E05 | done | 0 | M5-E02,M5-E03,M5-E06 | G5 | Authenticated HTTPS publish/actions/owners with fresh generations and recovery refusals | `2ae39fb` |
 | M5-E06 | done | 0 | M5-E02,M5-E03 | G5 | Metered host recovery/transactions and bounded validated read-generation capture | `db22857` |
 | M5-E07 | done | 0 | M5-E05 | G5 | Audited authenticated quarantine/restoration with unchanged source execution | `e3fa55c` |
@@ -247,11 +249,11 @@ Gate completion: **3/10; 21/65 historical gate weight**. Delivery points below a
 
 ## Estimate reconciliation
 
-**112 − 7 − 40 = 65 pt**
+**112 − 5 − 40 = 67 pt**
 
 | Baseline remaining | Net additions/re-estimates | Retired at completion | Remaining |
 | ---: | ---: | ---: | ---: |
-| 112 pt | −7 pt | −40 pt | 65 pt |
+| 112 pt | −5 pt | −40 pt | 67 pt |
 
 ## Delivery notes and roadmap audit
 
