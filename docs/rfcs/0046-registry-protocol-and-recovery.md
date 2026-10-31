@@ -152,6 +152,8 @@ A trusted local administrator can still read server state or destroy service, an
 
 ## Implementation plan
 
+Sequencing clarification, 2026-10-31 JST: implement the existing E01 authentication and scoped-authorization delivery before D02 publication. D02 must invoke that policy using its freshly locked state before committing; byte admission or an earlier authentication result cannot authorize a later mutation by itself. This exposes an existing dependency, adds no delivery or estimate and leaves E02–E04's operation/audit integration intact. D01 remains the active implementation while its full baseline and CI finish.
+
 Review C02 before uploads. D01 implements byte-only archive admission and refusal corpus; D02 implements the elaborated immutable state transaction; D03 verifies index/download identity; D04 elaborates package integration then executes a real dependency on both hosts; D05 adds offline/race/crash journeys. E01–E04 implement token/owner/audit operations under the same transaction. F01 precedes signed production consumption; I01 precedes hosting/search. After two prerequisite deliveries without a new execution fixture, re-audit the sequence under the board's existing rule. No new implementation delivery is added by this document.
 
 ## Test plan

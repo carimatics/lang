@@ -152,6 +152,8 @@ Upload・download・復旧・index構築でsource・native tool・package hook�
 
 ## Implementation plan
 
+順序明確化（2026-10-31 JST）: 既存E01の認証・scope付き認可deliveryをD02公開より先に実装する。D02は新たにlockしたstateを使いcommit前にその方針を検査し、byte受入や古い認証結果だけで後の変更を認可しない。既存依存を明示したものでdelivery・見積りを追加せず、E02–E04の操作／audit統合を維持する。全baseline・CIの終了まではD01を実装中とする。
+
 Upload前にC02をレビューする。D01はbyte-only archive受入と拒否corpus、D02は具体化した不変state transaction、D03はindex／download identity検証、D04はpackage統合を具体化して両hostで実依存を実行、D05はoffline／競合／crash journeyを加える。E01–E04は同じtransactionでtoken／owner／audit操作を実装。署名production消費にF01、hosting／検索にI01が先行する。新実行fixtureなしに前提deliveryを2件終えたら既存board規則で順序を再監査する。本書で新実装deliveryは追加しない。
 
 ## Test plan
