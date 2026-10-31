@@ -6,9 +6,11 @@
 
 2026-10-30 JST、`3b676c5`から開始。[ロードマップ](roadmap.md#milestone-5ecosystemとcompatibility)のM5全範囲（P1の2ゲートを含む）を追跡する。M4のinstallerとlocal packageは前提条件であり、registry完了を意味しない。
 
-**11 done · 1 doing · 28 todo · 84 remaining pt**
+**11 done · 1 doing · 28 todo · 82 remaining pt**
 
-**次: M5-D02 — 内容address方式のstorageとimmutable version公開transaction（3 pt）。**
+**次: M5-D02 — 最新head CIと公開の最終確認（1 pt）。**
+
+D02 baseline・再見積り（2026-10-31 14:20 JST確認）: 固定`e76dd7b`の全4 commandがexit 0・source不変で完了。fmt・厳密Clippy・182 suiteの2,589 test・分離targetのrustdocが成功した。結果とlogは`/private/tmp/lang-m5-fixes-target/m5-d02-lock-host-validation/`に保持。既存CIの最適化profileでもdebug assertion・overflow check・debug情報は有効。Native-debug `41170930592`は全3 hostで成功。残る受入条件はCI `41170930627`の残2 jobと集約結果、実Windows registry結果の検査、その後の最終文書head CI・PR公開である。条件を削除せずD02の残作業を3 → 1 ptへ下げ、純再見積り+1 → −1、退役見積り29のままとし、112 − 1 − 29 = 残82 pt。D02だけをdoing、G4/G5をopenに維持する。
 
 D02 Windows lock修正（2026-10-31 14:01 JST確認）: CI `41169801575`のcore-1 job `124445401025`で9件失敗。排他lock中の空`LOCK`を別handleからEOFまで読もうとしてWindows error 33になった。Inventoryはmetadataでno-follow・通常file・link数の不変条件と厳密な0 byte長を再検査し、test snapshotも0 byte長から厳密な空内容を得る。Lock・破損・並行・crashのassertionは削除しない。ローカルfmt・厳密Clippy・重点17 testは成功。固定`9f238c4` baselineはこのsource修正に伴い明示終了した（実session exit 143、process group残存なしを確認）。全test・rustdocは未完了。修正headで新しい全baselineと、実Windows registry testを含む最新head CIすべてを必要とする。D02だけをdoing・3 ptに維持し、追加・退役なし。
 
@@ -112,7 +114,7 @@ B05 budget監査（2026-10-31 JST）: 再利用するscalar検査内部の独立
 | M5-C01 | done | 0 | M5-A01 | G3 | identity・namespace・authority・濫用・攻撃者の脅威モデル | `94a5200` |
 | M5-C02 | done | 0 | M5-C01 | G3 | upload前にprotocol・上限・復旧・security受入ケースを採択 | `53376e5` |
 | M5-D01 | done | 0 | M5-C02 | G4 | 上限付き未信頼archiveの受入とtraversal・重複・bomb拒否 | `b3c8d1b` |
-| M5-D02 | doing | 3 | M5-D01,M5-E01 | G4 | 内容address方式のstorageとimmutable version公開transaction | — |
+| M5-D02 | doing | 1 | M5-D01,M5-E01 | G4 | 内容address方式のstorageとimmutable version公開transaction | — |
 | M5-D03 | todo | 3 | M5-D02 | G4 | versioned indexとidentity・checksumを検証したdownload | — |
 | M5-D04 | todo | 3 | M5-D03 | G4 | registry依存を解決して両hostで実行 | — |
 | M5-D05 | todo | 3 | M5-D04 | G4 | lock・offline replay・公開中断・並行immutable検証 | — |
@@ -145,13 +147,15 @@ B05 budget監査（2026-10-31 JST）: 再利用するscalar検査内部の独立
 
 ## 見積り照合
 
-**112 + 1 − 29 = 84 pt**
+**112 − 1 − 29 = 82 pt**
 
 | 基準残作業 | 純追加・再見積り | 完了時に除去 | 残作業 |
 | ---: | ---: | ---: | ---: |
-| 112 pt | +1 pt | −29 pt | 84 pt |
+| 112 pt | −1 pt | −29 pt | 82 pt |
 
 ## Delivery noteとロードマップ監査
+
+- 見積りvalidator保守（2026-10-31 JST）: 負の純再見積りでunsignedのみを想定したparserの制約が判明した。既存validatorで基準・完了・残作業の非負pointと符号付き純追加を分け、算術・表の符号・行合計・翻訳の検査を維持する。誤った合計、矛盾する表の符号、負の残作業を拒否し、repository consistencyは8/8成功。日常的な追跡修正でありdelivery・工数pointは追加しない。
 
 - D02準備（2026-10-31 JST）: [RFC 0048](rfcs/0048-registry-state-and-publication.md)で厳密generation/audit/receipt record、全commit履歴保持、orphan cleanupを実験段階委任で採択し、storage実装は未開始。レビューで不変名への直接書込みをsync済みstagingへ変更し、完全な遷移検証と明示的な公開結果不明を追加した。拡張したlocal macOS probeはobject/audit/state/HEADの部分書込みを含むprocess終了13切断点に成功し、初期の全書込み後6切断点を置き換えた。配置済み不変candidateは全件完全でdigest一致し、可視stateは完全な旧状態か新状態だった。Windows・電源断・実認証・lock・完全な敵対的recoveryは未検証。固定baseline/CI実行中のE01だけをdoingとし、D02は既存3 ptのtodoを維持。Delivery・見積りの追加・退役・削減なし。準備作業は固定checkoutから分離している。
 

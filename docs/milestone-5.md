@@ -6,9 +6,11 @@
 
 Activated 2026-10-30 JST from `3b676c5`. This board tracks the entire M5 scope in [the roadmap](roadmap.md#milestone-5-ecosystem-and-compatibility), including both P1 gates. M4's installer and local packages are prerequisites, not registry completion.
 
-**11 done · 1 doing · 28 todo · 84 remaining pt**
+**11 done · 1 doing · 28 todo · 82 remaining pt**
 
-**Next: M5-D02 — content-addressed storage and immutable version publication transaction (3 pt).**
+**Next: M5-D02 — final latest-head CI and publication checks (1 pt).**
+
+D02 baseline/re-estimate, verified 2026-10-31 14:20 JST: frozen `e76dd7b` passed all four commands with exit 0 and unchanged source: fmt, strict Clippy, 2,589 tests in 182 suites and isolated-target rustdoc. Results/logs are in `/private/tmp/lang-m5-fixes-target/m5-d02-lock-host-validation/`; the existing CI optimization profile retained debug assertions, overflow checks and debug information. Native-debug `41170930592` passed all three hosts. Remaining acceptance is CI `41170930627`'s last two jobs and aggregate result, inspection of actual Windows registry results, then final-documentation CI and PR publication. Reduce remaining D02 work 3 → 1 pt without removing any condition: net re-estimates +1 → −1, retired estimates stay 29, and 112 − 1 − 29 = 82 pt. D02 remains the sole doing delivery; G4/G5 remain open.
 
 D02 Windows lock correction, verified 2026-10-31 14:01 JST: CI `41169801575` core-1 job `124445401025` exposed nine failures because a second-handle EOF read of the exclusively locked, empty `LOCK` file returns Windows error 33. Inventory now rechecks its no-follow regular-file/link invariant and exact zero length through metadata; test snapshots derive the exact empty content from zero length. No lock, corruption, concurrency or crash assertion is removed. Local fmt, strict Clippy and all 17 focused tests pass. The frozen `9f238c4` baseline was deliberately terminated for this source correction (actual session exit 143; process group confirmed empty); full tests/rustdoc did not finish. The corrected head requires a new full baseline and all latest-head CI, including actual Windows registry tests. D02 remains the sole doing row at 3 pt; no additions or retirements.
 
@@ -112,7 +114,7 @@ Gate completion: **3/10; 21/65 historical gate weight**. Delivery points below a
 | M5-C01 | done | 0 | M5-A01 | G3 | Threat model: identities, namespace, authority, abuse and adversaries | `94a5200` |
 | M5-C02 | done | 0 | M5-C01 | G3 | Accept protocol, limits, recovery and security acceptance cases before upload | `53376e5` |
 | M5-D01 | done | 0 | M5-C02 | G4 | Admit bounded untrusted archives and reject traversal/duplicate/bomb inputs | `b3c8d1b` |
-| M5-D02 | doing | 3 | M5-D01,M5-E01 | G4 | Content-addressed storage and immutable version publication transaction | — |
+| M5-D02 | doing | 1 | M5-D01,M5-E01 | G4 | Content-addressed storage and immutable version publication transaction | — |
 | M5-D03 | todo | 3 | M5-D02 | G4 | Versioned index and verified download with exact identity/checksums | — |
 | M5-D04 | todo | 3 | M5-D03 | G4 | Resolve a registry dependency and execute it on both hosts | — |
 | M5-D05 | todo | 3 | M5-D04 | G4 | Lock/offline replay, interrupted publication and concurrent immutability tests | — |
@@ -145,13 +147,15 @@ Gate completion: **3/10; 21/65 historical gate weight**. Delivery points below a
 
 ## Estimate reconciliation
 
-**112 + 1 − 29 = 84 pt**
+**112 − 1 − 29 = 82 pt**
 
 | Baseline remaining | Net additions/re-estimates | Retired at completion | Remaining |
 | ---: | ---: | ---: | ---: |
-| 112 pt | +1 pt | −29 pt | 84 pt |
+| 112 pt | −1 pt | −29 pt | 82 pt |
 
 ## Delivery notes and roadmap audit
+
+- Estimate validator maintenance, 2026-10-31 JST: negative net re-estimates exposed an unsigned-only parser assumption. The existing validator now separates unsigned baseline/completion/remaining points from signed net additions and still checks arithmetic, table signs, row totals and translations. Incorrect totals, contradictory table signs and a negative remaining balance are rejected; repository consistency passes 8/8. This routine tracking correction adds no delivery or effort points.
 
 - D02 preparation, 2026-10-31 JST: [RFC 0048](rfcs/0048-registry-state-and-publication.md) accepts exact generation/audit/receipt records, full committed-history retention and orphan cleanup under experimental delegation; storage implementation has not started. Review replaced direct immutable-name writes with synced staging, added complete transition validation and made unknown publication outcomes explicit. The expanded local macOS probe passed 13 process-exit cuts including partial object/audit/state/HEAD writes, superseding the initial six complete-write cuts. Installed immutable candidates always had complete matching digests, and visible state was complete old or new. Windows, power-loss, actual authentication, locks and complete hostile recovery remain unverified. E01 stays the only doing row during its frozen baseline/CI. D02 remains todo at its existing 3 pt; no delivery or estimate is added, retired or reduced. Preparation is isolated from the frozen checkout.
 

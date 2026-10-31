@@ -36,7 +36,7 @@ lock寿命の修正を含むinstallerは、2026-10-30 JSTに[PR #25](https://git
 
 以下のmilestone checklistは相対的な受入条件の重みを保持します。`1`はごく小、`2`は小、`3`は中、`5`は大、`8`は非常に大です。重み付きの達成率は `完了した重み / 全重み × 100` を小数第1位へ丸めます。この粗い重みは経過時間や実装残作業を予測しません。Milestoneがcurrentになったとき、またはscope／evidenceが変わったときに、長期見積もりを積み上げで見直します。進行中milestoneごとに別の実装Todoを使い、独立検証可能な残り1〜3 ptのtaskと、明示的なscope／見積もり変更を記録します。
 
-2026-10-31（JST）に確認したexit-gate weightのsnapshotです。受入条件の重みと残作業見積りは別であり、M4の最終収支は完了ボードに記録します。M5が進行中です（**11 done · 1 doing · 28 todo · 84 remaining pt**）。完了済みM2／M3の記録は維持します。
+2026-10-31（JST）に確認したexit-gate weightのsnapshotです。受入条件の重みと残作業見積りは別であり、M4の最終収支は完了ボードに記録します。M5が進行中です（**11 done · 1 doing · 28 todo · 82 remaining pt**）。完了済みM2／M3の記録は維持します。
 
 | Milestone | 完了条件の重み | 条件の総重み | 条件達成率 |
 | --- | ---: | ---: | ---: |
@@ -252,9 +252,9 @@ Exit：新しいdeveloperが1つのtoolをinstallし、packageを作成し、edi
 
 2026-10-30 JST開始。[M5 board](milestone-5.md)に全10ゲート、39件の観測可能delivery、残作業基準112 ptを保持する。[edition・互換性方針](rfcs/0043-editions-and-compatibility.md)と実行可能な互換性・移行fixtureから開始する。registry upload前に脅威モデルを定め、署名toolchain導入をregistry provenanceと混同しない。P1の2ゲートも範囲内。完了には両host ecosystem journeyと日英能力guideを含める。
 
-**11 done · 1 doing · 28 todo · 84 remaining pt**
+**11 done · 1 doing · 28 todo · 82 remaining pt**
 
-全40 deliveryの収支は112 + 1 − 29 = 残84 pt。旧scalar前提で3 ptを追加し、B04の2実行checkpointで残見積りを各1 pt減らし、完了deliveryで29 ptを退役した。G1/G2の互換性・実旧source移行journeyはPR #29–#31、G3のRFC 0045–0046採択済みregistry設計はPR #32で公開した。D01 archive受入とE01 authority policyはPR #33–#34でmerge済みで、元mainは`5cd0815`でclean・同期済み（0/0）。D02だけがdoing・3 pt。実装`f9b2069`はローカルで重点17 test（subprocess driver 3件を含む）、bootstrap 22/公開24 process切断点、writer競合、reopen後source実行、厳密Clippyが成功した。固定全baselineとPR #35の最新head両host CIは未完了で、G4/G5はopen。D03実験で派生index容量境界が判明し、RFC 0046でcommit前2 MiB index検査を既存D03の3 pt内として採択した。水平前提を追加せずD02 → D03 index/download → D04依存実行を続ける。両P1を含むG4–G10はopenを維持する。
+全40 deliveryの収支は112 − 1 − 29 = 残82 pt。旧scalar前提+3 pt、B04の2 checkpointで各−1 pt、D02全baseline後の−2 ptにより純追加・再見積りは−1 pt、完了時退役は29 pt。G1–G3は完了し、D01/E01はPR #33–#34でmerge済み。D02だけがdoing・1 pt。固定`e76dd7b`の182 suite・2,589 test、fmt・厳密Clippy・rustdocがsource不変で成功し、native-debugも全3 hostで成功。PR #35の残CI・最新head検証・公開は未完了で、G4/G5はopen。D03は実archiveから2 MiBちょうど±1 byteのindexと実TLSのframing・絶対deadlineを事前検証したが、実装は未着手。水平前提を追加せずD02 → D03 index/download → D04依存実行を続け、両P1を含むG4–G10をopenに維持する。
 
 **進捗：21 / 65 pt（32.3%）。**
 

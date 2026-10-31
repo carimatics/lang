@@ -216,13 +216,16 @@ fn m3_delivery_evidence_estimates_dependencies_and_translations_agree() {
     assert_eq!(english, delivery_board_for(japanese_text, "| M3-", 15));
     let accounting = remaining_work_accounting(english_text);
     assert_eq!(accounting, remaining_work_accounting(japanese_text));
-    assert_eq!(accounting[3], english.iter().map(|row| row.remaining).sum());
+    assert_eq!(
+        accounting.remaining,
+        english.iter().map(|row| row.remaining).sum()
+    );
     let done = english.iter().filter(|row| row.state == "done").count();
     let doing = english.iter().filter(|row| row.state == "doing").count();
     let todo = english.len() - done - doing;
     let summary = format!(
         "**{done} done · {doing} doing · {todo} todo · {} remaining pt**",
-        accounting[3]
+        accounting.remaining
     );
     for roadmap in [
         include_str!("../docs/roadmap.md"),
@@ -240,11 +243,19 @@ fn m3_delivery_evidence_estimates_dependencies_and_translations_agree() {
     assert_eq!(gates, (1..=15).collect(), "preserve every M3 gate");
 }
 
-fn remaining_work_accounting(document: &str) -> [u32; 4] {
+#[derive(Debug, Eq, PartialEq)]
+struct RemainingWork {
+    initial: u32,
+    added: i64,
+    completed: u32,
+    remaining: u32,
+}
+
+fn remaining_work_accounting(document: &str) -> RemainingWork {
     let equations: Vec<_> = document
         .lines()
         .filter_map(|line| line.strip_prefix("**")?.strip_suffix(" pt**"))
-        .filter(|line| line.contains(" + ") && line.contains(" − "))
+        .filter(|line| line.contains(" − "))
         .collect();
     assert_eq!(
         equations.len(),
@@ -253,21 +264,54 @@ fn remaining_work_accounting(document: &str) -> [u32; 4] {
     );
     let parts: Vec<_> = equations[0].split_whitespace().collect();
     assert_eq!(parts.len(), 7);
-    assert_eq!([parts[1], parts[3], parts[5]], ["+", "−", "="]);
+    assert!(matches!(parts[1], "+" | "−"));
+    assert_eq!([parts[3], parts[5]], ["−", "="]);
     let values = [parts[0], parts[2], parts[4], parts[6]]
         .map(|part| part.parse::<u32>().expect("integer planning estimate"));
-    let [initial, added, completed, remaining] = values;
+    let [initial, magnitude, completed, remaining] = values;
+    let added = if parts[1] == "+" {
+        i64::from(magnitude)
+    } else {
+        -i64::from(magnitude)
+    };
     assert_eq!(
-        initial
+        i64::from(initial)
             .checked_add(added)
-            .and_then(|sum| sum.checked_sub(completed)),
-        Some(remaining),
+            .and_then(|sum| sum.checked_sub(i64::from(completed))),
+        Some(i64::from(remaining)),
         "separate work delivered from changes to the estimate"
     );
     assert!(document.contains(&format!(
-        "| {initial} pt | +{added} pt | −{completed} pt | {remaining} pt |"
+        "| {initial} pt | {}{magnitude} pt | −{completed} pt | {remaining} pt |",
+        parts[1]
     )));
-    values
+    RemainingWork {
+        initial,
+        added,
+        completed,
+        remaining,
+    }
+}
+
+#[test]
+fn signed_reestimates_preserve_accounting_and_table_checks() {
+    let valid = "**112 − 1 − 29 = 82 pt**\n| 112 pt | −1 pt | −29 pt | 82 pt |";
+    assert_eq!(
+        remaining_work_accounting(valid),
+        RemainingWork {
+            initial: 112,
+            added: -1,
+            completed: 29,
+            remaining: 82,
+        }
+    );
+    for invalid in [
+        "**112 − 1 − 29 = 84 pt**\n| 112 pt | −1 pt | −29 pt | 84 pt |",
+        "**112 − 1 − 29 = 82 pt**\n| 112 pt | +1 pt | −29 pt | 82 pt |",
+        "**1 − 2 − 0 = 0 pt**\n| 1 pt | −2 pt | −0 pt | 0 pt |",
+    ] {
+        assert!(std::panic::catch_unwind(|| remaining_work_accounting(invalid)).is_err());
+    }
 }
 
 #[test]
@@ -278,13 +322,16 @@ fn m4_delivery_evidence_estimates_dependencies_and_translations_agree() {
     assert_eq!(english, delivery_board_for(japanese_text, "| M4-", 9));
     let accounting = remaining_work_accounting(english_text);
     assert_eq!(accounting, remaining_work_accounting(japanese_text));
-    assert_eq!(accounting[3], english.iter().map(|row| row.remaining).sum());
+    assert_eq!(
+        accounting.remaining,
+        english.iter().map(|row| row.remaining).sum()
+    );
     let done = english.iter().filter(|row| row.state == "done").count();
     let doing = english.iter().filter(|row| row.state == "doing").count();
     let todo = english.len() - done - doing;
     let summary = format!(
         "**{done} done · {doing} doing · {todo} todo · {} remaining pt**",
-        accounting[3]
+        accounting.remaining
     );
     for roadmap in [
         include_str!("../docs/roadmap.md"),
@@ -310,13 +357,16 @@ fn m5_delivery_evidence_estimates_dependencies_and_translations_agree() {
     assert_eq!(english, delivery_board_for(japanese_text, "| M5-", 10));
     let accounting = remaining_work_accounting(english_text);
     assert_eq!(accounting, remaining_work_accounting(japanese_text));
-    assert_eq!(accounting[3], english.iter().map(|row| row.remaining).sum());
+    assert_eq!(
+        accounting.remaining,
+        english.iter().map(|row| row.remaining).sum()
+    );
     let done = english.iter().filter(|row| row.state == "done").count();
     let doing = english.iter().filter(|row| row.state == "doing").count();
     let todo = english.len() - done - doing;
     let summary = format!(
         "**{done} done · {doing} doing · {todo} todo · {} remaining pt**",
-        accounting[3]
+        accounting.remaining
     );
     for roadmap in [
         include_str!("../docs/roadmap.md"),
@@ -353,7 +403,7 @@ fn m2_delivery_evidence_estimates_dependencies_and_translations_agree() {
         "estimate changes and completed work agree across translations"
     );
     assert_eq!(
-        accounting[3], remaining,
+        accounting.remaining, remaining,
         "accounting agrees with open tasks"
     );
     assert!(include_str!("../docs/milestone-2.md").contains(&format!(
