@@ -1,0 +1,44 @@
+{
+  "schema": 1,
+  "verified_date": "2026-10-31 JST",
+  "scope": "RFC 0046 canonical USTAR construction and local independent-reader feasibility; not an implemented untrusted decoder, both-host conformance or performance result",
+  "source": "fn main() -> i64 { return 42; }\r\n",
+  "descriptor_recipe": {
+    "format": "lang-registry-source",
+    "schema": 1,
+    "package": {
+      "name": "answer",
+      "version": "0.1.0",
+      "edition": "2026",
+      "entry": "src/main.lang"
+    },
+    "tests": [],
+    "dependencies": [],
+    "files_recipe": "one {path: src/main.lang, bytes: 33, sha256: lowercase SHA-256 of the exact UTF-8 source above} record"
+  },
+  "encoding_recipe": "Two-space JSON with final LF; .lang-package.json first, then src/main.lang; RFC 0046 zero-filled 512-byte USTAR headers and payload padding, followed by exactly 1024 zero terminator bytes",
+  "source_bytes": 33,
+  "descriptor_bytes": 372,
+  "archive_bytes": 3072,
+  "archive_sha256": "ca4fe329e4da43f690e2236c65a5888d5791275a86b22bf11ac9bf5cced433c4",
+  "reader": "bsdtar 3.5.3 - libarchive 3.7.4 zlib/1.2.12 liblzma/5.4.3 bz2lib/1.0.8",
+  "commands": [
+    {
+      "argv": ["tar", "-tf", "-"],
+      "stdin": "constructed archive bytes",
+      "exit_code": 0,
+      "stdout": ".lang-package.json\nsrc/main.lang\n",
+      "stderr": ""
+    },
+    {
+      "argv": ["tar", "-xOf", "-", "src/main.lang"],
+      "stdin": "constructed archive bytes",
+      "exit_code": 0,
+      "stdout_equals_exact_source": true,
+      "stderr": ""
+    }
+  ],
+  "conservative_maximum_encoded_bytes": 17172223,
+  "upper_bound_formula": "128*1024 + 16*1024*1024 + 257*512 + 257*511 + 1024",
+  "profile_encoded_limit_bytes": 18874368
+}

@@ -106,6 +106,7 @@ The rationale and unresolved tradeoffs are documented in [the architecture basel
 - [RFC 0043: Editions and compatibility policy (implemented)](docs/rfcs/0043-editions-and-compatibility.md)
 - [RFC 0044: Checked source fixes and historical migration (implemented)](docs/rfcs/0044-checked-source-migration.md)
 - [RFC 0045: Public registry threat model (accepted)](docs/rfcs/0045-registry-threat-model.md)
+- [RFC 0046: Registry protocol, admission and recovery (accepted)](docs/rfcs/0046-registry-protocol-and-recovery.md)
 - [Contribution guide](CONTRIBUTING.md)
 
 `cargo run -- toolchain verify --trust-root root.json --metadata channel.json --channel stable --message-format json` verifies bounded signed metadata for the current host and emits a JSON summary. The root must be trusted out of band. This read-only check uses a fresh trust context: it neither consults an installed rollback floor nor reads or installs payloads. See [RFC 0042](docs/rfcs/0042-signed-toolchain-installation.md).
