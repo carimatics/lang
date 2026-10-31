@@ -493,11 +493,15 @@ struct Edge {
 }
 
 pub(super) fn local_key(path: &Path) -> PathBuf {
-    Path::new("local").join(
-        path.components()
-            .filter(|c| !matches!(c, std::path::Component::CurDir))
-            .collect::<PathBuf>(),
-    )
+    let suffix = path
+        .components()
+        .filter(|c| !matches!(c, std::path::Component::CurDir))
+        .collect::<PathBuf>();
+    if suffix.as_os_str().is_empty() {
+        PathBuf::from("local")
+    } else {
+        Path::new("local").join(suffix)
+    }
 }
 
 fn limit(message: &str) -> Diagnostic {

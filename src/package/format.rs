@@ -64,18 +64,12 @@ fn capacity(path: &Path, error: impl std::fmt::Display) -> Diagnostic {
 }
 impl Plan {
     pub fn capture(graph: &Graph) -> Result<Self, Error> {
-        if graph.has_registry() {
-            return Err(Diagnostic::error(
-                "PKG0003",
-                "registry graph requires typed local edit bindings",
-            )
-            .into());
-        }
         let inputs = capture_inputs(graph)?;
         let mut changes = Vec::new();
         let mut diagnostics = Vec::new();
         let mut total = 0usize;
-        for (path, file) in &graph.inputs()?.files {
+        for file in graph.inputs()?.files.values() {
+            let Some(path) = &file.physical else { continue };
             let text = match std::str::from_utf8(&file.bytes) {
                 Ok(text) => text,
                 Err(e) => {
@@ -139,6 +133,19 @@ impl Plan {
         let mut changes = BTreeMap::new();
         let mut total = 0usize;
         for (path, text) in replacements {
+            let path = graph
+                .inputs()?
+                .files
+                .get(&path)
+                .and_then(|file| file.physical.as_ref())
+                .ok_or_else(|| {
+                    Diagnostic::error(
+                        "PKG0003",
+                        "replacement requires an admitted local source binding",
+                    )
+                    .at_path(&path)
+                })?
+                .clone();
             let input = inputs
                 .get(&path)
                 .filter(|i| i.role == Role::Source)
@@ -318,7 +325,7 @@ impl Plan {
 }
 fn capture_inputs(graph: &Graph) -> Result<BTreeMap<PathBuf, Input>, Diagnostic> {
     Lock::capture(graph)?;
-    super::archive::canonical_directories(graph)?;
+    super::archive::canonical_local_directories(graph)?;
     let metadata: BTreeMap<_, _> = graph
         .manifest_inputs()
         .map(|(p, m)| {
@@ -339,7 +346,8 @@ fn capture_inputs(graph: &Graph) -> Result<BTreeMap<PathBuf, Input>, Diagnostic>
             },
         );
     }
-    for (path, file) in &graph.inputs()?.files {
+    for file in graph.inputs()?.files.values() {
+        let Some(path) = &file.physical else { continue };
         inputs.insert(
             path.clone(),
             Input {

@@ -324,6 +324,33 @@ fn hybrid_graph_keeps_colliding_local_keys_distinct_and_reuses_registry_aliases(
         inputs.files[&local_key].identity,
         inputs.files[&registry_key].identity
     );
+    let plan = crate::package::format::Plan::capture(&graph).unwrap();
+    assert!(plan.changes().iter().any(|c| c.path() == registry_key));
+    assert!(plan.changes().iter().all(|c| {
+        inputs
+            .files
+            .values()
+            .any(|f| f.physical.as_deref() == Some(c.path()))
+    }));
+    assert!(
+        crate::package::format::Plan::from_replacements(
+            &graph,
+            [(
+                registry_key.clone(),
+                "pub fn answer()->i64{return 0;}".into()
+            )]
+        )
+        .is_err()
+    );
+    plan.apply(&directory).unwrap();
+    assert_eq!(
+        graph.packages()[edges["remote_math"].index()]
+            .registry()
+            .unwrap()
+            .archive()
+            .as_bytes(),
+        archive.as_bytes()
+    );
     let error = source::analyze_indexed(
         &graph,
         None,
@@ -380,4 +407,269 @@ fn policy_key_matches_independent_fixture() {
         binding.policy_id(),
         "21ccc6bc6516ce62c75c6f34d3990e619db61fc8000ce53d452940845371d0c9"
     );
+}
+
+struct IsolatedMemory {
+    binding: Binding,
+    index: crate::registry::store::Index,
+    archive: AdmittedArchive,
+}
+impl IsolatedMemory {
+    fn new(binding: Binding, archive: AdmittedArchive) -> Self {
+        #[derive(serde::Serialize)]
+        struct Release<'a> {
+            version: &'a str,
+            archive_sha256: &'a str,
+            archive_bytes: u64,
+            descriptor_sha256: &'a str,
+            edition: &'a str,
+            dependencies: &'a [crate::registry::archive::Dependency],
+            yanked: bool,
+            quarantined: bool,
+        }
+        #[derive(serde::Serialize)]
+        struct Index<'a> {
+            format: &'static str,
+            schema: u32,
+            registry: &'a str,
+            name: &'a str,
+            revision: u64,
+            releases: [Release<'a>; 1],
+        }
+        let package = archive.descriptor().package();
+        let record = Index {
+            format: "lang-registry-index",
+            schema: 1,
+            registry: binding.identity().registry(),
+            name: package.name(),
+            revision: 1,
+            releases: [Release {
+                version: package.version(),
+                archive_sha256: archive.sha256(),
+                archive_bytes: archive.as_bytes().len() as u64,
+                descriptor_sha256: archive.descriptor_sha256(),
+                edition: package.edition(),
+                dependencies: archive.descriptor().dependencies(),
+                yanked: false,
+                quarantined: false,
+            }],
+        };
+        let mut bytes = serde_json::to_vec_pretty(&record).unwrap();
+        bytes.push(b'\n');
+        let index =
+            crate::registry::store::Index::admit(&bytes, binding.identity(), package.name())
+                .unwrap();
+        Self {
+            binding,
+            index,
+            archive,
+        }
+    }
+}
+impl Source for IsolatedMemory {
+    fn resolve(&self, request: Request<'_>) -> Result<ConsumedArchive, Diagnostic> {
+        ConsumedArchive::isolated_unsigned(
+            self.binding.clone(),
+            &self.index,
+            request.version,
+            self.archive.as_bytes(),
+        )
+    }
+}
+
+#[test]
+fn independent_policy_and_exact_release_requirements_cannot_be_substituted() {
+    let binding = Binding::new(
+        ServiceIdentity::new("example", "https://registry.example").unwrap(),
+        [0x22; 32],
+    );
+    let provider = IsolatedMemory::new(binding.clone(), archive());
+    for foreign in [
+        Binding::new(binding.identity().clone(), [0x33; 32]),
+        Binding::new(
+            ServiceIdentity::new("example", "https://other.example").unwrap(),
+            [0x22; 32],
+        ),
+    ] {
+        let context =
+            Context::new(BTreeMap::from([("example".into(), foreign)]), &provider).unwrap();
+        assert!(
+            context
+                .resolve("example", "math", "1.0.0", None)
+                .unwrap_err()
+                .message
+                .contains("does not match")
+        );
+    }
+    let context = Context::new(
+        BTreeMap::from([("example".into(), binding.clone())]),
+        &provider,
+    )
+    .unwrap();
+    assert!(context.resolve("example", "other", "1.0.0", None).is_err());
+    assert!(context.resolve("example", "math", "2.0.0", None).is_err());
+    assert!(
+        context
+            .resolve("example", "math", "1.0.0", Some(&"00".repeat(32)))
+            .is_err()
+    );
+    for flag in ["yanked", "quarantined"] {
+        let mut unavailable = IsolatedMemory::new(binding.clone(), archive());
+        let bytes = String::from_utf8(unavailable.index.as_bytes().unwrap())
+            .unwrap()
+            .replace(&format!("\"{flag}\": false"), &format!("\"{flag}\": true"));
+        unavailable.index =
+            crate::registry::store::Index::admit(bytes.as_bytes(), binding.identity(), "math")
+                .unwrap();
+        let context = Context::new(
+            BTreeMap::from([("example".into(), binding.clone())]),
+            &unavailable,
+        )
+        .unwrap();
+        assert!(
+            context
+                .resolve("example", "math", "1.0.0", None)
+                .unwrap_err()
+                .message
+                .contains("unavailable")
+        );
+    }
+}
+
+#[test]
+fn schema_three_preserves_workspace_catalogue_and_selected_local_root() {
+    use crate::package::lock::Lock;
+    let temp = Temp::new();
+    fs::write(
+        temp.0.join("Lang.json"),
+        br#"{"schema":2,"workspace":{"members":["idle","app"]}}"#,
+    )
+    .unwrap();
+    fs::create_dir_all(temp.0.join("app/src")).unwrap();
+    fs::write(temp.0.join("app/Lang.json"), APP).unwrap();
+    fs::write(temp.0.join("app/src/main.lang"), MAIN).unwrap();
+    fs::create_dir(temp.0.join("idle")).unwrap();
+    let idle = r#"{"schema":1,"package":{"name":"idle","version":"1.0.0","edition":"2026","entry":"missing.lang"}}"#;
+    fs::write(temp.0.join("idle/Lang.json"), idle).unwrap();
+    let directory =
+        cap_std::fs::Dir::open_ambient_dir(&temp.0, cap_std::ambient_authority()).unwrap();
+    let binding = Binding::new(
+        ServiceIdentity::new("example", "https://registry.example").unwrap(),
+        [0x22; 32],
+    );
+    let provider = IsolatedMemory::new(binding.clone(), archive());
+    let context = Context::new(BTreeMap::from([("example".into(), binding)]), &provider).unwrap();
+    let resolve = || {
+        Graph::resolve_with_registries_in(
+            directory.try_clone().unwrap(),
+            temp.0.clone(),
+            Path::new("Lang.json"),
+            "aarch64-apple-darwin",
+            Limits::default(),
+            Some("app"),
+            &context,
+        )
+        .unwrap()
+    };
+    let graph = resolve();
+    let lock = Lock::capture(&graph).unwrap();
+    let record: serde_json::Value = serde_json::from_slice(lock.as_bytes()).unwrap();
+    assert_eq!(record["root"], "local/app");
+    assert_eq!(record["workspace"]["manifest_path"], "Lang.json");
+    assert_eq!(record["workspace"]["selected_root"], "app");
+    assert_eq!(
+        record["workspace"]["members"][0]["manifest_path"],
+        "app/Lang.json"
+    );
+    assert_eq!(
+        record["workspace"]["members"][1]["manifest_path"],
+        "idle/Lang.json"
+    );
+    fs::write(
+        temp.0.join("idle/Lang.json"),
+        idle.replace("1.0.0", "1.0.1"),
+    )
+    .unwrap();
+    let changed = Lock::capture(&resolve()).unwrap();
+    assert!(lock.verify(changed.as_bytes()).is_err());
+    assert_eq!(Lock::capture(&graph).unwrap().as_bytes(), lock.as_bytes());
+    execute(&graph, 42);
+}
+
+#[test]
+fn schema_three_capture_matches_independent_original_byte_fixture() {
+    use crate::package::lock::{Lock, validate_encoding};
+    let temp = Temp::new();
+    let directory =
+        cap_std::fs::Dir::open_ambient_dir(&temp.0, cap_std::ambient_authority()).unwrap();
+    fs::write(temp.0.join("Lang.json"), APP).unwrap();
+    fs::create_dir(temp.0.join("src")).unwrap();
+    fs::write(temp.0.join("src/main.lang"), MAIN).unwrap();
+    let binding = Binding::new(
+        ServiceIdentity::new("example", "https://registry.example").unwrap(),
+        [0x22; 32],
+    );
+    let provider = IsolatedMemory::new(binding.clone(), archive());
+    let context = Context::new(BTreeMap::from([("example".into(), binding)]), &provider).unwrap();
+    let graph = Graph::resolve_with_registries_in(
+        directory.try_clone().unwrap(),
+        temp.0.clone(),
+        Path::new("Lang.json"),
+        "aarch64-apple-darwin",
+        Limits::default(),
+        None,
+        &context,
+    )
+    .unwrap();
+    let lock = Lock::capture(&graph).unwrap();
+    let target = "aarch64-apple-darwin".parse().unwrap();
+    let fixture = include_str!("../../../tests/fixtures/package-lock/schema3-registry.json")
+        .replace(
+            "<compiler_build_id>",
+            &lang_codegen_clif::sdk::build_id(&target),
+        );
+    assert!(
+        lock.as_bytes() == fixture.as_bytes(),
+        "canonical fixture differs at byte {:?}; lengths {} / {}",
+        lock.as_bytes()
+            .iter()
+            .zip(fixture.as_bytes())
+            .position(|(a, b)| a != b),
+        lock.as_bytes().len(),
+        fixture.len()
+    );
+    validate_encoding(lock.as_bytes()).unwrap();
+    lock.verify(fixture.as_bytes()).unwrap();
+    for bad in [
+        fixture.replace("  \"workspace\": null,\n", ""),
+        fixture.replacen("\"schema\": 3", "\"schema\": 3, \"schema\": 3", 1),
+        fixture.replacen(
+            "\"kind\": \"registry\"",
+            "\"kind\": \"registry\", \"url\": \"https://other.example\"",
+            1,
+        ),
+        fixture.replace("  ", " "),
+        fixture.replacen("\"name\": \"math\"", "\"name\": \"other\"", 1),
+    ] {
+        assert!(validate_encoding(bad.as_bytes()).is_err());
+    }
+    let changed = fixture.replace("aarch64-apple-darwin", "x86_64-pc-windows-msvc");
+    validate_encoding(changed.as_bytes()).unwrap();
+    assert!(lock.verify(changed.as_bytes()).is_err());
+    let plan = crate::package::format::Plan::capture(&graph).unwrap();
+    assert_eq!(plan.changes().len(), 1);
+    assert_eq!(plan.changes()[0].path(), Path::new("src/main.lang"));
+    let replacement = crate::package::format::Plan::from_replacements(
+        &graph,
+        [(
+            PathBuf::from("local/src/main.lang"),
+            plan.changes()[0].text().into(),
+        )],
+    )
+    .unwrap();
+    assert_eq!(replacement.changes()[0].path(), Path::new("src/main.lang"));
+    plan.apply(&directory).unwrap();
+    fs::remove_dir_all(temp.0.join("src")).unwrap();
+    assert_eq!(Lock::capture(&graph).unwrap().as_bytes(), lock.as_bytes());
+    execute(&graph, 42);
 }

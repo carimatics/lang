@@ -20,6 +20,7 @@ pub const MAX_BYTES: usize = 1024 * 1024;
 pub const NAME: &str = "Lang.lock";
 
 pub(crate) mod explain;
+mod registry;
 
 #[derive(Debug)]
 pub struct Lock {
@@ -202,7 +203,7 @@ impl Lock {
     /// This never reads the previous lock, publishes output or executes code.
     pub fn capture(graph: &Graph) -> Result<Self, Diagnostic> {
         if graph.has_registry() {
-            return Err(error("registry graph requires lock schema 3"));
+            return registry::capture(graph);
         }
         let inputs = graph.inputs()?;
         let mut identities = BTreeMap::new();
@@ -387,6 +388,7 @@ pub fn validate_encoding(bytes: &[u8]) -> Result<(), Diagnostic> {
         2 => {
             let _: WorkspaceRecord = serde_json::from_slice(bytes).map_err(invalid)?;
         }
+        3 => registry::validate(bytes)?,
         _ => {
             return Err(
                 Diagnostic::error("PKG0002", "unsupported lock schema").at_path(Path::new(NAME))
