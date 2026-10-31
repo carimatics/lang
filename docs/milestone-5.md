@@ -10,6 +10,8 @@ Activated 2026-10-30 JST from `3b676c5`. This board tracks the entire M5 scope i
 
 **Next: M5-D02 — content-addressed storage and immutable version publication transaction (3 pt).**
 
+D02 Windows lock correction, verified 2026-10-31 14:01 JST: CI `41169801575` core-1 job `124445401025` exposed nine failures because a second-handle EOF read of the exclusively locked, empty `LOCK` file returns Windows error 33. Inventory now rechecks its no-follow regular-file/link invariant and exact zero length through metadata; test snapshots derive the exact empty content from zero length. No lock, corruption, concurrency or crash assertion is removed. Local fmt, strict Clippy and all 17 focused tests pass. The frozen `9f238c4` baseline was deliberately terminated for this source correction (actual session exit 143; process group confirmed empty); full tests/rustdoc did not finish. The corrected head requires a new full baseline and all latest-head CI, including actual Windows registry tests. D02 remains the sole doing row at 3 pt; no additions or retirements.
+
 D02 CI correction, verified 2026-10-31 13:44 JST: Windows workspace job `124443312245` in CI `41169200725` rejected an unnecessary mutable directory-builder binding because only Unix changes its mode. Restrict the mutable binding to the Unix block, without suppressing the warning. Local fmt, strict Clippy and all 17 focused tests pass after the fix. The old `f9b2069` full-baseline process was deliberately terminated for this source correction (session exit 143; process group confirmed empty), not treated as completed or as a transient timeout. Start a new frozen baseline and latest-head CI for the corrected commit; D02 remains doing at 3 pt.
 
 

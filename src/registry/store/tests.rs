@@ -498,6 +498,10 @@ fn snapshot(path: &std::path::Path) -> std::collections::BTreeMap<std::path::Pat
             map.extend(snapshot(&p));
         } else if entry.file_type().unwrap().is_symlink() {
             map.insert(p.clone(), format!("{:?}", std::fs::read_link(p).unwrap()));
+        } else if entry.metadata().unwrap().len() == 0 {
+            // The exact contents are empty. Avoid a second-handle EOF read of
+            // the exclusively locked LOCK file, which Windows rejects.
+            map.insert(p, digest(b""));
         } else {
             map.insert(p.clone(), digest(&std::fs::read(p).unwrap()));
         }

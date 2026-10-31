@@ -234,9 +234,18 @@ impl Storage {
                 return Err(corrupt());
             }
             match name.as_str() {
-                "LOCK" | "HEAD" => {
-                    let limit = if name == "LOCK" { 0 } else { records::MAX_HEAD };
-                    inventory.charge(self.read(&name, limit)?.len() as u64, 0)?;
+                "LOCK" => {
+                    // Windows byte-range locks also reject reads through another
+                    // handle, including an EOF probe of this empty file. Recheck
+                    // the no-follow regular-file/link invariant and exact length
+                    // without reading through a second handle while we own it.
+                    let file = open_file(&self.dir, &name, false)?;
+                    if file.metadata().map_err(|_| io())?.len() != 0 {
+                        return Err(corrupt());
+                    }
+                }
+                "HEAD" => {
+                    inventory.charge(self.read(&name, records::MAX_HEAD)?.len() as u64, 0)?;
                 }
                 "objects" | "states" | "audits" | "staging" => {
                     directory(&self.dir, &name)?;

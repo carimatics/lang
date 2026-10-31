@@ -10,6 +10,8 @@
 
 **次: M5-D02 — 内容address方式のstorageとimmutable version公開transaction（3 pt）。**
 
+D02 Windows lock修正（2026-10-31 14:01 JST確認）: CI `41169801575`のcore-1 job `124445401025`で9件失敗。排他lock中の空`LOCK`を別handleからEOFまで読もうとしてWindows error 33になった。Inventoryはmetadataでno-follow・通常file・link数の不変条件と厳密な0 byte長を再検査し、test snapshotも0 byte長から厳密な空内容を得る。Lock・破損・並行・crashのassertionは削除しない。ローカルfmt・厳密Clippy・重点17 testは成功。固定`9f238c4` baselineはこのsource修正に伴い明示終了した（実session exit 143、process group残存なしを確認）。全test・rustdocは未完了。修正headで新しい全baselineと、実Windows registry testを含む最新head CIすべてを必要とする。D02だけをdoing・3 ptに維持し、追加・退役なし。
+
 D02 CI修正（2026-10-31 13:44 JST確認）: CI `41169200725`のWindows workspace job `124443312245`が、Unixだけでmodeを変更するdirectory builderの不要mutを拒否した。警告を抑制せず、mutable bindingをUnix block内に限定する。修正後のローカルfmt、厳密Clippy、重点17 testは成功。旧`f9b2069`の全baselineは、このsource修正に伴って明示終了した（session exit 143・process group残存なしを確認）。完了や一時timeoutとは扱わない。修正commitを固定して全baselineと最新head CIをやり直し、D02はdoing・3 ptを維持する。
 
 
