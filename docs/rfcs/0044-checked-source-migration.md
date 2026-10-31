@@ -4,7 +4,8 @@
 
 [日本語版](../ja/rfcs/0044-checked-source-migration.md)
 
-- Status: accepted
+- Status: implemented
+
 - Authors: project contributors
 - Created: 2026-10-30
 - Last updated: 2026-10-31
@@ -13,6 +14,8 @@
 - Superseded by: none
 
 ## Summary
+
+Implementation verified 2026-10-31 JST: B04/G2 is complete. Code `62e742c` passes the historical-producer/current-VM/linked-native journey on both tier-1 hosts, with [retained evidence](../evidence/2026-10-31-m5-source-migration.json). The frozen `2f905c7` baseline passed 2,553 tests in 180 suites, fmt, strict Clippy and rustdoc; all four child exits are 0 and the source fingerprint is unchanged. Final head `ab5cda8` passed CI `41156030921` and native-debug `41156030861` before [PR #31](https://github.com/carimatics/lang/pull/31) merged as `46cb6a1`. The dated acceptance and intermediate checkpoints below preserve the implementation history; their pending work has now completed.
 
 Add preview-first checked source fixes and an explicit migration from this language's historical scalar syntax to edition `2026`. Ordinary compilation retains its present grammar and finite edition set. Neither a current-edition no-op nor adding a package manifest establishes migration completion.
 

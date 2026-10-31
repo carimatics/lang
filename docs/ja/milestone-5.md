@@ -6,9 +6,13 @@
 
 2026-10-30 JST、`3b676c5`から開始。[ロードマップ](roadmap.md#milestone-5ecosystemとcompatibility)のM5全範囲（P1の2ゲートを含む）を追跡する。M4のinstallerとlocal packageは前提条件であり、registry完了を意味しない。
 
-**6 done · 1 doing · 33 todo · 97 remaining pt**
+**7 done · 1 doing · 32 todo · 96 remaining pt**
 
-**次: M5-B04 — 固定sourceの全baselineと最新headの公開checkを完了する。**
+**次: M5-C01 — identity・namespace・authority・濫用・攻撃者のregistry脅威モデルを採択する（3 pt）。**
+
+B04・G2完了（2026-10-31 10:59 JST確認）: code `62e742c`と[保持した証拠](../evidence/2026-10-31-m5-source-migration.json)で、実旧producer・現VM・link済みnativeの両host journeyを検証した。固定`2f905c7`の全baselineは180 suite・2,553 test、fmt・厳密Clippy・rustdocが成功し、4つのchild exitすべてが0、source fingerprintも不変。logは`/private/tmp/lang-m5-fixes-target/m5-b04-validation/`に保持する。最終head `ab5cda8`のCI `41156030921`（対象18 job、full routingにより文書専用のみ意図的省略）とnative-debug `41156030861`（3 host job）が成功。[PR #31](https://github.com/carimatics/lang/pull/31)を`46cb6a1`としてmergeし、元の`main`はcleanかつ`origin/main`と同期済み（ahead 0 / behind 0）。以下の日付付き未完了checkpointは履歴であり、現在の阻害条件ではない。
+
+C01範囲監査（2026-10-31 JST）: 採択脅威モデルと検証可能な信頼境界に3 ptを維持する。C02はupload前のwire format・上限・復旧・security受入ケースとして別に3 ptを維持する。実装deliveryのdoingはない。branch `codex/m5-registry-contract`は`main`（`46cb6a1`）からclean状態で作成し、checkoutは`/private/tmp/lang-m5-registry`、PR baseは`git@github.com:carimatics/lang.git`の`main`。delivery追加・見積り変更なし。P1の両成果を含む8つのopenゲートをすべて維持する。
 
 B04受入監査（2026-10-31 10:34 JST確認）: [保持した証拠](../evidence/2026-10-31-m5-source-migration.json)はmacOS 15/26・Windows 2025の各6 fixtureについて、実旧source遷移5件、現VM・link済みnative実行、厳密な編集適用、再実行no-opを示す。CLI・公開・拒否要件は実装済みで、残作業はlocal全baseline・最新head CI・PR公開。これらのcheckを省かず2 → 1 ptへ再見積りする。B04はdoing、G2はopenを維持し、固定`2f905c7`のtest processは稼働中、fmt・厳密Clippyは成功している。
 
@@ -41,7 +45,7 @@ B05 budget監査（2026-10-31 JST）: 再利用するscalar検査内部の独立
 | Gate | 必須成果 | State |
 | --- | --- | --- |
 | G1 | edition・非推奨方針・互換性表 | done |
-| G2 | edition移行と機械適用可能な修正 | open |
+| G2 | edition移行と機械適用可能な修正 | done |
 | G3 | upload前のregistry脅威モデル採択 | open |
 | G4 | storage・index・download・immutable version | open |
 | G5 | 認証publish・yank・owner操作とaudit | open |
@@ -51,7 +55,7 @@ B05 budget監査（2026-10-31 JST）: 再利用するscalar検査内部の独立
 | G9 | 文書hostingとmetadata検索（P1） | open |
 | G10 | 公開LLVM release backend評価（P1） | open |
 
-ゲート完了: **1/10; 5/65 historical gate weight**。以下は残作業見積りであり、実時間やロードマップのゲート重みではない。
+ゲート完了: **2/10; 13/65 historical gate weight**。以下は残作業見積りであり、実時間やロードマップのゲート重みではない。
 
 ## Deliveries
 
@@ -63,8 +67,8 @@ B05 budget監査（2026-10-31 JST）: 再利用するscalar検査内部の独立
 | M5-B02 | done | 0 | M5-B01 | G2 | 元spanを保持した実ソース修正previewと意味再検査 | `2a3aca1` |
 | M5-B03 | done | 0 | M5-B02 | G2 | CLI修正適用とstale・競合・部分書込み拒否fixture | `01b425e` |
 | M5-B05 | done | 0 | M5-B01 | G2 | 旧scalar構文を受入れfresh renameを証明し実在する旧sourceをpreview | `7f41dd0` |
-| M5-B04 | doing | 1 | M5-B03,M5-B05 | G2 | edition移行CLIと両hostの移行前後実行journey | — |
-| M5-C01 | todo | 3 | M5-A01 | G3 | identity・namespace・authority・濫用・攻撃者の脅威モデル | — |
+| M5-B04 | done | 0 | M5-B03,M5-B05 | G2 | edition移行CLIと両hostの移行前後実行journey | `62e742c` |
+| M5-C01 | doing | 3 | M5-A01 | G3 | identity・namespace・authority・濫用・攻撃者の脅威モデル | — |
 | M5-C02 | todo | 3 | M5-C01 | G3 | upload前にprotocol・上限・復旧・security受入ケースを採択 | — |
 | M5-D01 | todo | 3 | M5-C02 | G4 | 上限付き未信頼archiveの受入とtraversal・重複・bomb拒否 | — |
 | M5-D02 | todo | 3 | M5-D01 | G4 | 内容address方式のstorageとimmutable version公開transaction | — |
@@ -100,13 +104,15 @@ B05 budget監査（2026-10-31 JST）: 再利用するscalar検査内部の独立
 
 ## 見積り照合
 
-**112 + 1 − 16 = 97 pt**
+**112 + 1 − 17 = 96 pt**
 
 | 基準残作業 | 純追加・再見積り | 完了時に除去 | 残作業 |
 | ---: | ---: | ---: | ---: |
-| 112 pt | +1 pt | −16 pt | 97 pt |
+| 112 pt | +1 pt | −17 pt | 96 pt |
 
 ## Delivery noteとロードマップ監査
+
+- B04完了（2026-10-31 JST）: local全baseline・最終head CI・PR merge確認後に最終1 ptを退役。退役見積りは17 pt、純追加は+1 ptを維持する。C01だけをdoing（3 pt）とする。新規作業・範囲削減なし。G2完了、8ゲートはopen。
 
 - B04受入監査・再見積り（2026-10-31 10:34 JST）: 実旧source・現VM・link済みnativeのjourneyが両hostで成功し、report・source hashも独立に照合した。残る最終検証・公開を2から1 ptへ下げ、純追加・再見積りは+3 − 1 − 1 = +1 ptとする。B04は未完了のため退役見積り16 ptは維持する。delivery・gate・受入条件の削除なし。
 

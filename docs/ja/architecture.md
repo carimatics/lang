@@ -151,7 +151,7 @@ literal code action は同じ input／version guard と package linter の rule 
 
 RFC 0044の`package::fix`はentryと全宣言testの上限付き複数root rename証明で元spanを合成します。CLIはpreviewが既定で、`--apply`は証明と同じ固定graphから新しい非公開planを作ります。formatterと共有する公開境界は全source・manifestのidentityとbytesを固定し、別directory authorityを検証して選択source置換を全件stage化し、再検証後file単位でcommitします。依存は証明のみの対象です。previewと適用成功report両方のsizeを書込み前に検査し、後半I/O失敗時は適用済みprefixを報告して未公開stageをcleanupし、rollbackしません。旧source移行は以下の別profileを使います。
 
-RFC 0044の`package::migration::Preview`はbyteだけを受ける旧scalar readerで、通常compileから分離します。旧lexical scope・関数全体の名前一意性・scalar型・return経路を検証した後、全体でfreshな識別子へ対応付けます。元tokenのoffset検査と型付き解決構造の比較で、private呼出し・値・型・制御フロー順を保持します。previewはfileを開かずguest codeも実行しません。`migration::Plan`は明示directory authorityを受け取り、単一の上限付きregular sourceとopen済みfile identityを取得し、同じbytesを証明して非公開replacementをformatterの共通公開検査に結び付けます。`lang migrate`はpackage探索前にこのstandalone経路を選び、profile・edition・rootを必須として、`--apply`がなければpreviewします。保存reportを実行可能planとして扱いません。両hostの旧producer・現VM・native journeyと最終検証は未完了です。
+RFC 0044の`package::migration::Preview`はbyteだけを受ける旧scalar readerで、通常compileから分離します。旧lexical scope・関数全体の名前一意性・scalar型・return経路を検証した後、全体でfreshな識別子へ対応付けます。元tokenのoffset検査と型付き解決構造の比較で、private呼出し・値・型・制御フロー順を保持します。previewはfileを開かずguest codeも実行しません。`migration::Plan`は明示directory authorityを受け取り、単一の上限付きregular sourceとopen済みfile identityを取得し、同じbytesを証明して非公開replacementをformatterの共通公開検査に結び付けます。`lang migrate`はpackage探索前にこのstandalone経路を選び、profile・edition・rootを必須として、`--apply`がなければpreviewします。保存reportを実行可能planとして扱いません。旧producer・現VM・link済みnative journeyは両hostで成功し、[producer・artifact identity](../evidence/2026-10-31-m5-source-migration.json)を保持しています。全baselineと最終head CIの成功後にPR #31をmergeしました。[B04完了記録](milestone-5.md)を参照してください。
 
 ## Concurrency、component、将来のtoolchain
 

@@ -6,9 +6,13 @@
 
 Activated 2026-10-30 JST from `3b676c5`. This board tracks the entire M5 scope in [the roadmap](roadmap.md#milestone-5-ecosystem-and-compatibility), including both P1 gates. M4's installer and local packages are prerequisites, not registry completion.
 
-**6 done · 1 doing · 33 todo · 97 remaining pt**
+**7 done · 1 doing · 32 todo · 96 remaining pt**
 
-**Next: M5-B04 — complete the frozen full baseline and latest-head publication checks.**
+**Next: M5-C01 — accept the registry threat model for identities, namespace, authority, abuse and adversaries (3 pt).**
+
+B04/G2 completed, verified 2026-10-31 10:59 JST: code `62e742c` and the [retained evidence](evidence/2026-10-31-m5-source-migration.json) cover the real historical-producer/current-VM/linked-native journey on both hosts. The frozen `2f905c7` baseline completed 2,553 tests in 180 suites, fmt, strict Clippy and rustdoc; all four child exits are 0 and the source fingerprint is unchanged. Logs are retained under `/private/tmp/lang-m5-fixes-target/m5-b04-validation/`. Final head `ab5cda8` passed CI `41156030921` (18 applicable jobs; documentation-only intentionally skipped under full routing) and native-debug `41156030861` (three host jobs). [PR #31](https://github.com/carimatics/lang/pull/31) merged as `46cb6a1`; the original `main` is clean and synchronized with `origin/main` (0 ahead / 0 behind). The dated incomplete checkpoints below are historical, not current blockers.
+
+C01 scope audit, 2026-10-31 JST: retain 3 pt for the accepted threat model and its testable trust boundaries. C02 separately retains 3 pt for wire formats, limits, recovery and security acceptance cases before uploads. No implementation delivery is doing. Branch `codex/m5-registry-contract` was created clean from `main` (`46cb6a1`) in `/private/tmp/lang-m5-registry`, with PR base `main` in `git@github.com:carimatics/lang.git`. No additional delivery or estimate change; all eight open gates, including both P1 gates, remain required.
 
 B04 acceptance audit, verified 2026-10-31 10:34 JST: [retained evidence](evidence/2026-10-31-m5-source-migration.json) proves six fixtures on each of macOS 15/26 and Windows 2025, including five actual historical-source transitions, current VM and linked native execution, exact edit application and repeat no-op. CLI/publication/refusal requirements are implemented; the remaining work is the complete local baseline, latest-head CI and PR publication. Re-estimate 2 → 1 pt without dropping those checks. B04 remains doing and G2 remains open; the frozen `2f905c7` test process is live, with fmt and strict Clippy passed.
 
@@ -41,7 +45,7 @@ B05 budget audit, 2026-10-31 JST: account for all three independent task-syntax 
 | Gate | Required outcome | State |
 | --- | --- | --- |
 | G1 | Editions, deprecation policy, compatibility matrix | done |
-| G2 | Edition migration and machine-applicable fixes | open |
+| G2 | Edition migration and machine-applicable fixes | done |
 | G3 | Registry threat model accepted before uploads | open |
 | G4 | Storage, indexing, download, immutable versions | open |
 | G5 | Authenticated publish/yank/owners and audit | open |
@@ -51,7 +55,7 @@ B05 budget audit, 2026-10-31 JST: account for all three independent task-syntax 
 | G9 | Documentation hosting and metadata search (P1) | open |
 | G10 | Published LLVM release-backend evaluation (P1) | open |
 
-Gate completion: **1/10; 5/65 historical gate weight**. Delivery points below are remaining work estimates, not elapsed time or the roadmap's gate weights.
+Gate completion: **2/10; 13/65 historical gate weight**. Delivery points below are remaining work estimates, not elapsed time or the roadmap's gate weights.
 
 ## Deliveries
 
@@ -63,8 +67,8 @@ Gate completion: **1/10; 5/65 historical gate weight**. Delivery points below ar
 | M5-B02 | done | 0 | M5-B01 | G2 | Preview real source fixes with original spans and semantic recheck | `2a3aca1` |
 | M5-B03 | done | 0 | M5-B02 | G2 | Apply checked fixes through CLI; stale/conflicting/partial-write refusal fixtures | `01b425e` |
 | M5-B05 | done | 0 | M5-B01 | G2 | Admit historical scalar syntax, prove fresh renames and preview the real old-source fixture | `7f41dd0` |
-| M5-B04 | doing | 1 | M5-B03,M5-B05 | G2 | Edition migration CLI and both-host before/after execution journey | — |
-| M5-C01 | todo | 3 | M5-A01 | G3 | Threat model: identities, namespace, authority, abuse and adversaries | — |
+| M5-B04 | done | 0 | M5-B03,M5-B05 | G2 | Edition migration CLI and both-host before/after execution journey | `62e742c` |
+| M5-C01 | doing | 3 | M5-A01 | G3 | Threat model: identities, namespace, authority, abuse and adversaries | — |
 | M5-C02 | todo | 3 | M5-C01 | G3 | Accept protocol, limits, recovery and security acceptance cases before upload | — |
 | M5-D01 | todo | 3 | M5-C02 | G4 | Admit bounded untrusted archives and reject traversal/duplicate/bomb inputs | — |
 | M5-D02 | todo | 3 | M5-D01 | G4 | Content-addressed storage and immutable version publication transaction | — |
@@ -100,13 +104,15 @@ Gate completion: **1/10; 5/65 historical gate weight**. Delivery points below ar
 
 ## Estimate reconciliation
 
-**112 + 1 − 16 = 97 pt**
+**112 + 1 − 17 = 96 pt**
 
 | Baseline remaining | Net additions/re-estimates | Retired at completion | Remaining |
 | ---: | ---: | ---: | ---: |
-| 112 pt | +1 pt | −16 pt | 97 pt |
+| 112 pt | +1 pt | −17 pt | 96 pt |
 
-## Delivery notes and roadmap audits
+## Delivery notes and roadmap audit
+
+- B04 completion, 2026-10-31 JST: retire its last 1 pt after the complete local baseline, final-head CI and confirmed PR merge. Retired estimates become 17 pt; net additions remain +1 pt. C01 becomes the only doing row at 3 pt. No new work or scope reduction; G2 completes and eight gates remain open.s
 
 - B04 acceptance audit/re-estimate, 2026-10-31 10:34 JST: the actual historical/current VM/linked-native journey now passes on both hosts, with independently inspected report and source hashes. Remaining final validation and publication are 1 pt, reduced from 2; net additions/re-estimates become +3 − 1 − 1 = +1 pt. Retired estimates stay 16 pt because B04 is not done. No delivery, gate or acceptance condition is removed.
 
