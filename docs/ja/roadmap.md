@@ -252,13 +252,13 @@ Exit：新しいdeveloperが1つのtoolをinstallし、packageを作成し、edi
 
 2026-10-30 JST開始。[M5 board](milestone-5.md)に全10ゲート、39件の観測可能delivery、残作業基準112 ptを保持する。[edition・互換性方針](rfcs/0043-editions-and-compatibility.md)と実行可能な互換性・移行fixtureから開始する。registry upload前に脅威モデルを定め、署名toolchain導入をregistry provenanceと混同しない。P1の2ゲートも範囲内。完了には両host ecosystem journeyと日英能力guideを含める。
 
-**14 done · 1 doing · 25 todo · 73 remaining pt**
+**14 done · 1 doing · 26 todo · 76 remaining pt**
 
 D05契約（2026-10-31 JST）: [RFC 0050](rfcs/0050-registry-cache-and-offline-replay.md)でprivate cache世代と厳密offline replayをacceptedとした。JavaScript/Pythonの独立marker/世代digestと既存lock-reader probeが成功し、文書整合性は8/8成功。本番認証証拠はF01–F03に残る。
 
-E02契約準備（2026-10-31 JST）: [RFC 0051](rfcs/0051-registry-yank-transactions.md)で認証yank/unyank action、閉じたaudit遷移、元結果replayをacceptedとした。純粋な22-case modelと独立canonical hash計算が成功し、実transactionと認証service統合は未実装。D05だけをdoingに維持し、件数・見積りは変更しない。
+E02/service scope監査（2026-10-31 JST）: [RFC 0051](rfcs/0051-registry-yank-transactions.md)で認証yank/unyank action、閉じたaudit遷移、元結果replayをacceptedとした。純粋な22-case modelと独立canonical hash計算が成功。実host transactionのE02を3 ptに維持し、認証HTTPS dispatch・要求/store作業memory上限・read世代更新をE05・3 ptとして追加する。E05はE02/E03後、E04前に実装する。既存の不変read-only serviceはこの統合を提供しない。D05だけをdoingに維持し、受入条件やgateは削除しない。
 
-全40 deliveryの収支は112 − 5 − 34 = 残73 pt。D05の実行可能cache/offline checkpointにより残見積りを3から1 ptへ減らし（純−2）、累積純追加・再見積りは−5 pt、完了時退役は34 ptを維持する。G1–G3は完了。D04の`a289641`は固定baseline（2,629 test / 182 suite）、全対象CI/debug job、両hostのregistry fixtureに成功した。PR #37は`9e81a8f`でmergeされ、mainはclean・0/0同期・検証済みtreeと同一を確認した。PR #38のD05は実HTTPS-to-cache-to-offline VM/native journeyを実行し、初期化/公開のprocess中断32境界、競合不変version、結果不明照合、敵対的入力/quota caseに成功した。集中package unit caseと既存integration回帰53 testも成功。残るのは固定全baseline、最新headの両host CI、公開だけで、D05を唯一のdoing・1 ptとする。両P1を含むG4–G10はopenを維持する。
+全41 deliveryの収支は112 − 2 − 34 = 残76 pt。実装前にE05・3 ptを追加し、累積純追加・再見積りは−2 pt、完了時退役は34 ptを維持する。G1–G3は完了。D04の`a289641`は固定baseline（2,629 test / 182 suite）、全対象CI/debug job、両hostのregistry fixtureに成功した。PR #37は`9e81a8f`でmergeされ、mainはclean・0/0同期・検証済みtreeと同一を確認した。PR #38のD05は実HTTPS-to-cache-to-offline VM/native journeyを実行し、初期化/公開のprocess中断32境界、競合不変version、結果不明照合、敵対的入力/quota caseに成功した。集中package unit caseと既存integration回帰53 testも成功。完了には固定全検証、最新headの両host CI、公開を必要とし、D05を唯一のdoing・1 ptに維持する。両P1を含むG4–G10はopenを維持する。
 
 **進捗：21 / 65 pt（32.3%）。**
 

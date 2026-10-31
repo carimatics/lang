@@ -8,7 +8,7 @@
 - Authors: project contributors
 - Created: 2026-10-31
 - Last updated: 2026-10-31
-- Tracking issue: M5-E02
+- Tracking issue: M5-E02, M5-E05
 - Supersedes: none; elaborates RFCs 0046–0048
 - Superseded by: none
 
@@ -43,7 +43,7 @@ Retry the same canonical action and request ID after a lost response. A known su
 
 ### Canonical action
 
-`POST /v1/packages/NAME/actions` retains RFC 0046's explicitly configured HTTPS origin and bearer handling. E02 admits exactly these ordered JSON fields: `schema:1`, `request_id`, `expected_revision`, `action`, `reason`, `version`. `action` is `yank` or `unyank`. The body uses canonical two-space JSON plus final LF, is at most 2,048 bytes, and rejects unknown/duplicate/inapplicable fields, noncanonical encodings and unsupported schemas. The request ID is 32 lowercase hex characters, expected revision is a positive `u64`, and version uses the existing exact numeric version grammar. NAME comes from the independently validated route, never an arbitrary body path.
+`POST /v1/packages/NAME/actions` retains RFC 0046's explicitly configured HTTPS origin and bearer handling. E02's host action and E05's HTTP adapter admit exactly these ordered JSON fields: `schema:1`, `request_id`, `expected_revision`, `action`, `reason`, `version`. `action` is `yank` or `unyank`. The body uses canonical two-space JSON plus final LF, is at most 2,048 bytes, and rejects unknown/duplicate/inapplicable fields, noncanonical encodings and unsupported schemas. The request ID is 32 lowercase hex characters, expected revision is a positive `u64`, and version uses the existing exact numeric version grammar. NAME comes from the independently validated route, never an arbitrary body path.
 
 Reason is 1–256 UTF-8 bytes without Unicode control characters. Callers must not place secrets, source text or host paths in this persisted human explanation. Error/debug output never echoes arbitrary body or bearer material. The host action constructor/admitter applies the same bounds and retains exact canonical action identity.
 
@@ -77,7 +77,7 @@ Retain RFCs 0046/0048's framing, deadlines, eight-connection ceiling, 256 MiB ag
 
 ## Execution modes
 
-Yank changes registry selection metadata, not source execution. Exact non-quarantined locked archives remain usable under the independently required consumption evidence. VM and native AOT execute the same retained source; no JIT, component or embedding ABI changes are introduced. The E02 fixture must show publish → yank → exact download → unyank without replacing the source archive.
+Yank changes registry selection metadata, not source execution. Exact non-quarantined locked archives remain usable under the independently required consumption evidence. VM and native AOT execute the same retained source; no JIT, component or embedding ABI changes are introduced. E02 must show host publish → yank → exact archive read → unyank without replacing the source; E05 repeats the journey through authenticated HTTPS.
 
 ## ABI and compatibility
 
@@ -89,7 +89,7 @@ Retain REG0001 malformed, REG0002 limit, REG0003 authentication, REG0004 authori
 
 ## Performance and cost model
 
-Each accepted action adds one complete immutable state and audit record, plus staged HEAD bytes, but no source archive. Full-history validation, canonical encoding and retained generations keep RFC 0048's bounded initial-profile costs; no throughput claim is made. A read-only captured generation must not become a mutable authority cache. Measure actual host fixtures and resource limits before completing E02; pure transition evidence does not establish HTTP memory, latency or crash behavior.
+Each accepted action adds one complete immutable state and audit record, plus staged HEAD bytes, but no source archive. Full-history validation, canonical encoding and retained generations keep RFC 0048's bounded initial-profile costs; no throughput claim is made. A read-only captured generation must not become a mutable authority cache. Measure actual host fixtures and resource limits before completing their corresponding delivery; pure transition evidence does not establish HTTP memory, latency or crash behavior.
 
 ## Security and trust boundaries
 
@@ -105,10 +105,10 @@ An action or receipt is not a capability. Real bearer possession, current enroll
 
 ## Implementation plan
 
-1. Prepare this accepted elaboration while D05 remains the sole doing delivery; preserve its frozen verification head. E02 retains its existing 3-point estimate until its remaining implementation tasks are audited at selection.
+1. Prepare this accepted elaboration while D05 remains the sole doing delivery; preserve its frozen verification head. The 2026-10-31 17:57 JST scope audit retains E02 at 3 points for the host transaction and exposes E05 at 3 points for authenticated HTTP integration before implementation. No acceptance condition is removed.
 2. Add bounded actions, audit/result variants, complete historical transition validation and fresh authenticated yank/unyank transactions. Preserve immutable publication and its existing API behavior.
-3. Integrate explicit authenticated publish/actions with the bounded service/client and fresh read generations; verify resource accounting, conflict and retry outcomes with actual HTTPS.
-4. Run targeted fixtures, full baseline and latest-head both-host CI, then publish E02 evidence and re-audit G5's remaining E03/E04 work. Do not declare G5 complete here.
+3. After E03's owner transactions, E05 integrates explicit authenticated publish/actions/owners with the bounded service/client and fresh read generations; verify resource accounting, conflict and retry outcomes with actual HTTPS. E05 is a prerequisite of E04's complete unauthorized/recovery journey.
+4. For each implementation delivery, run targeted fixtures, full baseline and latest-head both-host CI, then publish its evidence and re-audit G5's remaining work. E02 alone does not complete E05 or G5.
 
 Branch preparation: `codex/m5-registry-mutations` starts from `codex/m5-registry-offline-cache` at `43dea74` in `carimatics/lang`; PR #38 is its dependency and recorded initial PR base. Original work-unit branch remains `main`; the new checkout had no pre-existing changes. Retarget to `main` only after that dependency merges.
 
@@ -119,7 +119,7 @@ Branch preparation: `codex/m5-registry-mutations` starts from `codex/m5-registry
 - Independent canonical action/request-digest vectors; reason byte/control boundaries; malformed/duplicate/unknown fields and bounded input.
 - Complete transition forgery tests changing flags, authority, archive, quarantine, unrelated releases, audit result and replay digest.
 - Actual initialization/publication/action process exits, reopened complete old/new state, unknown-result reconciliation and concurrent request orders on both hosts.
-- HTTPS publish/action/read journey, disabled mutation service, malformed framing/auth/conditional headers, slow or excess bodies, admission-budget boundaries and cancelled workers.
+- E05: HTTPS publish/action/read journey, disabled mutation service, malformed framing/auth/conditional headers, slow or excess bodies, admission-budget boundaries and cancelled workers.
 - VM/native execution of the exact downloaded archive throughout the flag journey; no production unsigned-consumption constructor.
 
 ## Open questions

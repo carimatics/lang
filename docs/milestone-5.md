@@ -6,9 +6,11 @@
 
 Activated 2026-10-30 JST from `3b676c5`. This board tracks the entire M5 scope in [the roadmap](roadmap.md#milestone-5-ecosystem-and-compatibility), including both P1 gates. M4's installer and local packages are prerequisites, not registry completion.
 
-**14 done · 1 doing · 25 todo · 73 remaining pt**
+**14 done · 1 doing · 26 todo · 76 remaining pt**
 
 **Next: M5-D05 — validate and publish exact offline cache execution (1 pt).**
+
+E02/service scope audit, 2026-10-31 17:57 JST: the current HTTP service owns one immutable `CapturedReads` generation; it has no authenticated mutation dispatch, refreshed-generation publication or request-time store-workspace accounting. Keep E02 at 3 pt for the concrete host outcome: canonical actions, closed audit/history transitions, current owner/conflict enforcement, exact retry, process-cut recovery and unchanged-archive VM/native execution. Expose M5-E05 at 3 pt for the distinct authenticated HTTPS publish/action/owner journey, bounded in-flight/store workspace and read-generation refresh. E05 depends on E02/E03 and is a prerequisite of E04's complete unauthorized/recovery journey. This adds one delivery and +3 pt before implementation: cumulative net additions/re-estimates −5 → −2, retired estimates remain 34, and 112 − 2 − 34 = 76 pt across 41 deliveries. Nothing is newly completed; D05 alone remains doing at 1 pt. The 17:39/17:48 counts below are historical. No gate or acceptance condition is removed.
 
 E02 design preparation, verified 2026-10-31 17:48 JST: [RFC 0051](rfcs/0051-registry-yank-transactions.md) accepts closed yank/unyank actions, audit/result variants, unchanged archive identity and freshly authorized original-result replay. A pure transition model passes 22 cases; independent JavaScript/Python encodings agree on the 173-byte action and request digest. This is policy/format evidence, not actual transactions or HTTP mutation. `codex/m5-registry-mutations` starts from D05's frozen `43dea74`, with `codex/m5-registry-offline-cache` recorded as its origin PR base until PR #38 merges. D05 remains the sole doing row at 1 pt; E02 stays todo at 3 pt pending its selection audit. No deliveries, points or gate completions change. D05's frozen full baseline and latest-head CI are running; its source/head are unchanged.
 
@@ -165,9 +167,10 @@ Gate completion: **3/10; 21/65 historical gate weight**. Delivery points below a
 | M5-D04 | done | 0 | M5-D03 | G4 | Resolve a registry dependency and execute it on both hosts | `a289641` |
 | M5-D05 | doing | 1 | M5-D04 | G4 | Lock/offline replay, interrupted publication and concurrent immutability tests | — |
 | M5-E01 | done | 0 | M5-C02 | G5 | Authenticated identities, credential handling and scoped authorization | `56f9f84` |
-| M5-E02 | todo | 3 | M5-E01,M5-D02 | G5 | Publish and yank/unyank with owner and conflict enforcement | — |
+| M5-E02 | todo | 3 | M5-E01,M5-D02 | G5 | Host publish and yank/unyank transactions with owner and conflict enforcement | — |
 | M5-E03 | todo | 3 | M5-E02 | G5 | Owner add/remove/transfer and last-owner/credential-revocation fixtures | — |
-| M5-E04 | todo | 3 | M5-E03 | G5 | Durable audit trail, recovery and unauthorized-operation end-to-end tests | — |
+| M5-E04 | todo | 3 | M5-E03,M5-E05 | G5 | Durable audit trail, recovery and unauthorized-operation end-to-end tests | — |
+| M5-E05 | todo | 3 | M5-E02,M5-E03 | G5 | Authenticated HTTPS mutations, bounded request workspace and refreshed read generations | — |
 | M5-F01 | todo | 3 | M5-C02 | G6 | Accept package trust roots, provenance, signature and freshness contract | — |
 | M5-F02 | todo | 3 | M5-F01,M5-D02 | G6 | Produce signed package release manifests and verifiable provenance | — |
 | M5-F03 | todo | 3 | M5-F02,M5-D03 | G6 | Verify trust, artifact binding, expiry and replay before consumption | — |
@@ -193,11 +196,11 @@ Gate completion: **3/10; 21/65 historical gate weight**. Delivery points below a
 
 ## Estimate reconciliation
 
-**112 − 5 − 34 = 73 pt**
+**112 − 2 − 34 = 76 pt**
 
 | Baseline remaining | Net additions/re-estimates | Retired at completion | Remaining |
 | ---: | ---: | ---: | ---: |
-| 112 pt | −5 pt | −34 pt | 73 pt |
+| 112 pt | −2 pt | −34 pt | 76 pt |
 
 ## Delivery notes and roadmap audit
 

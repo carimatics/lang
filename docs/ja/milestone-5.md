@@ -6,9 +6,11 @@
 
 2026-10-30 JST、`3b676c5`から開始。[ロードマップ](roadmap.md#milestone-5ecosystemとcompatibility)のM5全範囲（P1の2ゲートを含む）を追跡する。M4のinstallerとlocal packageは前提条件であり、registry完了を意味しない。
 
-**14 done · 1 doing · 25 todo · 73 remaining pt**
+**14 done · 1 doing · 26 todo · 76 remaining pt**
 
 **次: M5-D05 — 厳密offline cache実行の検証と公開（1 pt）。**
+
+E02/service scope監査（2026-10-31 17:57 JST）: 現HTTP serviceは1個の不変`CapturedReads`世代を所有し、認証mutation dispatch・更新世代公開・要求時store作業memory計上を持たない。E02はcanonical action、閉じたaudit/履歴遷移、現在owner/競合制約、厳密retry、process中断recovery、未変更archiveのVM/native実行という具体host結果に3 ptを維持する。別の観測可能結果である認証HTTPS publish/action/owner journey、処理中要求/store作業memory上限、read世代更新をM5-E05・3 ptとして明示する。E05はE02/E03に依存し、E04の完全な権限外操作/recovery journeyの前提となる。実装前に1 delivery・+3 ptを追加し、累積純追加・再見積りを−5 → −2、退役見積りを34に維持する。41 deliveryで112 − 2 − 34 = 残76 pt。新規完了はなく、D05だけをdoing・1 ptに維持する。以下17:39/17:48の件数は履歴とし、gateや受入条件を削除しない。
 
 E02設計準備（2026-10-31 17:48 JST確認）: [RFC 0051](rfcs/0051-registry-yank-transactions.md)で閉じたyank/unyank action、audit/result variant、未変更archive identity、最新認可による元結果replayをacceptedとした。純粋な遷移modelの22 caseが成功し、JavaScript/Pythonの独立encodingで173-byte actionとrequest digestが一致した。Policy/format証拠であり、実transactionやHTTP mutationの証明ではない。`codex/m5-registry-mutations`はD05固定`43dea74`から作成し、PR #38 mergeまで`codex/m5-registry-offline-cache`をorigin上のPR baseとして記録する。D05だけをdoing・1 ptに維持し、E02は選択時監査までtodo・3 ptとする。Delivery・point・gate完了の変更なし。D05固定全baselineと最新head CIは実行中で、source/headは不変である。
 
@@ -165,9 +167,10 @@ B05 budget監査（2026-10-31 JST）: 再利用するscalar検査内部の独立
 | M5-D04 | done | 0 | M5-D03 | G4 | registry依存を解決して両hostで実行 | `a289641` |
 | M5-D05 | doing | 1 | M5-D04 | G4 | lock・offline replay・公開中断・並行immutable検証 | — |
 | M5-E01 | done | 0 | M5-C02 | G5 | 認証identity・credential取扱い・scope付き認可 | `56f9f84` |
-| M5-E02 | todo | 3 | M5-E01,M5-D02 | G5 | owner・競合制約付きpublish・yank・unyank | — |
+| M5-E02 | todo | 3 | M5-E01,M5-D02 | G5 | owner・競合制約付きhost publish・yank・unyank transaction | — |
 | M5-E03 | todo | 3 | M5-E02 | G5 | owner追加・削除・移管と最後のowner・credential失効fixture | — |
-| M5-E04 | todo | 3 | M5-E03 | G5 | 永続audit trail・復旧・権限外操作のend-to-end検証 | — |
+| M5-E04 | todo | 3 | M5-E03,M5-E05 | G5 | 永続audit trail・復旧・権限外操作のend-to-end検証 | — |
+| M5-E05 | todo | 3 | M5-E02,M5-E03 | G5 | 認証HTTPS mutation・要求作業memory上限・read世代更新 | — |
 | M5-F01 | todo | 3 | M5-C02 | G6 | package信頼root・provenance・署名・freshness契約を採択 | — |
 | M5-F02 | todo | 3 | M5-F01,M5-D02 | G6 | 署名package release manifestと検証可能provenanceを生成 | — |
 | M5-F03 | todo | 3 | M5-F02,M5-D03 | G6 | 消費前に信頼・artifact結合・期限・replayを検証 | — |
@@ -193,11 +196,11 @@ B05 budget監査（2026-10-31 JST）: 再利用するscalar検査内部の独立
 
 ## 見積り照合
 
-**112 − 5 − 34 = 73 pt**
+**112 − 2 − 34 = 76 pt**
 
 | 基準残作業 | 純追加・再見積り | 完了時に除去 | 残作業 |
 | ---: | ---: | ---: | ---: |
-| 112 pt | −5 pt | −34 pt | 73 pt |
+| 112 pt | −2 pt | −34 pt | 76 pt |
 
 ## Delivery noteとロードマップ監査
 

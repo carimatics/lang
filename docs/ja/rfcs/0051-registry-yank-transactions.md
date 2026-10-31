@@ -8,7 +8,7 @@
 - Authors: project contributors
 - Created: 2026-10-31
 - Last updated: 2026-10-31
-- Tracking issue: M5-E02
+- Tracking issue: M5-E02, M5-E05
 - Supersedes: none; RFC 0046–0048を具体化
 - Superseded by: none
 
@@ -43,7 +43,7 @@ Ownerは`math` version `1.0.0`をpackage revision 1で公開し、expected revis
 
 ### Canonical action
 
-`POST /v1/packages/NAME/actions`はRFC 0046の明示HTTPS originとbearer処理を維持する。E02が受理するJSON field順は厳密に`schema:1`、`request_id`、`expected_revision`、`action`、`reason`、`version`とする。`action`は`yank`または`unyank`。Bodyは2-space canonical JSONと末尾LF、最大2,048 byteで、未知/重複/variantに不適切なfield、非canonical encoding、未対応schemaを拒否する。Request IDは32文字の小文字hex、expected revisionは正の`u64`、versionは既存の厳密数値version文法を使う。NAMEは独立検証したrouteから取得し、任意body pathから取得しない。
+`POST /v1/packages/NAME/actions`はRFC 0046の明示HTTPS originとbearer処理を維持する。E02のhost actionとE05のHTTP adapterが受理するJSON field順は厳密に`schema:1`、`request_id`、`expected_revision`、`action`、`reason`、`version`とする。`action`は`yank`または`unyank`。Bodyは2-space canonical JSONと末尾LF、最大2,048 byteで、未知/重複/variantに不適切なfield、非canonical encoding、未対応schemaを拒否する。Request IDは32文字の小文字hex、expected revisionは正の`u64`、versionは既存の厳密数値version文法を使う。NAMEは独立検証したrouteから取得し、任意body pathから取得しない。
 
 ReasonはUnicode制御文字を含まない1–256 UTF-8 byteとする。呼出元は永続化される説明に秘密・source本文・host pathを含めてはならない。Error/debug出力は任意bodyやbearerを反映しない。Host actionのconstructor/admitterにも同じ上限を適用し、厳密canonical action identityを保持する。
 
@@ -77,7 +77,7 @@ RFC 0046/0048のframing・deadline・最大8接続・admitted request合計256 M
 
 ## 実行mode
 
-Yankが変えるのはregistry選択metadataであり、source実行ではない。Quarantineされていない厳密locked archiveは、別途必要な消費証拠の下で引き続き利用できる。VMとnative AOTは同じ保持sourceを実行し、JIT・component・embedding ABIを変更しない。E02 fixtureはsource archiveを置換せずpublish → yank → 厳密download → unyankを示す必要がある。
+Yankが変えるのはregistry選択metadataであり、source実行ではない。Quarantineされていない厳密locked archiveは、別途必要な消費証拠の下で引き続き利用できる。VMとnative AOTは同じ保持sourceを実行し、JIT・component・embedding ABIを変更しない。E02はsourceを置換せずhost publish → yank → 厳密archive read → unyankを示し、E05は認証HTTPS経由で同じjourneyを検証する。
 
 ## ABIと互換性
 
@@ -89,7 +89,7 @@ REG0001 malformed、REG0002 limit、REG0003 authentication、REG0004 authorizati
 
 ## 性能とcost model
 
-受理actionは完全な不変stateとaudit recordを各1つ、staged HEAD byteを追加し、source archiveは追加しない。全履歴検証・canonical encoding・generation保持はRFC 0048の上限付き初期profile costを維持し、throughputは主張しない。Read-only captured generationを可変authority cacheに転用しない。E02完了前に実host fixtureとresource上限を測定する。純粋な遷移実験ではHTTP memory・latency・crash動作は証明できない。
+受理actionは完全な不変stateとaudit recordを各1つ、staged HEAD byteを追加し、source archiveは追加しない。全履歴検証・canonical encoding・generation保持はRFC 0048の上限付き初期profile costを維持し、throughputは主張しない。Read-only captured generationを可変authority cacheに転用しない。対応deliveryの完了前に実host fixtureとresource上限を測定する。純粋な遷移実験ではHTTP memory・latency・crash動作は証明できない。
 
 ## Securityとtrust境界
 
@@ -105,10 +105,10 @@ Actionやreceiptはcapabilityではない。実bearer所持、現在の登録/�
 
 ## 実装計画
 
-1. D05を唯一のdoing deliveryに維持し、検証headを固定したまま本具体化を受理・準備する。E02は選択時に残実装taskを監査するまで既存3 pointを維持する。
+1. D05を唯一のdoing deliveryに維持し、検証headを固定したまま本具体化を受理・準備する。2026-10-31 17:57 JSTのscope監査で、host transactionにE02・3 pointを維持し、認証HTTP統合を実装前にE05・3 pointとして明示する。受入条件は削除しない。
 2. 上限付きaction・audit/result variant・完全履歴遷移検証・最新認証yank/unyank transactionを追加する。不変公開と既存API動作を保持する。
-3. 明示認証publish/actionを上限付きservice/clientと最新read generationに統合し、実HTTPSでresource計上・競合・再試行結果を検証する。
-4. 局所fixture・全baseline・最新headの両host CIを実行し、E02証拠を公開してG5の残E03/E04を再監査する。ここでG5を完了とはしない。
+3. E03のowner transaction後、E05で明示認証publish/action/ownerを上限付きservice/clientと最新read generationに統合し、実HTTPSでresource計上・競合・再試行結果を検証する。E05はE04の完全な権限外操作/recovery journeyの前提とする。
+4. 各実装deliveryで局所fixture・全baseline・最新headの両host CIを実行し、証拠を公開してG5の残作業を再監査する。E02だけでE05やG5を完了とはしない。
 
 Branch準備: `codex/m5-registry-mutations`は`carimatics/lang`の`codex/m5-registry-offline-cache`、`43dea74`から作成する。PR #38が依存先かつ記録した初期PR baseである。Work unit開始branchは引き続き`main`で、新checkoutに既存変更はなかった。依存先merge後にのみ`main`へretargetする。
 
@@ -119,7 +119,7 @@ Branch準備: `codex/m5-registry-mutations`は`carimatics/lang`の`codex/m5-regi
 - 独立canonical action/request-digest vector、reason byte/control境界、不正/重複/未知field、入力上限。
 - Flag・authority・archive・quarantine・別release・audit result・replay digestを変える完全遷移偽造test。
 - 両hostで実初期化/公開/action process終了、reopen後の完全old/new state、結果不明の照合、並行request順序。
-- HTTPS publish/action/read journey、mutation無効service、不正framing/auth/conditional header、遅い/超過body、admission budget境界、worker取消し。
+- E05: HTTPS publish/action/read journey、mutation無効service、不正framing/auth/conditional header、遅い/超過body、admission budget境界、worker取消し。
 - Flag journeyを通じた厳密download archiveのVM/native実行。本番未署名消費constructorは追加しない。
 
 ## 未解決事項
