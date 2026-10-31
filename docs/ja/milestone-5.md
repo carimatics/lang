@@ -6,11 +6,13 @@
 
 2026-10-30 JST、`3b676c5`から開始。[ロードマップ](roadmap.md#milestone-5ecosystemとcompatibility)のM5全範囲（P1の2ゲートを含む）を追跡する。M4のinstallerとlocal packageは前提条件であり、registry完了を意味しない。
 
-**16 done · 1 doing · 24 todo · 70 remaining pt**
+**16 done · 1 doing · 25 todo · 73 remaining pt**
 
 **次: M5-E03 — owner移管・local失効の検証と公開（1 pt）。**
 
 E03実行checkpoint・残scope監査（2026-10-31 18:49 JST）: 実owner移管 → B公開と独立local失効で厳密source実行（VM/nativeで42）を維持した。Store 42/42が成功し、元owner/失効bearerの最新拒否、private read、128-owner上限、process中断72境界（旧68・新4）、owner/admin競合の両順序、全hash再計算済み偽造18 case、最終時刻、結果不明の明示照合、期限切れ/inactive credential対象、operation間identity衝突を含む。独立vectorと受理入力変異1,024件が成功し、妥当stateのpreflightでrevision 99 → 100が厳密index上限を+1 byte超えることを確認した。Fmt、厳密workspace Clippy、locked fuzz Clippyが成功。残受入条件は固定全baseline、最新headの両host CI、公開であり、E03を3 → 1 ptへ再見積り（純−2）、累積純−6、退役36を維持して112 − 6 − 36 = 残70 ptとする。新規完了・追加deliveryなし。E03だけをdoingとし、E04/E05は別途維持する。本実装を固定して全検証へ進む。
+
+E05/作業memory scope監査（2026-10-31 19:00 JST）: `18b2128`のsource確認で、HTTP body予約はinventory map、完全record decode、replay/履歴保持、state/authority複製、置換世代captureを覆わないと分かった。既存E05結果を3 → 6 ptへ再見積りし、新M5-E06（guard付きhost作業memory・有界な検証済みread世代、3 pt）と後続E05（認証HTTPS publish/action/owner統合、3 pt）へ分割する。E06はE02/E03、E05は追加でE06に依存し、E04はE03/E05依存を維持する。実装前に前提1件・+3 ptを明示し、全42 delivery、累積純−6 → −3、退役36、112 − 3 − 36 = 残73 ptとする。Delivery/gateの完了なし。E03だけをdoing・1 ptとしsource/head固定を維持する。[RFC 0053](rfcs/0053-registry-request-workspace.md)はallocation/lifetime証拠待ちのproposedである。30-case policy/計算modelと独立Python計算は成功したが、実allocation上限の証明ではない。以前の件数は履歴とする。準備branchはE03 `18b2128`から作成し、#40 mergeまでorigin/codex/m5-registry-owner-controlをPR baseとする。
 
 E03選択（2026-10-31 18:39 JST）: [RFC 0052](rfcs/0052-registry-owner-and-credential-control.md)を`31240ab`でacceptedとした。最終実行checkpointは24-case policy/独立encoding modelであり、永続owner mutationではない。Owner action/read受理、完全遷移/retry、実移管 → B公開 → VM/native実行、独立local失効、敵対履歴/process/競合境界、両host公開の残作業を既存3 ptと監査する。E03だけをdoingとし、新規delivery・再見積りなし。[PR #40](https://github.com/carimatics/lang/pull/40)は#39 merge後にmainへretargetした。以下の旧E02/E03準備件数は履歴とする。
 
@@ -184,7 +186,8 @@ B05 budget監査（2026-10-31 JST）: 再利用するscalar検査内部の独立
 | M5-E02 | done | 0 | M5-E01,M5-D02 | G5 | owner・競合制約付きhost publish・yank・unyank transaction | `f40d643` |
 | M5-E03 | doing | 1 | M5-E02 | G5 | owner追加・削除・移管と最後のowner・credential失効fixture | — |
 | M5-E04 | todo | 3 | M5-E03,M5-E05 | G5 | 永続audit trail・復旧・権限外操作のend-to-end検証 | — |
-| M5-E05 | todo | 3 | M5-E02,M5-E03 | G5 | 認証HTTPS mutation・要求作業memory上限・read世代更新 | — |
+| M5-E05 | todo | 3 | M5-E02,M5-E03,M5-E06 | G5 | 認証HTTPS publish/action/owner・最新世代・recovery拒否 | — |
+| M5-E06 | todo | 3 | M5-E02,M5-E03 | G5 | 計上済みhost recovery/transaction・有界な検証済みread世代capture | — |
 | M5-F01 | todo | 3 | M5-C02 | G6 | package信頼root・provenance・署名・freshness契約を採択 | — |
 | M5-F02 | todo | 3 | M5-F01,M5-D02 | G6 | 署名package release manifestと検証可能provenanceを生成 | — |
 | M5-F03 | todo | 3 | M5-F02,M5-D03 | G6 | 消費前に信頼・artifact結合・期限・replayを検証 | — |
@@ -210,11 +213,11 @@ B05 budget監査（2026-10-31 JST）: 再利用するscalar検査内部の独立
 
 ## 見積り照合
 
-**112 − 6 − 36 = 70 pt**
+**112 − 3 − 36 = 73 pt**
 
 | 基準残作業 | 純追加・再見積り | 完了時に除去 | 残作業 |
 | ---: | ---: | ---: | ---: |
-| 112 pt | −6 pt | −36 pt | 70 pt |
+| 112 pt | −3 pt | −36 pt | 73 pt |
 
 ## Delivery noteとロードマップ監査
 

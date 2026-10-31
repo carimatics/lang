@@ -6,11 +6,13 @@
 
 Activated 2026-10-30 JST from `3b676c5`. This board tracks the entire M5 scope in [the roadmap](roadmap.md#milestone-5-ecosystem-and-compatibility), including both P1 gates. M4's installer and local packages are prerequisites, not registry completion.
 
-**16 done · 1 doing · 24 todo · 70 remaining pt**
+**16 done · 1 doing · 25 todo · 73 remaining pt**
 
 **Next: M5-E03 — validate and publish owner transfer and local revocation (1 pt).**
 
 E03 executable checkpoint and remaining-scope audit, 2026-10-31 18:49 JST: actual owner transfer → B publication and separate local revocation retain exact source execution (42 in VM/native). Store 42/42 passes: fresh former-owner/revoked refusal, private reads, 128-owner capacity, 72 process cuts (68 old/four new), both owner/admin writer orders, 18 fully rehashed forgeries, final time, explicit unknown-result reconciliation, expired/inactive credential targets and cross-operation identity conflicts. Independent vectors and 1,024 admission mutations pass; the valid-state preflight proves revision 99 → 100 causes +1 byte at the exact index ceiling. Fmt, strict workspace Clippy and locked fuzz Clippy pass. Remaining acceptance is frozen full baseline, latest-head both-host CI and publication: re-estimate E03 3 → 1 pt (net −2), cumulative net −6, retired estimates unchanged at 36, and 112 − 6 − 36 = 70 pt. No delivery is newly completed or added; E03 alone remains doing. E04/E05 stay separate. Freeze this implementation for full validation.
+
+E05/workspace scope audit, 2026-10-31 19:00 JST: the source review at `18b2128` shows that HTTP body reservations do not cover inventory maps, full record decoding, replay/history retention, state/authority clones or replacement-generation capture. Re-estimate the existing E05 outcome 3 → 6 pt and split it into new M5-E06 (3 pt: guarded host workspace and bounded validated read generations) followed by E05 (3 pt: authenticated HTTPS publish/action/owner integration). E06 depends on E02/E03; E05 also requires E06, and E04 still requires E03/E05. This exposes one prerequisite and +3 pt before implementation: 42 deliveries, cumulative net −6 → −3, retired estimates 36, and 112 − 3 − 36 = 73 pt. No delivery or gate is completed; E03 alone remains doing at 1 pt with frozen source/head. [RFC 0053](rfcs/0053-registry-request-workspace.md) is proposed pending allocation/lifetime evidence. Its 30-case policy/arithmetic model and independent Python calculation pass, but prove no actual allocation bound. Earlier counts are historical. The preparation branch starts from E03 `18b2128` with origin/codex/m5-registry-owner-control as its PR base until #40 merges.
 
 E03 selected, 2026-10-31 18:39 JST: [RFC 0052](rfcs/0052-registry-owner-and-credential-control.md) is accepted at `31240ab`; the last executable checkpoint is the 24-case policy/independent-encoding model, not a stored owner mutation. Audit owner action/read admission, full transitions and retry, actual transfer → B publication → VM/native execution, separate local revocation, hostile-history/process/concurrency boundaries and both-host publication at the existing 3 pt. E03 is the sole doing row; no new delivery or re-estimate. [PR #40](https://github.com/carimatics/lang/pull/40) now targets main after #39 merge. Earlier E02/E03 preparation counts below are historical.
 
@@ -184,7 +186,8 @@ Gate completion: **3/10; 21/65 historical gate weight**. Delivery points below a
 | M5-E02 | done | 0 | M5-E01,M5-D02 | G5 | Host publish and yank/unyank transactions with owner and conflict enforcement | `f40d643` |
 | M5-E03 | doing | 1 | M5-E02 | G5 | Owner add/remove/transfer and last-owner/credential-revocation fixtures | — |
 | M5-E04 | todo | 3 | M5-E03,M5-E05 | G5 | Durable audit trail, recovery and unauthorized-operation end-to-end tests | — |
-| M5-E05 | todo | 3 | M5-E02,M5-E03 | G5 | Authenticated HTTPS mutations, bounded request workspace and refreshed read generations | — |
+| M5-E05 | todo | 3 | M5-E02,M5-E03,M5-E06 | G5 | Authenticated HTTPS publish/actions/owners with fresh generations and recovery refusals | — |
+| M5-E06 | todo | 3 | M5-E02,M5-E03 | G5 | Metered host recovery/transactions and bounded validated read-generation capture | — |
 | M5-F01 | todo | 3 | M5-C02 | G6 | Accept package trust roots, provenance, signature and freshness contract | — |
 | M5-F02 | todo | 3 | M5-F01,M5-D02 | G6 | Produce signed package release manifests and verifiable provenance | — |
 | M5-F03 | todo | 3 | M5-F02,M5-D03 | G6 | Verify trust, artifact binding, expiry and replay before consumption | — |
@@ -210,11 +213,11 @@ Gate completion: **3/10; 21/65 historical gate weight**. Delivery points below a
 
 ## Estimate reconciliation
 
-**112 − 6 − 36 = 70 pt**
+**112 − 3 − 36 = 73 pt**
 
 | Baseline remaining | Net additions/re-estimates | Retired at completion | Remaining |
 | ---: | ---: | ---: | ---: |
-| 112 pt | −6 pt | −36 pt | 70 pt |
+| 112 pt | −3 pt | −36 pt | 73 pt |
 
 ## Delivery notes and roadmap audit
 
