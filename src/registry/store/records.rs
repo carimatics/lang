@@ -348,7 +348,16 @@ pub(super) fn decode<T: for<'de> Deserialize<'de> + Serialize>(
             }
         }
     }
-    let value: T = serde_json::from_slice(bytes).map_err(|_| corrupt())?;
+    let value: T = serde_json::from_slice(bytes).map_err(|e| {
+        let message = e.to_string();
+        if message.starts_with(authority::codec::SEQUENCE_LIMIT)
+            || message.starts_with(archive::SEQUENCE_LIMIT)
+        {
+            capacity()
+        } else {
+            corrupt()
+        }
+    })?;
     if bytes != encode(&value, limit)? {
         return Err(corrupt());
     }

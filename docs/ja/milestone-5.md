@@ -10,6 +10,10 @@
 
 **次: M5-D03 — versioned indexと検証付きdownload（3 pt）。**
 
+D03実装checkpoint（2026-10-31 14:41 JST確認）: Canonicalなcommit済みindex/archive読取り、型付き外部index受理、厳密archive結合、commit前index容量guardを実装した。重点20 testが成功し、2 MiB−1/等値の実publishと+1 byteの全file不変拒否、旧超過stateの保持とindex/新規公開拒否を含む。Archive/authority回帰19件、repository consistency 8件、fmt・厳密Clippyも成功。署名・鮮度の証明は付与せず、HTTPS統合・両host・全baseline/公開は残る。D03だけをdoing・3 ptに維持する。
+
+D03 branch記録（2026-10-31 JST）: `codex/m5-registry-reads`を`codex/m5-registry-store`の`9361092`からclean状態で作成した。Checkoutは`/private/tmp/lang-m5-registry-reads`、初期PR baseは`git@github.com:carimatics/lang.git`の同前提branchで、PR #35の最終検証待ち。元`main`は`5cd0815`でcleanを維持する。
+
 D02完了（2026-10-31 14:23 JST確認）: code `e76dd7b`の固定全baseline（182 suite・2,589 test、fmt・厳密Clippy・分離targetのrustdoc、全exit 0・source不変）、CI `41170930627`（対象18 job、full routingにより文書専用のみ意図的省略）、native-debug `41170930592`（全3 host）が成功した。Windows core-1 job `124448866705`の実logでregistry対象16 testを確認し、process終了46切断点・writer競合・reopen後の厳密source実行も成功。17件目はUnix symlink fixtureである。両platform不具合はassertionを弱めず修正した。最後にcommitした残1 ptを退役し、112 − 1 − 30 = 残81 pt。G4/G5はopen。[PR #35](https://github.com/carimatics/lang/pull/35)の最終head検証・mergeは残る。後続の符号付き見積りvalidator修正は重点8 testが成功し、最終baseline/CI検証が必要である。
 
 D03範囲監査（2026-10-31 14:23 JST）: D03だけをdoing・3 ptに選択する。最後の実行checkpointは実受理archiveによる厳密2 MiB index境界と、証明書検証付きlocal TLSのframing/deadline実験であり、registry serviceではない。残る受入条件はcanonicalな上限付きindex受理/encodeとcommit前容量guard、commit済みだけを対象とする厳密identity archive読取り、HTTPS service/clientのframing・deadline・接続/body budget、両hostの実index/download/改変/拒否fixture、全baselineと公開check。本番消費前にはF01–F04の独立署名検証を維持する。前提・見積り追加なし。E01/D02後は直接D03、次にD04のsource依存実行へ進む。
