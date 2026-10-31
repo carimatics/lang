@@ -6,9 +6,38 @@
 
 2026-10-30 JST、`3b676c5`から開始。[ロードマップ](roadmap.md#milestone-5ecosystemとcompatibility)のM5全範囲（P1の2ゲートを含む）を追跡する。M4のinstallerとlocal packageは前提条件であり、registry完了を意味しない。
 
-**11 done · 1 doing · 28 todo · 84 remaining pt**
+**12 done · 1 doing · 27 todo · 81 remaining pt**
 
-**次: M5-D02 — 内容address方式のstorageとimmutable version公開transaction（3 pt）。**
+**次: M5-D03 — versioned indexと検証付きdownload（3 pt）。**
+
+D02完了（2026-10-31 14:23 JST確認）: code `e76dd7b`の固定全baseline（182 suite・2,589 test、fmt・厳密Clippy・分離targetのrustdoc、全exit 0・source不変）、CI `41170930627`（対象18 job、full routingにより文書専用のみ意図的省略）、native-debug `41170930592`（全3 host）が成功した。Windows core-1 job `124448866705`の実logでregistry対象16 testを確認し、process終了46切断点・writer競合・reopen後の厳密source実行も成功。17件目はUnix symlink fixtureである。両platform不具合はassertionを弱めず修正した。最後にcommitした残1 ptを退役し、112 − 1 − 30 = 残81 pt。G4/G5はopen。[PR #35](https://github.com/carimatics/lang/pull/35)の最終head検証・mergeは残る。後続の符号付き見積りvalidator修正は重点8 testが成功し、最終baseline/CI検証が必要である。
+
+D03範囲監査（2026-10-31 14:23 JST）: D03だけをdoing・3 ptに選択する。最後の実行checkpointは実受理archiveによる厳密2 MiB index境界と、証明書検証付きlocal TLSのframing/deadline実験であり、registry serviceではない。残る受入条件はcanonicalな上限付きindex受理/encodeとcommit前容量guard、commit済みだけを対象とする厳密identity archive読取り、HTTPS service/clientのframing・deadline・接続/body budget、両hostの実index/download/改変/拒否fixture、全baselineと公開check。本番消費前にはF01–F04の独立署名検証を維持する。前提・見積り追加なし。E01/D02後は直接D03、次にD04のsource依存実行へ進む。
+
+D02 baseline・再見積り（2026-10-31 14:20 JST確認）: 固定`e76dd7b`の全4 commandがexit 0・source不変で完了。fmt・厳密Clippy・182 suiteの2,589 test・分離targetのrustdocが成功した。結果とlogは`/private/tmp/lang-m5-fixes-target/m5-d02-lock-host-validation/`に保持。既存CIの最適化profileでもdebug assertion・overflow check・debug情報は有効。Native-debug `41170930592`は全3 hostで成功。残る受入条件はCI `41170930627`の残2 jobと集約結果、実Windows registry結果の検査、その後の最終文書head CI・PR公開である。条件を削除せずD02の残作業を3 → 1 ptへ下げ、純再見積り+1 → −1、退役見積り29のままとし、112 − 1 − 29 = 残82 pt。D02だけをdoing、G4/G5をopenに維持する。
+
+D02 Windows lock修正（2026-10-31 14:01 JST確認）: CI `41169801575`のcore-1 job `124445401025`で9件失敗。排他lock中の空`LOCK`を別handleからEOFまで読もうとしてWindows error 33になった。Inventoryはmetadataでno-follow・通常file・link数の不変条件と厳密な0 byte長を再検査し、test snapshotも0 byte長から厳密な空内容を得る。Lock・破損・並行・crashのassertionは削除しない。ローカルfmt・厳密Clippy・重点17 testは成功。固定`9f238c4` baselineはこのsource修正に伴い明示終了した（実session exit 143、process group残存なしを確認）。全test・rustdocは未完了。修正headで新しい全baselineと、実Windows registry testを含む最新head CIすべてを必要とする。D02だけをdoing・3 ptに維持し、追加・退役なし。
+
+D02 CI修正（2026-10-31 13:44 JST確認）: CI `41169200725`のWindows workspace job `124443312245`が、Unixだけでmodeを変更するdirectory builderの不要mutを拒否した。警告を抑制せず、mutable bindingをUnix block内に限定する。修正後のローカルfmt、厳密Clippy、重点17 testは成功。旧`f9b2069`の全baselineは、このsource修正に伴って明示終了した（session exit 143・process group残存なしを確認）。完了や一時timeoutとは扱わない。修正commitを固定して全baselineと最新head CIをやり直し、D02はdoing・3 ptを維持する。
+
+
+D02実行checkpoint（2026-10-31 13:32 JST確認）: `registry::store`が明示capabilityで選んだ新規private rootを初期化し、非待機lock内でcanonical state/audit全履歴を検証、staging・sync済みfileと単一HEAD置換で不変archiveを公開する。Replay前とstaging後・置換直前に実credentialを再認証する。ローカル17 test（subprocess driver 3件を含む）が成功: bootstrap 22切断点、公開24切断点、両version順序で競合するwriter process、厳密replay/競合、独立計算したrequest digest、最終guardの失効/時刻逆行、明示unknown outcome照合、cleanup前の破損/alias拒否、byte/count/peak quota境界。Reopenした厳密source bytesは42へ実行される。Archive/authority回帰19/19と対象strict Clippyも成功。残る受入条件は固定全baseline、両hostの最新head CI、PR公開。この残作業監査後もD02だけをdoing・既存3 ptで維持し、追加・退役なし。G4/G5はopenで、このcheckpointはdelivery完了ではない。
+
+D03事前検証（2026-10-31 JST）: `/private/tmp/lang-m5-index-bound-probe.rs`で実archiveを独立構築・受理検査し、規定のcanonical indexをencodeした。Releaseごとに厳密依存128件を含む場合、29 releaseは2,033,722 byte、30 releaseは2,103,846 byteとなり、各descriptorが128 KiB未満でも既存index上限2,097,152 byteを超えた。これは受理/encodeの証拠で、storage・network公開ではない。D03はread API公開前に、公開時の派生index容量を解決する必要がある。暗黙paginationや読めない成功公開を導入せず、影響する採択済み契約を実装前に改訂する。既存D03のindex境界成果・3 pt内として扱い、新delivery・見積り追加なし。D02だけがdoingで、`f9b2069`を固定して全baselineと[PR #35](https://github.com/carimatics/lang/pull/35) CIを実行中。
+
+D03判断（2026-10-31 JST）: RFC 0046で派生indexのcommit前上限をRFC 0001委任により採択し、旧データの明示拒否と暗黙migrationなしを規定した。上記事前検証の契約対応は実装前に解決した。Roadmapをmerge済みE01、D02の実行checkpoint、不変のD02 → D03 → D04実行順に整合させた。D03はtodo・3 ptを維持し、選択にはD02全検証の完了が必要。
+
+D03厳密境界fixture（2026-10-31 JST）: `/private/tmp/lang-m5-index-exact-bound-probe.rs`で、依存128件を持つ実archiveを各caseで30個受理した。最後のarchiveにある正当なregistry識別子だけを短くし、完全なcanonical indexを厳密に2,097,151・2,097,152・2,097,153 byteへ調整できた。対応するSHA-256は順に`982e693f4b13246d27cd7f0f39adbabd0fa2975663fd2fa872ee4b26c9a2d934`、`d2697d8e0de1c56783ca1e45becd2ecfdc55d4327f0c6f84ed05a272b2b7e78d`、`aa8b6297244e99eaaabdf18f750a260d1c60eadb31e783e38b04fbe748b179fd`。D03の閾値testに使える実受理入力の証拠であり、transaction拒否やHEAD不変は未検証。Delivery・見積り変更なし。
+
+D03 deadline実験（2026-10-31 JST）: `/private/tmp/lang-m5-https-deadline-probe.rs`で実TLS fixtureへ単調時刻の絶対I/O deadlineを追加した。元の7 caseと遅いheader・遅いbody・TLS EOFなしの計10 caseが成功。実験用200 ms deadlineに対し、70 msごとにbyteが届いても後者3 caseを200–201 msで拒否し、個々のreadが全体budgetを延長しないことを確認した。これはlocal機構の証拠であり、本番10/120秒上限・全parser case・集約/並行budget・Windows動作の検証ではない。D03はtodo、D02だけをdoingに維持する。
+
+D03 transport実験（2026-10-31 JST）: `/private/tmp/lang-m5-http-framing-probe.rs`でlock済みureq 3.5.0のメモリ内transportを使用した（network/TLSではない）。1 byte宣言の厳密入力は1 byteを返し残り0 byte。4 byte余分な入力も1 byteの正常EOFを返し、wireの残り4 byteは呼び出し側から隠れる。5 byte宣言で1 byteしかない場合は正しく失敗した。したがって既存の高水準body reader単独ではRFC 0046の余分なresponse拒否を実現できない。D03は保守されるHTTP/TLS部品を使いつつ上限付きraw framingを検査可能にし、両hostで厳密/不足/余分な実transport fixtureを加える。これは範囲を限定した統合制約で、library脆弱性の主張やM4動作変更ではない。D03はtodo・3 ptを維持する。
+
+D03 HTTPS実現性（2026-10-31 JST）: `/private/tmp/lang-m5-https-framing-probe.rs`でlock済みrustls/httparseを実local TLS socketに接続し、fixture証明書を明示的に信頼した。厳密1 byte response、余分/不足本文、Content-Length重複、Transfer-Encoding、Content-Encoding、未信頼証明書の7 caseが成功。Clientの書込側を開いたままserverが応答し、ローカル各caseは1–3 msで完了した（性能保証ではなく観測）。高水準body readerと異なり、上限付きraw framingで受理前に余分なbyteを検出できた。Sandboxがlocal bindを拒否したため、作成済み実験を一回限りの権限拡張で実行した。これはlocal実現性の証拠のみ。8接続/集約budget、完全なdeadline/framing matrix、registry対応、Windows transport実行はD03の残作業で、D02だけをdoingに維持する。
+
+D02 branch記録（2026-10-31 JST）: `codex/m5-registry-store`を`codex/m5-registry-authority`の`26fe3df`からclean状態で作成し、checkoutは`/private/tmp/lang-m5-registry-store`。初期PR baseは`git@github.com:carimatics/lang.git`の同前提branchで、PR #34は最終文書headを検証中。元`main`はmerge済み`f5084f1`でcleanを維持する。不変storage/公開という一貫した成果を新branchで分離し、doing行や見積りは追加しない。
+
+E01公開（2026-10-31 13:34 JST確認）: 最終head `26fe3df`はCI `41167648530`の対象18 jobすべて成功（full routingにより文書専用のみ意図的省略）、native-debug `41167648534`も全3 hostで成功。[PR #34](https://github.com/carimatics/lang/pull/34)は`5cd0815`としてmerge済みを確認。元`main`を`origin/main`へfast-forwardし、0 ahead / 0 behind・未commit変更なし。D02 branchも実装変更を保持して同前提mergeへfast-forwardし、PR baseは`main`となった。以下の古い公開待ち記録は履歴である。
 
 E01完了（2026-10-31 13:10 JST確認）: code `56f9f84`の固定全baselineは182 suite・2,572 test、fmt、厳密Clippy、分離targetのrustdocが成功。全4 child exitは0でsource fingerprintは不変。実結果・logを`/private/tmp/lang-m5-fixes-target/m5-e01-validation/`へ保持する。CI `41165285468`は対象18 jobすべて成功（full routingにより文書専用のみ意図的省略）、native-debug `41165285479`も全3 hostで成功。Authority 10 testとcompile済みfuzz targetはE01の純粋host境界を検証し、本番server・commit時storage統合・継続的fuzz campaignは主張しない。最終3 ptを追加なしで退役し、112 + 1 − 29 = 84 pt。[PR #34](https://github.com/carimatics/lang/pull/34)の最終文書head CIとmergeは未完了。
 
@@ -89,8 +118,8 @@ B05 budget監査（2026-10-31 JST）: 再利用するscalar検査内部の独立
 | M5-C01 | done | 0 | M5-A01 | G3 | identity・namespace・authority・濫用・攻撃者の脅威モデル | `94a5200` |
 | M5-C02 | done | 0 | M5-C01 | G3 | upload前にprotocol・上限・復旧・security受入ケースを採択 | `53376e5` |
 | M5-D01 | done | 0 | M5-C02 | G4 | 上限付き未信頼archiveの受入とtraversal・重複・bomb拒否 | `b3c8d1b` |
-| M5-D02 | doing | 3 | M5-D01,M5-E01 | G4 | 内容address方式のstorageとimmutable version公開transaction | — |
-| M5-D03 | todo | 3 | M5-D02 | G4 | versioned indexとidentity・checksumを検証したdownload | — |
+| M5-D02 | done | 0 | M5-D01,M5-E01 | G4 | 内容address方式のstorageとimmutable version公開transaction | `e76dd7b` |
+| M5-D03 | doing | 3 | M5-D02 | G4 | versioned indexとidentity・checksumを検証したdownload | — |
 | M5-D04 | todo | 3 | M5-D03 | G4 | registry依存を解決して両hostで実行 | — |
 | M5-D05 | todo | 3 | M5-D04 | G4 | lock・offline replay・公開中断・並行immutable検証 | — |
 | M5-E01 | done | 0 | M5-C02 | G5 | 認証identity・credential取扱い・scope付き認可 | `56f9f84` |
@@ -122,13 +151,15 @@ B05 budget監査（2026-10-31 JST）: 再利用するscalar検査内部の独立
 
 ## 見積り照合
 
-**112 + 1 − 29 = 84 pt**
+**112 − 1 − 30 = 81 pt**
 
 | 基準残作業 | 純追加・再見積り | 完了時に除去 | 残作業 |
 | ---: | ---: | ---: | ---: |
-| 112 pt | +1 pt | −29 pt | 84 pt |
+| 112 pt | −1 pt | −30 pt | 81 pt |
 
 ## Delivery noteとロードマップ監査
+
+- 見積りvalidator保守（2026-10-31 JST）: 負の純再見積りでunsignedのみを想定したparserの制約が判明した。既存validatorで基準・完了・残作業の非負pointと符号付き純追加を分け、算術・表の符号・行合計・翻訳の検査を維持する。誤った合計、矛盾する表の符号、負の残作業を拒否し、repository consistencyは8/8成功。日常的な追跡修正でありdelivery・工数pointは追加しない。
 
 - D02準備（2026-10-31 JST）: [RFC 0048](rfcs/0048-registry-state-and-publication.md)で厳密generation/audit/receipt record、全commit履歴保持、orphan cleanupを実験段階委任で採択し、storage実装は未開始。レビューで不変名への直接書込みをsync済みstagingへ変更し、完全な遷移検証と明示的な公開結果不明を追加した。拡張したlocal macOS probeはobject/audit/state/HEADの部分書込みを含むprocess終了13切断点に成功し、初期の全書込み後6切断点を置き換えた。配置済み不変candidateは全件完全でdigest一致し、可視stateは完全な旧状態か新状態だった。Windows・電源断・実認証・lock・完全な敵対的recoveryは未検証。固定baseline/CI実行中のE01だけをdoingとし、D02は既存3 ptのtodoを維持。Delivery・見積りの追加・退役・削減なし。準備作業は固定checkoutから分離している。
 

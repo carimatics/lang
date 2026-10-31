@@ -7,9 +7,9 @@ use std::net::Ipv4Addr;
 
 const SEQUENCE_LIMIT: &str = "authority collection limit";
 
-#[derive(Deserialize, Serialize)]
+#[derive(Clone, Deserialize, Serialize, Eq, PartialEq)]
 #[serde(deny_unknown_fields)]
-pub(super) struct Records {
+pub(crate) struct Records {
     format: String,
     schema: u32,
     pub registry: String,
@@ -22,15 +22,15 @@ pub(super) struct Records {
     #[serde(deserialize_with = "packages")]
     pub packages: Vec<Package>,
 }
-#[derive(Deserialize, Serialize)]
+#[derive(Clone, Deserialize, Serialize, Eq, PartialEq)]
 #[serde(deny_unknown_fields)]
-pub(super) struct Principal {
+pub(crate) struct Principal {
     pub id: String,
     pub active: bool,
 }
-#[derive(Deserialize, Serialize)]
+#[derive(Clone, Deserialize, Serialize, Eq, PartialEq)]
 #[serde(deny_unknown_fields)]
-pub(super) struct Token {
+pub(crate) struct Token {
     pub id: String,
     pub principal: String,
     registry: String,
@@ -44,28 +44,28 @@ pub(super) struct Token {
 }
 #[derive(Clone, Copy, Deserialize, Serialize, Eq, PartialEq, Ord, PartialOrd)]
 #[serde(rename_all = "lowercase")]
-pub(super) enum Action {
+pub(crate) enum Action {
     Admin,
     Claim,
     Owners,
     Publish,
     Yank,
 }
-#[derive(Deserialize, Serialize)]
+#[derive(Clone, Deserialize, Serialize, Eq, PartialEq)]
 #[serde(deny_unknown_fields)]
-pub(super) struct Grant {
+pub(crate) struct Grant {
     pub action: Action,
     pub name: String,
 }
-#[derive(Deserialize, Serialize)]
+#[derive(Clone, Deserialize, Serialize, Eq, PartialEq)]
 #[serde(deny_unknown_fields)]
-pub(super) struct Package {
+pub(crate) struct Package {
     pub name: String,
     #[serde(deserialize_with = "owners")]
     pub owners: Vec<String>,
 }
 
-fn bounded<'de, D, T, const N: usize>(d: D) -> Result<Vec<T>, D::Error>
+pub(crate) fn bounded<'de, D, T, const N: usize>(d: D) -> Result<Vec<T>, D::Error>
 where
     D: Deserializer<'de>,
     T: Deserialize<'de>,
@@ -108,14 +108,14 @@ fn owners<'de, D: Deserializer<'de>>(d: D) -> Result<Vec<String>, D::Error> {
     bounded::<D, _, MAX_OWNERS>(d)
 }
 
-pub(super) fn nibble(byte: u8) -> Option<u8> {
+pub(crate) fn nibble(byte: u8) -> Option<u8> {
     match byte {
         b'0'..=b'9' => Some(byte - b'0'),
         b'a'..=b'f' => Some(byte - b'a' + 10),
         _ => None,
     }
 }
-pub(super) fn unhex<const N: usize>(s: &str) -> Result<[u8; N], Error> {
+pub(crate) fn unhex<const N: usize>(s: &str) -> Result<[u8; N], Error> {
     if s.len() != N * 2 {
         return Err(malformed());
     }
@@ -126,7 +126,7 @@ pub(super) fn unhex<const N: usize>(s: &str) -> Result<[u8; N], Error> {
     }
     Ok(bytes)
 }
-pub(super) fn hex(bytes: &[u8]) -> String {
+pub(crate) fn hex(bytes: &[u8]) -> String {
     const DIGITS: &[u8; 16] = b"0123456789abcdef";
     bytes
         .iter()
@@ -139,7 +139,7 @@ pub(super) fn hex(bytes: &[u8]) -> String {
         .collect()
 }
 
-pub(super) fn valid_origin(s: &str) -> bool {
+pub(crate) fn valid_origin(s: &str) -> bool {
     let Some(authority) = s.strip_prefix("https://") else {
         return false;
     };
@@ -233,7 +233,7 @@ impl Write for BoundedWriter {
     }
 }
 
-pub(super) fn decode(bytes: &[u8]) -> Result<Records, Error> {
+pub(crate) fn decode(bytes: &[u8]) -> Result<Records, Error> {
     if bytes.len() > MAX_BYTES {
         return Err(error(ErrorKind::Limit, "authority byte limit exceeded"));
     }
@@ -258,7 +258,18 @@ pub(super) fn decode(bytes: &[u8]) -> Result<Records, Error> {
     Ok(records)
 }
 
-fn validate(r: &Records) -> Result<(), Error> {
+pub(crate) fn validate(r: &Records) -> Result<(), Error> {
+    if r.principals.len() > MAX_PRINCIPALS
+        || r.tokens.len() > MAX_TOKENS
+        || r.packages.len() > MAX_PACKAGES
+        || r.tokens.iter().any(|t| t.grants.len() > MAX_GRANTS)
+        || r.packages.iter().any(|p| p.owners.len() > MAX_OWNERS)
+    {
+        return Err(error(
+            ErrorKind::Limit,
+            "authority collection limit exceeded",
+        ));
+    }
     if r.format != "lang-registry-authority"
         || r.schema != 1
         || !valid_name(&r.registry)

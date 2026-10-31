@@ -4,7 +4,7 @@
 
 [日本語版](../ja/rfcs/0048-registry-state-and-publication.md)
 
-- Status: accepted
+- Status: implemented
 - Authors: project contributors
 - Created: 2026-10-31
 - Last updated: 2026-10-31
@@ -87,6 +87,8 @@ Complete bounded inventory and committed-chain validation precedes cleanup. Reco
 
 Public reads capture a single validated committed state. They expose only referenced non-quarantined objects; staging and unpublished content are never discoverable by hash alone. Yanked exact versions remain addressable as RFC 0046 specifies. D03 supplies index/download APIs; D02 need not expose a general filesystem interface.
 
+Implementation clarification, 2026-10-31 JST: admission reads trusted host time; after archive staging, fresh authentication selects the event time persisted in the event/state floor. After the event, state and HEAD candidate are synced, a final guard resamples time, refuses regression below that event time and reauthenticates immediately before HEAD replacement. It does not rewrite the already admitted event timestamp. This closes expiry during metadata staging without claiming that a clock read and filesystem replacement happen at the same instant. All three checks use actual bearer possession and the same locked committed authority.
+
 Initialization uses a fresh private destination and publishes its first HEAD only after bootstrap event/state completion. An interrupted incomplete destination is never silently reinitialized. Explicit operator cleanup/restoration remains distinct from ordinary recovery. No ambient credential, registry, root or cache fallback exists.
 
 ## Execution modes
@@ -134,9 +136,11 @@ The directory capability grants trusted host storage access, not guest filesyste
 
 ## Open questions
 
+Implemented checkpoint, verified 2026-10-31 JST: `registry::store` at `e76dd7b` passes the full baseline and macOS/Windows CI, including 22 bootstrap and 24 publication process-exit cuts, competing writer processes, exact reopened-source execution, replay/final authorization, unknown-outcome reconciliation and hostile recovery/quotas. Windows lock-file validation uses metadata rather than a second-handle EOF read while holding the exclusive lock. The [M5 board](../milestone-5.md) records exact runs and remaining PR publication. Power-loss availability remains a non-goal; this is not HTTP/signing or production consumption. The original acceptance record below is historical.
+
 Accepted under RFC 0001 experimental delegation on 2026-10-31 JST. Review found that writing directly to an immutable name could leave partial content after a process exit; the accepted sequence stages and syncs first. The expanded `/private/tmp/lang-m5-store-crash-probe.py` passed 13 real process-exit cuts on local macOS 27.2, including partial object/audit/state/HEAD writes: cuts 0–11 retained complete revision 0, cut 12 exposed complete revision 1, every installed immutable digest matched, and recognized orphan staging/candidates could be removed after the visible state was proved complete. The earlier six-cut complete-write probe is superseded by this stronger experiment.
 
-Full-history retention is accepted as a conservative bounded initial-profile cost, not a capacity claim. Exact transition validation and explicit unknown outcomes resolve the remaining state/audit/error ambiguities. Windows replacement, concurrent readers/writers, complete hostile recovery, actual authentication integration and power-loss behavior remain unverified. D02 cannot complete until both-host process/concurrency fixtures pass; power-loss availability remains a non-goal. The prototype is feasibility evidence only and does not close D02. E01 remains the sole doing delivery until its own complete validation.
+Full-history retention was accepted as a conservative bounded initial-profile cost, not a capacity claim. Exact transition validation and explicit unknown outcomes resolved the remaining state/audit/error ambiguities. At acceptance, Windows replacement, concurrent readers/writers, complete hostile recovery, actual authentication integration and power-loss behavior were unverified. The prototype alone did not close D02, and E01 remained the sole doing delivery until its own complete validation. The implemented checkpoint above supplies the later both-host process/concurrency evidence; power-loss availability remains a non-goal.
 
 ## Sources
 
