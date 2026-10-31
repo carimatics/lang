@@ -17,6 +17,8 @@ use std::{
     path::{Path, PathBuf},
 };
 
+mod transitive;
+
 const PRINCIPAL: &str = "00000000000000000000000000000001";
 const APP: &[u8] =
     include_bytes!("../../../tests/fixtures/package-lock/schema3-registry-inputs/app/Lang.json");
@@ -54,8 +56,12 @@ impl Clock for At {
 
 fn archive() -> AdmittedArchive {
     let sources: BTreeMap<String, String> = serde_json::from_str(SOURCE_BYTES).unwrap();
+    pack(METADATA, &sources)
+}
+
+fn pack(metadata: &[u8], sources: &BTreeMap<String, String>) -> AdmittedArchive {
     let mut builder = tar::Builder::new(Vec::new());
-    for (path, bytes) in std::iter::once((".lang-package.json", METADATA))
+    for (path, bytes) in std::iter::once((".lang-package.json", metadata))
         .chain(sources.iter().map(|(p, b)| (p.as_str(), b.as_bytes())))
     {
         let mut h = tar::Header::new_ustar();

@@ -6,9 +6,11 @@
 
 2026-10-30 JST、`3b676c5`から開始。[ロードマップ](roadmap.md#milestone-5ecosystemとcompatibility)のM5全範囲（P1の2ゲートを含む）を追跡する。M4のinstallerとlocal packageは前提条件であり、registry完了を意味しない。
 
-**13 done · 1 doing · 26 todo · 78 remaining pt**
+**13 done · 1 doing · 26 todo · 76 remaining pt**
 
-**次: M5-D04 — registry source依存の解決と実行（3 pt）。**
+**次: M5-D04 — registry source実行の検証と公開（1 pt）。**
+
+D04残scope監査（2026-10-31 16:32 JST）: 推移fixture全3 testが成功した。実5-package diamondが1個のpin済みmath archiveを共有し、CRLF/UTF-8を保持してVM/native JITで84を実行する。Package=5、edge=5、source-file=6、保持source byteの厳密境界は成功し、各上限−1は拒否する。新規/キャッシュ済み推移hash不一致、非active/active host binding規則、異なるorigin/root policyで同一archive byteを保持するidentityを確認した。最初のfixtureは空descriptor targetを正しく拒否され、archive受理を変えず両対応targetを明示した。実装checklistは実行可能checkpointまで完了し、残る受入条件は固定全baseline、最新headの両host CI、公開である。D04を3から1 ptへ再見積り（純−2）し、累積純追加・再見積りは−3 pt、完了時退役は33 ptを維持する。112 − 3 − 33 = 残76 pt。新規done・delivery追加なし。D04を唯一のdoing、G4をopenに維持し、以前の3 pt noteは履歴とする。D05実装を始める前にこのcheckpointを固定して検証する。
 
 D04 lock/local-edit checkpoint（2026-10-31 16:28 JST確認）: schema-3 captureがcompiler-ID置換後の独立fixtureとbyte完全一致する。閉じたcanonical受理でorigin付きID、checksum、source/edge/binding参照、graph到達性/循環、必須workspace、深さ16、1 MiB上限を検証する。Golden fixtureがlocal root keyの余分な末尾区切りを検出し修正した。Workspace captureは元の未選択metadataを保持する。Formatと検証済み置換は保持したlocal物理bindingを使い、論理keyがlocal物理pathと一致してもregistry編集を拒否し、固定proofにはregistry入力を保持する。Package unit全18 testとarchive/editor/fix/format/lock/source/workspace回帰71 test、workspace/all-target/all-featureの厳密Clippyが成功。本番認証済みreplay/cacheはD05/F01–F03に残し、adapterのないhybrid editor操作とsnapshot profile 1は明示拒否する。残るD04受入条件は推移graph/拒否実行と境界fixture、固定全baseline、最新headの両host CI、公開である。この監査後もD04だけをdoing・3 ptに維持し、delivery追加や見積り変更は行わない。次は推移source実行fixtureを追加する。
 
@@ -148,7 +150,7 @@ B05 budget監査（2026-10-31 JST）: 再利用するscalar検査内部の独立
 | M5-D01 | done | 0 | M5-C02 | G4 | 上限付き未信頼archiveの受入とtraversal・重複・bomb拒否 | `b3c8d1b` |
 | M5-D02 | done | 0 | M5-D01,M5-E01 | G4 | 内容address方式のstorageとimmutable version公開transaction | `e76dd7b` |
 | M5-D03 | done | 0 | M5-D02 | G4 | versioned indexとidentity・checksumを検証したdownload | `f58659c` |
-| M5-D04 | doing | 3 | M5-D03 | G4 | registry依存を解決して両hostで実行 | — |
+| M5-D04 | doing | 1 | M5-D03 | G4 | registry依存を解決して両hostで実行 | — |
 | M5-D05 | todo | 3 | M5-D04 | G4 | lock・offline replay・公開中断・並行immutable検証 | — |
 | M5-E01 | done | 0 | M5-C02 | G5 | 認証identity・credential取扱い・scope付き認可 | `56f9f84` |
 | M5-E02 | todo | 3 | M5-E01,M5-D02 | G5 | owner・競合制約付きpublish・yank・unyank | — |
@@ -179,11 +181,11 @@ B05 budget監査（2026-10-31 JST）: 再利用するscalar検査内部の独立
 
 ## 見積り照合
 
-**112 − 1 − 33 = 78 pt**
+**112 − 3 − 33 = 76 pt**
 
 | 基準残作業 | 純追加・再見積り | 完了時に除去 | 残作業 |
 | ---: | ---: | ---: | ---: |
-| 112 pt | −1 pt | −33 pt | 78 pt |
+| 112 pt | −3 pt | −33 pt | 76 pt |
 
 ## Delivery noteとロードマップ監査
 

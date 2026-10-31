@@ -969,7 +969,7 @@ impl Resolver<'_> {
         let dependencies = descriptor
             .dependencies()
             .iter()
-            .filter(|d| d.targets().is_empty() || d.targets().iter().any(|t| t == self.target))
+            .filter(|d| d.targets().iter().any(|t| t == self.target))
             .map(|d| Edge {
                 alias: d.alias().into(),
                 source: DependencySource::Registry {

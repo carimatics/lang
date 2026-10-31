@@ -6,9 +6,11 @@
 
 Activated 2026-10-30 JST from `3b676c5`. This board tracks the entire M5 scope in [the roadmap](roadmap.md#milestone-5-ecosystem-and-compatibility), including both P1 gates. M4's installer and local packages are prerequisites, not registry completion.
 
-**13 done · 1 doing · 26 todo · 78 remaining pt**
+**13 done · 1 doing · 26 todo · 76 remaining pt**
 
-**Next: M5-D04 — resolve and execute a registry source dependency (3 pt).**
+**Next: M5-D04 — validate and publish registry source execution (1 pt).**
+
+D04 remaining-scope audit, 2026-10-31 16:32 JST: three transitive fixtures pass. A real five-package diamond shares one pinned math archive, preserves CRLF/UTF-8 and executes 84 in VM/native JIT; exact package=5, edge=5, source-file=6 and retained-source-byte boundaries pass, while each limit minus one refuses. Fresh and cached transitive hash conflicts, inactive/active host binding rules and identical archive bytes under distinct origin/root policies are verified. The first fixture was correctly rejected for empty descriptor targets; it now supplies both explicit supported targets without changing archive admission. The implementation checklist is complete at an executable checkpoint; remaining acceptance is the frozen full baseline, latest-head both-host CI and publication. Re-estimate D04 from 3 to 1 pt (net −2); cumulative net additions/re-estimates are −3 pt and completed estimates remain 33 pt: 112 − 3 − 33 = 76 pt. No delivery is newly done or added. D04 remains the sole doing row, G4 remains open, and previous 3-pt notes are historical. Freeze this checkpoint for validation before beginning D05 implementation.
 
 D04 lock/local-edit checkpoint, verified 2026-10-31 16:28 JST: schema-3 capture matches the independent fixture byte-for-byte after compiler-ID substitution. Closed canonical admission checks origin-qualified IDs, checksums, source/edge/binding references, graph reachability/cycles, mandatory workspace, depth 16 and the 1 MiB bound. The golden fixture exposed and corrected a trailing separator in the local root key. Workspace capture preserves original unselected metadata. Format and checked replacements use retained physical local bindings, refuse registry edits even when their logical keys equal a local physical path, and retain registry inputs in the frozen proof. All 18 package unit tests and 71 targeted archive/editor/fix/format/lock/source/workspace regressions pass, as does workspace/all-target/all-feature strict Clippy. Production authenticated replay/cache remain D05/F01–F03 work; unadapted hybrid editor operations and snapshot profile 1 refuse explicitly. Remaining D04 acceptance is transitive graph/refusal execution and boundary fixtures, frozen full baseline, latest-head both-host CI and publication. Keep D04 alone doing at 3 pt after this audit; no additional delivery or estimate adjustment. Next add the transitive source execution fixture.
 
@@ -148,7 +150,7 @@ Gate completion: **3/10; 21/65 historical gate weight**. Delivery points below a
 | M5-D01 | done | 0 | M5-C02 | G4 | Admit bounded untrusted archives and reject traversal/duplicate/bomb inputs | `b3c8d1b` |
 | M5-D02 | done | 0 | M5-D01,M5-E01 | G4 | Content-addressed storage and immutable version publication transaction | `e76dd7b` |
 | M5-D03 | done | 0 | M5-D02 | G4 | Versioned index and verified download with exact identity/checksums | `f58659c` |
-| M5-D04 | doing | 3 | M5-D03 | G4 | Resolve a registry dependency and execute it on both hosts | — |
+| M5-D04 | doing | 1 | M5-D03 | G4 | Resolve a registry dependency and execute it on both hosts | — |
 | M5-D05 | todo | 3 | M5-D04 | G4 | Lock/offline replay, interrupted publication and concurrent immutability tests | — |
 | M5-E01 | done | 0 | M5-C02 | G5 | Authenticated identities, credential handling and scoped authorization | `56f9f84` |
 | M5-E02 | todo | 3 | M5-E01,M5-D02 | G5 | Publish and yank/unyank with owner and conflict enforcement | — |
@@ -179,11 +181,11 @@ Gate completion: **3/10; 21/65 historical gate weight**. Delivery points below a
 
 ## Estimate reconciliation
 
-**112 − 1 − 33 = 78 pt**
+**112 − 3 − 33 = 76 pt**
 
 | Baseline remaining | Net additions/re-estimates | Retired at completion | Remaining |
 | ---: | ---: | ---: | ---: |
-| 112 pt | −1 pt | −33 pt | 78 pt |
+| 112 pt | −3 pt | −33 pt | 76 pt |
 
 ## Delivery notes and roadmap audit
 
