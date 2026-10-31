@@ -65,11 +65,13 @@ impl Release {
             quarantined: false,
         }
     }
-    // A bounded fingerprint of all metadata, not just the archive hash. This
-    // lets the history walker validate bindings without retaining source bodies.
+    // Archive metadata is immutable; the separately audited yank flag is not
+    // archive content. Normalize it only in this ephemeral binding fingerprint.
     pub fn binding(&self, name: &str) -> Result<String, Error> {
+        let mut immutable = self.clone();
+        immutable.yanked = false;
         Ok(digest(&encode(
-            &(name, self),
+            &(name, &immutable),
             archive::MAX_DESCRIPTOR_BYTES,
         )?))
     }
@@ -80,6 +82,16 @@ impl Release {
 pub(super) enum AuditOperation {
     Initialize,
     Publish {
+        name: String,
+        version: String,
+        archive_sha256: String,
+    },
+    Yank {
+        name: String,
+        version: String,
+        archive_sha256: String,
+    },
+    Unyank {
         name: String,
         version: String,
         archive_sha256: String,
@@ -100,10 +112,21 @@ pub(super) struct PublishResult {
     pub archive_sha256: String,
 }
 #[derive(Clone, Debug, Deserialize, Serialize, Eq, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub(super) struct YankResult {
+    pub state_revision: u64,
+    pub package_revision: u64,
+    pub name: String,
+    pub version: String,
+    pub archive_sha256: String,
+    pub yanked: bool,
+}
+#[derive(Clone, Debug, Deserialize, Serialize, Eq, PartialEq)]
 #[serde(untagged)]
 pub(super) enum AuditResult {
     Initialize(InitialResult),
     Publish(PublishResult),
+    Yank(YankResult),
 }
 
 #[derive(Deserialize, Serialize)]
@@ -209,7 +232,6 @@ impl State {
                 hex::<32>(&r.descriptor_sha256)?;
                 if r.archive_bytes > archive::MAX_ARCHIVE_BYTES as u64
                     || r.dependencies.len() > 128
-                    || r.yanked
                     || r.quarantined
                 {
                     return Err(corrupt());
@@ -279,6 +301,40 @@ impl Audit {
                     || r.version != *v
                     || r.archive_sha256 != *h
                     || self.reason != "publish"
+                {
+                    return Err(corrupt());
+                }
+            }
+            (
+                operation @ (AuditOperation::Yank {
+                    name: n,
+                    version: v,
+                    archive_sha256: h,
+                }
+                | AuditOperation::Unyank {
+                    name: n,
+                    version: v,
+                    archive_sha256: h,
+                }),
+                AuditResult::Yank(r),
+            ) => {
+                name(n)?;
+                version(v)?;
+                hex::<32>(h)?;
+                hex::<32>(self.previous_audit_sha256.as_deref().ok_or_else(corrupt)?)?;
+                hex::<32>(self.prior_state_sha256.as_deref().ok_or_else(corrupt)?)?;
+                hex::<16>(self.credential_id.as_deref().ok_or_else(corrupt)?)?;
+                hex::<16>(self.request_id.as_deref().ok_or_else(corrupt)?)?;
+                hex::<32>(self.request_sha256.as_deref().ok_or_else(corrupt)?)?;
+                if self.sequence <= 1
+                    || r.state_revision != self.sequence
+                    || r.package_revision == 0
+                    || r.package_revision >= self.sequence
+                    || r.name != *n
+                    || r.version != *v
+                    || r.archive_sha256 != *h
+                    || r.yanked != matches!(operation, AuditOperation::Yank { .. })
+                    || !actions::valid_reason(&self.reason)
                 {
                     return Err(corrupt());
                 }
@@ -371,23 +427,39 @@ pub(super) fn request_digest(
     hash: &str,
     bytes: u64,
 ) -> Result<String, Error> {
+    http_request_digest(
+        "PUT",
+        &format!("/v1/packages/{name}/{version}"),
+        match condition {
+            ExpectedRevision::Absent => None,
+            ExpectedRevision::Revision(r) => Some(r),
+        },
+        hash,
+        bytes,
+    )
+}
+
+pub(super) fn http_request_digest(
+    method: &str,
+    path: &str,
+    conditional_revision: Option<u64>,
+    hash: &str,
+    bytes: u64,
+) -> Result<String, Error> {
     #[derive(Serialize)]
     struct Request<'a> {
         schema: u32,
         method: &'a str,
-        path: String,
+        path: &'a str,
         conditional_revision: Option<u64>,
         body_sha256: &'a str,
         body_bytes: u64,
     }
     let request = Request {
         schema: 1,
-        method: "PUT",
-        path: format!("/v1/packages/{name}/{version}"),
-        conditional_revision: match condition {
-            ExpectedRevision::Absent => None,
-            ExpectedRevision::Revision(r) => Some(r),
-        },
+        method,
+        path,
+        conditional_revision,
         body_sha256: hash,
         body_bytes: bytes,
     };

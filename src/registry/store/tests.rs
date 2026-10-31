@@ -3,6 +3,7 @@ use std::cell::Cell;
 mod adversarial;
 mod index_capacity;
 mod reads;
+mod yank;
 
 struct Temp(std::path::PathBuf);
 impl Temp {
@@ -35,6 +36,7 @@ enum Fault {
     Unreadable,
 }
 thread_local! { static FAULT: Cell<Option<Fault>> = const { Cell::new(None) }; }
+thread_local! { static FAULT_HEAD: std::cell::RefCell<Option<Vec<u8>>> = const { std::cell::RefCell::new(None) }; }
 pub(super) fn replacement_fault(after: bool, dir: &Dir) -> Result<(), Error> {
     FAULT.with(|fault| match (fault.get(), after) {
         (Some(Fault::Before), false) | (Some(Fault::After), true) => {
@@ -43,6 +45,7 @@ pub(super) fn replacement_fault(after: bool, dir: &Dir) -> Result<(), Error> {
         }
         (Some(Fault::Unreadable), true) => {
             fault.set(None);
+            FAULT_HEAD.with(|head| *head.borrow_mut() = Some(dir.read("HEAD").unwrap()));
             dir.remove_file("HEAD").unwrap();
             Err(io())
         }
@@ -592,7 +595,7 @@ fn symlink_files_and_namespaces_are_refused_without_following() {
 
 #[test]
 fn recomputed_hashes_do_not_hide_unaudited_policy_or_release_changes() {
-    for case in 0..5 {
+    for case in 0..6 {
         let tmp = Temp::new();
         let parent = parent(tmp.path());
         let mut store = initialize(&parent);
@@ -629,6 +632,7 @@ fn recomputed_hashes_do_not_hide_unaudited_policy_or_release_changes() {
                     .unwrap();
                 state.last_audit_sha256 = hash;
             }
+            5 => state.packages[0].releases[0].yanked = true,
             _ => unreachable!(),
         }
         let bytes = records::encode(&state, records::MAX_STATE).unwrap();

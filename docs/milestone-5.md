@@ -6,9 +6,11 @@
 
 Activated 2026-10-30 JST from `3b676c5`. This board tracks the entire M5 scope in [the roadmap](roadmap.md#milestone-5-ecosystem-and-compatibility), including both P1 gates. M4's installer and local packages are prerequisites, not registry completion.
 
-**15 done · 1 doing · 25 todo · 75 remaining pt**
+**15 done · 1 doing · 25 todo · 73 remaining pt**
 
-**Next: M5-E02 — authenticated host yank/unyank and unchanged archive execution (3 pt).**
+**Next: M5-E02 — validate and publish authenticated host yank/unyank (1 pt).**
+
+E02 executable checkpoint and remaining-scope audit, 2026-10-31 18:16 JST: canonical host yank/unyank now retains exact archives and commits complete audited flag transitions. Publish → yank → reopen → another-version publish → unyank executes 42 in VM/native; original publish/action retries return their old receipts without reapplying state. Thirty store cases pass, including 36 actual action process cuts (34 old/two new), both publish/yank writer orders, final-time refusal, explicit retained-HEAD reconciliation, nonowner/revoked/wrong-scope credentials and nine forged histories. A fully recomputed no-op history is refused; +1-byte unyank at the exact 2 MiB index limit refuses before writes. Independent action/request hashes, 512 input mutations, fmt, strict workspace Clippy and locked fuzz Clippy pass. E05 HTTP integration remains separate. E02's remaining acceptance is frozen full validation, latest-head both-host CI and publication: re-estimate 3 → 1 pt (net −2), cumulative net −4, retired estimates unchanged at 35, and 112 − 4 − 35 = 73 pt. No delivery is newly added or completed. E02 alone remains doing; earlier 3-pt checkpoints are historical. Freeze this implementation before full validation.
 
 D05 completed and G4 audited, verified 2026-10-31 18:03 JST: frozen `43dea74` passed fmt, strict Clippy, all 2,645 tests / 182 suites and rustdoc with source/head unchanged. CI `41185690356` passed all 18 applicable jobs (documentation-only intentionally skipped by the full-change classifier); native-debug `41185690326` passed all three hosts. Actual Windows core-1 `124492064305` confirms all 15 applicable cache cases; macOS core `124492064188`/`124492064255` confirm 16 including the Unix-only case, and locked fuzz Clippy passes. [PR #38](https://github.com/carimatics/lang/pull/38) merged as `b0d4d76`; original main is clean, synchronized with origin/main (0/0), and its tree equals the tested head. Retire D05's last 1 pt: 112 − 2 − 35 = 75 pt. D01–D05 now substantiate archive admission, immutable store/index/download, both-host registry graph execution and interrupted/concurrent offline replay, so G4 closes. G5–G10 and both P1 gates remain open; signed production consumption remains F01–F04.
 
@@ -171,7 +173,7 @@ Gate completion: **3/10; 21/65 historical gate weight**. Delivery points below a
 | M5-D04 | done | 0 | M5-D03 | G4 | Resolve a registry dependency and execute it on both hosts | `a289641` |
 | M5-D05 | done | 0 | M5-D04 | G4 | Lock/offline replay, interrupted publication and concurrent immutability tests | `43dea74` |
 | M5-E01 | done | 0 | M5-C02 | G5 | Authenticated identities, credential handling and scoped authorization | `56f9f84` |
-| M5-E02 | doing | 3 | M5-E01,M5-D02 | G5 | Host publish and yank/unyank transactions with owner and conflict enforcement | — |
+| M5-E02 | doing | 1 | M5-E01,M5-D02 | G5 | Host publish and yank/unyank transactions with owner and conflict enforcement | — |
 | M5-E03 | todo | 3 | M5-E02 | G5 | Owner add/remove/transfer and last-owner/credential-revocation fixtures | — |
 | M5-E04 | todo | 3 | M5-E03,M5-E05 | G5 | Durable audit trail, recovery and unauthorized-operation end-to-end tests | — |
 | M5-E05 | todo | 3 | M5-E02,M5-E03 | G5 | Authenticated HTTPS mutations, bounded request workspace and refreshed read generations | — |
@@ -200,11 +202,11 @@ Gate completion: **3/10; 21/65 historical gate weight**. Delivery points below a
 
 ## Estimate reconciliation
 
-**112 − 2 − 35 = 75 pt**
+**112 − 4 − 35 = 73 pt**
 
 | Baseline remaining | Net additions/re-estimates | Retired at completion | Remaining |
 | ---: | ---: | ---: | ---: |
-| 112 pt | −2 pt | −35 pt | 75 pt |
+| 112 pt | −4 pt | −35 pt | 73 pt |
 
 ## Delivery notes and roadmap audit
 

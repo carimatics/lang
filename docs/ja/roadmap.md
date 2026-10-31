@@ -252,13 +252,13 @@ Exit：新しいdeveloperが1つのtoolをinstallし、packageを作成し、edi
 
 2026-10-30 JST開始。[M5 board](milestone-5.md)に全10ゲート、39件の観測可能delivery、残作業基準112 ptを保持する。[edition・互換性方針](rfcs/0043-editions-and-compatibility.md)と実行可能な互換性・移行fixtureから開始する。registry upload前に脅威モデルを定め、署名toolchain導入をregistry provenanceと混同しない。P1の2ゲートも範囲内。完了には両host ecosystem journeyと日英能力guideを含める。
 
-**15 done · 1 doing · 25 todo · 75 remaining pt**
+**15 done · 1 doing · 25 todo · 73 remaining pt**
 
 D05完了（2026-10-31 JST）: [RFC 0050](rfcs/0050-registry-cache-and-offline-replay.md)を`43dea74`で実装した。固定全baselineは2,645 test / 182 suiteとfmt・厳密Clippy・rustdocに成功し、CI `41185690356`とnative-debug `41185690326`の対象全job/hostも成功した。PR #38は`b0d4d76`としてmergeし、mainはclean・0/0同期・検証済みtreeと同一を確認した。D01–D05でG4を完了とし、認証済み本番消費はF01–F04に残す。
 
-E02/service scope監査（2026-10-31 JST）: [RFC 0051](rfcs/0051-registry-yank-transactions.md)で認証yank/unyank action、閉じたaudit遷移、元結果replayをacceptedとした。純粋な22-case modelと独立canonical hash計算が成功。実host transactionのE02を3 ptに維持し、認証HTTPS dispatch・要求/store作業memory上限・read世代更新をE05・3 ptとして追加する。E05はE02/E03後、E04前に実装する。既存の不変read-only serviceはこの統合を提供しない。E02だけをdoing・3 ptとし、受入条件やgateは削除しない。
+E02/service scope監査（2026-10-31 JST）: [RFC 0051](rfcs/0051-registry-yank-transactions.md)で認証yank/unyank action、閉じたaudit遷移、元結果replayをacceptedとした。純粋な22-case modelと独立canonical hash計算が成功。E02で実host transactionを実装し、認証HTTPS dispatch・要求/store作業memory上限・read世代更新をE05・3 ptとして追加する。E05はE02/E03後、E04前に実装する。既存の不変read-only serviceはこの統合を提供しない。実行scope監査後はE02だけをdoing・1 ptとし、受入条件やgateは削除しない。
 
-全41 deliveryの収支は112 − 2 − 35 = 残75 pt。E05で3 ptを追加し、累積純追加・再見積りは−2 ptを維持、D05の最終1 ptを退役して累積退役35 ptとする。実archive/storage/index/download、両host registry graph・offline cache実行、cache process中断32境界、不変writer競合、敵対的入力/quota fixtureを証拠にG1–G4が完了した。PR #39のE02はaccepted action/audit契約と純粋22-case modelを開始checkpointとし、次に実host yank/unyankへ進む。両P1を含むG5–G10はopenを維持する。
+全41 deliveryの収支は112 − 4 − 35 = 残73 pt。E02の実host mutation/実行checkpointにより残作業を3 → 1 ptへ再見積り（純−2）し、累積純追加・再見積りは−4、退役見積りは35を維持する。G1–G4は完了。PR #39のE02は未変更archiveのVM/native journey、process中断36境界、writer競合、厳密retry、最終権限/時刻guard、偽造履歴と厳密index上限拒否、512入力変異、厳密workspace/fuzz Clippyに成功した。残受入条件は固定全baseline、最新headの両host CI、公開。E05の上限付き認証HTTPS統合は別途追跡し、G5–G10と両P1はopenを維持する。
 
 **進捗：26 / 65 pt（40.0%）。**
 

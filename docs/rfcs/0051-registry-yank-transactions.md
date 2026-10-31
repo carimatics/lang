@@ -39,6 +39,8 @@ An owner publishes `math` version `1.0.0` at package revision 1, then submits a 
 
 Retry the same canonical action and request ID after a lost response. A known successful action returns its original receipt even if a subsequent unyank changed the current flag. It never re-applies the old action. Current authentication/ownership is required on every retry. A new request ID asking for an already-current flag conflicts and creates no event.
 
+An intervening publication can consume the byte released by encoding `true` instead of `false`. Unyank then refuses REG0002 if its next exact canonical index exceeds 2 MiB; it preserves the current flag, archive and history. The index admission rule applies to actions as well as publication, without truncation or an implicit limit increase.
+
 ## Reference semantics
 
 ### Canonical action
@@ -53,7 +55,7 @@ Reconstruct the existing RFC 0046 request digest with method `POST`, path `/v1/p
 
 Under the existing private nonblocking exclusive registry lock:
 
-1. Recover and validate the complete committed view, then authenticate the actual bearer at fresh host time with RFC 0047 `Yank { name }` authority. The credential needs the exact name's yank grant and current active owner membership; publish or admin scope alone is insufficient.
+1. Recover and validate the complete committed view, then authenticate the actual bearer at fresh host time with RFC 0047 `Operation::Yank(name)` authority. The credential needs the exact name's yank grant and current active owner membership; publish or admin scope alone is insufficient.
 2. Reconcile the principal/request-ID pair only after current authorization. Equal request digest returns the original receipt after another fresh authorization check; unequal digest conflicts. Old expected revisions do not prevent an authorized exact retry.
 3. For a new request, require the current package revision, an existing exact version, and a requested flag different from its current value. A stale revision or already-current flag conflicts. An authorized absent version is not found. Refusal leaves HEAD, archive bytes and committed history unchanged.
 4. Construct a candidate that increments state and affected package revisions exactly once, changes only that release's `yanked` boolean, advances state/authority time floors and audit link, and retains all other release fields, owners, principals, credentials and scopes. Enforce the existing canonical derived-index, state, audit, event and physical/staging quotas before installing candidates.
@@ -124,9 +126,11 @@ Branch preparation: `codex/m5-registry-mutations` starts from `codex/m5-registry
 
 ## Open questions
 
+Local E02 implementation checkpoint, 2026-10-31 JST: bounded `YankAction` and `Registry::yank` preserve exact archives while publishing a complete audited flag transition. The real host publish → yank → reopen → another-version publish → unyank journey executes 42 in VM/native and returns original receipts on cross-state retries. Thirty store cases pass, including 36 actual yank/unyank process cuts (34 old states/two complete new states), both publish/yank writer orders, fresh final-time guards, unknown-result reconciliation using explicitly retained HEAD bytes, actual nonowner/revoked/wrong-scope credentials and nine recomputed-hash history forgeries. Exact-capacity index publication followed by a +1-byte unyank refuses before writes. Independent canonical vectors, 512 input mutations and strict workspace Clippy pass; the action reader is included in the existing authority fuzz entry point. This is host implementation evidence only: frozen full validation, latest-head both-host CI and publication remain E02 acceptance conditions. E05's authenticated HTTP/workspace-budget/read-generation integration is still unimplemented.
+
 Accepted under RFC 0001 experimental delegation on 2026-10-31 JST. The pure `/private/tmp/lang-m5-yank-policy-probe.js` passed 22 cases covering flag/revision changes, original-result retry after an opposite action, ownership/time refusal, immutable digest preservation and reason bounds. Its canonical fixture is 173 bytes: action SHA-256 `d944ece5a45d67c089f6a0b81bfd9415c4fe5a23e11355e1b3ed90562d1c5dc1`, request SHA-256 `b61f815bee0a02abd24cd9e29e3ac22510c4b506e42b241692a0c3ec57ce6e47`; independent Python encoding agrees. These are policy/encoding evidence only, with no real authentication, filesystem, transport or crash proof.
 
-The single flag transition, original-result retry and unchanged archive fit the existing accepted contracts. Service memory accounting, mutable read-generation publication, final-time behavior, process interruption and Windows integration remain unverified implementation obligations. Re-estimate or expose prerequisites before implementation if that work exceeds one observable delivery; no performance or gate-completion claim follows from this acceptance.
+The single flag transition, original-result retry and unchanged archive fit the existing accepted contracts. At acceptance, service memory accounting, mutable read-generation publication, final-time behavior, process interruption and Windows integration were unverified. The checkpoint above records subsequent local host evidence; frozen full/both-host publication and E05 service integration remain. Re-estimate or expose prerequisites before implementation if work exceeds one observable delivery. No performance or gate-completion claim follows from this acceptance.
 
 ## Sources
 

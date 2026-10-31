@@ -39,6 +39,8 @@ Ownerは`math` version `1.0.0`をpackage revision 1で公開し、expected revis
 
 応答を失った場合、同じcanonical actionとrequest IDで再試行する。成功済みactionには、その後のunyankで現在flagが変わっていても元のreceiptを返す。古いactionを再適用しない。毎回、現在の認証/所有者検査が必要である。別request IDで既に現在と同じflagを要求すると競合になり、eventを作らない。
 
+途中の公開が、`false`から`true`へのencodingで空いた1 byteを使う場合がある。その後のunyankで次の厳密canonical indexが2 MiBを超えるならREG0002で拒否し、現在flag・archive・履歴を保持する。Index受理規則は公開だけでなくactionにも適用し、切詰めや暗黙の上限拡張は行わない。
+
 ## 参照semantics
 
 ### Canonical action
@@ -53,7 +55,7 @@ ReasonはUnicode制御文字を含まない1–256 UTF-8 byteとする。呼出�
 
 既存private非blocking排他registry lockの下で以下を行う。
 
-1. 完全なcommit済みviewをrecover/検証し、最新host時刻とRFC 0047の`Yank { name }`権限で実bearerを認証する。Credentialには厳密nameのyank grantと現在のactive owner所属が必要であり、publishまたはadmin scopeだけでは足りない。
+1. 完全なcommit済みviewをrecover/検証し、最新host時刻とRFC 0047の`Operation::Yank(name)`権限で実bearerを認証する。Credentialには厳密nameのyank grantと現在のactive owner所属が必要であり、publishまたはadmin scopeだけでは足りない。
 2. 現在の認可後にのみprincipal/request-ID組を照合する。Request digestが等しければもう一度最新認可を確認して元receiptを返し、異なれば競合とする。古いexpected revisionは、認可済みの厳密再試行を妨げない。
 3. 新規要求では現在package revision、存在する厳密version、現在と異なる要求flagを必要とする。古いrevisionまたは既に同じflagは競合。認可済み要求でversionがなければnot found。拒否時はHEAD・archive byte・commit済み履歴を変更しない。
 4. Stateと対象package revisionを各1回増分し、対象releaseの`yanked` booleanだけを変え、state/authority時刻floorとaudit linkを進めるcandidateを作る。他のrelease field・owner・principal・credential・scopeは保持する。Candidate配置前に既存canonical派生index・state・audit・event・物理/staging quotaを検査する。
@@ -124,9 +126,11 @@ Branch準備: `codex/m5-registry-mutations`は`carimatics/lang`の`codex/m5-regi
 
 ## 未解決事項
 
+Local E02実装checkpoint（2026-10-31 JST）: 上限付き`YankAction`と`Registry::yank`が厳密archiveを保持しながら完全な監査済みflag遷移を公開する。実host publish → yank → reopen → 別version公開 → unyankでVM/nativeが42を実行し、状態をまたぐretryにも元receiptを返す。Store 30 caseが成功し、実yank/unyank process中断36境界（旧state 34・完全新state 2）、publish/yank writerの両順序、最新最終時刻guard、明示保持したHEAD byteによる結果不明照合、実nonowner/失効/誤scope credential、再計算hash付き履歴偽造9 caseを検証した。Indexの厳密上限公開後に+1 byteとなるunyankは書込み前に拒否する。独立canonical vector、512入力変異、厳密workspace Clippyが成功し、既存authority fuzz入口にaction readerを追加した。Host実装の証拠であり、固定全検証・最新headの両host CI・公開はE02受入条件に残る。E05の認証HTTP/作業memory budget/read世代統合は未実装である。
+
 2026-10-31 JSTにRFC 0001の実験段階委任でaccepted。純粋な`/private/tmp/lang-m5-yank-policy-probe.js`は、flag/revision変更、逆action後の元結果retry、ownership/time拒否、不変digest保持、reason上限の22 caseに成功した。Canonical fixtureは173 byteで、action SHA-256は`d944ece5a45d67c089f6a0b81bfd9415c4fe5a23e11355e1b3ed90562d1c5dc1`、request SHA-256は`b61f815bee0a02abd24cd9e29e3ac22510c4b506e42b241692a0c3ec57ce6e47`。独立Python encodingも一致した。これはpolicy/encoding証拠だけであり、実認証・filesystem・transport・crashの証明ではない。
 
-単一flag遷移、元結果retry、未変更archiveは既存accepted契約に適合する。Service memory計上・可変read-generation公開・最終時刻動作・process中断・Windows統合は未検証の実装義務として残る。1つの観測可能deliveryを超える場合は実装前に再見積りまたは前提deliveryを明示する。このacceptanceで性能やgate完了は主張しない。
+単一flag遷移、元結果retry、未変更archiveは既存accepted契約に適合する。受理時にはservice memory計上・可変read-generation公開・最終時刻動作・process中断・Windows統合が未検証だった。上記checkpointが後続のlocal host検証を記録し、固定全検証・両host公開とE05のservice統合は残る。1つの観測可能deliveryを超える場合は実装前に再見積りまたは前提deliveryを明示する。このacceptanceで性能やgate完了は主張しない。
 
 ## 出典
 

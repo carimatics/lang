@@ -98,7 +98,7 @@ fn legacy_publication(registry: &Registry, archive: &AdmittedArchive) {
 fn exact_index_capacity_is_admitted_before_any_candidate_write() {
     let base = Temp::new();
     let parent = parent(base.path());
-    let mut registry = initialize(&parent);
+    let mut registry = super::yank::initialize_yank(&parent);
     for version in 0..29 {
         registry
             .publish(
@@ -223,6 +223,75 @@ fn exact_index_capacity_is_admitted_before_any_candidate_write() {
             assert_eq!(snapshot(&tmp.path().join("registry")), legacy);
         }
     }
+    unyank_cannot_make_an_exact_capacity_index_unservable(base.path());
+}
+
+fn unyank_cannot_make_an_exact_capacity_index_unservable(base: &std::path::Path) {
+    let tmp = Temp::new();
+    copy_fixture(&base.join("registry"), &tmp.path().join("registry"));
+    let parent = parent(tmp.path());
+    let mut registry = reopen(&parent);
+    let first = large_archive(0, 0);
+    let yank = YankAction::new(
+        "answer",
+        "0.0.0",
+        &"f".repeat(32),
+        29,
+        YankActionKind::Yank,
+        "capacity fixture",
+    )
+    .unwrap();
+    registry.yank(&bearer(), &yank, &At(110)).unwrap();
+    // true is one byte shorter than false. The independent +1 publication
+    // fixture now fits exactly, so clearing that flag must refuse before writes.
+    let candidate = large_archive(29, 6693);
+    registry
+        .publish(
+            &bearer(),
+            &candidate,
+            &format!("{:032x}", 29),
+            ExpectedRevision::Revision(30),
+            &At(110),
+        )
+        .unwrap();
+    let index = registry.index("answer").unwrap();
+    assert_eq!(index.len(), MAX_INDEX_BYTES);
+    let before = snapshot(&tmp.path().join("registry"));
+    let unyank = YankAction::new(
+        "answer",
+        "0.0.0",
+        &"e".repeat(32),
+        31,
+        YankActionKind::Unyank,
+        "capacity fixture",
+    )
+    .unwrap();
+    let failure = registry.yank(&bearer(), &unyank, &At(110)).unwrap_err();
+    assert_eq!(failure.kind, ErrorKind::Limit);
+    assert_eq!(failure.outcome, PublicationOutcome::NotPublished);
+    assert_eq!(snapshot(&tmp.path().join("registry")), before);
+    assert_eq!(registry.index("answer").unwrap(), index);
+    assert_eq!(registry.revision().unwrap(), 32);
+    assert_eq!(
+        registry.archive(first.sha256()).unwrap().as_bytes(),
+        first.as_bytes()
+    );
+    let admitted = Index::admit(&index, &identity(), "answer").unwrap();
+    assert!(admitted.release("0.0.0").unwrap().yanked());
+    let view = history::load(&registry.storage, &identity()).unwrap();
+    let (next, _) = history::advance_yank(&view.state, "answer", "0.0.0", false, "", 110).unwrap();
+    assert_eq!(
+        json(&OracleIndex {
+            format: "lang-registry-index",
+            schema: 1,
+            registry: "example",
+            name: "answer",
+            revision: 32,
+            releases: &next.packages[0].releases
+        })
+        .len(),
+        MAX_INDEX_BYTES + 1
+    );
 }
 
 fn json(value: &impl Serialize) -> Vec<u8> {
