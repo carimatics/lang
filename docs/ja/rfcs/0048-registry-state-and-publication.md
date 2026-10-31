@@ -87,6 +87,8 @@ Cleanup前に完全な上限付きinventoryとcommit chainを検証する。Reco
 
 公開readは1個の検証済みcommit stateを取得し、参照済みで非quarantineのobjectだけを公開する。Staging・未公開contentはhashだけでは取得できない。Yank済みexact versionはRFC 0046どおりaddress可能。D03がindex/download APIを提供し、D02は一般filesystem interfaceを公開しなくてよい。
 
+実装の明確化（2026-10-31 JST）: 受入時に信頼するhost時刻を読む。Archive staging後の再認証でevent時刻を選び、event/state floorへ保存する。Event・state・HEAD candidateをsync後、最終guardは時刻を再取得し、event時刻未満への逆行を拒否してHEAD置換直前に再認証する。既に受理したevent timestampは書き換えない。これによりmetadata staging中の失効を拒否し、時刻取得とfilesystem置換が同一瞬間という主張はしない。3回の検査すべてで実bearerの所持と同じlock下のcommit済みauthorityを使う。
+
 初期化は新規private destinationを使い、bootstrap event/state完成後にだけ最初のHEADを公開する。中断した不完全destinationを黙って再初期化しない。明示的なoperator cleanup/restorationは通常recoveryと区別する。暗黙credential・registry・root・cache fallbackはない。
 
 ## Execution modes

@@ -87,6 +87,8 @@ Complete bounded inventory and committed-chain validation precedes cleanup. Reco
 
 Public reads capture a single validated committed state. They expose only referenced non-quarantined objects; staging and unpublished content are never discoverable by hash alone. Yanked exact versions remain addressable as RFC 0046 specifies. D03 supplies index/download APIs; D02 need not expose a general filesystem interface.
 
+Implementation clarification, 2026-10-31 JST: admission reads trusted host time; after archive staging, fresh authentication selects the event time persisted in the event/state floor. After the event, state and HEAD candidate are synced, a final guard resamples time, refuses regression below that event time and reauthenticates immediately before HEAD replacement. It does not rewrite the already admitted event timestamp. This closes expiry during metadata staging without claiming that a clock read and filesystem replacement happen at the same instant. All three checks use actual bearer possession and the same locked committed authority.
+
 Initialization uses a fresh private destination and publishes its first HEAD only after bootstrap event/state completion. An interrupted incomplete destination is never silently reinitialized. Explicit operator cleanup/restoration remains distinct from ordinary recovery. No ambient credential, registry, root or cache fallback exists.
 
 ## Execution modes

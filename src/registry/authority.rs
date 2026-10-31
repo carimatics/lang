@@ -4,7 +4,7 @@
 //! A mutation adapter must reload it under its registry lock and pass the actual
 //! credential and fresh host time. Returned audit identities are not capabilities.
 
-mod codec;
+pub(crate) mod codec;
 
 use std::fmt::{self, Debug, Display, Formatter};
 use std::io::{self, Read};
@@ -210,6 +210,19 @@ impl Authority {
     /// Admit structural data from the trusted committed-state loader only.
     pub fn admit(bytes: &[u8], expected: &ServiceIdentity) -> Result<Self, Error> {
         let records = codec::decode(bytes)?;
+        Self::from_records(records, expected)
+    }
+
+    pub(crate) fn into_records(self) -> codec::Records {
+        self.records
+    }
+
+    /// Internal state builders still validate every bound and reference.
+    pub(crate) fn from_records(
+        records: codec::Records,
+        expected: &ServiceIdentity,
+    ) -> Result<Self, Error> {
+        codec::validate(&records)?;
         if records.registry != expected.registry || records.origin != expected.origin {
             return Err(error(
                 ErrorKind::Identity,
@@ -251,9 +264,43 @@ impl Authority {
                 selected = Some(index);
             }
         }
-        let token = selected
-            .map(|i| &self.records.tokens[i])
-            .ok_or_else(authentication)?;
+        self.authorize_index(selected.ok_or_else(authentication)?, now, operation)
+    }
+
+    /// Checks an audit's recorded policy claim, not possession of a bearer.
+    /// This is not a current-operation authorization entry point.
+    pub(crate) fn validate_recorded_actor(
+        &self,
+        principal: &str,
+        credential_id: &str,
+        time: u64,
+        operation: Operation<'_>,
+    ) -> Result<(), Error> {
+        let index = self
+            .records
+            .tokens
+            .binary_search_by(|t| t.id.as_str().cmp(credential_id))
+            .map_err(|_| authentication())?;
+        let actor = self.authorize_index(index, time, operation)?;
+        if actor.principal != principal {
+            return Err(authentication());
+        }
+        Ok(())
+    }
+
+    fn authorize_index(
+        &self,
+        index: usize,
+        now: u64,
+        operation: Operation<'_>,
+    ) -> Result<Actor<'_>, Error> {
+        if now > MAX_TIME || now < self.records.time_floor {
+            return Err(error(
+                ErrorKind::State,
+                "invalid or regressed registry time",
+            ));
+        }
+        let token = self.records.tokens.get(index).ok_or_else(authentication)?;
         let principal = self
             .records
             .principals

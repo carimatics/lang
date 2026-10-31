@@ -10,6 +10,13 @@
 
 **次: M5-D02 — 内容address方式のstorageとimmutable version公開transaction（3 pt）。**
 
+
+D02実行checkpoint（2026-10-31 13:32 JST確認）: `registry::store`が明示capabilityで選んだ新規private rootを初期化し、非待機lock内でcanonical state/audit全履歴を検証、staging・sync済みfileと単一HEAD置換で不変archiveを公開する。Replay前とstaging後・置換直前に実credentialを再認証する。ローカル17 test（subprocess driver 3件を含む）が成功: bootstrap 22切断点、公開24切断点、両version順序で競合するwriter process、厳密replay/競合、独立計算したrequest digest、最終guardの失効/時刻逆行、明示unknown outcome照合、cleanup前の破損/alias拒否、byte/count/peak quota境界。Reopenした厳密source bytesは42へ実行される。Archive/authority回帰19/19と対象strict Clippyも成功。残る受入条件は固定全baseline、両hostの最新head CI、PR公開。この残作業監査後もD02だけをdoing・既存3 ptで維持し、追加・退役なし。G4/G5はopenで、このcheckpointはdelivery完了ではない。
+
+D02 branch記録（2026-10-31 JST）: `codex/m5-registry-store`を`codex/m5-registry-authority`の`26fe3df`からclean状態で作成し、checkoutは`/private/tmp/lang-m5-registry-store`。初期PR baseは`git@github.com:carimatics/lang.git`の同前提branchで、PR #34は最終文書headを検証中。元`main`はmerge済み`f5084f1`でcleanを維持する。不変storage/公開という一貫した成果を新branchで分離し、doing行や見積りは追加しない。
+
+E01公開（2026-10-31 13:34 JST確認）: 最終head `26fe3df`はCI `41167648530`の対象18 jobすべて成功（full routingにより文書専用のみ意図的省略）、native-debug `41167648534`も全3 hostで成功。[PR #34](https://github.com/carimatics/lang/pull/34)は`5cd0815`としてmerge済みを確認。元`main`を`origin/main`へfast-forwardし、0 ahead / 0 behind・未commit変更なし。D02 branchも実装変更を保持して同前提mergeへfast-forwardし、PR baseは`main`となった。以下の古い公開待ち記録は履歴である。
+
 E01完了（2026-10-31 13:10 JST確認）: code `56f9f84`の固定全baselineは182 suite・2,572 test、fmt、厳密Clippy、分離targetのrustdocが成功。全4 child exitは0でsource fingerprintは不変。実結果・logを`/private/tmp/lang-m5-fixes-target/m5-e01-validation/`へ保持する。CI `41165285468`は対象18 jobすべて成功（full routingにより文書専用のみ意図的省略）、native-debug `41165285479`も全3 hostで成功。Authority 10 testとcompile済みfuzz targetはE01の純粋host境界を検証し、本番server・commit時storage統合・継続的fuzz campaignは主張しない。最終3 ptを追加なしで退役し、112 + 1 − 29 = 84 pt。[PR #34](https://github.com/carimatics/lang/pull/34)の最終文書head CIとmergeは未完了。
 
 D02範囲監査（2026-10-31 13:10 JST）: D02だけをdoingに選択する。[RFC 0048](rfcs/0048-registry-state-and-publication.md)は`cd30c02`で採択済み。最後の実行checkpointはmacOS process/staging prototypeの13切断点で、registry実装ではない。残る成果を監査し3 ptを維持する: private canonical generationと全履歴受入、最新E01認可を伴う上限付きstaged公開、厳密replay/競合/quota拒否、両hostの実reopen/source inventory/並行/process終了fixture、全baselineと公開check。G4/G5はopen。依存実行の順序はD02 → D03 index/download → D04 source依存実行を維持し、E01/D02後に水平前提を新設する前に再確認する。

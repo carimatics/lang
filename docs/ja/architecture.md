@@ -159,6 +159,9 @@ RFC 0044の`package::migration::Preview`はbyteだけを受ける旧scalar reade
 
 `registry::authority`で[RFC 0047](rfcs/0047-registry-authority-records.md)の上限付きホスト専用authority viewと純粋なpolicyを実装しました。受理には独立して設定したregistry/origin identity、canonical closed record、有効な参照、明示上限を要求します。秘匿表示しシリアライズできないbearerは最大66 byteの入力を読み、所有secret bufferをdrop時に消去します。固定長authenticator比較には`subtle`を使い、現在のprincipal有効性、token期限・失効、厳密grant、現在ownerで各操作を制御します。返すprincipal/token IDは監査情報で、再利用可能な変更権限ではありません。Storage adapterはlock内でcommit状態を再読込し、新しいhost時刻で再認証する必要があります。E01単独ではstorage transaction・network endpoint・guest capabilityを提供しません。
 
+
+`registry::store`は[RFC 0048](rfcs/0048-registry-state-and-publication.md)のD02 checkpointを実装します。明示parent directory capabilityで新規private rootを選択します。排他的な非待機lockで全履歴検証、最新bearer policy、revision/idempotency検査、stagingを経た不変公開を保護します。上限付きcanonical HEAD/state/audit record、完全な遷移比較、厳密archive対応で、記録されていない権限・release変更を拒否します。不変file配置前にsyncし、単一HEAD置換をcommit点とします。置換結果不明時は同一要求の照合が必要です。最終guardはHEAD staging後にhost時刻を再取得し再認証します。履歴generationは物理quota内で保持します。ローカルのreopen後source実行、実process切断・writer競合testは成功しました。D02完了には両host CIと全baselineが必要です。このhost APIはHTTP endpoint・署名・本番依存利用を提供しません。
+
 M5 registry serviceは未実装で、境界の契約を採択済みです。[RFC 0045](rfcs/0045-registry-threat-model.md)で明示origin／name／version／digest identity、現在stateに対するscope付き認可、不変release／audit transaction、testに対応する16の脅威を採択しました。[RFC 0046](rfcs/0046-registry-protocol-and-recovery.md)でupload実装前に厳密portable source archive・有限の厳密origin protocol・不変state／audit復旧契約を採択しました。Package信頼／provenanceはRFC 0042のtoolchain配布と分離し、署名は実行capabilityを与えません。
 
 [RFC 0021](rfcs/0021-bounded-structured-task-driver.md)の有界FIFO driverと[RFC 0022](rfcs/0022-source-structured-tasks.md)・[0023](rfcs/0023-task-mir-boundaries.md)のsource/MIR契約を実装済みです。scope付きtask claim、join、所有引数/結果、suspension loan規則、取消、子から親のcleanupはVMと生成native continuation、受理済み別リンクobjectで共通です。未回収所有結果はescrowとlive-cell計上を保持し、子のjoinと結果退役が親localのcleanupに先行します。taskは1 invocation内の論理taskであり、複数OS threadでguestを実行しません。
