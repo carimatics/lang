@@ -2,7 +2,7 @@
 //! Resolution reads data only: it never runs dependency code or fetches a source.
 use super::{
     Diagnostic,
-    manifest::{MAX_BYTES, Manifest, Package, TARGETS},
+    manifest::{DependencySource, MAX_BYTES, Manifest, Package, TARGETS},
 };
 use cap_std::fs::{Dir, OpenOptions};
 use std::collections::{BTreeMap, BTreeSet};
@@ -594,7 +594,15 @@ impl Resolver<'_> {
             if self.edges > self.limits.edges {
                 return Err(limit("dependency edge limit exceeded"));
             }
-            let dependency_root = self.canonical_directory(&root.join(&dependency.path))?;
+            let DependencySource::Local { path } = &dependency.source else {
+                return Err(graph_error(
+                    &self.packages[parent.0].manifest_path,
+                    format!(
+                        "registry dependency {alias} requires an authenticated registry context"
+                    ),
+                ));
+            };
+            let dependency_root = self.canonical_directory(&root.join(path))?;
             let (child, children) = self.enter(
                 dependency_root.clone(),
                 Path::new("Lang.json"),

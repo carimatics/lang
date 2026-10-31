@@ -6,9 +6,15 @@
 
 Activated 2026-10-30 JST from `3b676c5`. This board tracks the entire M5 scope in [the roadmap](roadmap.md#milestone-5-ecosystem-and-compatibility), including both P1 gates. M4's installer and local packages are prerequisites, not registry completion.
 
-**12 done · 1 doing · 27 todo · 81 remaining pt**
+**13 done · 1 doing · 26 todo · 78 remaining pt**
 
-**Next: M5-D03 — versioned index and verified download (3 pt).**
+**Next: M5-D04 — resolve and execute a registry source dependency (3 pt).**
+
+D04 manifest checkpoint, verified 2026-10-31 16:11 JST: strict schema-2 admission preserves schema 1's grammar, duplicate/unknown/null refusal and shared limits. Typed local/registry declarations carry no authority; active registry edges explicitly require an authenticated context, with no local fallback. All 54 focused manifest/graph/lock/workspace/archive tests pass, including the real CLI and schema-2 local workspace execution to 42 with existing lock schemas 1/2. Repository consistency passes 8/8; fmt and workspace/all-target/all-feature strict Clippy pass. This is an executable intermediate checkpoint, not D04 completion or full-baseline evidence. Remaining acceptance: integrated typed registry graph/source capture and readonly tooling guards, exact lock-3 capture, transitive/identity/refusal VM/native fixtures on both hosts, full baseline and latest-head publication. D04 remains the sole doing row at 3 pt after this remaining-task audit; no additions or retirements. Next connect admitted downloaded source to execution.
+
+D04 scope audit, 2026-10-31 16:03 JST: select D04 as the sole doing row after D03 merged. RFC 0049 is accepted in `4054b0c`; the last executable checkpoints are real HTTPS download followed by VM/native JIT execution to 42, the independently reproduced schema-3 fixture and the local/registry namespace-collision execution to 84. These are local feasibility evidence, not the integrated resolver. Remaining acceptance: strict manifest-2 admission with local compatibility; typed authenticated registry graph/source capture and readonly tooling guards; exact lock-3 capture; real transitive/identity/refusal VM/native fixtures on both hosts; full baseline and latest-head publication checks. Retain 3 pt after this remaining-task audit, without new prerequisites or added estimates. [PR #37](https://github.com/carimatics/lang/pull/37) now targets `main`, and its branch incorporates D03's remote merge. The first implementation checkpoint admits declarations and explicitly refuses consumption without its registry context; the next checkpoint must connect downloaded source to execution.
+
+D03 completed and published, verified 2026-10-31 16:03 JST: code `f58659c` passed the frozen complete baseline with unchanged source (2,611 tests / 182 suites; fmt, strict Clippy and rustdoc; all four exits 0), CI `41177539886` (18 applicable jobs; documentation-only intentionally skipped under full routing), and native-debug `41177539882` (all three hosts). Windows job `124468380664` confirms all 18 transport and 19 applicable store tests, including eight-handshake stop, read/write cancellation without shutdown, verified localhost reads and exact 16 MiB source; macOS also confirms locked fuzz Clippy. [PR #36](https://github.com/carimatics/lang/pull/36) merged as `723e2eb`. Original `main` equals `origin/main`, clean with 0 ahead / 0 behind; its tree equals `f58659c`. Retire D03's last 3 pt: 112 − 1 − 33 = 78 pt. G4 and signing remain open. Earlier pending D03 notes below are historical.
 
 D04 design preparation, 2026-10-31 JST: `codex/m5-registry-dependencies` was created from `codex/m5-registry-reads` at `f58659c` in `/private/tmp/lang-m5-registry-dependencies`; its initial PR base is that prerequisite branch in `git@github.com:carimatics/lang.git`. [RFC 0049](rfcs/0049-registry-package-integration.md) is accepted under RFC 0001 delegation before implementation: explicit manifest-2 edges, typed immutable origins, disjoint logical source keys and lock schema 3 preserve local behavior and require independent production trust. The retained 3,619-byte fixture was calculated independently in JavaScript/Python; Rust archive reconstruction and current VM/native JIT return 42, and the local/registry path-collision case returns 84. This is design/fixture evidence, not a resolver implementation. D04 remains todo at 3 pt; D03 remains the sole implementation doing while its repaired baseline/CI run. No delivery/point is added or retired; merge/synchronize D03 before selecting D04 implementation.
 
@@ -137,8 +143,8 @@ Gate completion: **3/10; 21/65 historical gate weight**. Delivery points below a
 | M5-C02 | done | 0 | M5-C01 | G3 | Accept protocol, limits, recovery and security acceptance cases before upload | `53376e5` |
 | M5-D01 | done | 0 | M5-C02 | G4 | Admit bounded untrusted archives and reject traversal/duplicate/bomb inputs | `b3c8d1b` |
 | M5-D02 | done | 0 | M5-D01,M5-E01 | G4 | Content-addressed storage and immutable version publication transaction | `e76dd7b` |
-| M5-D03 | doing | 3 | M5-D02 | G4 | Versioned index and verified download with exact identity/checksums | — |
-| M5-D04 | todo | 3 | M5-D03 | G4 | Resolve a registry dependency and execute it on both hosts | — |
+| M5-D03 | done | 0 | M5-D02 | G4 | Versioned index and verified download with exact identity/checksums | `f58659c` |
+| M5-D04 | doing | 3 | M5-D03 | G4 | Resolve a registry dependency and execute it on both hosts | — |
 | M5-D05 | todo | 3 | M5-D04 | G4 | Lock/offline replay, interrupted publication and concurrent immutability tests | — |
 | M5-E01 | done | 0 | M5-C02 | G5 | Authenticated identities, credential handling and scoped authorization | `56f9f84` |
 | M5-E02 | todo | 3 | M5-E01,M5-D02 | G5 | Publish and yank/unyank with owner and conflict enforcement | — |
@@ -169,11 +175,11 @@ Gate completion: **3/10; 21/65 historical gate weight**. Delivery points below a
 
 ## Estimate reconciliation
 
-**112 − 1 − 30 = 81 pt**
+**112 − 1 − 33 = 78 pt**
 
 | Baseline remaining | Net additions/re-estimates | Retired at completion | Remaining |
 | ---: | ---: | ---: | ---: |
-| 112 pt | −1 pt | −30 pt | 81 pt |
+| 112 pt | −1 pt | −33 pt | 78 pt |
 
 ## Delivery notes and roadmap audit
 

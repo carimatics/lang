@@ -6,9 +6,15 @@
 
 2026-10-30 JST、`3b676c5`から開始。[ロードマップ](roadmap.md#milestone-5ecosystemとcompatibility)のM5全範囲（P1の2ゲートを含む）を追跡する。M4のinstallerとlocal packageは前提条件であり、registry完了を意味しない。
 
-**12 done · 1 doing · 27 todo · 81 remaining pt**
+**13 done · 1 doing · 26 todo · 78 remaining pt**
 
-**次: M5-D03 — versioned indexと検証付きdownload（3 pt）。**
+**次: M5-D04 — registry source依存の解決と実行（3 pt）。**
+
+D04 manifest checkpoint（2026-10-31 16:11 JST確認）: 厳密schema-2受理がschema 1の文法、重複/未知/null拒否、共通上限を維持する。型付きlocal/registry宣言に権限は含めず、active registry edgeは認証済みcontextを明示要求し、local fallbackを行わない。Manifest/graph/lock/workspace/archiveの対象全54 testが成功し、実CLIと、既存lock schema 1/2を維持するschema-2 local workspaceの42実行を含む。Repository consistencyは8/8、fmtとworkspace/all-target/all-featureの厳密Clippyも成功。これは実行可能な中間checkpointであり、D04完了でも全baseline証拠でもない。残る受入条件は、型付きregistry graph/source captureと読取専用tooling guardの統合、厳密lock-3 capture、両hostの推移/identity/拒否VM/native fixture、全baselineと最新head公開検証。この残作業監査後もD04を唯一のdoing・3 ptに維持し、追加・退役なし。次は受理した取得sourceを実行へ接続する。
+
+D04 scope監査（2026-10-31 16:03 JST）: D03 merge後にD04を唯一のdoingとして選択する。RFC 0049は`4054b0c`でaccepted。最後の実行checkpointは、実HTTPS取得後のVM/native JITによる42、独立再現したschema-3 fixture、local/registry namespace衝突での84である。これはlocal実行可能性の証拠で、統合resolverではない。残る受入条件は、local互換性を保つ厳密manifest-2受理、型付き認証済みregistry graph/source captureと読取専用tooling guard、厳密lock-3 capture、両hostの実推移/identity/拒否VM/native fixture、全baselineと最新head公開検証。この残作業監査後も3 ptを維持し、新たな前提や見積り追加は行わない。[PR #37](https://github.com/carimatics/lang/pull/37)はmainベースとなり、branchへD03のremote mergeを取り込んだ。最初の実装checkpointで宣言を受理し、registry contextなしの消費を明示拒否する。次のcheckpointでは取得sourceを実行へ接続する。
+
+D03完了・公開（2026-10-31 16:03 JST確認）: code `f58659c`はsource不変で固定全baselineに成功（182 suite・2,611 test、fmt・厳密Clippy・rustdoc、全4 exit 0）し、CI `41177539886`（対象18 job、full routingにより文書専用だけ意図的省略）、native-debug `41177539882`（全3 host）も成功した。Windows job `124468380664`の実logでtransport全18、store対象19 testを確認し、8 handshakeのstop、shutdownなしのread/write cancel、証明書検証付きlocalhost読取り、厳密16 MiB sourceを含む。macOSでもlocked fuzz Clippyを確認した。[PR #36](https://github.com/carimatics/lang/pull/36)は`723e2eb`としてmerge済み。元mainはorigin/mainと一致し、clean・ahead/behind 0/0で、treeは`f58659c`と一致する。D03の最後の3 ptを退役し、112 − 1 − 33 = 残78 pt。G4と署名はopenに維持する。下のD03未完了noteは履歴である。
 
 D04設計準備（2026-10-31 JST）: `codex/m5-registry-dependencies`を`codex/m5-registry-reads`の`f58659c`から`/private/tmp/lang-m5-registry-dependencies`に作成した。初期PR baseは`git@github.com:carimatics/lang.git`の前提branchである。実装前に[RFC 0049](rfcs/0049-registry-package-integration.md)をRFC 0001委任でacceptedとした。明示manifest-2 edge、型付き不変origin、相互分離した論理source key、lock schema 3でlocal挙動を維持し、独立した本番trustを要求する。保持した3,619-byte fixtureをJavaScript/Pythonで独立計算し、Rust archive再構築と現行VM/native JITは42、local/registry path衝突caseは84を返した。これは設計/fixture証拠でありresolver実装ではない。D04はtodo・3 ptに維持し、修正後baseline/CI実行中のD03だけをimplementation doingとする。Delivery/point追加・退役なし。D03をmerge/同期してからD04実装を選択する。
 
@@ -137,8 +143,8 @@ B05 budget監査（2026-10-31 JST）: 再利用するscalar検査内部の独立
 | M5-C02 | done | 0 | M5-C01 | G3 | upload前にprotocol・上限・復旧・security受入ケースを採択 | `53376e5` |
 | M5-D01 | done | 0 | M5-C02 | G4 | 上限付き未信頼archiveの受入とtraversal・重複・bomb拒否 | `b3c8d1b` |
 | M5-D02 | done | 0 | M5-D01,M5-E01 | G4 | 内容address方式のstorageとimmutable version公開transaction | `e76dd7b` |
-| M5-D03 | doing | 3 | M5-D02 | G4 | versioned indexとidentity・checksumを検証したdownload | — |
-| M5-D04 | todo | 3 | M5-D03 | G4 | registry依存を解決して両hostで実行 | — |
+| M5-D03 | done | 0 | M5-D02 | G4 | versioned indexとidentity・checksumを検証したdownload | `f58659c` |
+| M5-D04 | doing | 3 | M5-D03 | G4 | registry依存を解決して両hostで実行 | — |
 | M5-D05 | todo | 3 | M5-D04 | G4 | lock・offline replay・公開中断・並行immutable検証 | — |
 | M5-E01 | done | 0 | M5-C02 | G5 | 認証identity・credential取扱い・scope付き認可 | `56f9f84` |
 | M5-E02 | todo | 3 | M5-E01,M5-D02 | G5 | owner・競合制約付きpublish・yank・unyank | — |
@@ -169,11 +175,11 @@ B05 budget監査（2026-10-31 JST）: 再利用するscalar検査内部の独立
 
 ## 見積り照合
 
-**112 − 1 − 30 = 81 pt**
+**112 − 1 − 33 = 78 pt**
 
 | 基準残作業 | 純追加・再見積り | 完了時に除去 | 残作業 |
 | ---: | ---: | ---: | ---: |
-| 112 pt | −1 pt | −30 pt | 81 pt |
+| 112 pt | −1 pt | −33 pt | 78 pt |
 
 ## Delivery noteとロードマップ監査
 

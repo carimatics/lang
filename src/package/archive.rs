@@ -3,6 +3,7 @@ use super::{
     Diagnostic,
     graph::{Graph, input_path},
     lock::{self, Lock},
+    manifest::DependencySource,
     output::MAX_OUTPUT,
 };
 use serde::Serialize;
@@ -84,10 +85,14 @@ pub(super) fn canonical_directories(graph: &Graph) -> Result<(), Diagnostic> {
     }
     for package in graph.packages() {
         for (alias, id) in package.dependencies() {
-            let declared = input_path(
-                package.root(),
-                Path::new(&package.manifest().dependencies[alias].path),
-            );
+            let DependencySource::Local { path } = &package.manifest().dependencies[alias].source
+            else {
+                return Err(invalid(
+                    package.manifest_path(),
+                    "source snapshots require local dependencies",
+                ));
+            };
+            let declared = input_path(package.root(), Path::new(path));
             let target = graph.package(*id).expect("resolved dependency").root();
             if normal(&declared) != normal(target) {
                 return Err(invalid(
