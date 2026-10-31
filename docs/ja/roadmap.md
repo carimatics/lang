@@ -256,6 +256,8 @@ Exit：新しいdeveloperが1つのtoolをinstallし、packageを作成し、edi
 
 D05完了（2026-10-31 JST）: [RFC 0050](rfcs/0050-registry-cache-and-offline-replay.md)を`43dea74`で実装した。固定全baselineは2,645 test / 182 suiteとfmt・厳密Clippy・rustdocに成功し、CI `41185690356`とnative-debug `41185690326`の対象全job/hostも成功した。PR #38は`b0d4d76`としてmergeし、mainはclean・0/0同期・検証済みtreeと同一を確認した。D01–D05でG4を完了とし、認証済み本番消費はF01–F04に残す。
 
+E03設計準備（2026-10-31 18:28 JST確認）: [RFC 0052](rfcs/0052-registry-owner-and-credential-control.md)で認証owner追加・削除・読取り、明示2段階移管、独立構築するlocal credential失効をacceptedとした。純粋modelの24 caseが成功し、JavaScript/Pythonの独立owner/LOCAL失効digestが一致した。Policy/encoding証拠であり実装ではない。`codex/m5-registry-owner-control`は固定E02 `f40d643`から作成し、#39 mergeまでorigin/codex/m5-registry-mutationsをPR baseとして記録する。E02だけをdoing・1 ptに維持し、全検証中のsource/headを固定する。E03は選択時監査までtodo・3 ptとし、delivery・見積り・gateの変更なし。
+
 E02/service scope監査（2026-10-31 JST）: [RFC 0051](rfcs/0051-registry-yank-transactions.md)で認証yank/unyank action、閉じたaudit遷移、元結果replayをacceptedとした。純粋な22-case modelと独立canonical hash計算が成功。E02で実host transactionを実装し、認証HTTPS dispatch・要求/store作業memory上限・read世代更新をE05・3 ptとして追加する。E05はE02/E03後、E04前に実装する。既存の不変read-only serviceはこの統合を提供しない。実行scope監査後はE02だけをdoing・1 ptとし、受入条件やgateは削除しない。
 
 全41 deliveryの収支は112 − 4 − 35 = 残73 pt。E02の実host mutation/実行checkpointにより残作業を3 → 1 ptへ再見積り（純−2）し、累積純追加・再見積りは−4、退役見積りは35を維持する。G1–G4は完了。PR #39のE02は未変更archiveのVM/native journey、process中断36境界、writer競合、厳密retry、最終権限/時刻guard、偽造履歴と厳密index上限拒否、512入力変異、厳密workspace/fuzz Clippyに成功した。残受入条件は固定全baseline、最新headの両host CI、公開。E05の上限付き認証HTTPS統合は別途追跡し、G5–G10と両P1はopenを維持する。

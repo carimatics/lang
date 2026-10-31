@@ -107,6 +107,8 @@ Actionやreceiptはcapabilityではない。実bearer所持、現在の登録/�
 
 ## 実装計画
 
+E03具体化: 2026-10-31 JST acceptedの[RFC 0052](0052-registry-owner-and-credential-control.md)がowner追加・削除・読取り、2段階移管、独立local credential失効を定義する。本transaction/replay境界を維持し、E05が認証HTTPS統合を提供する。
+
 1. D05を唯一のdoing deliveryに維持し、検証headを固定したまま本具体化を受理・準備する。2026-10-31 17:57 JSTのscope監査で、host transactionにE02・3 pointを維持し、認証HTTP統合を実装前にE05・3 pointとして明示する。受入条件は削除しない。
 2. 上限付きaction・audit/result variant・完全履歴遷移検証・最新認証yank/unyank transactionを追加する。不変公開と既存API動作を保持する。
 3. E03のowner transaction後、E05で明示認証publish/action/ownerを上限付きservice/clientと最新read generationに統合し、実HTTPSでresource計上・競合・再試行結果を検証する。E05はE04の完全な権限外操作/recovery journeyの前提とする。

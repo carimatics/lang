@@ -107,6 +107,8 @@ An action or receipt is not a capability. Real bearer possession, current enroll
 
 ## Implementation plan
 
+E03 elaboration: [RFC 0052](0052-registry-owner-and-credential-control.md), accepted 2026-10-31 JST, defines owner add/remove/read, two-step transfer and separate local credential revocation. It retains this transaction/replay boundary; E05 supplies authenticated HTTPS integration.
+
 1. Prepare this accepted elaboration while D05 remains the sole doing delivery; preserve its frozen verification head. The 2026-10-31 17:57 JST scope audit retains E02 at 3 points for the host transaction and exposes E05 at 3 points for authenticated HTTP integration before implementation. No acceptance condition is removed.
 2. Add bounded actions, audit/result variants, complete historical transition validation and fresh authenticated yank/unyank transactions. Preserve immutable publication and its existing API behavior.
 3. After E03's owner transactions, E05 integrates explicit authenticated publish/actions/owners with the bounded service/client and fresh read generations; verify resource accounting, conflict and retry outcomes with actual HTTPS. E05 is a prerequisite of E04's complete unauthorized/recovery journey.
