@@ -21,6 +21,10 @@ D03事前検証（2026-10-31 JST）: `/private/tmp/lang-m5-index-bound-probe.rs`
 
 D03判断（2026-10-31 JST）: RFC 0046で派生indexのcommit前上限をRFC 0001委任により採択し、旧データの明示拒否と暗黙migrationなしを規定した。上記事前検証の契約対応は実装前に解決した。Roadmapをmerge済みE01、D02の実行checkpoint、不変のD02 → D03 → D04実行順に整合させた。D03はtodo・3 ptを維持し、選択にはD02全検証の完了が必要。
 
+D03厳密境界fixture（2026-10-31 JST）: `/private/tmp/lang-m5-index-exact-bound-probe.rs`で、依存128件を持つ実archiveを各caseで30個受理した。最後のarchiveにある正当なregistry識別子だけを短くし、完全なcanonical indexを厳密に2,097,151・2,097,152・2,097,153 byteへ調整できた。対応するSHA-256は順に`982e693f4b13246d27cd7f0f39adbabd0fa2975663fd2fa872ee4b26c9a2d934`、`d2697d8e0de1c56783ca1e45becd2ecfdc55d4327f0c6f84ed05a272b2b7e78d`、`aa8b6297244e99eaaabdf18f750a260d1c60eadb31e783e38b04fbe748b179fd`。D03の閾値testに使える実受理入力の証拠であり、transaction拒否やHEAD不変は未検証。Delivery・見積り変更なし。
+
+D03 deadline実験（2026-10-31 JST）: `/private/tmp/lang-m5-https-deadline-probe.rs`で実TLS fixtureへ単調時刻の絶対I/O deadlineを追加した。元の7 caseと遅いheader・遅いbody・TLS EOFなしの計10 caseが成功。実験用200 ms deadlineに対し、70 msごとにbyteが届いても後者3 caseを200–201 msで拒否し、個々のreadが全体budgetを延長しないことを確認した。これはlocal機構の証拠であり、本番10/120秒上限・全parser case・集約/並行budget・Windows動作の検証ではない。D03はtodo、D02だけをdoingに維持する。
+
 D03 transport実験（2026-10-31 JST）: `/private/tmp/lang-m5-http-framing-probe.rs`でlock済みureq 3.5.0のメモリ内transportを使用した（network/TLSではない）。1 byte宣言の厳密入力は1 byteを返し残り0 byte。4 byte余分な入力も1 byteの正常EOFを返し、wireの残り4 byteは呼び出し側から隠れる。5 byte宣言で1 byteしかない場合は正しく失敗した。したがって既存の高水準body reader単独ではRFC 0046の余分なresponse拒否を実現できない。D03は保守されるHTTP/TLS部品を使いつつ上限付きraw framingを検査可能にし、両hostで厳密/不足/余分な実transport fixtureを加える。これは範囲を限定した統合制約で、library脆弱性の主張やM4動作変更ではない。D03はtodo・3 ptを維持する。
 
 D03 HTTPS実現性（2026-10-31 JST）: `/private/tmp/lang-m5-https-framing-probe.rs`でlock済みrustls/httparseを実local TLS socketに接続し、fixture証明書を明示的に信頼した。厳密1 byte response、余分/不足本文、Content-Length重複、Transfer-Encoding、Content-Encoding、未信頼証明書の7 caseが成功。Clientの書込側を開いたままserverが応答し、ローカル各caseは1–3 msで完了した（性能保証ではなく観測）。高水準body readerと異なり、上限付きraw framingで受理前に余分なbyteを検出できた。Sandboxがlocal bindを拒否したため、作成済み実験を一回限りの権限拡張で実行した。これはlocal実現性の証拠のみ。8接続/集約budget、完全なdeadline/framing matrix、registry対応、Windows transport実行はD03の残作業で、D02だけをdoingに維持する。
