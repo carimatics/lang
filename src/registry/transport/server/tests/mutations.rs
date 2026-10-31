@@ -81,6 +81,210 @@ fn publication_header(fixture: &Fixture, id: &str) -> Vec<u8> {
     format!("PUT /v1/packages/answer/1.0.0 HTTP/1.1\r\nHost: {}\r\nConnection: close\r\nContent-Type: application/x-tar\r\nContent-Length: {}\r\nIdempotency-Key: {id}\r\nIf-None-Match: *\r\nAuthorization: Bearer {}\r\n\r\n", authority(&fixture.identity), fixture.archive.as_bytes().len(), "11".repeat(32)).into_bytes()
 }
 
+#[test]
+fn actual_https_stop_local_enrollment_recovery_deactivation_and_restart_preserve_source() {
+    let source = crate::registry::transport::tests::binding::archive(SOURCE);
+    let mut fixture = Fixture::seed(source, false);
+    let listener = fixture.listener.as_ref().unwrap().try_clone().unwrap();
+    let first_budget = Budget::new(MAX_REQUEST_MEMORY);
+    let (mut server, client, _) = controlled_service(
+        &mut fixture,
+        Arc::new(At(110)),
+        REQUEST_TIMEOUT,
+        Arc::clone(&first_budget),
+    );
+    let a = Bearer::from_input("11".repeat(32).as_bytes()).unwrap();
+    let b = Bearer::from_input("22".repeat(32).as_bytes()).unwrap();
+    let original_id = "a".repeat(32);
+    client
+        .publish(&a, &fixture.archive, &original_id, ExpectedRevision::Absent)
+        .unwrap();
+    assert_eq!(
+        store::Administrator::open(&fixture.parent, "registry", &fixture.identity, PRINCIPAL)
+            .err()
+            .unwrap()
+            .kind,
+        store::ErrorKind::Busy
+    );
+    assert_eq!(
+        store::RecoveryAdministrator::open(
+            &fixture.parent,
+            "registry",
+            &fixture.identity,
+            PRINCIPAL,
+            "answer"
+        )
+        .err()
+        .unwrap()
+        .kind,
+        store::ErrorKind::Busy
+    );
+    server.stop().unwrap();
+    assert_eq!(first_budget.used(), 0);
+    let mut admin =
+        store::Administrator::open(&fixture.parent, "registry", &fixture.identity, PRINCIPAL)
+            .unwrap();
+    admin
+        .enroll(
+            &store::Enrollment::new(SECOND, &"b".repeat(32), 2, "enroll replacement").unwrap(),
+            &At(120),
+        )
+        .unwrap();
+    let record: authority::codec::Token = serde_json::from_value(serde_json::json!({
+        "id":"02".repeat(16), "principal":SECOND, "registry":"example", "origin":fixture.identity.origin(),
+        "authenticator_sha256":b.authenticator_sha256(), "issued":100, "expires":200, "revoked":false,
+        "grants":[{"action":"owners","name":"answer"},{"action":"publish","name":"answer"}]
+    })).unwrap();
+    let mut bytes = serde_json::to_vec_pretty(&record).unwrap();
+    bytes.push(b'\n');
+    admin
+        .provision(
+            &store::CredentialProvision::new(&bytes, &"c".repeat(32), 3, "provision replacement")
+                .unwrap(),
+            &At(120),
+        )
+        .unwrap();
+    admin
+        .revoke(
+            &store::Revocation::new(&"01".repeat(16), &"d".repeat(32), 4, "lost credential")
+                .unwrap(),
+            &At(120),
+        )
+        .unwrap();
+    drop(admin);
+    // A revoked network token does not create or remove the separately supplied
+    // trusted directory capability used by the active configured operator.
+    let mut recovery = store::RecoveryAdministrator::open(
+        &fixture.parent,
+        "registry",
+        &fixture.identity,
+        PRINCIPAL,
+        "answer",
+    )
+    .unwrap();
+    recovery
+        .recover_owner(
+            &store::OwnerRecovery::new(
+                "answer",
+                SECOND,
+                &"e".repeat(32),
+                5,
+                1,
+                "lost owner recovery",
+            )
+            .unwrap(),
+            &At(120),
+        )
+        .unwrap();
+    drop(recovery);
+    fixture.registry =
+        Some(Registry::open(&fixture.parent, "registry", &fixture.identity).unwrap());
+    fixture.listener = Some(listener);
+    let listener = fixture.listener.as_ref().unwrap().try_clone().unwrap();
+    let second_budget = Budget::new(MAX_REQUEST_MEMORY);
+    let (mut server, client, _) = controlled_service(
+        &mut fixture,
+        Arc::new(At(130)),
+        REQUEST_TIMEOUT,
+        Arc::clone(&second_budget),
+    );
+    let old = client
+        .publish(&a, &fixture.archive, &original_id, ExpectedRevision::Absent)
+        .unwrap_err();
+    assert_eq!(old.error.kind, ErrorKind::Authentication);
+    assert_eq!(old.delivery, Delivery::Refused);
+    let next = crate::registry::transport::tests::binding::archive_files_version(
+        &[("main.lang", SOURCE)],
+        "1.0.1",
+    );
+    let next_id = "f".repeat(32);
+    let receipt = client
+        .publish(&b, &next, &next_id, ExpectedRevision::Revision(2))
+        .unwrap();
+    assert_eq!(receipt.receipt.revision(), 3);
+    assert_eq!(receipt.receipt.audit_sequence(), 7);
+    let index = client.index("answer").unwrap();
+    let downloaded = client.archive(&index, "1.0.1").unwrap();
+    assert_eq!(downloaded.as_bytes(), next.as_bytes());
+    execute(&downloaded);
+    assert_eq!(
+        client.archive(&index, "1.0.0").unwrap().as_bytes(),
+        fixture.archive.as_bytes()
+    );
+    server.stop().unwrap();
+    assert_eq!(second_budget.used(), 0);
+    let mut admin =
+        store::Administrator::open(&fixture.parent, "registry", &fixture.identity, PRINCIPAL)
+            .unwrap();
+    assert_eq!(
+        admin
+            .deactivate(
+                &store::Deactivation::new(SECOND, &"1".repeat(32), 7, "last active owner").unwrap(),
+                &At(140)
+            )
+            .unwrap_err()
+            .kind,
+        store::ErrorKind::Conflict
+    );
+    drop(admin);
+    let mut recovery = store::RecoveryAdministrator::open(
+        &fixture.parent,
+        "registry",
+        &fixture.identity,
+        PRINCIPAL,
+        "answer",
+    )
+    .unwrap();
+    recovery
+        .recover_owner(
+            &store::OwnerRecovery::new(
+                "answer",
+                PRINCIPAL,
+                &"2".repeat(32),
+                7,
+                3,
+                "restore local owner",
+            )
+            .unwrap(),
+            &At(140),
+        )
+        .unwrap();
+    drop(recovery);
+    let mut admin =
+        store::Administrator::open(&fixture.parent, "registry", &fixture.identity, PRINCIPAL)
+            .unwrap();
+    admin
+        .deactivate(
+            &store::Deactivation::new(SECOND, &"3".repeat(32), 8, "retire replacement").unwrap(),
+            &At(140),
+        )
+        .unwrap();
+    drop(admin);
+    fixture.registry =
+        Some(Registry::open(&fixture.parent, "registry", &fixture.identity).unwrap());
+    fixture.listener = Some(listener);
+    let third_budget = Budget::new(MAX_REQUEST_MEMORY);
+    let (mut server, client, _) = controlled_service(
+        &mut fixture,
+        Arc::new(At(150)),
+        REQUEST_TIMEOUT,
+        Arc::clone(&third_budget),
+    );
+    let inactive = client
+        .publish(&b, &next, &next_id, ExpectedRevision::Revision(2))
+        .unwrap_err();
+    assert_eq!(inactive.error.kind, ErrorKind::Authentication);
+    assert_eq!(inactive.delivery, Delivery::Refused);
+    let index = client.index("answer").unwrap();
+    assert_eq!(index.revision(), 4);
+    execute(&client.archive(&index, "1.0.1").unwrap());
+    server.stop().unwrap();
+    assert_eq!(third_budget.used(), 0);
+    let reopened = Registry::open(&fixture.parent, "registry", &fixture.identity).unwrap();
+    assert_eq!(reopened.revision().unwrap(), 9);
+    execute(&reopened.archive(next.sha256()).unwrap());
+}
+
 fn execute(archive: &AdmittedArchive) {
     let analysis = crate::frontend::analyze_virtual(
         lang_diagnostics::SourceMap::new(),
@@ -971,6 +1175,13 @@ fn actual_action_bodies_and_private_owner_headers_reject_inapplicable_or_noncano
     )
     .unwrap();
     let valid = std::str::from_utf8(action.as_bytes()).unwrap();
+    let local_credential: authority::codec::Token = serde_json::from_value(serde_json::json!({
+        "id":"02".repeat(16), "principal":SECOND, "registry":"example", "origin":fixture.identity.origin(),
+        "authenticator_sha256":bearer.authenticator_sha256(), "issued":100, "expires":200, "revoked":false,
+        "grants":[{"action":"publish","name":"answer"}]
+    })).unwrap();
+    let mut local_bytes = serde_json::to_vec_pretty(&local_credential).unwrap();
+    local_bytes.push(b'\n');
     let auth = format!("Authorization: Bearer {}\r\n", "11".repeat(32));
     let make_header = |length| {
         format!(
@@ -995,6 +1206,34 @@ fn actual_action_bodies_and_private_owner_headers_reject_inapplicable_or_noncano
         ),
         valid.replace("\"version\"", "\"unexpected\": 0,\n  \"version\""),
         valid.trim_end().into(),
+        String::from_utf8(
+            store::Enrollment::new(SECOND, &"c".repeat(32), 2, "local only")
+                .unwrap()
+                .as_bytes()
+                .to_vec(),
+        )
+        .unwrap(),
+        String::from_utf8(
+            store::CredentialProvision::new(&local_bytes, &"c".repeat(32), 2, "local only")
+                .unwrap()
+                .as_bytes()
+                .to_vec(),
+        )
+        .unwrap(),
+        String::from_utf8(
+            store::Deactivation::new(SECOND, &"c".repeat(32), 2, "local only")
+                .unwrap()
+                .as_bytes()
+                .to_vec(),
+        )
+        .unwrap(),
+        String::from_utf8(
+            store::OwnerRecovery::new("answer", SECOND, &"c".repeat(32), 2, 1, "local only")
+                .unwrap()
+                .as_bytes()
+                .to_vec(),
+        )
+        .unwrap(),
         " ".repeat(2048),
         String::new(),
     ] {

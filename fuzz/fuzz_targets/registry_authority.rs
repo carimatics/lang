@@ -1,7 +1,10 @@
 #![no_main]
 
 use lang::registry::authority::{Authority, Bearer, Operation, ServiceIdentity};
-use lang::registry::store::{OwnerAction, QuarantineAction, Revocation, YankAction};
+use lang::registry::store::{
+    CredentialProvision, Deactivation, Enrollment, OwnerAction, OwnerRecovery, QuarantineAction,
+    Revocation, YankAction,
+};
 use libfuzzer_sys::fuzz_target;
 
 fuzz_target!(|bytes: &[u8]| {
@@ -28,6 +31,22 @@ fuzz_target!(|bytes: &[u8]| {
         Err(error) => assert!(error.to_string().len() < 128),
     }
     match Revocation::admit(bytes) {
+        Ok(action) => assert_eq!(action.as_bytes(), bytes),
+        Err(error) => assert!(error.to_string().len() < 128),
+    }
+    match Enrollment::admit(bytes) {
+        Ok(action) => assert_eq!(action.as_bytes(), bytes),
+        Err(error) => assert!(error.to_string().len() < 128),
+    }
+    match CredentialProvision::admit(bytes) {
+        Ok(action) => assert_eq!(action.as_bytes(), bytes),
+        Err(error) => assert!(error.to_string().len() < 128),
+    }
+    match Deactivation::admit(bytes) {
+        Ok(action) => assert_eq!(action.as_bytes(), bytes),
+        Err(error) => assert!(error.to_string().len() < 128),
+    }
+    match OwnerRecovery::admit(bytes) {
         Ok(action) => assert_eq!(action.as_bytes(), bytes),
         Err(error) => assert!(error.to_string().len() < 128),
     }

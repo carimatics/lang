@@ -1,6 +1,13 @@
 use super::*;
 use serde::{Deserialize, Serialize};
 
+mod lifecycle;
+mod transitions;
+pub use lifecycle::{
+    CredentialProvision, Deactivation, Enrollment, OwnerRecovery, RecoveryAdministrator,
+};
+pub(super) use transitions::validate_local_history;
+
 const MAX_ACTION_BYTES: usize = 2048;
 
 #[derive(Deserialize, Serialize)]

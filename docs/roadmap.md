@@ -250,6 +250,12 @@ Exit: a new developer can install one tool, create a package, develop in an edit
 
 ## Milestone 5: ecosystem and compatibility
 
+E08 remaining-scope audit, 2026-10-31 23:26 JST: actual local lifecycle/HTTPS/source execution, the 75-test store run and cross-operation identity test, 72 process cuts, 40 rehashed forgeries, writer contention, retained identity/owner limits and exact index/workspace boundaries pass. Fmt and strict workspace/locked fuzz Clippy pass. Frozen full baseline, latest-head both-host CI and publication remain: E08 3 → 1 pt, net −7, retired 40, remaining 65. E08 alone remains doing; no delivery or gate is newly completed. Earlier checkpoint counts are historical.
+
+E07 completion / E08 selection, 2026-10-31 23:05 JST: `e3fa55c` passes the unchanged-source 2,703-test/182-suite baseline, strict workspace/fuzz lint, fmt and rustdoc; all 18 CI 41206731980 jobs and three native-debug 41206732043 hosts succeed. Windows/macOS 15/macOS 26 each confirm 33 transport, 11 workspace and nine quarantine tests. PR #43 merged as `555fb53`; main is clean, synchronized 0/0 and matches the tested tree. Retire E07's last 1 pt: 20 done, net −5, retired 40, remaining 67. E08 alone becomes doing 3 pt on PR #44 against main, with RFC 0055 accepted and production lifecycle/recovery execution and boundary evidence remaining. G5 stays open; older statuses/counts are historical.
+
+E08 preparation, 2026-10-31 22:49 JST: accept RFC 0055's local lifecycle and exact-package emergency owner replacement with a 23-check policy/encoding experiment. Production enforcement and platform evidence remain unimplemented. E08 stays todo 3 pt; E07 alone stays doing 1 pt at frozen `e3fa55c` for baseline/CI. No added scope or gate credit: 19 done, net −5, retired 39, remaining 68. See the delivery board for branch provenance and acceptance conditions.
+
 E07 remaining-scope audit, 2026-10-31 22:40 JST: actual HTTPS/source execution, 62 store tests, 36 process cuts, competing writers, rehashed forgeries, current authority, exact index/workspace boundaries and 512 admission mutations pass. Fmt and strict workspace Clippy pass. Frozen full baseline, locked fuzz lint, latest-head both-host CI and publication remain: E07 3 → 1 pt, net −5, retired 39, remaining 68. E07 alone remains doing; no delivery or gate is newly completed. Earlier checkpoint counts are historical.
 
 E05 completion / E07 selection, 2026-10-31 21:19 JST: `2ae39fb` passes the unchanged-source 2,692-test/182-suite baseline, fmt, strict workspace/fuzz Clippy and rustdoc. CI 41199138805 passes all 18 applicable jobs; native-debug 41199138761 passes three hosts. Windows/macOS 15/macOS 26 each confirm 32 transport and 10 workspace tests. PR #42 merged as `7378073`; main is clean, synchronized 0/0 and identical to the tested tree. E05 retires its last 1 pt: net −3, retired 39, remaining 70. E07 is the sole doing delivery at 3 pt on PR #43 against main; actual quarantine/restoration implementation and both-host evidence remain. G5 stays open; older statuses/counts are historical.
@@ -266,7 +272,7 @@ Current E03/E06 checkpoint, 2026-10-31 JST: E03 completed at `18b2128` (2,667 te
 
 Activated 2026-10-30 JST. The [M5 board](milestone-5.md) retains all ten gates, 39 observable deliveries and a 112 pt remaining-work baseline. Start with the [edition/compatibility policy](rfcs/0043-editions-and-compatibility.md) and executable compatibility/migration fixtures. Threat modeling must precede registry uploads; signed toolchain installation is not registry provenance. Both P1 gates remain in scope. Completion includes both-host ecosystem journeys and a bilingual capability guide.
 
-**19 done · 1 doing · 24 todo · 68 remaining pt**
+**20 done · 1 doing · 23 todo · 65 remaining pt**
 
 D05 completed (2026-10-31 JST): [RFC 0050](rfcs/0050-registry-cache-and-offline-replay.md) is implemented at `43dea74`. The full frozen baseline passes 2,645 tests / 182 suites plus fmt, strict Clippy and rustdoc; CI `41185690356` and native-debug `41185690326` pass all applicable jobs/hosts. PR #38 merged as `b0d4d76`, and main is clean, synchronized (0/0) and identical to the tested tree. D01–D05 close G4; authenticated production consumption remains F01–F04 work.
 

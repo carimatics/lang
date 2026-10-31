@@ -250,6 +250,12 @@ Exit：新しいdeveloperが1つのtoolをinstallし、packageを作成し、edi
 
 ## Milestone 5：ecosystemとcompatibility
 
+E08残scope監査（2026-10-31 23:26 JST）: 実local lifecycle/HTTPS/source実行、store 75-test runとoperation間identity test、72 process中断、再hash偽造40件、writer競合、保持identity/owner上限、厳密index/workspace境界が成功した。Fmtと厳密workspace/locked fuzz Clippyが成功。固定全baseline・最新headの両host CI・公開が残るため、E08を3 → 1 pt、純−7・退役40・残65とする。E08だけをdoingとし、新規delivery/gate完了なし。以前のcheckpoint件数は履歴である。
+
+E07完了 / E08選択（2026-10-31 23:05 JST）: `e3fa55c`でsource不変の2,703-test/182-suite baseline・厳密workspace/fuzz lint・fmt・rustdocが成功し、CI 41206731980の対象18 jobとnative-debug 41206732043の3 hostが成功した。Windows/macOS 15/macOS 26の各logでtransport 33・workspace 11・quarantine 9 testを確認した。PR #43は`555fb53`としてmergeし、mainはclean・0/0同期・検証済みtreeと同一である。E07の最終1 ptを退役し、20 done・純−5・退役40・残67とする。main向けPR #44でE08だけをdoing・3 ptとし、RFC 0055はaccepted、本番lifecycle/復旧実行と境界証拠を残す。G5はopen。以前の状態・件数は履歴である。
+
+E08準備（2026-10-31 22:49 JST）: 23-check policy/encoding実験を伴うRFC 0055のlocal lifecycle・厳密package scopeの緊急owner置換を採択する。本番適用とplatform証拠は未実装である。E08はtodo・3 pt、E07だけをdoing・1 ptとし、baseline/CI向けに`e3fa55c`へ固定する。Scope追加・gate creditなしで、19 done・純−5・退役39・残68を維持する。Branch起点と受入条件はdelivery boardを参照する。
+
 E07残scope監査（2026-10-31 22:40 JST）: 実HTTPS/source実行、store 62 test、36 process中断、writer競合、再hash偽造、現在権限、厳密index/workspace境界、受理入力変異512件が成功した。Fmtと厳密workspace Clippyが成功。固定full baseline・locked fuzz lint・最新headの両host CI・公開が残り、E07を3 → 1 pt、純−5・退役39・残68とする。E07だけをdoingとし、新規delivery/gate完了なし。以前のcheckpoint件数は履歴とする。
 
 E05完了 / E07選択（2026-10-31 21:19 JST）: `2ae39fb`でsource不変の2,692-test/182-suite baseline・fmt・厳密workspace/fuzz Clippy・rustdocが成功した。CI 41199138805は対象18 job、native-debug 41199138761は3 host成功。Windows/macOS 15/macOS 26の各logでtransport 32・workspace 10 testを確認した。PR #42は`7378073`としてmergeし、mainはclean・0/0同期・検証済みtreeと同一である。E05の最終1 ptを退役し、純−3・退役39・残70とする。main向けPR #43でE07のみdoing・3 ptとし、実quarantine/復元実装と両host証拠を残す。G5はopen。以前の状態・件数は履歴である。
@@ -266,7 +272,7 @@ E06 scope監査（2026-10-31 19:35 JST）: Local host fixture、厳密workspace/
 
 2026-10-30 JST開始。[M5 board](milestone-5.md)に全10ゲート、39件の観測可能delivery、残作業基準112 ptを保持する。[edition・互換性方針](rfcs/0043-editions-and-compatibility.md)と実行可能な互換性・移行fixtureから開始する。registry upload前に脅威モデルを定め、署名toolchain導入をregistry provenanceと混同しない。P1の2ゲートも範囲内。完了には両host ecosystem journeyと日英能力guideを含める。
 
-**19 done · 1 doing · 24 todo · 68 remaining pt**
+**20 done · 1 doing · 23 todo · 65 remaining pt**
 
 D05完了（2026-10-31 JST）: [RFC 0050](rfcs/0050-registry-cache-and-offline-replay.md)を`43dea74`で実装した。固定全baselineは2,645 test / 182 suiteとfmt・厳密Clippy・rustdocに成功し、CI `41185690356`とnative-debug `41185690326`の対象全job/hostも成功した。PR #38は`b0d4d76`としてmergeし、mainはclean・0/0同期・検証済みtreeと同一を確認した。D01–D05でG4を完了とし、認証済み本番消費はF01–F04に残す。
 

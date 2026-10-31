@@ -2,6 +2,14 @@
 
 # Milestone 5 delivery board
 
+E08 executable checkpoint and remaining-scope audit, verified 2026-10-31 23:26 JST: actual stop/local-enrollment/provision/recovery/restart HTTPS publication executes unchanged source as 42 in VM/native, and later deactivation refuses the old credential and retry. The 75-test store run plus the cross-operation identity fixture pass: 72 process cuts, 40 fully rehashed forgeries, both local/registry writer orders, full 128-owner replacement, retained principal/token 4,096-entry equality/overflow and revoked ID/hash reuse, final-time/unknown-result reconciliation, legacy index +1-byte refusal, large-provision-history workspace −1/equality/+1 and 1,024 admission mutations. Independent canonical/request/record vectors, fmt and strict workspace/locked fuzz Clippy pass. RFC 0055 re-audits allocation overlap without changing the service envelope. Implementation is complete; frozen full baseline (including added HTTP local-action refusal cases), latest-head both-host CI and publication remain. Re-estimate E08 3 → 1 pt: net −5 → −7, retired estimates stay 40, and 112 − 7 − 40 = 65 pt. No delivery, prerequisite or gate is added or completed. E08 alone remains doing; freeze this implementation for validation. Earlier checkpoints below are historical.
+
+E08 executable checkpoint, verified 2026-10-31 23:11 JST: two focused tests pass. Actual local enrollment → credential-hash provisioning → scoped owner replacement → B publication executes unchanged source as 42 in VM/native. Former-owner publication is refused; old recovery/provision/enrollment receipts do not undo subsequent owner additions, revocation or deactivation, including expired provision replay. All four action/request and token-record digests match independent pretty-canonical vectors; the first vector experiment used compact JSON and was corrected without changing production encoding. E08 alone remains doing at 3 pt. Remaining acceptance is real stop/admin/restart HTTPS integration, complete authority/replay/forgery/process/concurrency/limit cases, fuzz/lint, frozen baseline and latest-head both-host publication. No delivery or gate credit; previous checkpoints are historical.
+
+E07 completion / E08 selection, 2026-10-31 23:05 JST: frozen `e3fa55c` passes fmt, strict workspace/fuzz Clippy, unchanged-source 2,703 tests/182 suites and rustdoc. CI 41206731980 passes all 18 applicable jobs (26 implementation/unclassified paths intentionally omit docs-only validation); native-debug 41206732043 passes three hosts. Windows/macOS 15/macOS 26 each confirm 33 transport, 11 workspace and nine quarantine tests. [PR #43](https://github.com/carimatics/lang/pull/43) merged as `555fb53`; original main is clean, synchronized 0/0 and identical to the tested tree. Retire E07's final 1 pt: 20 done, net −5, retired 40, remaining 67; G5 stays open. E08 alone becomes doing at 3 pt on [PR #44](https://github.com/carimatics/lang/pull/44), retargeted to main. Its last executable checkpoint is the 23-check local-policy model (22:49 JST), supplemented by independent four-action digest vectors; production local lifecycle is not implemented. Remaining acceptance is closed local codecs/capabilities/full-history transitions, actual enrollment/provision/recovery → authorized source execution, current-authority/replay/forgery/process/limit boundaries and full both-host publication. This scope review retains 3 pt without additions. Earlier statuses/counts below are historical.
+
+E08 preparation, 2026-10-31 22:49 JST: accept RFC 0055 for audited local enrollment, credential-hash provisioning, deactivation and separately constructed exact-package owner replacement. The 23-check external policy model includes full 128-owner recovery and later-state-preserving replay; its 15,694-byte token/179-byte digest-operation experiment justifies retaining the 2 KiB audit limit. This is design evidence only. E08 remains todo at 3 pt and E07 alone remains doing at 1 pt, frozen at `e3fa55c` for full baseline/latest-head CI; counts and 112 − 5 − 39 = 68 pt are unchanged. `codex/m5-registry-local-recovery` starts clean from `e3fa55c` on `codex/m5-registry-quarantine-recovery`, with initial PR base origin/codex/m5-registry-quarantine-recovery in `git@github.com:carimatics/lang.git` until #43 merges. No source implementation, new delivery or gate completion is claimed.
+
 E07 executable checkpoint and remaining-scope audit, verified 2026-10-31 22:40 JST: actual HTTPS quarantine → stale-index download refusal → restoration executes identical source as 42 in VM/native and retires all service leases. All 62 store tests pass, including 36 process cuts, both publish/quarantine writer orders, 12 rehashed forgeries, current scope/local revocation, final-time/unknown-result reconciliation, exact index +1-byte refusal and workspace −1/equality/+1. Independent canonical/request vectors, 512 admission mutations, fmt and strict workspace Clippy pass. The implementation checklist is complete; frozen full baseline, locked fuzz lint, latest-head both-host CI and publication remain. Re-estimate E07 3 → 1 pt: cumulative net −3 → −5, retired estimates stay 39, and 112 − 5 − 39 = 68 pt. No delivery, prerequisite or gate is added or completed. E07 alone remains doing; freeze this implementation for validation. Earlier checkpoints below are historical.
 
 E07 executable checkpoint, verified 2026-10-31 21:23 JST: two focused tests pass. The actual host journey publishes and executes 42, refuses owner-only quarantine, commits administrator quarantine and refuses download, preserves an independent owner yank, reopens/restores the exact archive, executes 42 in VM/native again and reconciles the old receipt without rolling back flags. The canonical body matches the independent 175-byte vector. E07 remains doing at 3 pt; metered/HTTPS integration, complete hostile-history/authority/process/limit cases, lint, full baseline and latest-head both-host publication remain. No added scope or gate credit; earlier model-only checkpoints are historical.
@@ -30,9 +38,9 @@ E06 design audit, 2026-10-31 JST: RFC 0053 is accepted under experimental delega
 
 Activated 2026-10-30 JST from `3b676c5`. This board tracks the entire M5 scope in [the roadmap](roadmap.md#milestone-5-ecosystem-and-compatibility), including both P1 gates. M4's installer and local packages are prerequisites, not registry completion.
 
-**19 done · 1 doing · 24 todo · 68 remaining pt**
+**20 done · 1 doing · 23 todo · 65 remaining pt**
 
-**Next: M5-E07 — audited authenticated quarantine/restoration (1 pt: frozen baseline, both-host CI and publication).**
+**Next: M5-E08 — audited local lifecycle and scoped owner recovery (1 pt: frozen baseline, both-host CI and publication).**
 
 E03 executable checkpoint and remaining-scope audit, 2026-10-31 18:49 JST: actual owner transfer → B publication and separate local revocation retain exact source execution (42 in VM/native). Store 42/42 passes: fresh former-owner/revoked refusal, private reads, 128-owner capacity, 72 process cuts (68 old/four new), both owner/admin writer orders, 18 fully rehashed forgeries, final time, explicit unknown-result reconciliation, expired/inactive credential targets and cross-operation identity conflicts. Independent vectors and 1,024 admission mutations pass; the valid-state preflight proves revision 99 → 100 causes +1 byte at the exact index ceiling. Fmt, strict workspace Clippy and locked fuzz Clippy pass. Remaining acceptance is frozen full baseline, latest-head both-host CI and publication: re-estimate E03 3 → 1 pt (net −2), cumulative net −6, retired estimates unchanged at 36, and 112 − 6 − 36 = 70 pt. No delivery is newly completed or added; E03 alone remains doing. E04/E05 stay separate. Freeze this implementation for full validation.
 
@@ -212,8 +220,8 @@ Gate completion: **3/10; 21/65 historical gate weight**. Delivery points below a
 | M5-E04 | todo | 1 | M5-E03,M5-E05,M5-E07,M5-E08 | G5 | Combined durable recovery, unauthorized-operation journey and G5 exit audit | — |
 | M5-E05 | done | 0 | M5-E02,M5-E03,M5-E06 | G5 | Authenticated HTTPS publish/actions/owners with fresh generations and recovery refusals | `2ae39fb` |
 | M5-E06 | done | 0 | M5-E02,M5-E03 | G5 | Metered host recovery/transactions and bounded validated read-generation capture | `db22857` |
-| M5-E07 | doing | 1 | M5-E05 | G5 | Audited authenticated quarantine/restoration with unchanged source execution | — |
-| M5-E08 | todo | 3 | M5-E03,M5-E05 | G5 | Audited local principal/credential lifecycle and scoped owner recovery | — |
+| M5-E07 | done | 0 | M5-E05 | G5 | Audited authenticated quarantine/restoration with unchanged source execution | `e3fa55c` |
+| M5-E08 | doing | 1 | M5-E03,M5-E05 | G5 | Audited local principal/credential lifecycle and scoped owner recovery | — |
 | M5-F01 | todo | 3 | M5-C02 | G6 | Accept package trust roots, provenance, signature and freshness contract | — |
 | M5-F02 | todo | 3 | M5-F01,M5-D02 | G6 | Produce signed package release manifests and verifiable provenance | — |
 | M5-F03 | todo | 3 | M5-F02,M5-D03 | G6 | Verify trust, artifact binding, expiry and replay before consumption | — |
@@ -239,11 +247,11 @@ Gate completion: **3/10; 21/65 historical gate weight**. Delivery points below a
 
 ## Estimate reconciliation
 
-**112 − 5 − 39 = 68 pt**
+**112 − 7 − 40 = 65 pt**
 
 | Baseline remaining | Net additions/re-estimates | Retired at completion | Remaining |
 | ---: | ---: | ---: | ---: |
-| 112 pt | −5 pt | −39 pt | 68 pt |
+| 112 pt | −7 pt | −40 pt | 65 pt |
 
 ## Delivery notes and roadmap audit
 

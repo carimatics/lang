@@ -32,7 +32,7 @@ RFC 0047 separates current owner/credential policy from actual mutation. E02 now
 ## Non-goals
 
 - An atomic transfer action, public principal enrollment, credential minting or a network credential-administration endpoint.
-- Principal deactivation, later provisioning, administrative owner recovery or quarantine workflows, which remain E04 elaborations.
+- Principal deactivation, later provisioning, administrative owner recovery or quarantine workflows: [RFC 0054](0054-registry-quarantine-transactions.md) and [RFC 0055](0055-registry-local-administration.md) elaborate these separately in E07/E08 before E04's combined audit. Normal two-step ownership transfer remains unchanged.
 - Signed provenance, production consumption, source-language changes, power-loss availability or malicious-operator authentication.
 
 ## Guide-level design

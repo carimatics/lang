@@ -2,6 +2,7 @@ use super::*;
 use std::cell::Cell;
 mod adversarial;
 mod index_capacity;
+mod local_admin;
 mod owners;
 mod quarantine;
 mod reads;

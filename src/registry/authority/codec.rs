@@ -42,6 +42,36 @@ pub(crate) struct Token {
     #[serde(deserialize_with = "grants")]
     pub grants: Vec<Grant>,
 }
+impl Token {
+    /// Intrinsic record admission; current principal and service binding are
+    /// checked separately against the committed authority generation.
+    pub(crate) fn validate_record(&self) -> Result<(), Error> {
+        unhex::<16>(&self.id)?;
+        unhex::<16>(&self.principal)?;
+        unhex::<32>(&self.authenticator_sha256)?;
+        if self.grants.len() > MAX_GRANTS {
+            return Err(error(
+                ErrorKind::Limit,
+                "authority collection limit exceeded",
+            ));
+        }
+        if !valid_name(&self.registry)
+            || !valid_origin(&self.origin)
+            || self.issued >= self.expires
+            || self.expires > MAX_TIME
+            || self.expires - self.issued > MAX_LIFETIME
+            || self.grants.is_empty()
+            || !self
+                .grants
+                .windows(2)
+                .all(|p| (p[0].action, &p[0].name) < (p[1].action, &p[1].name))
+            || self.grants.iter().any(|g| !valid_name(&g.name))
+        {
+            return Err(malformed());
+        }
+        Ok(())
+    }
+}
 #[derive(Clone, Copy, Deserialize, Serialize, Eq, PartialEq, Ord, PartialOrd)]
 #[serde(rename_all = "lowercase")]
 pub(crate) enum Action {
@@ -291,21 +321,12 @@ pub(crate) fn validate(r: &Records) -> Result<(), Error> {
     }
     let mut hashes = BTreeSet::new();
     for t in &r.tokens {
-        unhex::<16>(&t.id)?;
+        t.validate_record()?;
         let hash = unhex::<32>(&t.authenticator_sha256)?;
         if !principals.contains_key(t.principal.as_str())
             || !hashes.insert(hash)
             || t.registry != r.registry
             || t.origin != r.origin
-            || t.issued >= t.expires
-            || t.expires > MAX_TIME
-            || t.expires - t.issued > MAX_LIFETIME
-            || t.grants.is_empty()
-            || !t
-                .grants
-                .windows(2)
-                .all(|p| (p[0].action, &p[0].name) < (p[1].action, &p[1].name))
-            || t.grants.iter().any(|g| !valid_name(&g.name))
         {
             return Err(malformed());
         }
