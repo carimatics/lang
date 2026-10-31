@@ -155,6 +155,8 @@ RFC 0044の`package::migration::Preview`はbyteだけを受ける旧scalar reade
 
 ## Concurrency、component、将来のtoolchain
 
+M5 registry境界は設計段階で未実装です。[RFC 0045](rfcs/0045-registry-threat-model.md)で明示origin／name／version／digest identity、現在stateに対するscope付き認可、不変release／audit transaction、testに対応する16の脅威を採択しました。Upload前にC02で具体的protocol・上限・復旧の採択が必要です。Package信頼／provenanceはRFC 0042のtoolchain配布と分離し、署名は実行capabilityを与えません。
+
 [RFC 0021](rfcs/0021-bounded-structured-task-driver.md)の有界FIFO driverと[RFC 0022](rfcs/0022-source-structured-tasks.md)・[0023](rfcs/0023-task-mir-boundaries.md)のsource/MIR契約を実装済みです。scope付きtask claim、join、所有引数/結果、suspension loan規則、取消、子から親のcleanupはVMと生成native continuation、受理済み別リンクobjectで共通です。未回収所有結果はescrowとlive-cell計上を保持し、子のjoinと結果退役が親localのcleanupに先行します。taskは1 invocation内の論理taskであり、複数OS threadでguestを実行しません。
 
 [RFC 0024](rfcs/0024-send-share-and-service-authority.md)のSend/ShareはsourceとMIRで再帰的に独立導出します。[RFC 0025](rfcs/0025-bounded-channels-and-backpressure.md)の有界MPSC channelはFIFO backpressure、元のwait identity、未commit payloadの回復、世代検査と取消を保ちます。[RFC 0026](rfcs/0026-source-isolated-services.md)のserviceはproducer権限をstate ownerから分離し、置換候補の検査とqueueからstateの順での退役を行います。既存allocator、ownership、mixed retirementを共有し、別のowner registryは作りません。

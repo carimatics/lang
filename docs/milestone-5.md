@@ -6,9 +6,11 @@
 
 Activated 2026-10-30 JST from `3b676c5`. This board tracks the entire M5 scope in [the roadmap](roadmap.md#milestone-5-ecosystem-and-compatibility), including both P1 gates. M4's installer and local packages are prerequisites, not registry completion.
 
-**7 done · 1 doing · 32 todo · 96 remaining pt**
+**8 done · 1 doing · 31 todo · 93 remaining pt**
 
-**Next: M5-C01 — accept the registry threat model for identities, namespace, authority, abuse and adversaries (3 pt).**
+**Next: M5-C02 — accept registry protocol, limits, recovery and security acceptance cases before uploads (3 pt).**
+
+C01 completed, 2026-10-31 JST: [RFC 0045](rfcs/0045-registry-threat-model.md) at `94a5200` is accepted under experimental delegation. Sixteen threats bind origin/namespace, scoped credentials, hostile archives, immutable transactions, replay/key compromise, audit, execution and hosting to observable acceptance obligations. Fresh repository consistency passed 7/7; paired threat IDs and source URLs match. Retire the last 3 pt with no additions. C02 is the only doing row at 3 pt; G3 remains open until its protocol/recovery decision is accepted. No upload implementation has begun.
 
 B04/G2 completed, verified 2026-10-31 10:59 JST: code `62e742c` and the [retained evidence](evidence/2026-10-31-m5-source-migration.json) cover the real historical-producer/current-VM/linked-native journey on both hosts. The frozen `2f905c7` baseline completed 2,553 tests in 180 suites, fmt, strict Clippy and rustdoc; all four child exits are 0 and the source fingerprint is unchanged. Logs are retained under `/private/tmp/lang-m5-fixes-target/m5-b04-validation/`. Final head `ab5cda8` passed CI `41156030921` (18 applicable jobs; documentation-only intentionally skipped under full routing) and native-debug `41156030861` (three host jobs). [PR #31](https://github.com/carimatics/lang/pull/31) merged as `46cb6a1`; the original `main` is clean and synchronized with `origin/main` (0 ahead / 0 behind). The dated incomplete checkpoints below are historical, not current blockers.
 
@@ -68,8 +70,8 @@ Gate completion: **2/10; 13/65 historical gate weight**. Delivery points below a
 | M5-B03 | done | 0 | M5-B02 | G2 | Apply checked fixes through CLI; stale/conflicting/partial-write refusal fixtures | `01b425e` |
 | M5-B05 | done | 0 | M5-B01 | G2 | Admit historical scalar syntax, prove fresh renames and preview the real old-source fixture | `7f41dd0` |
 | M5-B04 | done | 0 | M5-B03,M5-B05 | G2 | Edition migration CLI and both-host before/after execution journey | `62e742c` |
-| M5-C01 | doing | 3 | M5-A01 | G3 | Threat model: identities, namespace, authority, abuse and adversaries | — |
-| M5-C02 | todo | 3 | M5-C01 | G3 | Accept protocol, limits, recovery and security acceptance cases before upload | — |
+| M5-C01 | done | 0 | M5-A01 | G3 | Threat model: identities, namespace, authority, abuse and adversaries | `94a5200` |
+| M5-C02 | doing | 3 | M5-C01 | G3 | Accept protocol, limits, recovery and security acceptance cases before upload | — |
 | M5-D01 | todo | 3 | M5-C02 | G4 | Admit bounded untrusted archives and reject traversal/duplicate/bomb inputs | — |
 | M5-D02 | todo | 3 | M5-D01 | G4 | Content-addressed storage and immutable version publication transaction | — |
 | M5-D03 | todo | 3 | M5-D02 | G4 | Versioned index and verified download with exact identity/checksums | — |
@@ -104,11 +106,11 @@ Gate completion: **2/10; 13/65 historical gate weight**. Delivery points below a
 
 ## Estimate reconciliation
 
-**112 + 1 − 17 = 96 pt**
+**112 + 1 − 20 = 93 pt**
 
 | Baseline remaining | Net additions/re-estimates | Retired at completion | Remaining |
 | ---: | ---: | ---: | ---: |
-| 112 pt | +1 pt | −17 pt | 96 pt |
+| 112 pt | +1 pt | −20 pt | 93 pt |
 
 ## Delivery notes and roadmap audit
 

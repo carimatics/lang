@@ -6,9 +6,11 @@
 
 2026-10-30 JST、`3b676c5`から開始。[ロードマップ](roadmap.md#milestone-5ecosystemとcompatibility)のM5全範囲（P1の2ゲートを含む）を追跡する。M4のinstallerとlocal packageは前提条件であり、registry完了を意味しない。
 
-**7 done · 1 doing · 32 todo · 96 remaining pt**
+**8 done · 1 doing · 31 todo · 93 remaining pt**
 
-**次: M5-C01 — identity・namespace・authority・濫用・攻撃者のregistry脅威モデルを採択する（3 pt）。**
+**次: M5-C02 — upload前にregistry protocol・上限・復旧・security受入ケースを採択する（3 pt）。**
+
+C01完了（2026-10-31 JST）: `94a5200`の[RFC 0045](rfcs/0045-registry-threat-model.md)を実験段階委任により採択。16の脅威でorigin／namespace・scope付きcredential・敵対archive・不変transaction・replay／key侵害・audit・実行・hostingを観測可能な受入義務へ結び付けた。新しいrepository consistencyは7/7成功、日英の脅威ID・出典URLも一致。追加なしで最終3 ptを退役する。C02だけをdoing（3 pt）とし、protocol／復旧判断の採択までG3はopen。Upload実装は未着手。
 
 B04・G2完了（2026-10-31 10:59 JST確認）: code `62e742c`と[保持した証拠](../evidence/2026-10-31-m5-source-migration.json)で、実旧producer・現VM・link済みnativeの両host journeyを検証した。固定`2f905c7`の全baselineは180 suite・2,553 test、fmt・厳密Clippy・rustdocが成功し、4つのchild exitすべてが0、source fingerprintも不変。logは`/private/tmp/lang-m5-fixes-target/m5-b04-validation/`に保持する。最終head `ab5cda8`のCI `41156030921`（対象18 job、full routingにより文書専用のみ意図的省略）とnative-debug `41156030861`（3 host job）が成功。[PR #31](https://github.com/carimatics/lang/pull/31)を`46cb6a1`としてmergeし、元の`main`はcleanかつ`origin/main`と同期済み（ahead 0 / behind 0）。以下の日付付き未完了checkpointは履歴であり、現在の阻害条件ではない。
 
@@ -68,8 +70,8 @@ B05 budget監査（2026-10-31 JST）: 再利用するscalar検査内部の独立
 | M5-B03 | done | 0 | M5-B02 | G2 | CLI修正適用とstale・競合・部分書込み拒否fixture | `01b425e` |
 | M5-B05 | done | 0 | M5-B01 | G2 | 旧scalar構文を受入れfresh renameを証明し実在する旧sourceをpreview | `7f41dd0` |
 | M5-B04 | done | 0 | M5-B03,M5-B05 | G2 | edition移行CLIと両hostの移行前後実行journey | `62e742c` |
-| M5-C01 | doing | 3 | M5-A01 | G3 | identity・namespace・authority・濫用・攻撃者の脅威モデル | — |
-| M5-C02 | todo | 3 | M5-C01 | G3 | upload前にprotocol・上限・復旧・security受入ケースを採択 | — |
+| M5-C01 | done | 0 | M5-A01 | G3 | identity・namespace・authority・濫用・攻撃者の脅威モデル | `94a5200` |
+| M5-C02 | doing | 3 | M5-C01 | G3 | upload前にprotocol・上限・復旧・security受入ケースを採択 | — |
 | M5-D01 | todo | 3 | M5-C02 | G4 | 上限付き未信頼archiveの受入とtraversal・重複・bomb拒否 | — |
 | M5-D02 | todo | 3 | M5-D01 | G4 | 内容address方式のstorageとimmutable version公開transaction | — |
 | M5-D03 | todo | 3 | M5-D02 | G4 | versioned indexとidentity・checksumを検証したdownload | — |
@@ -104,11 +106,11 @@ B05 budget監査（2026-10-31 JST）: 再利用するscalar検査内部の独立
 
 ## 見積り照合
 
-**112 + 1 − 17 = 96 pt**
+**112 + 1 − 20 = 93 pt**
 
 | 基準残作業 | 純追加・再見積り | 完了時に除去 | 残作業 |
 | ---: | ---: | ---: | ---: |
-| 112 pt | +1 pt | −17 pt | 96 pt |
+| 112 pt | +1 pt | −20 pt | 93 pt |
 
 ## Delivery noteとロードマップ監査
 

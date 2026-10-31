@@ -5,7 +5,6 @@
 [日本語版](../ja/rfcs/0044-checked-source-migration.md)
 
 - Status: implemented
-
 - Authors: project contributors
 - Created: 2026-10-30
 - Last updated: 2026-10-31
