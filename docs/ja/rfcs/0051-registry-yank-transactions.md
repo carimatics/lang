@@ -128,6 +128,8 @@ Branch準備: `codex/m5-registry-mutations`は`carimatics/lang`の`codex/m5-regi
 
 ## 未解決事項
 
+Host E02公開checkpoint（2026-10-31 JST）: `f40d643`は全2,655 test / 182 suite、fmt・厳密Clippy・rustdoc、CI `41188137283`の対象18 job、native-debug `41188137315`の3 hostに成功した。PR #39を`f74428c`でmergeし、元mainのclean・0/0同期・検証tree一致を確認した。本RFCはE05の認証HTTPS統合を含むためacceptedを維持し、host完了をservice完了と扱わない。
+
 Local E02実装checkpoint（2026-10-31 JST）: 上限付き`YankAction`と`Registry::yank`が厳密archiveを保持しながら完全な監査済みflag遷移を公開する。実host publish → yank → reopen → 別version公開 → unyankでVM/nativeが42を実行し、状態をまたぐretryにも元receiptを返す。Store 30 caseが成功し、実yank/unyank process中断36境界（旧state 34・完全新state 2）、publish/yank writerの両順序、最新最終時刻guard、明示保持したHEAD byteによる結果不明照合、実nonowner/失効/誤scope credential、再計算hash付き履歴偽造9 caseを検証した。Indexの厳密上限公開後に+1 byteとなるunyankは書込み前に拒否する。独立canonical vector、512入力変異、厳密workspace Clippyが成功し、既存authority fuzz入口にaction readerを追加した。Host実装の証拠であり、固定全検証・最新headの両host CI・公開はE02受入条件に残る。E05の認証HTTP/作業memory budget/read世代統合は未実装である。
 
 2026-10-31 JSTにRFC 0001の実験段階委任でaccepted。純粋な`/private/tmp/lang-m5-yank-policy-probe.js`は、flag/revision変更、逆action後の元結果retry、ownership/time拒否、不変digest保持、reason上限の22 caseに成功した。Canonical fixtureは173 byteで、action SHA-256は`d944ece5a45d67c089f6a0b81bfd9415c4fe5a23e11355e1b3ed90562d1c5dc1`、request SHA-256は`b61f815bee0a02abd24cd9e29e3ac22510c4b506e42b241692a0c3ec57ce6e47`。独立Python encodingも一致した。これはpolicy/encoding証拠だけであり、実認証・filesystem・transport・crashの証明ではない。

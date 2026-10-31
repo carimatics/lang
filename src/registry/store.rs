@@ -2,8 +2,10 @@
 //! No bearer, saved actor, receipt or archive grants ambient filesystem access.
 
 mod actions;
+mod administration;
 mod history;
 mod index;
+mod owners;
 mod reads;
 mod records;
 mod storage;
@@ -19,7 +21,9 @@ use sha2::{Digest, Sha256};
 use std::fmt::{Display, Formatter};
 
 pub use actions::{YankAction, YankActionKind};
+pub use administration::{Administrator, Revocation};
 pub use index::{Index, IndexedRelease};
+pub use owners::{MAX_OWNER_BYTES, OwnerAction, OwnerActionKind};
 pub(crate) use reads::CapturedReads;
 pub use reads::MAX_INDEX_BYTES;
 
@@ -143,6 +147,8 @@ impl Receipt {
             records::AuditResult::Initialize(r) => r.state_revision,
             records::AuditResult::Publish(r) => r.state_revision,
             records::AuditResult::Yank(r) => r.state_revision,
+            records::AuditResult::Owner(r) => r.state_revision,
+            records::AuditResult::Revocation(r) => r.state_revision,
         }
     }
     pub fn as_bytes(&self) -> Result<Vec<u8>, Error> {

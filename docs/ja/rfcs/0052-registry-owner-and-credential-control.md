@@ -129,6 +129,8 @@ Branch準備: `codex/m5-registry-owner-control`は`carimatics/lang`の`codex/m5-
 
 ## 未解決事項
 
+実装checkpoint（2026-10-31 JST確認）: Store 42 testが成功した。実owner移管とB公開、未変更archiveのVM/native実行、local credential失効、元owner/失効bearerのretry拒否、128-owner上限、実process中断72境界（旧68・新4）、owner/admin競合の両順序、hash再計算済み偽造18 case、最終時刻、結果不明の明示照合を含む。Owner/失効受理は独立vector 2件と一致し、上限付き入力変異1,024件を処理した。合成した妥当stateのpreflightで、package revision 99 → 100だけで厳密2 MiB indexを1 byte超えることを独立に検証した。追加68 commitを実行した証拠とはしない。以下の純粋model採択記録は履歴とする。全baseline・最新headの両host CI・公開は引き続き必須である。
+
 2026-10-31 JST、RFC 0001の実験期委任でacceptedとする。純粋な`/private/tmp/lang-m5-owner-policy-probe.js`は2段階transfer、現在権限retry、最後のactive owner、128-owner容量、archive/package revision不変、独立modelのlocal失効を含む24 caseに成功した。独立JavaScript/Python encodingは一致した。Owner bodyは205 byte、SHA-256 `682954cddbf3597314b8c2f3dfee606ca6a9aec1d7aa9ea9732872fb68f6a5bf`、request digest `5ab32ddd58e4c0b92843e59999d01f63f1736b5b75a3805542f3a8014034168b`。失効bodyは225 byte、SHA-256 `e026380b51d06ee10382aefed48690b5ad6059963248b7cd5d463daec12bce07`、request digest `0b043b277a723f8e2edea2b4cdf598b11a66baee9243b46791632f3a532e23c1`。
 
 理由: 明示的な現在権限検査、独立local capability、厳密な完全遷移は、2つ目のauthority fileやatomic-transfer wire variantなしにaccepted registry modelへ適合する。Modelはpolicy/encoding証拠に限り、実認証、directory capability、process中断、Windows挙動、service availabilityは証明しない。これらは実装の責務として残る。観測可能な結果が増えた場合、E03の既存見積りを実装前に再監査する。本acceptanceでgateは完了しない。

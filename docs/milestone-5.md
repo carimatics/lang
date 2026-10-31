@@ -6,9 +6,15 @@
 
 Activated 2026-10-30 JST from `3b676c5`. This board tracks the entire M5 scope in [the roadmap](roadmap.md#milestone-5-ecosystem-and-compatibility), including both P1 gates. M4's installer and local packages are prerequisites, not registry completion.
 
-**15 done · 1 doing · 25 todo · 73 remaining pt**
+**16 done · 1 doing · 24 todo · 70 remaining pt**
 
-**Next: M5-E02 — validate and publish authenticated host yank/unyank (1 pt).**
+**Next: M5-E03 — validate and publish owner transfer and local revocation (1 pt).**
+
+E03 executable checkpoint and remaining-scope audit, 2026-10-31 18:49 JST: actual owner transfer → B publication and separate local revocation retain exact source execution (42 in VM/native). Store 42/42 passes: fresh former-owner/revoked refusal, private reads, 128-owner capacity, 72 process cuts (68 old/four new), both owner/admin writer orders, 18 fully rehashed forgeries, final time, explicit unknown-result reconciliation, expired/inactive credential targets and cross-operation identity conflicts. Independent vectors and 1,024 admission mutations pass; the valid-state preflight proves revision 99 → 100 causes +1 byte at the exact index ceiling. Fmt, strict workspace Clippy and locked fuzz Clippy pass. Remaining acceptance is frozen full baseline, latest-head both-host CI and publication: re-estimate E03 3 → 1 pt (net −2), cumulative net −6, retired estimates unchanged at 36, and 112 − 6 − 36 = 70 pt. No delivery is newly completed or added; E03 alone remains doing. E04/E05 stay separate. Freeze this implementation for full validation.
+
+E03 selected, 2026-10-31 18:39 JST: [RFC 0052](rfcs/0052-registry-owner-and-credential-control.md) is accepted at `31240ab`; the last executable checkpoint is the 24-case policy/independent-encoding model, not a stored owner mutation. Audit owner action/read admission, full transitions and retry, actual transfer → B publication → VM/native execution, separate local revocation, hostile-history/process/concurrency boundaries and both-host publication at the existing 3 pt. E03 is the sole doing row; no new delivery or re-estimate. [PR #40](https://github.com/carimatics/lang/pull/40) now targets main after #39 merge. Earlier E02/E03 preparation counts below are historical.
+
+E02 completed and published, verified 2026-10-31 18:39 JST: frozen `f40d643` passed fmt, strict Clippy, all 2,655 tests / 182 suites and rustdoc with source/head unchanged. CI `41188137283` passed all 18 applicable jobs (documentation-only intentionally skipped for 22 implementation/unclassified paths); native-debug `41188137315` passed all three hosts. Windows core-1 `124499182307` and macOS core `124499182172`/`124499182204` confirm all ten yank fixtures and exact index-capacity refusal; locked fuzz Clippy passes. [PR #39](https://github.com/carimatics/lang/pull/39) merged as `f74428c`; original main is clean, synchronized with origin/main (0/0), and has the tested tree. Retire E02's last 1 pt, preserving net −4: 112 − 4 − 36 = 72 pt. G5 stays open for E03/E04/E05; G1–G4 remain complete.
 
 E02 executable checkpoint and remaining-scope audit, 2026-10-31 18:16 JST: canonical host yank/unyank now retains exact archives and commits complete audited flag transitions. Publish → yank → reopen → another-version publish → unyank executes 42 in VM/native; original publish/action retries return their old receipts without reapplying state. Thirty store cases pass, including 36 actual action process cuts (34 old/two new), both publish/yank writer orders, final-time refusal, explicit retained-HEAD reconciliation, nonowner/revoked/wrong-scope credentials and nine forged histories. A fully recomputed no-op history is refused; +1-byte unyank at the exact 2 MiB index limit refuses before writes. Independent action/request hashes, 512 input mutations, fmt, strict workspace Clippy and locked fuzz Clippy pass. E05 HTTP integration remains separate. E02's remaining acceptance is frozen full validation, latest-head both-host CI and publication: re-estimate 3 → 1 pt (net −2), cumulative net −4, retired estimates unchanged at 35, and 112 − 4 − 35 = 73 pt. No delivery is newly added or completed. E02 alone remains doing; earlier 3-pt checkpoints are historical. Freeze this implementation before full validation.
 
@@ -175,8 +181,8 @@ Gate completion: **3/10; 21/65 historical gate weight**. Delivery points below a
 | M5-D04 | done | 0 | M5-D03 | G4 | Resolve a registry dependency and execute it on both hosts | `a289641` |
 | M5-D05 | done | 0 | M5-D04 | G4 | Lock/offline replay, interrupted publication and concurrent immutability tests | `43dea74` |
 | M5-E01 | done | 0 | M5-C02 | G5 | Authenticated identities, credential handling and scoped authorization | `56f9f84` |
-| M5-E02 | doing | 1 | M5-E01,M5-D02 | G5 | Host publish and yank/unyank transactions with owner and conflict enforcement | — |
-| M5-E03 | todo | 3 | M5-E02 | G5 | Owner add/remove/transfer and last-owner/credential-revocation fixtures | — |
+| M5-E02 | done | 0 | M5-E01,M5-D02 | G5 | Host publish and yank/unyank transactions with owner and conflict enforcement | `f40d643` |
+| M5-E03 | doing | 1 | M5-E02 | G5 | Owner add/remove/transfer and last-owner/credential-revocation fixtures | — |
 | M5-E04 | todo | 3 | M5-E03,M5-E05 | G5 | Durable audit trail, recovery and unauthorized-operation end-to-end tests | — |
 | M5-E05 | todo | 3 | M5-E02,M5-E03 | G5 | Authenticated HTTPS mutations, bounded request workspace and refreshed read generations | — |
 | M5-F01 | todo | 3 | M5-C02 | G6 | Accept package trust roots, provenance, signature and freshness contract | — |
@@ -204,11 +210,11 @@ Gate completion: **3/10; 21/65 historical gate weight**. Delivery points below a
 
 ## Estimate reconciliation
 
-**112 − 4 − 35 = 73 pt**
+**112 − 6 − 36 = 70 pt**
 
 | Baseline remaining | Net additions/re-estimates | Retired at completion | Remaining |
 | ---: | ---: | ---: | ---: |
-| 112 pt | −4 pt | −35 pt | 73 pt |
+| 112 pt | −6 pt | −36 pt | 70 pt |
 
 ## Delivery notes and roadmap audit
 

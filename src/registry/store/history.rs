@@ -147,6 +147,119 @@ pub(super) fn load(store: &Storage, identity: &ServiceIdentity) -> Result<View, 
                 current_hash = prior_hash.into();
                 current = prior;
             }
+            AuditOperation::RevokeCredential { credential_id } => {
+                let prior_hash = a.prior_state_sha256.as_deref().ok_or_else(corrupt)?;
+                let prior = state(store, prior_hash, identity)?;
+                if prior.revision.checked_add(1) != Some(current.revision)
+                    || prior.time_floor > a.time
+                    || Some(&prior.last_audit_sha256) != a.previous_audit_sha256.as_ref()
+                {
+                    return Err(corrupt());
+                }
+                administration::check_operator(&prior, &a.principal, a.time)
+                    .map_err(|_| corrupt())?;
+                let action = Revocation::new(
+                    credential_id,
+                    a.request_id.as_deref().ok_or_else(corrupt)?,
+                    prior.revision,
+                    &a.reason,
+                )
+                .map_err(|_| corrupt())?;
+                let request_digest = action.request_digest()?;
+                if a.request_sha256.as_deref() != Some(&request_digest) {
+                    return Err(corrupt());
+                }
+                let (expected, result) =
+                    advance_revocation(&prior, credential_id, &current.last_audit_sha256, a.time)
+                        .map_err(|_| corrupt())?;
+                if current != expected || a.result != AuditResult::Revocation(result) {
+                    return Err(corrupt());
+                }
+                let key = (
+                    a.principal.clone(),
+                    a.request_id.clone().ok_or_else(corrupt)?,
+                );
+                let replay = Replay {
+                    digest: request_digest,
+                    receipt: Receipt {
+                        schema: 1,
+                        audit_sha256: current.last_audit_sha256.clone(),
+                        result: a.result.clone(),
+                    },
+                };
+                if requests.insert(key, replay).is_some() {
+                    return Err(corrupt());
+                }
+                current_hash = prior_hash.into();
+                current = prior;
+            }
+            operation @ (AuditOperation::AddOwner { name, principal }
+            | AuditOperation::RemoveOwner { name, principal }) => {
+                let prior_hash = a.prior_state_sha256.as_deref().ok_or_else(corrupt)?;
+                let prior = state(store, prior_hash, identity)?;
+                if prior.revision.checked_add(1) != Some(current.revision)
+                    || prior.time_floor > a.time
+                    || Some(&prior.last_audit_sha256) != a.previous_audit_sha256.as_ref()
+                {
+                    return Err(corrupt());
+                }
+                Authority::from_records(prior.authority.clone(), identity)
+                    .map_err(|_| corrupt())?
+                    .validate_recorded_actor(
+                        &a.principal,
+                        a.credential_id.as_deref().ok_or_else(corrupt)?,
+                        a.time,
+                        Operation::ChangeOwners(name),
+                    )
+                    .map_err(|_| corrupt())?;
+                let kind = if matches!(operation, AuditOperation::AddOwner { .. }) {
+                    OwnerActionKind::AddOwner
+                } else {
+                    OwnerActionKind::RemoveOwner
+                };
+                let action = OwnerAction::new(
+                    name,
+                    principal,
+                    a.request_id.as_deref().ok_or_else(corrupt)?,
+                    prior.packages[prior.package(name).map_err(|_| corrupt())?].revision,
+                    kind,
+                    &a.reason,
+                )
+                .map_err(|_| corrupt())?;
+                let request_digest = action.request_digest()?;
+                if a.request_sha256.as_deref() != Some(&request_digest) {
+                    return Err(corrupt());
+                }
+                let (expected, result) = advance_owner(
+                    &prior,
+                    name,
+                    principal,
+                    kind.member(),
+                    &current.last_audit_sha256,
+                    a.time,
+                )
+                .map_err(|_| corrupt())?;
+                if current != expected || a.result != AuditResult::Owner(result) {
+                    return Err(corrupt());
+                }
+                let key = (
+                    a.principal.clone(),
+                    a.request_id.clone().ok_or_else(corrupt)?,
+                );
+                let replay = Replay {
+                    digest: request_digest,
+                    receipt: Receipt {
+                        schema: 1,
+                        audit_sha256: current.last_audit_sha256.clone(),
+                        result: a.result.clone(),
+                    },
+                };
+                if requests.insert(key, replay).is_some() {
+                    return Err(corrupt());
+                }
+                current_hash = prior_hash.into();
+                current = prior;
+            }
             operation @ (AuditOperation::Yank {
                 name,
                 version,
@@ -359,6 +472,107 @@ pub(super) fn advance_yank(
         version: version.into(),
         archive_sha256: release.archive_sha256.clone(),
         yanked,
+    };
+    Ok((next, result))
+}
+
+pub(super) fn advance_owner(
+    prior: &State,
+    name: &str,
+    principal: &str,
+    member: bool,
+    audit: &str,
+    time: u64,
+) -> Result<(State, records::OwnerResult), Error> {
+    let i = prior.package(name).map_err(|_| conflict())?;
+    let owners = &prior.authority.packages[i].owners;
+    let position = owners.binary_search_by(|p| p.as_str().cmp(principal));
+    if member {
+        if !prior
+            .authority
+            .principals
+            .iter()
+            .any(|p| p.id == principal && p.active)
+        {
+            return Err(error(
+                ErrorKind::NotFound,
+                "registry owner target is unavailable",
+            ));
+        }
+        if position.is_ok() {
+            return Err(conflict());
+        }
+        if owners.len() == authority::MAX_OWNERS {
+            return Err(capacity());
+        }
+    } else if position.is_err()
+        || !owners
+            .iter()
+            .filter(|id| id.as_str() != principal)
+            .any(|id| {
+                prior
+                    .authority
+                    .principals
+                    .iter()
+                    .any(|p| p.id == *id && p.active)
+            })
+    {
+        return Err(conflict());
+    }
+    let mut next = prior.clone();
+    next.revision = next.revision.checked_add(1).ok_or_else(capacity)?;
+    if next.revision > records::MAX_EVENTS {
+        return Err(capacity());
+    }
+    next.time_floor = time;
+    next.authority.time_floor = time;
+    next.last_audit_sha256 = audit.into();
+    match position {
+        Ok(at) => {
+            next.authority.packages[i].owners.remove(at);
+        }
+        Err(at) => next.authority.packages[i]
+            .owners
+            .insert(at, principal.into()),
+    }
+    let package = &mut next.packages[i];
+    package.revision = package.revision.checked_add(1).ok_or_else(capacity)?;
+    let result = records::OwnerResult {
+        state_revision: next.revision,
+        package_revision: package.revision,
+        name: name.into(),
+        principal: principal.into(),
+        member,
+    };
+    Ok((next, result))
+}
+
+pub(super) fn advance_revocation(
+    prior: &State,
+    credential_id: &str,
+    audit: &str,
+    time: u64,
+) -> Result<(State, records::RevocationResult), Error> {
+    let i = prior
+        .authority
+        .tokens
+        .binary_search_by(|t| t.id.as_str().cmp(credential_id))
+        .map_err(|_| error(ErrorKind::NotFound, "registry credential is unavailable"))?;
+    if prior.authority.tokens[i].revoked {
+        return Err(conflict());
+    }
+    let mut next = prior.clone();
+    next.revision = next.revision.checked_add(1).ok_or_else(capacity)?;
+    if next.revision > records::MAX_EVENTS {
+        return Err(capacity());
+    }
+    next.time_floor = time;
+    next.authority.time_floor = time;
+    next.last_audit_sha256 = audit.into();
+    next.authority.tokens[i].revoked = true;
+    let result = records::RevocationResult {
+        state_revision: next.revision,
+        credential_id: credential_id.into(),
     };
     Ok((next, result))
 }

@@ -1,7 +1,7 @@
 #![no_main]
 
 use lang::registry::authority::{Authority, Bearer, Operation, ServiceIdentity};
-use lang::registry::store::YankAction;
+use lang::registry::store::{OwnerAction, Revocation, YankAction};
 use libfuzzer_sys::fuzz_target;
 
 fuzz_target!(|bytes: &[u8]| {
@@ -16,6 +16,14 @@ fuzz_target!(|bytes: &[u8]| {
         assert!(error.to_string().len() < 128);
     }
     match YankAction::admit("parser", bytes) {
+        Ok(action) => assert_eq!(action.as_bytes(), bytes),
+        Err(error) => assert!(error.to_string().len() < 128),
+    }
+    match OwnerAction::admit("parser", bytes) {
+        Ok(action) => assert_eq!(action.as_bytes(), bytes),
+        Err(error) => assert!(error.to_string().len() < 128),
+    }
+    match Revocation::admit(bytes) {
         Ok(action) => assert_eq!(action.as_bytes(), bytes),
         Err(error) => assert!(error.to_string().len() < 128),
     }
