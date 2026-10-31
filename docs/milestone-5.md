@@ -6,9 +6,15 @@
 
 Activated 2026-10-30 JST from `3b676c5`. This board tracks the entire M5 scope in [the roadmap](roadmap.md#milestone-5-ecosystem-and-compatibility), including both P1 gates. M4's installer and local packages are prerequisites, not registry completion.
 
-**13 done · 1 doing · 26 todo · 76 remaining pt**
+**14 done · 1 doing · 25 todo · 73 remaining pt**
 
-**Next: M5-D04 — validate and publish registry source execution (1 pt).**
+**Next: M5-D05 — validate and publish exact offline cache execution (1 pt).**
+
+D05 executable checkpoint and remaining-scope audit, 2026-10-31 17:39 JST: the private cache now admits complete bounded inventories, installs exact archives and schema-3 generations before root-lock replacement, and captures immutable offline bytes without a trust constructor. Real HTTPS → publish → service stop → reopen executes 42/84 in VM/native; 12 initialization and 20 publication process cuts preserve refusal or complete old/new state, unknown results reconcile the same identity, and two competing processes retain one immutable version in both variant orders. Hostile inventory, read-only cleanup separation, aliases, original bytes, root policies, source/target changes and exact physical/derived/raw-byte limits are covered. Across focused runs, 37 package unit cases and 53 command/format/lock/workspace regressions pass. The remaining acceptance is the frozen full baseline, latest-head both-host CI and publication; re-estimate D05 3 → 1 pt (net −2), bringing cumulative net additions/re-estimates to −5 pt while retired estimates stay 34: 112 − 5 − 34 = 73 pt. No delivery is newly done or added. D05 stays the sole doing row and G4 stays open; earlier 3-pt notes below are historical. Freeze the code for validation before the next implementation.
+
+D04 completed and published, verified 2026-10-31 17:17 JST: frozen `a289641` passed all four baseline commands with unchanged source (2,629 tests / 182 suites, fmt, strict Clippy and rustdoc), CI `41182449763` (18 applicable jobs; documentation-only intentionally skipped under full routing) and native-debug `41182449769` (all three hosts). Actual Windows core-1 `124482741908` and macOS core `124482741860` each confirm all 12 registry/lock fixtures, including HTTPS graph execution, the transitive diamond and independent canonical lock; macOS locked fuzz Clippy also passes. The Windows LF-fixture defect was fixed without changing expected hashes or weakening admission. [PR #37](https://github.com/carimatics/lang/pull/37) merged as `9e81a8f`; original main is clean, equals origin/main (0/0), and has the same tree as the validated head. Retire D04's last 1 pt: 112 − 3 − 34 = 75 pt. G4 remains open; earlier pending D04/D05-preparation notes below are historical.
+
+D05 selected, 2026-10-31 17:17 JST: [RFC 0050](rfcs/0050-registry-cache-and-offline-replay.md) is accepted in `ab2fed9`. The last executable checkpoint is the 17:12 JST independent marker/generation calculation and current schema-3 reader probe, not a cache implementation. Retain 3 pt after auditing the remaining acceptance: bounded private inventory and complete generation/root publication; an actual service-stop/reopen/offline VM/native fixture; real process-exit, concurrent immutable-version, corruption/alias and quota cases; frozen baseline, both-host CI and publication. D05 is the sole doing row with no new delivery or re-estimate. [PR #38](https://github.com/carimatics/lang/pull/38) is retargeted to main after D04 publication, and origin/main is merged into its work branch. Next implement the accepted cache path and reach offline source execution before adding unrelated machinery.
 
 D05 design preparation, verified 2026-10-31 17:12 JST: [RFC 0050](rfcs/0050-registry-cache-and-offline-replay.md) accepts an explicit private cache with exact archive objects, complete schema-3 generations and root-lock publication after complete installation. JavaScript/Python independently agree on the 53-byte marker and 3,664-byte synthetic generation digests; an executable probe using the current lock reader admits that generation and refuses an unknown schema without cache I/O. These are format-preparation results, not cache/offline implementation. Branch `codex/m5-registry-offline-cache` starts from `a289641` on `codex/m5-registry-dependencies`, its recorded origin PR base; after PR #37 merges, retarget to main before publication. D04 remains the sole doing row and D05 remains todo at 3 pt, with no count/estimate change. D04's corrected frozen baseline passes all 2,629 tests / 182 suites plus fmt, strict Clippy and rustdoc; CI/publication still gate the next implementation.
 
@@ -154,8 +160,8 @@ Gate completion: **3/10; 21/65 historical gate weight**. Delivery points below a
 | M5-D01 | done | 0 | M5-C02 | G4 | Admit bounded untrusted archives and reject traversal/duplicate/bomb inputs | `b3c8d1b` |
 | M5-D02 | done | 0 | M5-D01,M5-E01 | G4 | Content-addressed storage and immutable version publication transaction | `e76dd7b` |
 | M5-D03 | done | 0 | M5-D02 | G4 | Versioned index and verified download with exact identity/checksums | `f58659c` |
-| M5-D04 | doing | 1 | M5-D03 | G4 | Resolve a registry dependency and execute it on both hosts | — |
-| M5-D05 | todo | 3 | M5-D04 | G4 | Lock/offline replay, interrupted publication and concurrent immutability tests | — |
+| M5-D04 | done | 0 | M5-D03 | G4 | Resolve a registry dependency and execute it on both hosts | `a289641` |
+| M5-D05 | doing | 1 | M5-D04 | G4 | Lock/offline replay, interrupted publication and concurrent immutability tests | — |
 | M5-E01 | done | 0 | M5-C02 | G5 | Authenticated identities, credential handling and scoped authorization | `56f9f84` |
 | M5-E02 | todo | 3 | M5-E01,M5-D02 | G5 | Publish and yank/unyank with owner and conflict enforcement | — |
 | M5-E03 | todo | 3 | M5-E02 | G5 | Owner add/remove/transfer and last-owner/credential-revocation fixtures | — |
@@ -185,11 +191,11 @@ Gate completion: **3/10; 21/65 historical gate weight**. Delivery points below a
 
 ## Estimate reconciliation
 
-**112 − 3 − 33 = 76 pt**
+**112 − 5 − 34 = 73 pt**
 
 | Baseline remaining | Net additions/re-estimates | Retired at completion | Remaining |
 | ---: | ---: | ---: | ---: |
-| 112 pt | −3 pt | −33 pt | 76 pt |
+| 112 pt | −5 pt | −34 pt | 73 pt |
 
 ## Delivery notes and roadmap audit
 

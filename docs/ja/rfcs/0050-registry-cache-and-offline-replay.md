@@ -65,6 +65,8 @@ RFC 0046の独立した物理storage 4 GiB・entry 262,144上限を維持し、m
 
 ### Publication, interruption and recovery
 
+世代をまたぐ派生identity indexは異なるpolicy/name/version locatorを262,144個までとし、insert前に計上する。不変version競合の検証中に保持するmetadataを別途制限し、cache全体のarchive buffer保持を許可するものではない。上限ちょうどでも既存entryは再利用できる。
+
 Cache lock下で、現inventory検証、完全graph/lock capture、不変locator競合とpeak quota確認を行い、必要な全archiveを排他的作成・完全書込み・sync済みstaging file経由でinstallする。既存不変名は検証済み厳密byteと一致する必要があり、競合objectは置換しない。全参照の完成後にcanonical世代をinstallする。その後でのみ、独立output capabilityを通じてroot lockをstage・sync・atomic replaceする。Root置換が操作の可視化点であり、cache installだけではroot公開成功を返さない。
 
 Staging名はobject/generation用の固定kindとdigest componentで構成し、packageが選ぶpathを含めない。Root置換前の中断では旧root lockが残り、置換後は完全不変世代を参照する。Root置換が起きた可能性のある失敗は結果不明を報告し、versionを変えたり別identityを盲目的に開始せず、同じ予定lock byteをrootと完全世代で照合する。厳密retryは不変byteを再利用する。競合writerはlock取得またはbusyを返し、取得後に再検証する。
@@ -110,11 +112,13 @@ Cache byteを敵対的入力として扱う。Digest名と閉じたcanonical rec
 
 ## Test plan
 
+Local実装checkpoint（2026-10-31 JST）: hostの`Cache`/`Captured`経路で実HTTPS-to-offline VM/native実行、初期化12境界、公開20境界（旧root 18・完全新root 2）、同じidentityでの結果不明照合、両variant順の競合processが成功した。敵対的inventoryはcleanup前に拒否し、read-only captureはstagingと厳密な再利用byte/policyを保持する。隔離された未署名fixtureで本番認証済み消費の完了を主張しない。Delivery完了には固定全baselineと最新headの両host CI/公開をなお必要とする。
+
 独立marker/世代digest、不正/未知/欠落entry、canonical byte、source/hash/identity不一致、別policyの同一byte、不変version競合、厳密quota境界を検証する。実serviceを停止してからcacheを再openしVM/nativeで42/84を実行し、network/credential経路が呼ばれないことを示す。Cache byte欠落/破損やlocal入力・root/target/compiler変更は旧出力を変えず拒否する。Create/partial-write/sync/install/root-replaceの各process境界、厳密retry、結果不明、競合processを両hostで実行する。Cleanup前の破損検証、alias拒否、cache除去後の固定実行を確認する。全compiler baselineと最新head CIを行い、未署名fixtureでG6 trust完了を主張しない。
 
 ## Open questions
 
-2026-10-31 JST、RFC 0001の実験期委任でaccepted。内容アドレス付き完全lock世代、明示capability、厳密再検証、単一root公開境界により、別source modelや可変indexを追加せず既存D05成果を満たせると判断した。Markerと合成世代digestは独立計算であり、cache実装・両host中断/競合動作・性能は未検証。F01の署名証拠/鮮度policyは別gateに残し、暗黙defaultとはしない。
+2026-10-31 JST、RFC 0001の実験期委任でaccepted。内容アドレス付き完全lock世代、明示capability、厳密再検証、単一root公開境界により、別source modelや可変indexを追加せず既存D05成果を満たせると判断した。Markerと合成世代digestは独立計算であり、local実装checkpointは全体/両host検証や性能測定を代替しない。F01の署名証拠/鮮度policyは別gateに残し、暗黙defaultとはしない。
 
 ## Sources
 

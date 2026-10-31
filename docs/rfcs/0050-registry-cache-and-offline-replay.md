@@ -65,6 +65,8 @@ Keep RFC 0046's independent 4 GiB physical-storage and 262,144-entry ceilings, c
 
 ### Publication, interruption and recovery
 
+The derived cross-generation identity index is limited to 262,144 distinct policy/name/version locators, charged before insertion. This separately bounds metadata retained while checking immutable-version conflicts; it does not permit retaining whole archive buffers for the full cache. Existing entries remain reusable at equality.
+
 Under the cache lock: validate the current inventory, capture the complete graph/lock, check immutable locator conflicts and peak quotas, then install every needed archive through exclusively created, fully written and synced staging files. Existing immutable names must match exact verified bytes; never replace a conflicting object. Install the canonical generation only after every reference is complete. Only then stage, sync and atomically replace the root lock through its separately supplied output capability. The root replacement is the operation's visibility point; cache installation alone does not report a published root.
 
 Staging names are fixed kind plus digest components for objects/generations; they cannot contain package-selected paths. Before root replacement, interruption leaves the old root lock. After replacement, the root references a complete immutable generation. A failure whose root replacement may have occurred reports an unknown outcome; reconcile the same desired lock bytes against the root and complete generation instead of changing version or blindly starting another identity. Exact retries reuse immutable bytes. Competing writers either obtain the lock or return busy, then revalidate after acquiring it.
@@ -110,11 +112,13 @@ Within existing D05: implement profile admission/capability storage and exact ge
 
 ## Test plan
 
+Local implementation checkpoint, 2026-10-31 JST: the host `Cache`/`Captured` path passes real HTTPS-to-offline VM/native execution, twelve initialization cuts, twenty publication cuts (eighteen old roots/two complete new roots), same-identity unknown-outcome reconciliation and competing processes in both variant orders. Hostile inventory refusal precedes cleanup; read-only capture preserves staging and exact reused bytes/policies. These isolated unsigned fixtures do not establish authenticated production consumption. The frozen full baseline and latest-head both-host CI/publication remain required before delivery completion.
+
 Check the independent marker/generation digests, malformed/unknown/missing entries, canonical bytes, source/hash/identity mismatches, same bytes under distinct policies, conflicting immutable versions and exact quota boundaries. Stop the real service before reopening the cache and executing 42/84 on VM/native; prove no network/credential path is called. Remove/corrupt cache bytes, alter local inputs or roots/target/compiler and require refusal without changing prior output. Exercise every create/partial-write/sync/install/root-replace process boundary, exact retry, unknown outcome and competing processes on both hosts. Verify corruption before cleanup, alias refusals and frozen execution after cache removal. Run the full compiler baseline and latest-head CI; unsigned fixtures do not establish G6 trust.
 
 ## Open questions
 
-Accepted under RFC 0001's experimental delegation on 2026-10-31 JST. Rationale: content-addressed complete lock generations, explicit capabilities, exact revalidation and a single root publication boundary satisfy the existing D05 outcome without another source model or mutable index. The marker and synthetic generation digests are independent calculations; cache implementation, both-host interruption/concurrency behavior and performance remain unverified. F01's signed evidence/freshness policy remains a separate gate, not a silent default here.
+Accepted under RFC 0001's experimental delegation on 2026-10-31 JST. Rationale: content-addressed complete lock generations, explicit capabilities, exact revalidation and a single root publication boundary satisfy the existing D05 outcome without another source model or mutable index. The marker and synthetic generation digests are independent calculations; the local implementation checkpoint does not replace full/both-host verification or performance measurement. F01's signed evidence/freshness policy remains a separate gate, not a silent default here.
 
 ## Sources
 

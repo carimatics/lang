@@ -6,9 +6,15 @@
 
 2026-10-30 JST、`3b676c5`から開始。[ロードマップ](roadmap.md#milestone-5ecosystemとcompatibility)のM5全範囲（P1の2ゲートを含む）を追跡する。M4のinstallerとlocal packageは前提条件であり、registry完了を意味しない。
 
-**13 done · 1 doing · 26 todo · 76 remaining pt**
+**14 done · 1 doing · 25 todo · 73 remaining pt**
 
-**次: M5-D04 — registry source実行の検証と公開（1 pt）。**
+**次: M5-D05 — 厳密offline cache実行の検証と公開（1 pt）。**
+
+D05実行checkpoint・残scope監査（2026-10-31 17:39 JST）: private cacheが完全な有界inventoryを受理し、厳密archiveとschema-3世代のinstall後にroot lockを置換し、trust constructorなしで不変offline byteをcaptureする。実HTTPS → 公開 → service停止 → reopenでVM/nativeが42/84を実行した。初期化12・公開20のprocess中断で拒否または完全な旧/新stateを保持し、結果不明は同じidentityで照合、2競合processは両variant順で1個の不変versionだけを保持する。敵対的inventory、read-onlyとcleanup権限の分離、alias、元byte、root policy、source/target変更、物理/派生index/raw-byteの厳密上限を検証した。集中実行でpackage unit 37 caseとcommand/format/lock/workspace回帰53 testが成功。残受入条件は固定全baseline、最新headの両host CI、公開であり、D05を3 → 1 ptへ再見積り（純−2）する。累積純追加・再見積りは−5 pt、完了時退役は34を維持し、112 − 5 − 34 = 残73 pt。新規done・delivery追加なし。D05を唯一のdoing、G4をopenに維持し、以下の旧3 pt noteは履歴とする。次の実装前にcodeを固定して検証する。
+
+D04完了・公開（2026-10-31 17:17 JST確認）: 固定`a289641`はsource不変で全baseline 4 command（2,629 test / 182 suite、fmt、厳密Clippy、rustdoc）、CI `41182449763`（対象18 job。文書専用はfull routingにより意図的skip）、native-debug `41182449769`（3 host）に成功した。Windows core-1 `124482741908`とmacOS core `124482741860`の実ログで、HTTPS graph実行、推移diamond、独立canonical lockを含むregistry/lock全12 fixtureの成功を確認した。macOS locked fuzz Clippyも成功。WindowsのLF fixture不具合は期待hashや受理条件を弱めず修正した。[PR #37](https://github.com/carimatics/lang/pull/37)は`9e81a8f`としてmerge済みで、元mainはclean・origin/mainと0/0、検証済みheadと同一treeを確認した。D04の最終1 ptを退役し、112 − 3 − 34 = 残75 pt。G4はopenを維持し、以下のD04未完・D05準備noteは履歴とする。
+
+D05選択（2026-10-31 17:17 JST）: [RFC 0050](rfcs/0050-registry-cache-and-offline-replay.md)を`ab2fed9`でacceptedとした。最終実行checkpointは17:12 JSTの独立marker/世代計算と現schema-3 reader probeであり、cache実装ではない。残受入条件を監査し、有界private inventoryと完全世代/root公開、実service停止/reopen/offline VM/native fixture、実process終了・並行不変version・破損/alias・quota case、固定baseline・両host CI・公開を3 ptに維持する。D05を唯一のdoingとし、delivery追加・再見積りなし。[PR #38](https://github.com/carimatics/lang/pull/38)はD04公開後にmainへretargetし、work branchへorigin/mainをmergeした。次は受理済みcache経路を実装し、無関係な仕組みを加える前にoffline source実行へ到達する。
 
 D05設計準備（2026-10-31 17:12 JST確認）: [RFC 0050](rfcs/0050-registry-cache-and-offline-replay.md)で明示private cache、厳密archive object、完全schema-3世代、install完了後のroot-lock公開をacceptedとした。JavaScript/Pythonの独立計算で53-byte markerと3,664-byte合成世代のdigestが一致し、現lock readerを使う実行probeがcache I/Oなしで世代を受理して未知schemaを拒否した。Format準備の証拠でありcache/offline実装ではない。`codex/m5-registry-offline-cache`は`codex/m5-registry-dependencies`の`a289641`から作成し、同branchをorigin上のPR baseとして記録する。PR #37 merge後、公開前にmainへretargetする。D04を唯一のdoing、D05をtodo・3 ptに維持し、件数/見積り変更なし。D04の修正済み固定baselineは2,629 test / 182 suiteとfmt・厳密Clippy・rustdocがすべて成功しているが、次の実装にはCI/公開をなお必要とする。
 
@@ -154,8 +160,8 @@ B05 budget監査（2026-10-31 JST）: 再利用するscalar検査内部の独立
 | M5-D01 | done | 0 | M5-C02 | G4 | 上限付き未信頼archiveの受入とtraversal・重複・bomb拒否 | `b3c8d1b` |
 | M5-D02 | done | 0 | M5-D01,M5-E01 | G4 | 内容address方式のstorageとimmutable version公開transaction | `e76dd7b` |
 | M5-D03 | done | 0 | M5-D02 | G4 | versioned indexとidentity・checksumを検証したdownload | `f58659c` |
-| M5-D04 | doing | 1 | M5-D03 | G4 | registry依存を解決して両hostで実行 | — |
-| M5-D05 | todo | 3 | M5-D04 | G4 | lock・offline replay・公開中断・並行immutable検証 | — |
+| M5-D04 | done | 0 | M5-D03 | G4 | registry依存を解決して両hostで実行 | `a289641` |
+| M5-D05 | doing | 1 | M5-D04 | G4 | lock・offline replay・公開中断・並行immutable検証 | — |
 | M5-E01 | done | 0 | M5-C02 | G5 | 認証identity・credential取扱い・scope付き認可 | `56f9f84` |
 | M5-E02 | todo | 3 | M5-E01,M5-D02 | G5 | owner・競合制約付きpublish・yank・unyank | — |
 | M5-E03 | todo | 3 | M5-E02 | G5 | owner追加・削除・移管と最後のowner・credential失効fixture | — |
@@ -185,11 +191,11 @@ B05 budget監査（2026-10-31 JST）: 再利用するscalar検査内部の独立
 
 ## 見積り照合
 
-**112 − 3 − 33 = 76 pt**
+**112 − 5 − 34 = 73 pt**
 
 | 基準残作業 | 純追加・再見積り | 完了時に除去 | 残作業 |
 | ---: | ---: | ---: | ---: |
-| 112 pt | −3 pt | −33 pt | 76 pt |
+| 112 pt | −5 pt | −34 pt | 73 pt |
 
 ## Delivery noteとロードマップ監査
 

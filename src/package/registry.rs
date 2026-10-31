@@ -4,6 +4,8 @@ use crate::registry::{archive::AdmittedArchive, authority::ServiceIdentity};
 use sha2::{Digest, Sha256};
 use std::collections::BTreeMap;
 
+pub mod cache;
+
 #[cfg(test)]
 mod tests;
 
