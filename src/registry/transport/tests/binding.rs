@@ -19,6 +19,13 @@ pub(in crate::registry::transport) fn archive(source: &[u8]) -> AdmittedArchive 
 }
 
 pub(in crate::registry::transport) fn archive_files(files: &[(&str, &[u8])]) -> AdmittedArchive {
+    archive_files_version(files, "1.0.0")
+}
+
+pub(in crate::registry::transport) fn archive_files_version(
+    files: &[(&str, &[u8])],
+    version: &str,
+) -> AdmittedArchive {
     let metadata: Vec<_> = files
         .iter()
         .map(|(path, source)| {
@@ -29,7 +36,7 @@ pub(in crate::registry::transport) fn archive_files(files: &[(&str, &[u8])]) -> 
         .collect();
     let descriptor: Descriptor = serde_json::from_value(serde_json::json!({
         "format":"lang-registry-source", "schema":1,
-        "package":{"name":"answer", "version":"1.0.0", "edition":"2026", "entry":files[0].0},
+        "package":{"name":"answer", "version":version, "edition":"2026", "entry":files[0].0},
         "tests":[], "dependencies":[], "files":metadata
     }))
     .unwrap();

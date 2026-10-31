@@ -48,6 +48,7 @@ pub(super) fn load(store: &Storage, identity: &ServiceIdentity) -> Result<View, 
     let mut reachable = BTreeSet::new();
     let mut requests = BTreeMap::new();
     loop {
+        store.check_request()?;
         if !reachable.insert((Space::State, current_hash.clone()))
             || !reachable.insert((Space::Audit, current.last_audit_sha256.clone()))
         {

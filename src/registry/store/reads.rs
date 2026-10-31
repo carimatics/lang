@@ -40,6 +40,7 @@ pub(crate) struct CapturedReads {
 
 pub(super) struct ReadGeneration {
     head: String,
+    pub(super) state_revision: u64,
     indexes: BTreeMap<String, Option<Box<[u8]>>>,
     archives: BTreeMap<String, usize>,
     memory: usize,
@@ -84,6 +85,7 @@ impl ReadGeneration {
             return Err(capacity());
         }
         for package in &view.state.packages {
+            registry.storage.check_request()?;
             let bytes = match encode_package(registry.identity.registry(), package) {
                 Ok(bytes) => Some(bytes),
                 Err(e) if e.kind == ErrorKind::Limit => None,
@@ -101,6 +103,7 @@ impl ReadGeneration {
             // the retained-generation allowance before boxing or map allocation.
             indexes.insert(package.name.clone(), bytes.map(Vec::into_boxed_slice));
             for release in &package.releases {
+                registry.storage.check_request()?;
                 if !release.quarantined {
                     let length = usize::try_from(release.archive_bytes).map_err(|_| capacity())?;
                     if let Some(prior) = archives.get(&release.archive_sha256) {
@@ -119,6 +122,7 @@ impl ReadGeneration {
         }
         Ok(Self {
             head: view.head,
+            state_revision: view.state.revision,
             indexes,
             archives,
             memory,

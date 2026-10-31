@@ -104,6 +104,7 @@ pub(super) struct Storage {
     pub dir: Dir,
     _lock: Lock,
     pub envelope: Option<Envelope>,
+    pub control: Option<super::workspace::RequestControl>,
 }
 struct Lock(std::fs::File);
 impl Drop for Lock {
@@ -201,7 +202,14 @@ impl Storage {
             dir,
             _lock: Lock(file),
             envelope: None,
+            control: None,
         })
+    }
+    pub fn check_request(&self) -> Result<(), Error> {
+        if let Some(control) = &self.control {
+            control.check()?;
+        }
+        Ok(())
     }
     pub fn state_limit(&self) -> usize {
         self.envelope.map_or(records::MAX_STATE, |e| e.state)
@@ -339,6 +347,7 @@ impl Storage {
         Ok(probe)
     }
     pub fn read(&self, path: &str, limit: usize) -> Result<Vec<u8>, Error> {
+        self.check_request()?;
         let limit = if path.starts_with("states/") || path.starts_with("staging/state-") {
             limit.min(self.state_limit())
         } else if path.starts_with("objects/") || path.starts_with("staging/object-") {
@@ -351,9 +360,22 @@ impl Storage {
             return Err(capacity());
         }
         let mut bytes = Vec::new();
-        file.take(limit as u64 + 1)
-            .read_to_end(&mut bytes)
-            .map_err(|_| io())?;
+        let mut reader = file.take(limit as u64 + 1);
+        let mut chunk = [0; 64 * 1024];
+        loop {
+            self.check_request()?;
+            let count = match reader.read(&mut chunk) {
+                Ok(count) => count,
+                Err(e) if e.kind() == std::io::ErrorKind::Interrupted => continue,
+                Err(_) => return Err(io()),
+            };
+            if count == 0 {
+                break;
+            }
+            bytes.try_reserve(count).map_err(|_| capacity())?;
+            bytes.extend_from_slice(&chunk[..count]);
+        }
+        self.check_request()?;
         if bytes.len() > limit {
             return Err(capacity());
         }
@@ -369,6 +391,7 @@ impl Storage {
     }
 
     pub fn captured_object(&self, hash: &str, length: usize) -> Result<Vec<u8>, Error> {
+        self.check_request()?;
         records::hex::<32>(hash)?;
         if length > archive::MAX_ARCHIVE_BYTES {
             return Err(capacity());
@@ -382,10 +405,14 @@ impl Storage {
         let mut bytes = Vec::new();
         bytes.try_reserve_exact(length).map_err(|_| capacity())?;
         bytes.resize(length, 0);
-        file.read_exact(&mut bytes).map_err(|_| io())?;
+        for chunk in bytes.chunks_mut(64 * 1024) {
+            self.check_request()?;
+            file.read_exact(chunk).map_err(|_| io())?;
+        }
         if file.read(&mut [0]).map_err(|_| io())? != 0 || digest(&bytes) != hash {
             return Err(corrupt());
         }
+        self.check_request()?;
         Ok(bytes)
     }
     pub fn head(&self) -> Result<String, Error> {
@@ -398,6 +425,7 @@ impl Storage {
         Ok(h.state_sha256)
     }
     pub fn inventory(&self, identity: &ServiceIdentity) -> Result<Inventory, Error> {
+        self.check_request()?;
         let mut inventory = Inventory {
             bytes: 0,
             entries: 0,
@@ -408,6 +436,7 @@ impl Storage {
         };
         let mut seen = std::collections::BTreeSet::new();
         for entry in self.dir.entries().map_err(|_| io())? {
+            self.check_request()?;
             inventory.charge(0, 1)?;
             let entry = entry.map_err(|_| io())?;
             let name = entry.file_name().into_string().map_err(|_| corrupt())?;
@@ -440,6 +469,7 @@ impl Storage {
         for namespace in DIRECTORIES {
             let child = directory(&self.dir, namespace)?;
             for entry in child.entries().map_err(|_| io())? {
+                self.check_request()?;
                 inventory.charge(0, 1)?;
                 let filename = entry
                     .map_err(|_| io())?
@@ -509,6 +539,7 @@ impl Storage {
     ) -> Result<(), Error> {
         // Called only after the entire inventory and committed chain succeeded.
         for path in inventory.staged.drain(..) {
+            self.check_request()?;
             self.dir.remove_file(&path).map_err(|_| io())?;
         }
         let unused: Vec<_> = inventory
@@ -518,6 +549,7 @@ impl Storage {
             .cloned()
             .collect();
         for (space, hash) in unused {
+            self.check_request()?;
             self.dir.remove_file(space.path(&hash)).map_err(|_| io())?;
             inventory.immutable.remove(&(space, hash));
         }
@@ -526,6 +558,7 @@ impl Storage {
         Ok(())
     }
     pub fn install(&self, space: Space, hash: &str, bytes: &[u8]) -> Result<(), Error> {
+        self.check_request()?;
         records::hex::<32>(hash)?;
         if bytes.len() > self.space_limit(space) {
             return Err(capacity());
@@ -545,8 +578,9 @@ impl Storage {
             Err(_) => return Err(io()),
         }
         let stage = space.staged(hash);
-        write_new(&self.dir, &stage, bytes)?;
+        write_new_guarded(&self.dir, &stage, bytes, || self.check_request())?;
         checkpoint("before-immutable-move");
+        self.check_request()?;
         self.dir
             .rename(&stage, &self.dir, &path)
             .map_err(|_| io())?;
@@ -560,9 +594,10 @@ impl Storage {
         authorize: impl FnOnce() -> Result<(), Error>,
     ) -> Result<(), Error> {
         let stage = Space::Head.staged(hash);
-        write_new(&self.dir, &stage, bytes)?;
+        write_new_guarded(&self.dir, &stage, bytes, || self.check_request())?;
         checkpoint("before-head-replace");
         authorize()?;
+        self.check_request()?;
         #[cfg(test)]
         super::tests::replacement_fault(false, &self.dir)?;
         self.dir
@@ -575,6 +610,15 @@ impl Storage {
     }
 }
 fn write_new(dir: &Dir, path: &str, bytes: &[u8]) -> Result<(), Error> {
+    write_new_guarded(dir, path, bytes, || Ok(()))
+}
+fn write_new_guarded(
+    dir: &Dir,
+    path: &str,
+    bytes: &[u8],
+    check: impl Fn() -> Result<(), Error>,
+) -> Result<(), Error> {
+    check()?;
     let mut options = OpenOptions::new();
     options.write(true).create_new(true);
     #[cfg(unix)]
@@ -585,11 +629,18 @@ fn write_new(dir: &Dir, path: &str, bytes: &[u8]) -> Result<(), Error> {
     let mut file = dir.open_with(path, &options).map_err(|_| io())?;
     checkpoint("after-create");
     let split = bytes.len() / 2;
-    file.write_all(&bytes[..split]).map_err(|_| io())?;
+    for chunk in bytes[..split].chunks(64 * 1024) {
+        check()?;
+        file.write_all(chunk).map_err(|_| io())?;
+    }
     checkpoint("after-partial-write");
-    file.write_all(&bytes[split..]).map_err(|_| io())?;
+    for chunk in bytes[split..].chunks(64 * 1024) {
+        check()?;
+        file.write_all(chunk).map_err(|_| io())?;
+    }
     checkpoint("after-write");
     file.sync_all().map_err(|_| io())?;
     checkpoint("after-sync");
+    check()?;
     Ok(())
 }

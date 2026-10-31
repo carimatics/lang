@@ -16,6 +16,14 @@ fn nullable_id<'de, D: serde::Deserializer<'de>>(d: D) -> Result<Option<String>,
 }
 
 pub(super) fn error_body(bytes: &[u8], status: u16) -> Result<Error, Error> {
+    error_body_for(bytes, status, None)
+}
+
+pub(super) fn error_body_for(
+    bytes: &[u8],
+    status: u16,
+    expected_id: Option<&str>,
+) -> Result<Error, Error> {
     let body: ErrorBody = serde_json::from_slice(bytes).map_err(|_| malformed())?;
     let valid_code = match status {
         400 => body.code == "REG0001",
@@ -35,6 +43,8 @@ pub(super) fn error_body(bytes: &[u8], status: u16) -> Result<Error, Error> {
                     .bytes()
                     .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
         })
+        || expected_id
+            .is_some_and(|expected| body.request_id.as_deref().is_some_and(|id| id != expected))
     {
         return Err(malformed());
     }
@@ -54,8 +64,11 @@ pub(super) fn error_body(bytes: &[u8], status: u16) -> Result<Error, Error> {
 
 /// Read a bounded header block without consuming any body bytes. httparse does
 /// the actual HTTP grammar parsing; this scanner enforces byte/CRLF limits.
-pub(super) fn head(reader: &mut impl Read, end: Instant) -> Result<Vec<u8>, Error> {
-    let mut bytes = Vec::with_capacity(MAX_LINE_BYTES + MAX_HEADER_BYTES);
+pub(super) fn head(
+    reader: &mut impl Read,
+    end: Instant,
+) -> Result<zeroize::Zeroizing<Vec<u8>>, Error> {
+    let mut bytes = zeroize::Zeroizing::new(Vec::with_capacity(MAX_LINE_BYTES + MAX_HEADER_BYTES));
     let mut line_end = None;
     loop {
         remaining(end)?;
@@ -80,7 +93,7 @@ pub(super) fn head(reader: &mut impl Read, end: Instant) -> Result<Vec<u8>, Erro
     }
 }
 
-fn one<'a>(headers: &'a [httparse::Header<'a>], name: &str) -> Result<Option<&'a [u8]>, Error> {
+fn one<'a>(headers: &[httparse::Header<'a>], name: &str) -> Result<Option<&'a [u8]>, Error> {
     let mut matching = headers
         .iter()
         .filter(|header| header.name.eq_ignore_ascii_case(name));
@@ -124,6 +137,50 @@ fn framing(headers: &[httparse::Header<'_>]) -> Result<usize, Error> {
 pub(super) enum Request<'a> {
     Index(&'a str),
     Archive(&'a str),
+    Owners {
+        name: &'a str,
+        bearer: super::super::authority::Bearer,
+    },
+    Action {
+        name: &'a str,
+        bearer: super::super::authority::Bearer,
+        length: usize,
+    },
+    Publish {
+        name: &'a str,
+        version: &'a str,
+        bearer: super::super::authority::Bearer,
+        request_id: &'a str,
+        expected: store::ExpectedRevision,
+        length: usize,
+    },
+}
+
+pub(super) fn valid_id(id: &str) -> bool {
+    id.len() == 32
+        && id
+            .bytes()
+            .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
+}
+
+fn revision(bytes: &[u8]) -> Result<u64, Error> {
+    let s = std::str::from_utf8(bytes).map_err(|_| malformed())?;
+    let s = s
+        .strip_prefix('"')
+        .and_then(|s| s.strip_suffix('"'))
+        .ok_or_else(malformed)?;
+    if s.is_empty() || s.starts_with('0') || !s.bytes().all(|b| b.is_ascii_digit()) {
+        return Err(malformed());
+    }
+    s.parse().map_err(|_| malformed())
+}
+
+fn bearer(headers: &[httparse::Header<'_>]) -> Result<super::super::authority::Bearer, Error> {
+    let token = one(headers, "authorization")?
+        .and_then(|value| value.strip_prefix(b"Bearer "))
+        .filter(|value| value.len() == 64)
+        .ok_or_else(|| error(ErrorKind::Authentication))?;
+    super::super::authority::Bearer::from_input(token).map_err(|_| error(ErrorKind::Authentication))
 }
 
 pub(super) fn request<'a>(bytes: &'a [u8], expected_host: &str) -> Result<Request<'a>, Error> {
@@ -134,32 +191,102 @@ pub(super) fn request<'a>(bytes: &'a [u8], expected_host: &str) -> Result<Reques
         _ => malformed(),
     })? != httparse::Status::Complete(bytes.len())
         || parsed.version != Some(1)
-        || parsed.method != Some("GET")
-        || !bytes.starts_with(b"GET ")
+        || !matches!(parsed.method, Some("GET" | "PUT" | "POST"))
+        || !(bytes.starts_with(b"GET ")
+            || bytes.starts_with(b"PUT ")
+            || bytes.starts_with(b"POST "))
     {
         return Err(malformed());
     }
-    if framing(parsed.headers)? != 0
-        || one(parsed.headers, "host")? != Some(expected_host.as_bytes())
-    {
+    let length = framing(parsed.headers)?;
+    if one(parsed.headers, "host")? != Some(expected_host.as_bytes()) {
         return Err(malformed());
     }
-    for name in [
-        "authorization",
-        "proxy-authorization",
-        "if-match",
-        "if-none-match",
-        "idempotency-key",
-        "expect",
-        "upgrade",
-        "te",
-        "trailer",
-    ] {
+    for name in ["proxy-authorization", "expect", "upgrade", "te", "trailer"] {
         if one(parsed.headers, name)?.is_some() {
             return Err(malformed());
         }
     }
     let path = parsed.path.ok_or_else(malformed)?;
+    if parsed.method == Some("PUT") {
+        let (name, version) = path
+            .strip_prefix("/v1/packages/")
+            .and_then(|p| p.split_once('/'))
+            .ok_or_else(malformed)?;
+        if !crate::package::manifest::valid_name(name)
+            || !crate::package::manifest::valid_version(version)
+            || one(parsed.headers, "content-type")? != Some(b"application/x-tar")
+        {
+            return Err(malformed());
+        }
+        if length > super::super::archive::MAX_ARCHIVE_BYTES {
+            return Err(limit());
+        }
+        let request_id =
+            std::str::from_utf8(one(parsed.headers, "idempotency-key")?.ok_or_else(malformed)?)
+                .map_err(|_| malformed())?;
+        if !valid_id(request_id) {
+            return Err(malformed());
+        }
+        let expected = match (
+            one(parsed.headers, "if-match")?,
+            one(parsed.headers, "if-none-match")?,
+        ) {
+            (Some(value), None) => store::ExpectedRevision::Revision(revision(value)?),
+            (None, Some(b"*")) => store::ExpectedRevision::Absent,
+            _ => return Err(malformed()),
+        };
+        let bearer = bearer(parsed.headers)?;
+        return Ok(Request::Publish {
+            name,
+            version,
+            bearer,
+            request_id,
+            expected,
+            length,
+        });
+    }
+    for name in ["if-match", "if-none-match", "idempotency-key"] {
+        if one(parsed.headers, name)?.is_some() {
+            return Err(malformed());
+        }
+    }
+    if parsed.method == Some("POST") {
+        let name = path
+            .strip_prefix("/v1/packages/")
+            .and_then(|p| p.strip_suffix("/actions"))
+            .filter(|name| crate::package::manifest::valid_name(name))
+            .ok_or_else(malformed)?;
+        if one(parsed.headers, "content-type")? != Some(b"application/json") {
+            return Err(malformed());
+        }
+        if length > 2048 {
+            return Err(limit());
+        }
+        return Ok(Request::Action {
+            name,
+            bearer: bearer(parsed.headers)?,
+            length,
+        });
+    }
+    if length != 0 {
+        return Err(malformed());
+    }
+    if let Some(name) = path
+        .strip_prefix("/v1/packages/")
+        .and_then(|p| p.strip_suffix("/owners"))
+    {
+        if !crate::package::manifest::valid_name(name) {
+            return Err(malformed());
+        }
+        return Ok(Request::Owners {
+            name,
+            bearer: bearer(parsed.headers)?,
+        });
+    }
+    if one(parsed.headers, "authorization")?.is_some() {
+        return Err(malformed());
+    }
     if let Some(name) = path.strip_prefix("/v1/packages/") {
         if !crate::package::manifest::valid_name(name) {
             return Err(malformed());

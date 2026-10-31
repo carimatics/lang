@@ -36,7 +36,7 @@ lock寿命の修正を含むinstallerは、2026-10-30 JSTに[PR #25](https://git
 
 以下のmilestone checklistは相対的な受入条件の重みを保持します。`1`はごく小、`2`は小、`3`は中、`5`は大、`8`は非常に大です。重み付きの達成率は `完了した重み / 全重み × 100` を小数第1位へ丸めます。この粗い重みは経過時間や実装残作業を予測しません。Milestoneがcurrentになったとき、またはscope／evidenceが変わったときに、長期見積もりを積み上げで見直します。進行中milestoneごとに別の実装Todoを使い、独立検証可能な残り1〜3 ptのtaskと、明示的なscope／見積もり変更を記録します。
 
-2026-10-31（JST）に確認したexit-gate weightのsnapshotです。受入条件の重みと残作業見積りは別であり、M4の最終収支は完了ボードに記録します。M5が進行中です（**17 done · 1 doing · 24 todo · 70 remaining pt**）。完了済みM2／M3の記録は維持します。
+2026-10-31（JST）に確認したexit-gate weightのsnapshotです。受入条件の重みと残作業見積りは別であり、M4の最終収支は完了ボードに記録します。M5が進行中です（**18 done · 1 doing · 23 todo · 67 remaining pt**）。完了済みM2／M3の記録は維持します。
 
 | Milestone | 完了条件の重み | 条件の総重み | 条件達成率 |
 | --- | ---: | ---: | ---: |
@@ -250,13 +250,17 @@ Exit：新しいdeveloperが1つのtoolをinstallし、packageを作成し、edi
 
 ## Milestone 5：ecosystemとcompatibility
 
+E05残scope監査（2026-10-31 20:58 JST）: transport全32 testと重点lease境界fixtureが成功し、認証付きsource実行、最新権限、deadline/cancellation、結果不明の照合を含む。Fmtと厳密workspace Clippyが成功。固定full baseline・locked fuzz lint・最新headの両host CI・公開が残るためE05を3 → 1 ptへ再見積りし、純−7・退役38・残67とする。E05だけをdoingとし、新規delivery/gate完了なし。以前のcheckpoint件数は履歴である。
+
+E06完了 / E05選択（2026-10-31 20:01 JST）: `db22857`でsource不変の2,676 test/182 suite・fmt・厳密workspace/fuzz Clippy・rustdocが成功した。CI 41193493354は対象全18 job、native-debug 41193493309は3 host成功。PR #41は`2ad0c10`としてmergeし、mainはclean・0/0同期・検証済みtreeと同一である。E06の最終1 ptを退役し、純−5・退役38・残69とする。main向けPR #42でE05のみdoing・3 ptとし、検証済みの計上済みpublish → VM/native checkpointから開始する。実HTTPS publication/action/owner journey、元deadline/cancellation、有界lease/framing、結果不明、stop/revoke/reopenが残り、scope追加やG5完了は主張しない。以下の以前の状態・件数は履歴である。
+
 E06 scope監査（2026-10-31 19:35 JST）: Local host fixture、厳密workspace/fuzz Clippy、整形、repository consistencyが成功した。固定full baseline・最新headの両host CI・公開が残る。Scope追加やgate完了なしでE06を3 → 1 ptへ再見積りし、累積純−5・退役37・残70とする。以下の以前のcheckpoint件数は履歴である。
 
 現在のE03/E06 checkpoint（2026-10-31 JST）: E03は`18b2128`で完了（2,667 test/182 suite・両host CI・3 host native debug）し、#40経由で`ee0d985`としてmergeした。元のmainはclean・同期済み。E06を唯一のdoingとし、実guard付きpublish → VM/native実行、有界世代refresh、最新owner/yank権限、lease付き応答がworkspace 8 fixtureで成功した。厳密budget/generation境界とcommit後refreshのrecovery-requiredを含む。厳密workspace Clippyは成功し、全baseline・最新head CI/公開が残る。G5完了は主張しない。E03の最終1 ptを退役し、scope追加なしで残72 pt。以下の以前のcheckpoint状態は履歴とし、現在証拠は[delivery board](milestone-5.md)を参照する。
 
 2026-10-30 JST開始。[M5 board](milestone-5.md)に全10ゲート、39件の観測可能delivery、残作業基準112 ptを保持する。[edition・互換性方針](rfcs/0043-editions-and-compatibility.md)と実行可能な互換性・移行fixtureから開始する。registry upload前に脅威モデルを定め、署名toolchain導入をregistry provenanceと混同しない。P1の2ゲートも範囲内。完了には両host ecosystem journeyと日英能力guideを含める。
 
-**17 done · 1 doing · 24 todo · 70 remaining pt**
+**18 done · 1 doing · 23 todo · 67 remaining pt**
 
 D05完了（2026-10-31 JST）: [RFC 0050](rfcs/0050-registry-cache-and-offline-replay.md)を`43dea74`で実装した。固定全baselineは2,645 test / 182 suiteとfmt・厳密Clippy・rustdocに成功し、CI `41185690356`とnative-debug `41185690326`の対象全job/hostも成功した。PR #38は`b0d4d76`としてmergeし、mainはclean・0/0同期・検証済みtreeと同一を確認した。D01–D05でG4を完了とし、認証済み本番消費はF01–F04に残す。
 

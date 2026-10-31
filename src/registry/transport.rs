@@ -1,13 +1,18 @@
-//! Explicit-origin HTTPS reads for RFC 0046. Transport integrity is independent
+//! Bounded explicit-origin HTTPS reads and authenticated mutations for RFC 0046.
+//! Transport integrity is independent
 //! of package signatures/freshness and grants no filesystem or guest authority.
 
 use super::budget;
 mod client;
+mod mutations;
 mod server;
 mod socket;
 mod wire;
 
 pub use client::Client;
+pub use mutations::{
+    CurrentOwners, Delivery, MutationError, MutationOutcome, MutationReceipt, Publication,
+};
 pub use server::Server;
 
 use std::fmt::{Display, Formatter};

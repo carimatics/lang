@@ -6,6 +6,8 @@ use crate::registry::{
 };
 use std::io::Read;
 
+mod mutations;
+
 const PRINCIPAL: &str = "00000000000000000000000000000001";
 struct At(u64);
 impl Clock for At {
@@ -35,6 +37,16 @@ impl Fixture {
         ))
     }
     fn with_archive(archive: AdmittedArchive) -> Self {
+        Self::seed(archive, true)
+    }
+    fn seed(archive: AdmittedArchive, published: bool) -> Self {
+        Self::seed_with(archive, published, |_| {})
+    }
+    fn seed_with(
+        archive: AdmittedArchive,
+        published: bool,
+        configure: impl FnOnce(&mut authority::codec::Records),
+    ) -> Self {
         let mut id = [0u8; 16];
         getrandom::fill(&mut id).unwrap();
         let temp = Temp(std::env::temp_dir().join(format!(
@@ -54,7 +66,7 @@ impl Fixture {
         )
         .unwrap();
         let bearer = Bearer::from_input("11".repeat(32).as_bytes()).unwrap();
-        let authority: authority::codec::Records = serde_json::from_value(serde_json::json!({
+        let mut authority: authority::codec::Records = serde_json::from_value(serde_json::json!({
             "format":"lang-registry-authority", "schema":1, "registry":"example", "origin":identity.origin(), "time_floor":100,
             "principals":[{"id":PRINCIPAL, "active":true}],
             "tokens":[{"id":"01".repeat(16), "principal":PRINCIPAL, "registry":"example", "origin":identity.origin(),
@@ -62,20 +74,23 @@ impl Fixture {
                 "grants":[{"action":"claim", "name":"answer"}, {"action":"publish", "name":"answer"}]}],
             "packages":[]
         })).unwrap();
+        configure(&mut authority);
         let mut bytes = serde_json::to_vec_pretty(&authority).unwrap();
         bytes.push(b'\n');
         let mut registry =
             Registry::initialize(&parent, "registry", &identity, &bytes, PRINCIPAL, &At(100))
                 .unwrap();
-        registry
-            .publish(
-                &bearer,
-                &archive,
-                PRINCIPAL,
-                ExpectedRevision::Absent,
-                &At(110),
-            )
-            .unwrap();
+        if published {
+            registry
+                .publish(
+                    &bearer,
+                    &archive,
+                    PRINCIPAL,
+                    ExpectedRevision::Absent,
+                    &At(110),
+                )
+                .unwrap();
+        }
         Self {
             temp,
             parent,

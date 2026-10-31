@@ -14,6 +14,8 @@
 
 ## 概要
 
+E05実装checkpoint（2026-10-31 JST確認）: local transport全32 testが成功し、実TLSのpublish/read/source実行、owner移管とyank/unyank、local管理reopen後の失効bearer拒否、最終guardでの期限切れ、元の要求deadline、cancellation、結果不明の照合を含む。独立literal receiptと敵対TLS peerで閉じたcanonical応答の対応を検証した。固定全検証と最新headの両host CI/公開が残り、それらを満たすまで本RFCはacceptedを維持する。以下の準備証拠は履歴である。
+
 E05 adapter準備（2026-10-31 JST確認）: owner変更はyank/unyankと同じ認証action routeを使い、private owner readはowner GET routeを使う。HTTP receiptはhost audit receiptと別形式で、元のpackage revisionとglobal audit sequenceを持つ。公開は初回commit（201）と照合（200）を区別し、actionは200を返す。Request byteを送信した可能性があればtransport失敗は結果不明となり、検証済みrecovery-required拒否もrollbackを証明しない。認証拒否は今回の試行を説明し、以前の同一ID試行の結果を確定しない。外部`/private/tmp/lang-m5-http-contract-probe.py`の54 caseは条件header policy、receipt対応、送信段階分類だけを検査し、実TLS・最新権限・framing・deadline/cancellation・両host証拠はE05要件に残る。
 
 既存の不変registryに、閉じたyank/unyank actionとaudit遷移を追加する。現在の認可されたownerは、archive・所有者・identityを変えずにreleaseの選択flagを変更する。単一HEAD置換でflag・package revision・audit eventを同時公開し、改めて認可された再試行には元の結果を返す。
