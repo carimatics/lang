@@ -4,7 +4,7 @@
 
 [English](../../rfcs/0048-registry-state-and-publication.md)
 
-- Status: accepted
+- Status: implemented
 - Authors: project contributors
 - Created: 2026-10-31
 - Last updated: 2026-10-31
@@ -136,9 +136,11 @@ Directory capabilityは信頼hostのstorage accessであり、guest filesystem a
 
 ## Open questions
 
+実装checkpoint（2026-10-31 JST確認）: `e76dd7b`の`registry::store`は全baselineとmacOS/Windows CIに成功した。Bootstrap 22・公開24のprocess終了切断点、writer process競合、reopen後の厳密source実行、replay/最終認可、公開結果不明の照合、敵対的recovery/quotaを含む。Windowsで排他lockを保持している間のlock file検証は、別handleからのEOF読取りではなくmetadataを使う。[M5 board](../milestone-5.md)に厳密なrunと残るPR公開を記録する。電源断可用性は非目標であり、HTTP/署名・本番消費ではない。以下の初期採択記録は履歴である。
+
 2026-10-31 JST、RFC 0001の実験段階委任により採択。レビューで不変名への直接書込みではprocess終了後に部分contentが残り得ると分かり、採択した手順では先にstagingとsyncを行う。拡張した`/private/tmp/lang-m5-store-crash-probe.py`はlocal macOS 27.2で実process終了13切断点に成功した。Object/audit/state/HEADの部分書込みを含み、cut 0–11では完全なrevision 0を維持、cut 12では完全なrevision 1を公開し、配置済み不変digestは全件一致した。可視stateの完全性を証明した後に、認識可能なorphan staging/candidateを削除できた。以前の全書込み後6切断点probeを、このより強い実験で置き換える。
 
-全履歴保持は保守的で上限付きの初期profile費用として採択し、容量保証とはしない。完全な遷移検証と明示的な不明結果により、state/audit/errorの残る曖昧さを解消した。Windows置換、並行reader/writer、完全な敵対的recovery、実認証統合、電源断挙動は未検証。D02完了には両hostのprocess/concurrency fixture成功が必要で、電源断可用性は非目標を維持する。Prototypeは実現性の証拠のみでD02を完了しない。E01はその全検証まで唯一のdoingを維持する。
+全履歴保持は保守的で上限付きの初期profile費用として採択し、容量保証とはしなかった。完全な遷移検証と明示的な不明結果により、state/audit/errorの残る曖昧さを解消した。採択時にはWindows置換、並行reader/writer、完全な敵対的recovery、実認証統合、電源断挙動が未検証だった。Prototype単独ではD02を完了せず、E01はその全検証まで唯一のdoingだった。上記実装checkpointが後続の両host process/concurrency証拠を示し、電源断可用性は非目標を維持する。
 
 ## Sources
 

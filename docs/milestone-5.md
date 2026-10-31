@@ -6,9 +6,13 @@
 
 Activated 2026-10-30 JST from `3b676c5`. This board tracks the entire M5 scope in [the roadmap](roadmap.md#milestone-5-ecosystem-and-compatibility), including both P1 gates. M4's installer and local packages are prerequisites, not registry completion.
 
-**11 done · 1 doing · 28 todo · 82 remaining pt**
+**12 done · 1 doing · 27 todo · 81 remaining pt**
 
-**Next: M5-D02 — final latest-head CI and publication checks (1 pt).**
+**Next: M5-D03 — versioned index and verified download (3 pt).**
+
+D02 completed, verified 2026-10-31 14:23 JST: code `e76dd7b` passed the frozen full baseline (2,589 tests / 182 suites, fmt, strict Clippy and isolated-target rustdoc; all exits 0 and source unchanged), CI `41170930627` (18 applicable jobs; documentation-only intentionally skipped under full routing) and native-debug `41170930592` (all three hosts). Windows core-1 job `124448866705` confirms all 16 applicable registry tests, including 46 process-exit cuts, competing writers and reopened exact source execution; the seventeenth test is the Unix symlink fixture. Both platform defects were corrected without weakening assertions. Retire D02's last committed 1 pt: 112 − 1 − 30 = 81 pt. G4/G5 remain open. [PR #35](https://github.com/carimatics/lang/pull/35) still needs final-head checks and merge; the subsequent signed-estimate validator correction passes its focused 8-test suite and requires final baseline/CI validation.
+
+D03 scope audit, 2026-10-31 14:23 JST: select D03 as the sole doing row at 3 pt. Its last executable checkpoints are real admitted archives at the exact 2 MiB index boundary and certificate-verified local TLS framing/deadline experiments, not a registry service. Remaining acceptance: canonical bounded index admission/encoding and precommit capacity guard; committed-only exact-identity archive reads; bounded HTTPS service/client framing, deadlines and connection/body budgets; actual index/download/tamper/refusal fixtures on both hosts; full baseline and publication checks. Preserve independent signing before production consumption under F01–F04. No new prerequisite or estimate: after E01/D02, proceed directly to D03 and then D04's source dependency execution.
 
 D02 baseline/re-estimate, verified 2026-10-31 14:20 JST: frozen `e76dd7b` passed all four commands with exit 0 and unchanged source: fmt, strict Clippy, 2,589 tests in 182 suites and isolated-target rustdoc. Results/logs are in `/private/tmp/lang-m5-fixes-target/m5-d02-lock-host-validation/`; the existing CI optimization profile retained debug assertions, overflow checks and debug information. Native-debug `41170930592` passed all three hosts. Remaining acceptance is CI `41170930627`'s last two jobs and aggregate result, inspection of actual Windows registry results, then final-documentation CI and PR publication. Reduce remaining D02 work 3 → 1 pt without removing any condition: net re-estimates +1 → −1, retired estimates stay 29, and 112 − 1 − 29 = 82 pt. D02 remains the sole doing delivery; G4/G5 remain open.
 
@@ -114,8 +118,8 @@ Gate completion: **3/10; 21/65 historical gate weight**. Delivery points below a
 | M5-C01 | done | 0 | M5-A01 | G3 | Threat model: identities, namespace, authority, abuse and adversaries | `94a5200` |
 | M5-C02 | done | 0 | M5-C01 | G3 | Accept protocol, limits, recovery and security acceptance cases before upload | `53376e5` |
 | M5-D01 | done | 0 | M5-C02 | G4 | Admit bounded untrusted archives and reject traversal/duplicate/bomb inputs | `b3c8d1b` |
-| M5-D02 | doing | 1 | M5-D01,M5-E01 | G4 | Content-addressed storage and immutable version publication transaction | — |
-| M5-D03 | todo | 3 | M5-D02 | G4 | Versioned index and verified download with exact identity/checksums | — |
+| M5-D02 | done | 0 | M5-D01,M5-E01 | G4 | Content-addressed storage and immutable version publication transaction | `e76dd7b` |
+| M5-D03 | doing | 3 | M5-D02 | G4 | Versioned index and verified download with exact identity/checksums | — |
 | M5-D04 | todo | 3 | M5-D03 | G4 | Resolve a registry dependency and execute it on both hosts | — |
 | M5-D05 | todo | 3 | M5-D04 | G4 | Lock/offline replay, interrupted publication and concurrent immutability tests | — |
 | M5-E01 | done | 0 | M5-C02 | G5 | Authenticated identities, credential handling and scoped authorization | `56f9f84` |
@@ -147,11 +151,11 @@ Gate completion: **3/10; 21/65 historical gate weight**. Delivery points below a
 
 ## Estimate reconciliation
 
-**112 − 1 − 29 = 82 pt**
+**112 − 1 − 30 = 81 pt**
 
 | Baseline remaining | Net additions/re-estimates | Retired at completion | Remaining |
 | ---: | ---: | ---: | ---: |
-| 112 pt | −1 pt | −29 pt | 82 pt |
+| 112 pt | −1 pt | −30 pt | 81 pt |
 
 ## Delivery notes and roadmap audit
 

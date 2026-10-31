@@ -6,9 +6,13 @@
 
 2026-10-30 JST、`3b676c5`から開始。[ロードマップ](roadmap.md#milestone-5ecosystemとcompatibility)のM5全範囲（P1の2ゲートを含む）を追跡する。M4のinstallerとlocal packageは前提条件であり、registry完了を意味しない。
 
-**11 done · 1 doing · 28 todo · 82 remaining pt**
+**12 done · 1 doing · 27 todo · 81 remaining pt**
 
-**次: M5-D02 — 最新head CIと公開の最終確認（1 pt）。**
+**次: M5-D03 — versioned indexと検証付きdownload（3 pt）。**
+
+D02完了（2026-10-31 14:23 JST確認）: code `e76dd7b`の固定全baseline（182 suite・2,589 test、fmt・厳密Clippy・分離targetのrustdoc、全exit 0・source不変）、CI `41170930627`（対象18 job、full routingにより文書専用のみ意図的省略）、native-debug `41170930592`（全3 host）が成功した。Windows core-1 job `124448866705`の実logでregistry対象16 testを確認し、process終了46切断点・writer競合・reopen後の厳密source実行も成功。17件目はUnix symlink fixtureである。両platform不具合はassertionを弱めず修正した。最後にcommitした残1 ptを退役し、112 − 1 − 30 = 残81 pt。G4/G5はopen。[PR #35](https://github.com/carimatics/lang/pull/35)の最終head検証・mergeは残る。後続の符号付き見積りvalidator修正は重点8 testが成功し、最終baseline/CI検証が必要である。
+
+D03範囲監査（2026-10-31 14:23 JST）: D03だけをdoing・3 ptに選択する。最後の実行checkpointは実受理archiveによる厳密2 MiB index境界と、証明書検証付きlocal TLSのframing/deadline実験であり、registry serviceではない。残る受入条件はcanonicalな上限付きindex受理/encodeとcommit前容量guard、commit済みだけを対象とする厳密identity archive読取り、HTTPS service/clientのframing・deadline・接続/body budget、両hostの実index/download/改変/拒否fixture、全baselineと公開check。本番消費前にはF01–F04の独立署名検証を維持する。前提・見積り追加なし。E01/D02後は直接D03、次にD04のsource依存実行へ進む。
 
 D02 baseline・再見積り（2026-10-31 14:20 JST確認）: 固定`e76dd7b`の全4 commandがexit 0・source不変で完了。fmt・厳密Clippy・182 suiteの2,589 test・分離targetのrustdocが成功した。結果とlogは`/private/tmp/lang-m5-fixes-target/m5-d02-lock-host-validation/`に保持。既存CIの最適化profileでもdebug assertion・overflow check・debug情報は有効。Native-debug `41170930592`は全3 hostで成功。残る受入条件はCI `41170930627`の残2 jobと集約結果、実Windows registry結果の検査、その後の最終文書head CI・PR公開である。条件を削除せずD02の残作業を3 → 1 ptへ下げ、純再見積り+1 → −1、退役見積り29のままとし、112 − 1 − 29 = 残82 pt。D02だけをdoing、G4/G5をopenに維持する。
 
@@ -114,8 +118,8 @@ B05 budget監査（2026-10-31 JST）: 再利用するscalar検査内部の独立
 | M5-C01 | done | 0 | M5-A01 | G3 | identity・namespace・authority・濫用・攻撃者の脅威モデル | `94a5200` |
 | M5-C02 | done | 0 | M5-C01 | G3 | upload前にprotocol・上限・復旧・security受入ケースを採択 | `53376e5` |
 | M5-D01 | done | 0 | M5-C02 | G4 | 上限付き未信頼archiveの受入とtraversal・重複・bomb拒否 | `b3c8d1b` |
-| M5-D02 | doing | 1 | M5-D01,M5-E01 | G4 | 内容address方式のstorageとimmutable version公開transaction | — |
-| M5-D03 | todo | 3 | M5-D02 | G4 | versioned indexとidentity・checksumを検証したdownload | — |
+| M5-D02 | done | 0 | M5-D01,M5-E01 | G4 | 内容address方式のstorageとimmutable version公開transaction | `e76dd7b` |
+| M5-D03 | doing | 3 | M5-D02 | G4 | versioned indexとidentity・checksumを検証したdownload | — |
 | M5-D04 | todo | 3 | M5-D03 | G4 | registry依存を解決して両hostで実行 | — |
 | M5-D05 | todo | 3 | M5-D04 | G4 | lock・offline replay・公開中断・並行immutable検証 | — |
 | M5-E01 | done | 0 | M5-C02 | G5 | 認証identity・credential取扱い・scope付き認可 | `56f9f84` |
@@ -147,11 +151,11 @@ B05 budget監査（2026-10-31 JST）: 再利用するscalar検査内部の独立
 
 ## 見積り照合
 
-**112 − 1 − 29 = 82 pt**
+**112 − 1 − 30 = 81 pt**
 
 | 基準残作業 | 純追加・再見積り | 完了時に除去 | 残作業 |
 | ---: | ---: | ---: | ---: |
-| 112 pt | −1 pt | −29 pt | 82 pt |
+| 112 pt | −1 pt | −30 pt | 81 pt |
 
 ## Delivery noteとロードマップ監査
 
