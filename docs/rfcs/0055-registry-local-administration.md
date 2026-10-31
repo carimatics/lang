@@ -14,6 +14,8 @@
 
 ## Summary
 
+Implementation checkpoint, verified 2026-10-31 23:26 JST: actual host and stop/local-admin/restart HTTPS journeys enroll/provision/recover/publish and execute unchanged source as 42 in VM/native, then refuse deactivated credentials. The 75-test store run and cross-operation request-identity test pass, covering 72 process cuts, 40 rehashed forgeries, both writer orders, full owner/identity capacities, final guards/unknown results and exact index/workspace boundaries. Independent canonical vectors and 1,024 admission mutations pass; the new decoders are in the existing fuzz target. Fmt and strict workspace/locked fuzz Clippy pass. Frozen full baseline, additional HTTP local-action refusal cases and latest-head both-host publication remain; status stays accepted until those requirements are met. Earlier design-only statements below are historical.
+
 Extend the explicit local registry administrator with audited principal enrollment, credential-hash provisioning and principal deactivation. A separately constructed, exact-package recovery administrator can atomically replace that package's owners with one active enrolled principal. No action is available through HTTP or a bearer credential. Existing immutable archives and source execution remain unchanged.
 
 Accepted under RFC 0001's experimental delegation on 2026-10-31 JST. The design completes the local lifecycle required by RFC 0046, preserves the existing local directory capability and reconstructible transaction history, and makes emergency recovery usable even when all 128 owner slots are occupied. A 23-check external policy/encoding experiment covers proposed authority/replay rules and record sizes; it does not establish production enforcement, crash safety or platform behavior. Those remain implementation acceptance conditions. E08 stays todo while E07 completes publication.
@@ -36,7 +38,7 @@ RFC 0052 permits owner membership changes and local credential revocation but ca
 
 ## Guide-level design
 
-Stop the registry service and release its writer before opening a local administrator with the trusted directory capability, service identity and configured active operator. Enroll B, then provision a separately generated credential's SHA-256 authenticator and explicit grants. Enrollment alone grants no package ownership or credential. Provisioning never accepts or generates raw bearer material.
+Stop the registry service and release its writer before opening a local administrator with the trusted directory capability, service identity and configured active operator. Enroll B, then provision a separately generated credential's existing domain-separated authenticator, `SHA256("LANGREGTOKEN1\0" || token_bytes)`, and explicit grants. Enrollment alone grants no package ownership or credential. Provisioning never accepts or generates raw bearer material.
 
 For lost or compromised package ownership, construct `RecoveryAdministrator` with the same explicit local inputs plus the exact package name. Submit `OwnerRecovery` with current state and package revisions, active B, a new request ID and a reason. Its single transaction changes the owner list to `[B]`, removing every prior owner. It works at the 128-owner limit. Existing B-only ownership is a conflict; B among several owners can be recovered to B alone. B still needs independently provisioned name-bound grants to publish.
 
@@ -115,6 +117,8 @@ Use existing bounded structured registry admission, unauthorized, conflict, capa
 ## Performance and cost model
 
 Reuse bounded full-history validation and the one-writer transaction machinery. Provision admission may allocate up to the local 64 KiB action ceiling; candidate authority retains existing aggregate limits. Hashing one token and scanning bounded principals, credentials and packages add no unbounded collection. Revoked tokens and inactive principals count against limits permanently in this profile. The standalone local API retains RFC 0053's explicit local capability semantics; it does not become a service request or bypass the network service's shared memory accounting. No latency or throughput claim is made from the policy experiment.
+
+Allocation re-audit, 2026-10-31 JST: metered recovery can encounter the new historical provision record. Let T be its canonical token size; T ≤ S ≤ C in RFC 0053. The token input/temporary canonical buffers, decoded token, action encoding and fixed roots fit conservatively within 10C: vector capacity is charged, and temporary token re-encoding ends before action encoding. Reconstruction starts after both adjacent states have completed decoding; its action is dropped before loading the next prior state. Therefore this adds no live token reconstruction to the existing noncanonical-decode peak. The canonical phase's six state equivalents (24C), existing 20C buffer/table allowance and new 10C remain below 96C. Audit/replay retention remains bounded by 2 KiB per record, and the local 64 KiB input is never a network action. Retain the existing envelope, subject to actual large-provision-history refusal/equality/+1 lease tests; those three focused boundaries passed on 2026-10-31 JST, with full both-host validation still pending.
 
 ## Security and trust boundaries
 

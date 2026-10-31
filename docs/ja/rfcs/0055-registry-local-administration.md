@@ -14,6 +14,8 @@
 
 ## 概要
 
+実装checkpoint（2026-10-31 23:26 JST確認）: 実hostと停止/local管理/再開HTTPSで登録/追加/復旧/公開と未変更sourceのVM/native 42実行に成功し、後続無効化credentialを拒否した。Store 75-test runとoperation間request-identity testが成功し、72 process中断、再hash偽造40件、writer両順序、owner/identity全容量、最終guard/結果不明、厳密index/workspace境界を含む。独立canonical vectorと受理入力変異1,024件が成功し、新decoderを既存fuzz targetへ追加した。Fmtと厳密workspace/locked fuzz Clippyが成功。固定全baseline、追加HTTP local-action拒否case、最新headの両host公開を残し、要件を満たすまでacceptedを維持する。以下の以前の設計のみの記述は履歴とする。
+
 明示的なlocal registry administratorに、監査付きprincipal登録・credential hash追加・principal無効化を追加する。別途構築し、厳密なpackage scopeを持つrecovery administratorは、そのpackageのownerをactiveな登録済みprincipal 1人へ原子的に置き換えられる。HTTPやbearer credentialからは利用できない。既存の不変archiveとsource実行を維持する。
 
 2026-10-31 JSTにRFC 0001の実験期委任でacceptedとする。RFC 0046が要求するlocal lifecycleを満たし、既存のlocal directory capabilityと再構築可能なtransaction履歴を保ち、owner全128枠が埋まっていても緊急復旧を可能にする設計である。外部policy/encoding実験の23 checkで提案する権限/replay規則とrecord sizeを確認したが、本番適用・crash安全性・platform動作の証拠ではない。これらは実装受入条件として残す。E07公開完了までE08はtodoを維持する。
@@ -36,7 +38,7 @@ RFC 0052はowner membership変更とlocal credential失効を可能にするが�
 
 ## 利用者向け設計
 
-Registry serviceを停止してwriterを解放した後、信頼されたdirectory capability・service identity・設定済みactive operatorを渡してlocal administratorを開く。Bを登録してから、別途生成したcredentialのSHA-256 authenticatorと明示grantを追加する。登録だけではpackage所有権もcredentialも与えない。追加操作は生bearerを受け取らず、生成もしない。
+Registry serviceを停止してwriterを解放した後、信頼されたdirectory capability・service identity・設定済みactive operatorを渡してlocal administratorを開く。Bを登録してから、別途生成したcredentialの既存domain-separated authenticator `SHA256("LANGREGTOKEN1\0" || token_bytes)` と明示grantを追加する。登録だけではpackage所有権もcredentialも与えない。追加操作は生bearerを受け取らず、生成もしない。
 
 Package所有権の喪失・侵害時は、同じ明示local入力に厳密package名を加えて`RecoveryAdministrator`を構築する。現在のstate/package revision、active B、新request ID、理由を持つ`OwnerRecovery`を送る。単一transactionでowner一覧を`[B]`にし、以前の全ownerを除く。128-owner上限でも動作する。既にBだけならconflictであり、複数owner中のBへ一本化する復旧はできる。Bがpublishするには、別途追加したname-bound grantが引き続き必要である。
 
@@ -115,6 +117,8 @@ Host操作はparse・型・effect・MIR・source span・bytecode・native実行�
 ## 性能とcost model
 
 有界な全履歴検証と単一writer transactionを再利用する。追加action受理はlocal 64 KiB上限まで割当てでき、candidate authorityは既存aggregate上限を維持する。Token 1件のhashと有界principal/credential/package走査は無制限collectionを追加しない。このprofileでは失効tokenとinactive principalも恒久的に上限へ計上する。Standalone local APIはRFC 0053の明示local capability意味論を保ち、service requestにならず、network serviceの共有memory計上を迂回しない。Policy実験からlatency/throughputを主張しない。
+
+割当て再監査（2026-10-31 JST）: 計上済みrecoveryは新しい履歴provision recordを読む可能性がある。Canonical token sizeをTとするとRFC 0053のT ≤ S ≤ Cが成り立つ。Token入力/一時canonical buffer・decode済みtoken・action encoding・固定rootを、vector容量も含め保守的に10C以内へ計上する。一時token再encodeはaction encode前に終わる。両隣接stateのdecode完了後に再構築を始め、次の以前state読込前にactionをdropするため、既存noncanonical-decode peakとtoken再構築は重ならない。Canonical段階のstate 6個分（24C）・既存buffer/table余裕20C・新10Cの合計は96C未満である。Audit/replay保持は1 record 2 KiB以内を維持し、local 64 KiB入力はnetwork actionにならない。大きなprovision履歴での不足/等号/+1 lease実験を条件に既存envelopeを維持し、2026-10-31 JSTにこの重点3境界は成功した。両hostの全検証は残る。
 
 ## Securityとtrust境界
 

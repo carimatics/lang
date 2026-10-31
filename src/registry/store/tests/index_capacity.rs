@@ -247,6 +247,52 @@ fn exact_index_capacity_is_admitted_before_any_candidate_write() {
                 candidate.as_bytes()
             );
             assert_eq!(snapshot(&tmp.path().join("registry")), legacy);
+            drop(reads);
+            // A legacy +1-byte index remains a valid retained history, but a
+            // new local owner-recovery transaction must preflight its index too.
+            let local_parent = super::parent(tmp.path());
+            let target = "00000000000000000000000000000002";
+            let mut admin =
+                Administrator::open(&local_parent, "registry", &identity(), PRINCIPAL).unwrap();
+            let revision = admin.revision().unwrap();
+            admin
+                .enroll(
+                    &Enrollment::new(
+                        target,
+                        &"c".repeat(32),
+                        revision,
+                        "recovery capacity target",
+                    )
+                    .unwrap(),
+                    &At(110),
+                )
+                .unwrap();
+            drop(admin);
+            let mut recovery = RecoveryAdministrator::open(
+                &local_parent,
+                "registry",
+                &identity(),
+                PRINCIPAL,
+                "answer",
+            )
+            .unwrap();
+            let state_revision = recovery.revision().unwrap();
+            let package_revision = recovery.package_revision().unwrap();
+            let before = snapshot(&tmp.path().join("registry"));
+            let action = OwnerRecovery::new(
+                "answer",
+                target,
+                &"d".repeat(32),
+                state_revision,
+                package_revision,
+                "capacity recovery",
+            )
+            .unwrap();
+            let failure = recovery.recover_owner(&action, &At(110)).unwrap_err();
+            assert_eq!(failure.kind, ErrorKind::Limit);
+            assert_eq!(failure.outcome, PublicationOutcome::NotPublished);
+            assert_eq!(snapshot(&tmp.path().join("registry")), before);
+            assert_eq!(recovery.revision().unwrap(), state_revision);
         }
     }
     unyank_cannot_make_an_exact_capacity_index_unservable(base.path());

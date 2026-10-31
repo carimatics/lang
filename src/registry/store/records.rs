@@ -82,6 +82,20 @@ impl Release {
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 pub(super) enum AuditOperation {
     Initialize,
+    EnrollPrincipal {
+        principal: String,
+    },
+    ProvisionCredential {
+        credential_id: String,
+        record_sha256: String,
+    },
+    DeactivatePrincipal {
+        principal: String,
+    },
+    RecoverOwner {
+        name: String,
+        principal: String,
+    },
     RevokeCredential {
         credential_id: String,
     },
@@ -162,6 +176,32 @@ pub(super) enum AuditResult {
     Quarantine(QuarantineResult),
     Owner(OwnerResult),
     Revocation(RevocationResult),
+    Principal(PrincipalResult),
+    Provision(ProvisionResult),
+    Recovery(RecoveryResult),
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, Eq, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub(super) struct PrincipalResult {
+    pub state_revision: u64,
+    pub principal: String,
+    pub active: bool,
+}
+#[derive(Clone, Debug, Deserialize, Serialize, Eq, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub(super) struct ProvisionResult {
+    pub state_revision: u64,
+    pub credential_id: String,
+    pub principal: String,
+}
+#[derive(Clone, Debug, Deserialize, Serialize, Eq, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub(super) struct RecoveryResult {
+    pub state_revision: u64,
+    pub package_revision: u64,
+    pub name: String,
+    pub recovered_principal: String,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, Eq, PartialEq)]
@@ -468,7 +508,61 @@ impl Audit {
                     return Err(corrupt());
                 }
             }
+            (
+                operation @ (AuditOperation::EnrollPrincipal { principal }
+                | AuditOperation::DeactivatePrincipal { principal }),
+                AuditResult::Principal(r),
+            ) => {
+                self.validate_local(r.state_revision)?;
+                hex::<16>(principal)?;
+                if r.principal != *principal
+                    || r.active != matches!(operation, AuditOperation::EnrollPrincipal { .. })
+                {
+                    return Err(corrupt());
+                }
+            }
+            (
+                AuditOperation::ProvisionCredential {
+                    credential_id,
+                    record_sha256,
+                },
+                AuditResult::Provision(r),
+            ) => {
+                self.validate_local(r.state_revision)?;
+                hex::<16>(credential_id)?;
+                hex::<32>(record_sha256)?;
+                hex::<16>(&r.principal)?;
+                if r.credential_id != *credential_id {
+                    return Err(corrupt());
+                }
+            }
+            (AuditOperation::RecoverOwner { name: n, principal }, AuditResult::Recovery(r)) => {
+                self.validate_local(r.state_revision)?;
+                name(n)?;
+                hex::<16>(principal)?;
+                if r.name != *n
+                    || r.recovered_principal != *principal
+                    || r.package_revision == 0
+                    || r.package_revision >= self.sequence
+                {
+                    return Err(corrupt());
+                }
+            }
             _ => return Err(corrupt()),
+        }
+        Ok(())
+    }
+    fn validate_local(&self, revision: u64) -> Result<(), Error> {
+        hex::<32>(self.previous_audit_sha256.as_deref().ok_or_else(corrupt)?)?;
+        hex::<32>(self.prior_state_sha256.as_deref().ok_or_else(corrupt)?)?;
+        hex::<16>(self.request_id.as_deref().ok_or_else(corrupt)?)?;
+        hex::<32>(self.request_sha256.as_deref().ok_or_else(corrupt)?)?;
+        if self.sequence <= 1
+            || revision != self.sequence
+            || self.credential_id.is_some()
+            || !actions::valid_reason(&self.reason)
+        {
+            return Err(corrupt());
         }
         Ok(())
     }

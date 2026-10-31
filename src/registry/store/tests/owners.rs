@@ -245,8 +245,8 @@ fn owner_scope_targets_and_last_active_member_are_checked_before_writes() {
             assert_eq!(result.outcome, PublicationOutcome::NotPublished);
             assert_eq!(snapshot(tmp.path()), before);
         }
-        // E04 has not added deactivation. Test this valid historical-policy
-        // shape directly; do not pretend it was reached through an E03 API.
+        // Test this valid historical-policy shape directly. Actual audited
+        // deactivation journeys are covered by the local_admin fixtures.
         let mut prior = registry.recover().unwrap().state;
         prior.authority.packages[0].owners.push(INACTIVE.into());
         prior.validate(&identity()).unwrap();

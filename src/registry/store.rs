@@ -23,7 +23,10 @@ use sha2::{Digest, Sha256};
 use std::fmt::{Display, Formatter};
 
 pub use actions::{YankAction, YankActionKind};
-pub use administration::{Administrator, Revocation};
+pub use administration::{
+    Administrator, CredentialProvision, Deactivation, Enrollment, OwnerRecovery,
+    RecoveryAdministrator, Revocation,
+};
 pub use index::{Index, IndexedRelease};
 pub use owners::{MAX_OWNER_BYTES, OwnerAction, OwnerActionKind};
 pub use quarantine::{QuarantineAction, QuarantineActionKind};
@@ -155,6 +158,9 @@ impl Receipt {
             records::AuditResult::Quarantine(r) => r.state_revision,
             records::AuditResult::Owner(r) => r.state_revision,
             records::AuditResult::Revocation(r) => r.state_revision,
+            records::AuditResult::Principal(r) => r.state_revision,
+            records::AuditResult::Provision(r) => r.state_revision,
+            records::AuditResult::Recovery(r) => r.state_revision,
         }
     }
     pub fn as_bytes(&self) -> Result<Vec<u8>, Error> {

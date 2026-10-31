@@ -4,7 +4,7 @@
 
 [日本語版](../ja/rfcs/0054-registry-quarantine-transactions.md)
 
-- Status: accepted
+- Status: implemented
 - Authors: project contributors
 - Created: 2026-10-31
 - Last updated: 2026-10-31
@@ -13,6 +13,8 @@
 - Superseded by: none
 
 ## Summary
+
+Implemented checkpoint, verified 2026-10-31 23:05 JST: frozen `e3fa55c` passes fmt, strict workspace/fuzz Clippy, the unchanged-source full baseline of 2,703 tests/182 suites and rustdoc. CI 41206731980 passes all 18 applicable jobs; its 26 implementation/unclassified paths intentionally omit documentation-only validation. Native-debug 41206732043 passes three hosts. Windows/macOS 15/macOS 26 logs each confirm 33 transport, 11 workspace and nine quarantine tests. [PR #43](https://github.com/carimatics/lang/pull/43) merged as `555fb53`; original main is clean, synchronized 0/0 and identical to the tested tree. Local lifecycle/recovery and G5's combined exit audit remain separate E08/E04 work. Earlier pending statements below are historical.
 
 Implementation checkpoint, verified 2026-10-31 22:39 JST: local host and actual HTTPS journeys quarantine/refuse/restore the original source and execute 42 in VM/native, including stale-index download refusal and old-ID reconciliation without generation rollback. All 62 store tests pass, including 36 quarantine process cuts, both competing writer orders, 12 fully rehashed forgeries, final-time and local-revocation refusal, exact index overflow and workspace −1/equality/+1 boundaries. The independent canonical/request digests and 512 admission mutations pass; the decoder is included in the existing fuzz target. Frozen full baseline and latest-head both-host CI/publication remain; this RFC stays accepted until those requirements are met. The earlier policy-only checkpoint below is historical.
 

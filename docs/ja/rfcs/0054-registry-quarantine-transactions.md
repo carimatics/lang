@@ -4,7 +4,7 @@
 
 [English](../../rfcs/0054-registry-quarantine-transactions.md)
 
-- Status: accepted
+- Status: implemented
 - Authors: project contributors
 - Created: 2026-10-31
 - Last updated: 2026-10-31
@@ -13,6 +13,8 @@
 - Superseded by: none
 
 ## 概要
+
+Implemented checkpoint（2026-10-31 23:05 JST確認）: 固定`e3fa55c`でfmt・厳密workspace/fuzz Clippy・source不変の全baseline 2,703 test/182 suite・rustdocが成功した。CI 41206731980は対象18 job成功で、26 implementation/unclassified pathによるdocumentation-only検証の意図的省略を確認した。Native-debug 41206732043は3 host成功。Windows/macOS 15/macOS 26の各logでtransport 33・workspace 11・quarantine 9 testを確認した。[PR #43](https://github.com/carimatics/lang/pull/43)は`555fb53`としてmergeし、元mainはclean・0/0同期・検証済みtreeと同一である。Local lifecycle/復旧とG5統合出口監査は別途E08/E04に残す。以下の以前の未完了記述は履歴である。
 
 実装checkpoint（2026-10-31 22:39 JST確認）: local hostと実HTTPSで元sourceの隔離/拒否/復元とVM/nativeでの42実行が成功し、旧indexによるdownload拒否、世代を戻さない旧ID照合を含む。Store全62 testが成功し、quarantineの36 process中断、競合writerの両順序、全hash再計算済み偽造12件、最終時刻/local失効の拒否、厳密index超過、workspace −1/等号/+1境界を確認した。独立canonical/request digestと受理入力変異512件が成功し、decoderを既存fuzz targetへ追加した。固定全baselineと最新headの両host CI/公開が残り、要件を満たすまで本RFCはacceptedを維持する。以下の以前のpolicyのみのcheckpointは履歴である。
 

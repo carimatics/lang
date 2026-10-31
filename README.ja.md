@@ -114,7 +114,7 @@ source構文・native language ABI・private SDK/package formatは実験段階�
 - [RFC 0051: 認証されたyank・unyank transaction（implemented）](docs/ja/rfcs/0051-registry-yank-transactions.md)
 - [RFC 0052: Registry所有権とローカルcredential失効（implemented）](docs/ja/rfcs/0052-registry-owner-and-credential-control.md)
 - [RFC 0053: Registry要求作業memoryと可変read世代（implemented）](docs/ja/rfcs/0053-registry-request-workspace.md)
-- [RFC 0054: 監査付きregistry quarantine transaction（accepted）](docs/ja/rfcs/0054-registry-quarantine-transactions.md)
+- [RFC 0054: 監査付きregistry quarantine transaction（implemented）](docs/ja/rfcs/0054-registry-quarantine-transactions.md)
 - [RFC 0055: Registryのローカルlifecycleとscope付きowner復旧（accepted）](docs/ja/rfcs/0055-registry-local-administration.md)
 - [コントリビューションガイド](CONTRIBUTING.ja.md)
 

@@ -114,7 +114,7 @@ The rationale and unresolved tradeoffs are documented in [the architecture basel
 - [RFC 0051: Authenticated yank and unyank transactions (implemented)](docs/rfcs/0051-registry-yank-transactions.md)
 - [RFC 0052: Registry ownership and local credential revocation (implemented)](docs/rfcs/0052-registry-owner-and-credential-control.md)
 - [RFC 0053: Registry request workspace and mutable read generations (implemented)](docs/rfcs/0053-registry-request-workspace.md)
-- [RFC 0054: Audited registry quarantine transactions (accepted)](docs/rfcs/0054-registry-quarantine-transactions.md)
+- [RFC 0054: Audited registry quarantine transactions (implemented)](docs/rfcs/0054-registry-quarantine-transactions.md)
 - [RFC 0055: Registry local lifecycle and scoped owner recovery (accepted)](docs/rfcs/0055-registry-local-administration.md)
 - [Contribution guide](CONTRIBUTING.md)
 

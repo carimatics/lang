@@ -149,6 +149,38 @@ pub(super) fn load(store: &Storage, identity: &ServiceIdentity) -> Result<View, 
                 current_hash = prior_hash.into();
                 current = prior;
             }
+            AuditOperation::EnrollPrincipal { .. }
+            | AuditOperation::ProvisionCredential { .. }
+            | AuditOperation::DeactivatePrincipal { .. }
+            | AuditOperation::RecoverOwner { .. } => {
+                let prior_hash = a.prior_state_sha256.as_deref().ok_or_else(corrupt)?;
+                let prior = state(store, prior_hash, identity)?;
+                if prior.revision.checked_add(1) != Some(current.revision)
+                    || prior.time_floor > a.time
+                    || Some(&prior.last_audit_sha256) != a.previous_audit_sha256.as_ref()
+                {
+                    return Err(corrupt());
+                }
+                let request_digest = administration::validate_local_history(&prior, &current, &a)
+                    .map_err(|_| corrupt())?;
+                let key = (
+                    a.principal.clone(),
+                    a.request_id.clone().ok_or_else(corrupt)?,
+                );
+                let replay = Replay {
+                    digest: request_digest,
+                    receipt: Receipt {
+                        schema: 1,
+                        audit_sha256: current.last_audit_sha256.clone(),
+                        result: a.result.clone(),
+                    },
+                };
+                if requests.insert(key, replay).is_some() {
+                    return Err(corrupt());
+                }
+                current_hash = prior_hash.into();
+                current = prior;
+            }
             AuditOperation::RevokeCredential { credential_id } => {
                 let prior_hash = a.prior_state_sha256.as_deref().ok_or_else(corrupt)?;
                 let prior = state(store, prior_hash, identity)?;
