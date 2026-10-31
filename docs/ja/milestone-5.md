@@ -2,6 +2,8 @@
 
 # Milestone 5 delivery board
 
+E04残要件監査 / E07準備（2026-10-31 21:03 JST）: RFC 0046はquarantine、監査付きlocal enrollment/provisioning、owner復旧を要求し、RFC 0052はlocal principal lifecycleをE04に残す。E05後も未実装で、単なるend-to-end試験作業ではない。E04の統合結果を3 → 7 ptへ再見積りし、E07（3 pt: 認証quarantine/復元・未変更source実行）、E08（3 pt: 監査付きlocal principal/credential lifecycle・owner復旧）、E04（1 pt: 統合永続recovery/権限外操作の出口監査）に分割する。実装前に2 delivery・純+4を追加し、全44 delivery、累積純−7 → −3、退役38、112 − 3 − 38 = 残71 ptとする。Delivery/gate完了はない。E05を唯一のdoingとし、`2ae39fb`をfull baseline/CI向けに固定する。`codex/m5-registry-quarantine-recovery`はそのbranch/headからclean状態で開始し、#42 mergeまでは`git@github.com:carimatics/lang.git`のorigin/codex/m5-registry-https-mutationsを初期PR baseとする。RFC 0054を実験期委任で採択し、30-check外部policy/encoding modelは本番適用を証明しない。E07はE05公開待ちのtodoを維持し、以下の以前の件数は履歴とする。
+
 E05実行checkpoint・残scope監査（2026-10-31 20:58 JST確認）: transport全32 testが成功し、実TLS公開 → 更新source → VM/native 42、owner移管/yank/失効journey、最終guard期限切れ、元deadline/cancellation、不正framing/action、独立した敵対receipt対応検査を含む。重点workspace runでreceipt保持と同一budgetのbody予約を拒否/等号/+1境界まで確認した。Fmtと厳密workspace Clippyが成功。実装/lifetime checklistは完了し、固定full baseline・locked fuzz lint・最新headの両host CI・公開が残る。E05を3 → 1 ptへ再見積りし、純−5 → −7、退役38を維持、112 − 7 − 38 = 残67 ptとする。Delivery・前提・gateの追加/完了はない。E05のみdoingを維持し、検証のため本実装を固定する。以下の以前のcheckpointは履歴とする。
 
 E05実行checkpoint（2026-10-31 20:22 JST確認）: 最初の実TLS fixtureで認証PUT → 更新index/archive → VM/native 42、初回201と厳密replay 200、現在の条件競合、送信前の不正ID拒否、stop/reopenが成功した。MacOSの重点fixture 1件であり、全transport・両hostの証拠ではない。E05をdoing・3 ptに維持し、canonical action/owner統合、response/input lease寿命監査、不正framing・receipt結合、元deadline/cancellation、結果喪失の照合、stop/revoke/reopen、全baseline・最新head CI/公開を残す。Gate・見積り変更はなく、以下の以前の未実装記述は履歴とする。
@@ -22,7 +24,7 @@ E06設計監査（2026-10-31 JST）: source/lifetime確認と外部Rust mirror�
 
 2026-10-30 JST、`3b676c5`から開始。[ロードマップ](roadmap.md#milestone-5ecosystemとcompatibility)のM5全範囲（P1の2ゲートを含む）を追跡する。M4のinstallerとlocal packageは前提条件であり、registry完了を意味しない。
 
-**18 done · 1 doing · 23 todo · 67 remaining pt**
+**18 done · 1 doing · 25 todo · 71 remaining pt**
 
 **次: M5-E05 — 認証HTTPS publication/action/owner journey（1 pt: 固定baseline・両host CI・公開）。**
 
@@ -201,9 +203,11 @@ B05 budget監査（2026-10-31 JST）: 再利用するscalar検査内部の独立
 | M5-E01 | done | 0 | M5-C02 | G5 | 認証identity・credential取扱い・scope付き認可 | `56f9f84` |
 | M5-E02 | done | 0 | M5-E01,M5-D02 | G5 | owner・競合制約付きhost publish・yank・unyank transaction | `f40d643` |
 | M5-E03 | done | 0 | M5-E02 | G5 | owner追加・削除・移管と最後のowner・credential失効fixture | `18b2128` |
-| M5-E04 | todo | 3 | M5-E03,M5-E05 | G5 | 永続audit trail・復旧・権限外操作のend-to-end検証 | — |
+| M5-E04 | todo | 1 | M5-E03,M5-E05,M5-E07,M5-E08 | G5 | 統合された永続復旧・権限外操作journey・G5出口監査 | — |
 | M5-E05 | doing | 1 | M5-E02,M5-E03,M5-E06 | G5 | 認証HTTPS publish/action/owner・最新世代・recovery拒否 | — |
 | M5-E06 | done | 0 | M5-E02,M5-E03 | G5 | 計上済みhost recovery/transaction・有界な検証済みread世代capture | `db22857` |
+| M5-E07 | todo | 3 | M5-E05 | G5 | 監査付き認証quarantine/復元・未変更source実行 | — |
+| M5-E08 | todo | 3 | M5-E03,M5-E05 | G5 | 監査付きlocal principal/credential lifecycle・scope付きowner復旧 | — |
 | M5-F01 | todo | 3 | M5-C02 | G6 | package信頼root・provenance・署名・freshness契約を採択 | — |
 | M5-F02 | todo | 3 | M5-F01,M5-D02 | G6 | 署名package release manifestと検証可能provenanceを生成 | — |
 | M5-F03 | todo | 3 | M5-F02,M5-D03 | G6 | 消費前に信頼・artifact結合・期限・replayを検証 | — |
@@ -229,11 +233,11 @@ B05 budget監査（2026-10-31 JST）: 再利用するscalar検査内部の独立
 
 ## 見積り照合
 
-**112 − 7 − 38 = 67 pt**
+**112 − 3 − 38 = 71 pt**
 
 | 基準残作業 | 純追加・再見積り | 完了時に除去 | 残作業 |
 | ---: | ---: | ---: | ---: |
-| 112 pt | −7 pt | −38 pt | 67 pt |
+| 112 pt | −3 pt | −38 pt | 71 pt |
 
 ## Delivery noteとロードマップ監査
 

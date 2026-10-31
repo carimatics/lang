@@ -114,6 +114,7 @@ The rationale and unresolved tradeoffs are documented in [the architecture basel
 - [RFC 0051: Authenticated yank and unyank transactions (accepted)](docs/rfcs/0051-registry-yank-transactions.md)
 - [RFC 0052: Registry ownership and local credential revocation (implemented)](docs/rfcs/0052-registry-owner-and-credential-control.md)
 - [RFC 0053: Registry request workspace and mutable read generations (accepted)](docs/rfcs/0053-registry-request-workspace.md)
+- [RFC 0054: Audited registry quarantine transactions (accepted)](docs/rfcs/0054-registry-quarantine-transactions.md)
 - [Contribution guide](CONTRIBUTING.md)
 
 `cargo run -- toolchain verify --trust-root root.json --metadata channel.json --channel stable --message-format json` verifies bounded signed metadata for the current host and emits a JSON summary. The root must be trusted out of band. This read-only check uses a fresh trust context: it neither consults an installed rollback floor nor reads or installs payloads. See [RFC 0042](docs/rfcs/0042-signed-toolchain-installation.md).
