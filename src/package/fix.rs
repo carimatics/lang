@@ -168,8 +168,7 @@ impl Preview {
         let tests = graph
             .package(graph.root())
             .expect("resolved root")
-            .manifest()
-            .tests
+            .tests()
             .len();
         let mut budget = Budget {
             analysis: limits.analysis_bytes,

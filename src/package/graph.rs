@@ -45,15 +45,30 @@ pub struct Snapshot {
     id: PackageId,
     root: PathBuf,
     manifest_path: PathBuf,
+    origin: Origin,
+    entry_path: PathBuf,
+    pub(super) source_root: PathBuf,
+    dependencies: BTreeMap<String, PackageId>,
+}
+
+#[derive(Debug)]
+enum Origin {
+    Local(Box<LocalSnapshot>),
+    Registry(Box<super::registry::ConsumedArchive>),
+}
+
+#[derive(Debug)]
+pub(super) struct LocalSnapshot {
+    pub root: PathBuf,
+    pub manifest_path: PathBuf,
     manifest: Manifest,
     manifest_bytes: Vec<u8>,
-    pub(super) manifest_metadata: cap_std::fs::Metadata,
-    entry_path: PathBuf,
-    entry_bytes: Vec<u8>,
-    pub(super) entry_metadata: cap_std::fs::Metadata,
-    pub(super) source_root: PathBuf,
-    pub(super) source_directory: Mutex<Option<Dir>>,
-    dependencies: BTreeMap<String, PackageId>,
+    pub manifest_metadata: cap_std::fs::Metadata,
+    pub entry_path: PathBuf,
+    pub entry_bytes: Vec<u8>,
+    pub entry_metadata: cap_std::fs::Metadata,
+    pub source_root: PathBuf,
+    pub source_directory: Mutex<Option<Dir>>,
 }
 
 impl Snapshot {
@@ -66,20 +81,77 @@ impl Snapshot {
     pub fn manifest_path(&self) -> &Path {
         &self.manifest_path
     }
-    pub fn manifest(&self) -> &Manifest {
-        &self.manifest
+    pub fn manifest(&self) -> Option<&Manifest> {
+        self.local().map(|l| &l.manifest)
     }
     pub fn manifest_bytes(&self) -> &[u8] {
-        &self.manifest_bytes
+        match &self.origin {
+            Origin::Local(local) => &local.manifest_bytes,
+            Origin::Registry(consumed) => consumed.archive().descriptor_bytes(),
+        }
     }
     pub fn entry_path(&self) -> &Path {
         &self.entry_path
     }
     pub fn entry_bytes(&self) -> &[u8] {
-        &self.entry_bytes
+        match &self.origin {
+            Origin::Local(local) => &local.entry_bytes,
+            Origin::Registry(consumed) => consumed
+                .archive()
+                .source(consumed.archive().descriptor().package().entry())
+                .expect("admitted entry"),
+        }
     }
     pub fn dependencies(&self) -> &BTreeMap<String, PackageId> {
         &self.dependencies
+    }
+    pub fn name(&self) -> &str {
+        match &self.origin {
+            Origin::Local(l) => &l.manifest.package.as_ref().expect("resolved package").name,
+            Origin::Registry(r) => r.archive().descriptor().package().name(),
+        }
+    }
+    pub fn version(&self) -> &str {
+        match &self.origin {
+            Origin::Local(l) => {
+                &l.manifest
+                    .package
+                    .as_ref()
+                    .expect("resolved package")
+                    .version
+            }
+            Origin::Registry(r) => r.archive().descriptor().package().version(),
+        }
+    }
+    pub fn edition(&self) -> &str {
+        match &self.origin {
+            Origin::Local(l) => {
+                &l.manifest
+                    .package
+                    .as_ref()
+                    .expect("resolved package")
+                    .edition
+            }
+            Origin::Registry(r) => r.archive().descriptor().package().edition(),
+        }
+    }
+    pub fn tests(&self) -> &[String] {
+        match &self.origin {
+            Origin::Local(l) => &l.manifest.tests,
+            Origin::Registry(r) => r.archive().descriptor().tests(),
+        }
+    }
+    pub(super) fn local(&self) -> Option<&LocalSnapshot> {
+        match &self.origin {
+            Origin::Local(l) => Some(l),
+            Origin::Registry(_) => None,
+        }
+    }
+    pub fn registry(&self) -> Option<&super::registry::ConsumedArchive> {
+        match &self.origin {
+            Origin::Registry(r) => Some(r),
+            Origin::Local(_) => None,
+        }
     }
 }
 
@@ -211,6 +283,38 @@ impl Graph {
         limits: Limits,
         selected: Option<&str>,
     ) -> Result<Self, Diagnostic> {
+        Self::resolve_context_in(directory, display, name, target, limits, selected, None)
+    }
+
+    pub fn resolve_with_registries_in(
+        directory: Dir,
+        display: PathBuf,
+        name: &Path,
+        target: &str,
+        limits: Limits,
+        selected: Option<&str>,
+        registries: &super::registry::Context<'_>,
+    ) -> Result<Self, Diagnostic> {
+        Self::resolve_context_in(
+            directory,
+            display,
+            name,
+            target,
+            limits,
+            selected,
+            Some(registries),
+        )
+    }
+
+    fn resolve_context_in(
+        directory: Dir,
+        display: PathBuf,
+        name: &Path,
+        target: &str,
+        limits: Limits,
+        selected: Option<&str>,
+        registries: Option<&super::registry::Context<'_>>,
+    ) -> Result<Self, Diagnostic> {
         if !TARGETS.contains(&target) {
             return Err(Diagnostic::error("PKG0003", "unsupported package target"));
         }
@@ -242,6 +346,8 @@ impl Graph {
             edges: 0,
             source_bytes: 0,
             manifests: BTreeMap::new(),
+            registries,
+            registry_states: BTreeMap::new(),
         };
         let package_root = resolver.canonical_directory(Path::new("."))?;
         let workspace = resolver.select(&package_root, name, selected)?;
@@ -255,7 +361,18 @@ impl Graph {
             Path::new("Lang.json")
         };
         resolver.visit(selected_root, selected_name, None)?;
-        Ok(Self {
+        let hybrid = resolver.packages.iter().any(|p| p.registry().is_some());
+        if hybrid {
+            for package in &mut resolver.packages {
+                if package.local().is_some() {
+                    package.root = local_key(&package.root);
+                    package.manifest_path = local_key(&package.manifest_path);
+                    package.entry_path = local_key(&package.entry_path);
+                    package.source_root = local_key(&package.source_root);
+                }
+            }
+        }
+        let graph = Self {
             authority_root: display,
             target: target.into(),
             packages: resolver.packages,
@@ -263,7 +380,11 @@ impl Graph {
             directory: Mutex::new(Some(resolver.directory)),
             limits,
             inventory: OnceLock::new(),
-        })
+        };
+        if hybrid {
+            graph.inputs()?;
+        }
+        Ok(graph)
     }
 
     pub fn authority_root(&self) -> &Path {
@@ -281,10 +402,16 @@ impl Graph {
     pub fn workspace(&self) -> Option<&WorkspaceSnapshot> {
         self.workspace.as_ref()
     }
+    pub fn has_registry(&self) -> bool {
+        self.packages.iter().any(|p| p.registry().is_some())
+    }
     pub(super) fn manifest_files(&self) -> impl Iterator<Item = (&Path, &[u8])> {
         self.packages
             .iter()
-            .map(|p| (p.manifest_path(), p.manifest_bytes()))
+            .filter_map(|p| {
+                p.local()
+                    .map(|l| (l.manifest_path.as_path(), l.manifest_bytes.as_slice()))
+            })
             .chain(
                 self.workspace
                     .iter()
@@ -297,7 +424,10 @@ impl Graph {
     pub(super) fn manifest_inputs(&self) -> impl Iterator<Item = (&Path, &cap_std::fs::Metadata)> {
         self.packages
             .iter()
-            .map(|p| (p.manifest_path(), &p.manifest_metadata))
+            .filter_map(|p| {
+                p.local()
+                    .map(|l| (l.manifest_path.as_path(), &l.manifest_metadata))
+            })
             .chain(
                 self.workspace
                     .iter()
@@ -308,11 +438,14 @@ impl Graph {
             )
     }
     pub(super) fn package_roots(&self) -> impl Iterator<Item = &Path> {
-        self.packages.iter().map(Snapshot::root).chain(
-            self.workspace
-                .iter()
-                .flat_map(|w| w.members.iter().map(MemberSnapshot::root)),
-        )
+        self.packages
+            .iter()
+            .filter_map(|p| p.local().map(|l| l.root.as_path()))
+            .chain(
+                self.workspace
+                    .iter()
+                    .flat_map(|w| w.members.iter().map(MemberSnapshot::root)),
+            )
     }
     pub fn package(&self, id: PackageId) -> Option<&Snapshot> {
         self.packages.get(id.0)
@@ -348,6 +481,23 @@ struct Resolver<'a> {
     edges: usize,
     source_bytes: usize,
     manifests: BTreeMap<PathBuf, CapturedManifest>,
+    registries: Option<&'a super::registry::Context<'a>>,
+    registry_states: BTreeMap<(String, String, String), State>,
+}
+
+struct Edge {
+    alias: String,
+    source: DependencySource,
+    version: String,
+    archive_sha256: Option<String>,
+}
+
+pub(super) fn local_key(path: &Path) -> PathBuf {
+    Path::new("local").join(
+        path.components()
+            .filter(|c| !matches!(c, std::path::Component::CurDir))
+            .collect::<PathBuf>(),
+    )
 }
 
 fn limit(message: &str) -> Diagnostic {
@@ -577,13 +727,26 @@ impl Resolver<'_> {
         expected: Option<Requirement<'_>>,
     ) -> Result<PackageId, Diagnostic> {
         let (id, dependencies) = self.enter(root.clone(), name, expected)?;
-        let mut stack = vec![(id, root, dependencies.into_iter())];
+        let mut stack = vec![(id, dependencies.into_iter())];
         // Preserve sorted depth-first discovery and cycle diagnostics without
         // making the host call stack proportional to a permitted package chain.
-        while let Some((parent, root, dependencies)) = stack.last_mut() {
+        while let Some((parent, dependencies)) = stack.last_mut() {
             let parent = *parent;
-            let Some((alias, dependency)) = dependencies.next() else {
-                self.states.insert(root.clone(), State::Ready(parent));
+            let Some(edge) = dependencies.next() else {
+                let package = &self.packages[parent.0];
+                if let Some(local) = package.local() {
+                    self.states.insert(local.root.clone(), State::Ready(parent));
+                } else {
+                    let registry = package.registry().expect("typed origin");
+                    self.registry_states.insert(
+                        (
+                            registry.binding().policy_id().into(),
+                            package.name().into(),
+                            package.version().into(),
+                        ),
+                        State::Ready(parent),
+                    );
+                }
                 stack.pop();
                 continue;
             };
@@ -594,27 +757,45 @@ impl Resolver<'_> {
             if self.edges > self.limits.edges {
                 return Err(limit("dependency edge limit exceeded"));
             }
-            let DependencySource::Local { path } = &dependency.source else {
-                return Err(graph_error(
-                    &self.packages[parent.0].manifest_path,
-                    format!(
-                        "registry dependency {alias} requires an authenticated registry context"
-                    ),
-                ));
+            let (child, children) = match &edge.source {
+                DependencySource::Local { path } => {
+                    let local = self.packages[parent.0].local().ok_or_else(|| {
+                        super::registry::refused(
+                            "registry packages cannot introduce local dependencies",
+                        )
+                    })?;
+                    let dependency_root = self.canonical_directory(&local.root.join(path))?;
+                    self.enter(
+                        dependency_root,
+                        Path::new("Lang.json"),
+                        Some(Requirement {
+                            name: &edge.alias,
+                            version: &edge.version,
+                        }),
+                    )?
+                }
+                DependencySource::Registry { registry, name } => {
+                    if self.registries.is_none() {
+                        return Err(graph_error(
+                            &self.packages[parent.0].manifest_path,
+                            format!(
+                                "registry dependency {} requires an authenticated registry context",
+                                edge.alias
+                            ),
+                        ));
+                    }
+                    self.enter_registry(
+                        registry,
+                        name,
+                        &edge.version,
+                        edge.archive_sha256.as_deref(),
+                    )?
+                }
             };
-            let dependency_root = self.canonical_directory(&root.join(path))?;
-            let (child, children) = self.enter(
-                dependency_root.clone(),
-                Path::new("Lang.json"),
-                Some(Requirement {
-                    name: &alias,
-                    version: &dependency.version,
-                }),
-            )?;
-            self.packages[parent.0].dependencies.insert(alias, child);
-            if matches!(self.states[&dependency_root], State::Loading(_)) {
-                stack.push((child, dependency_root, children.into_iter()));
-            }
+            self.packages[parent.0]
+                .dependencies
+                .insert(edge.alias, child);
+            stack.push((child, children.into_iter()));
         }
         Ok(id)
     }
@@ -624,7 +805,7 @@ impl Resolver<'_> {
         root: PathBuf,
         name: &Path,
         expected: Option<Requirement<'_>>,
-    ) -> Result<(PackageId, Vec<(String, super::manifest::Dependency)>), Diagnostic> {
+    ) -> Result<(PackageId, Vec<Edge>), Diagnostic> {
         if let Some(state) = self.states.get(&root).copied() {
             let (id, loading) = match state {
                 State::Loading(id) => (id, true),
@@ -633,6 +814,8 @@ impl Resolver<'_> {
             let snapshot = &self.packages[id.0];
             identity(
                 snapshot
+                    .local()
+                    .expect("local state")
                     .manifest
                     .package
                     .as_ref()
@@ -687,26 +870,121 @@ impl Resolver<'_> {
                     .as_ref()
                     .is_none_or(|ts| ts.iter().any(|t| t == self.target))
             })
-            .map(|(a, d)| (a.clone(), d.clone()))
+            .map(|(a, d)| Edge {
+                alias: a.clone(),
+                source: d.source.clone(),
+                version: d.version.clone(),
+                archive_sha256: None,
+            })
             .collect();
         let id = PackageId(self.packages.len());
         self.states.insert(root.clone(), State::Loading(id));
         self.packages.push(Snapshot {
             id,
             root: root.clone(),
-            manifest_path,
-            manifest,
-            manifest_bytes,
-            manifest_metadata: input.metadata,
-            entry_path,
-            entry_bytes,
-            entry_metadata: entry.metadata,
+            manifest_path: manifest_path.clone(),
+            entry_path: entry_path.clone(),
+            origin: Origin::Local(Box::new(LocalSnapshot {
+                root,
+                manifest_path,
+                manifest,
+                manifest_bytes,
+                manifest_metadata: input.metadata,
+                entry_path,
+                entry_bytes,
+                entry_metadata: entry.metadata,
+                source_root: if source_root == Path::new(".") {
+                    PathBuf::new()
+                } else {
+                    source_root.clone()
+                },
+                source_directory: Mutex::new(Some(source_directory)),
+            })),
             source_root: if source_root == Path::new(".") {
                 PathBuf::new()
             } else {
                 source_root
             },
-            source_directory: Mutex::new(Some(source_directory)),
+            dependencies: BTreeMap::new(),
+        });
+        Ok((id, dependencies))
+    }
+
+    fn enter_registry(
+        &mut self,
+        registry: &str,
+        name: &str,
+        version: &str,
+        hash: Option<&str>,
+    ) -> Result<(PackageId, Vec<Edge>), Diagnostic> {
+        let context = self.registries.expect("checked registry context");
+        let binding = context.binding(registry)?;
+        let locator = (
+            binding.policy_id().to_owned(),
+            name.to_owned(),
+            version.to_owned(),
+        );
+        if let Some(state) = self.registry_states.get(&locator) {
+            let (State::Loading(id) | State::Ready(id)) = *state;
+            let previous = self.packages[id.0].registry().expect("registry state");
+            if hash.is_some_and(|h| h != previous.archive().sha256()) {
+                return Err(super::registry::refused(
+                    "conflicting archive identities for registry release",
+                ));
+            }
+            if matches!(state, State::Loading(_)) {
+                return Err(super::registry::refused("registry dependency cycle"));
+            }
+            return Ok((id, Vec::new()));
+        }
+        if self.packages.len() >= self.limits.packages {
+            return Err(limit("package count limit exceeded"));
+        }
+        let consumed = context.resolve(registry, name, version, hash)?;
+        let archive = consumed.archive();
+        let descriptor = archive.descriptor();
+        for file in descriptor.files() {
+            self.source_bytes = self
+                .source_bytes
+                .checked_add(
+                    usize::try_from(file.bytes())
+                        .map_err(|_| limit("source byte capacity exceeded"))?,
+                )
+                .ok_or_else(|| limit("source byte capacity exceeded"))?;
+        }
+        if self.source_bytes > self.limits.source_bytes {
+            return Err(limit("source byte limit exceeded"));
+        }
+        let root = PathBuf::from(format!(
+            "registry/{}/{name}/{version}/{}",
+            consumed.binding().policy_id(),
+            archive.sha256()
+        ));
+        let entry_path = root.join(descriptor.package().entry());
+        let source_root = entry_path.parent().expect("admitted entry").to_path_buf();
+        let dependencies = descriptor
+            .dependencies()
+            .iter()
+            .filter(|d| d.targets().is_empty() || d.targets().iter().any(|t| t == self.target))
+            .map(|d| Edge {
+                alias: d.alias().into(),
+                source: DependencySource::Registry {
+                    registry: d.registry().into(),
+                    name: d.name().into(),
+                },
+                version: d.version().into(),
+                archive_sha256: Some(d.archive_sha256().into()),
+            })
+            .collect();
+        let id = PackageId(self.packages.len());
+        self.registry_states.insert(locator, State::Loading(id));
+        self.packages.push(Snapshot {
+            id,
+            manifest_path: root.join(".lang-package.json"),
+            root,
+            origin: Origin::Registry(Box::new(consumed)),
+            entry_path,
+            source_root,
             dependencies: BTreeMap::new(),
         });
         Ok((id, dependencies))

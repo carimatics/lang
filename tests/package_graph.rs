@@ -128,11 +128,7 @@ fn sorted_diamond_edges_share_one_identity_and_keep_original_snapshots() {
     let root = br#"{"schema":1,"package":{"name":"app","version":"0.1.0","edition":"2026","entry":"src/main.lang"},"dependencies":{"b":{"path":"deps/b","version":"0.1.0"},"a":{"path":"deps/a","version":"0.1.0"}}}"#;
     fs::write(f.manifest(), root).unwrap();
     let g = f.resolve().unwrap();
-    let names: Vec<_> = g
-        .packages()
-        .iter()
-        .map(|p| p.manifest().package.as_ref().unwrap().name.as_str())
-        .collect();
+    let names: Vec<_> = g.packages().iter().map(|p| p.name()).collect();
     assert_eq!(names, ["app", "a", "shared", "b"]);
     assert_eq!(g.target(), TARGET);
     let main = g.package(g.root()).unwrap();

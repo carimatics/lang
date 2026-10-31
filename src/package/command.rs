@@ -522,7 +522,7 @@ fn run_tests(
         .graph
         .package(prepared.graph.root())
         .expect("resolved root");
-    let tests = &root.manifest().tests;
+    let tests = root.tests();
     let mut files = Vec::new();
     let mut bytes = prepared.lock.as_bytes().len();
     if tests.is_empty() {

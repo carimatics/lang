@@ -14,6 +14,7 @@ pub mod manifest;
 pub mod migration;
 mod native;
 mod output;
+pub mod registry;
 mod scaffold;
 pub mod source;
 

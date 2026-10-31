@@ -20,7 +20,7 @@ impl Report {
         let mut collector = Collector::default();
         collector.analysis(source::analyze(graph, limits)?)?;
         let root = graph.package(graph.root()).expect("resolved root");
-        for index in 0..root.manifest().tests.len() {
+        for index in 0..root.tests().len() {
             collector.analysis(source::analyze_test(graph, index, limits)?)?;
         }
         Ok(Self {

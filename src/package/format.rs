@@ -64,6 +64,13 @@ fn capacity(path: &Path, error: impl std::fmt::Display) -> Diagnostic {
 }
 impl Plan {
     pub fn capture(graph: &Graph) -> Result<Self, Error> {
+        if graph.has_registry() {
+            return Err(Diagnostic::error(
+                "PKG0003",
+                "registry graph requires typed local edit bindings",
+            )
+            .into());
+        }
         let inputs = capture_inputs(graph)?;
         let mut changes = Vec::new();
         let mut diagnostics = Vec::new();

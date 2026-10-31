@@ -54,6 +54,12 @@ fn normal(path: &Path) -> Option<PathBuf> {
     Some(result)
 }
 pub(super) fn canonical_directories(graph: &Graph) -> Result<(), Diagnostic> {
+    if graph.has_registry() {
+        return Err(invalid(
+            Path::new("."),
+            "source snapshot profile 1 requires a local-only graph",
+        ));
+    }
     let inputs = graph.inputs()?;
     for scope in inputs.scopes.values() {
         if let Some(path) = scope.aliases.keys().next() {
@@ -85,7 +91,8 @@ pub(super) fn canonical_directories(graph: &Graph) -> Result<(), Diagnostic> {
     }
     for package in graph.packages() {
         for (alias, id) in package.dependencies() {
-            let DependencySource::Local { path } = &package.manifest().dependencies[alias].source
+            let DependencySource::Local { path } =
+                &package.manifest().expect("local graph").dependencies[alias].source
             else {
                 return Err(invalid(
                     package.manifest_path(),

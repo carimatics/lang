@@ -159,6 +159,12 @@ impl Snapshot {
         if overlays.len() > limits.overlays {
             return Err(capacity());
         }
+        if graph.has_registry() {
+            return Err(Diagnostic::error(
+                "PKG0003",
+                "registry graph requires typed editor bindings",
+            ));
+        }
         let inputs = graph.inputs()?;
         let metadata = graph
             .manifest_inputs()

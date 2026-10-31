@@ -239,6 +239,7 @@ fn targets<'de, D: Deserializer<'de>>(d: D) -> Result<Vec<String>, D::Error> {
 pub struct AdmittedArchive {
     bytes: Vec<u8>,
     descriptor: Descriptor,
+    descriptor_range: Range<usize>,
     sources: Vec<Range<usize>>,
     sha256: String,
     descriptor_sha256: String,
@@ -250,7 +251,7 @@ impl AdmittedArchive {
             return Err(limit("archive byte limit exceeded"));
         }
         let (metadata, mut offset) = entry(bytes, 0, DESCRIPTOR, MAX_DESCRIPTOR_BYTES)?;
-        let descriptor_bytes = &bytes[metadata];
+        let descriptor_bytes = &bytes[metadata.clone()];
         json_depth(descriptor_bytes)?;
         let descriptor: Descriptor = serde_json::from_slice(descriptor_bytes).map_err(|e| {
             if e.to_string().starts_with(SEQUENCE_LIMIT) {
@@ -298,6 +299,7 @@ impl AdmittedArchive {
         Ok(Self {
             bytes: frozen,
             descriptor,
+            descriptor_range: metadata,
             sources,
             sha256: digest(bytes),
             descriptor_sha256: digest(descriptor_bytes),
@@ -306,6 +308,9 @@ impl AdmittedArchive {
 
     pub fn descriptor(&self) -> &Descriptor {
         &self.descriptor
+    }
+    pub fn descriptor_bytes(&self) -> &[u8] {
+        &self.bytes[self.descriptor_range.clone()]
     }
     pub fn as_bytes(&self) -> &[u8] {
         &self.bytes
