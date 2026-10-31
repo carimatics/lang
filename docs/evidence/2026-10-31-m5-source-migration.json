@@ -1,0 +1,116 @@
+{
+  "schema": 1,
+  "kind": "both-host-checked-historical-source-migration",
+  "verified_date": "2026-10-31",
+  "timezone": "Asia/Tokyo",
+  "workflow_run": "https://github.com/carimatics/lang/actions/runs/41154299004",
+  "workflow_head": "62e742c21734527f84902b10fac600731afe5c4d",
+  "tested_checkout": "7399ed0120e4aa9cbbf089360e28ee82b13af31c",
+  "historical_revision": "69b1c4dc66d04a4a103d4eb843232df22e52eac0",
+  "historical_lock_sha256": "fa5c279a688f72fde9a09f387aee4fe741be36f56a7515c3b0bc1dccfd43fdca",
+  "current_lock_sha256": "0ab8ebc251ff3ada60ce22640b4f417cd8fe5717b3629c27b1d0762150d32786",
+  "rustc_release": "1.99.0",
+  "rustc_commit": "b940084d7eb6a299eb4bfeb8e34901bc051e7ac4",
+  "rustc_commit_date": "2026-09-28",
+  "verification_script": "tools/check-source-migration.py",
+  "command": ["python", "tools/check-source-migration.py", "--sdk", "SDK", "--historical-checkout", "HISTORICAL_CHECKOUT", "--output", "NEW_OUTPUT_DIRECTORY"],
+  "observations_per_host": 59,
+  "contracts_checked": [
+    "Clean pinned historical producer and exact unchanged Cargo.lock before cargo build --locked",
+    "Actual historical source execution before migration",
+    "Preview leaves the original source bytes unchanged",
+    "Current ordinary compilation rejects all five conflicting sources with SRC0024",
+    "Actual CLI --apply matches the reported original-byte-span edits exactly",
+    "Current VM and matching-SDK linked native executable equal the historical result",
+    "Repeated CLI --apply changes no bytes and applies no edits"
+  ],
+  "hosts": [
+    {
+      "runner": "windows-2025",
+      "target": "x86_64-pc-windows-msvc",
+      "artifact_id": 13024388122,
+      "artifact_name": "source-migration-windows-2025-x86_64-pc-windows-msvc",
+      "artifact_sha256": "b340f8f5b67437a56617023e853c1b6525ee13fa44bcbba1776aabdef9765fd7",
+      "report_sha256": "e873f99156d7e40c63dc68706234427fa32bd0e9700c9d88771b2fc8554ede8b",
+      "historical_compiler_sha256": "12fcc10d45c08794b47cf75e13060f3128ad2fecba9c0c0856d3745b8b3e8399",
+      "current_compiler_sha256": "3694310c0f07a43d422e172093183290523794e240f4834935cf4e5d5a3a4944",
+      "sdk_manifest_sha256": "fb1fb22165b1371fe43dec3ea498e4b6b889e308640caae692d0e28f1a215d68",
+      "sdk_build_id": "d96cb1e22377591f536c2d135a36b81f34851e537445a5c5077057252ddbee45",
+      "success": true,
+      "cases_passed": 6
+    },
+    {
+      "runner": "macos-26",
+      "target": "aarch64-apple-darwin",
+      "artifact_id": 13024378102,
+      "artifact_name": "source-migration-macos-26-aarch64-apple-darwin",
+      "artifact_sha256": "bf5e1409a7cb23cd7abedaf0743fe9a35cee19036da0c3befbac7e8ede2da20d",
+      "report_sha256": "9f4269bffdb7122b85d232fc66d39936035448225f562ebba10a7c12891c24b7",
+      "historical_compiler_sha256": "6171807b0388a7b4f50090c1222351c8d73f07214d7b6b2e3edebc16c81e2e40",
+      "current_compiler_sha256": "9a15afe4606b380ba425358cb393c30d104c6cdecaf641072f40edf181084ad0",
+      "sdk_manifest_sha256": "335eab9c0a1cbf9d0916daf99a58ce8e01648e39878ed6e6a699c972378fba3b",
+      "sdk_build_id": "61829971a9ab27191acdd1670b3a25559e854861eed89d99621de382ce005d9b",
+      "success": true,
+      "cases_passed": 6
+    },
+    {
+      "runner": "macos-15",
+      "target": "aarch64-apple-darwin",
+      "artifact_id": 13024057462,
+      "artifact_name": "source-migration-macos-15-aarch64-apple-darwin",
+      "artifact_sha256": "f638f094b5cdd2587fc7c50a2a0f7c4aecbe3130c5d5fefd389aea375ac3bfd4",
+      "report_sha256": "22bb38d9e0a575a2ee1c7c04f01c08a32fd3fc68a92699d6f908711a4ac44aad",
+      "historical_compiler_sha256": "93711dc6a7b256f6d623d36b86cd9e689983e133dad134b5c8043d497d5784e4",
+      "current_compiler_sha256": "8b1d763458111dc077847bf4c7198a9ee87e910babb0609e064ef4ebf054aa11",
+      "sdk_manifest_sha256": "8a125ada86432be634ac2432fd92c0bbcc399533922760977cddc5f37afebed7",
+      "sdk_build_id": "61829971a9ab27191acdd1670b3a25559e854861eed89d99621de382ce005d9b",
+      "success": true,
+      "cases_passed": 6
+    }
+  ],
+  "cases_identical_across_hosts": [
+    {
+      "name": "retained-shared-weak",
+      "source_sha256": "c992b676ff94f018e4678d5db3cfe83902207f83c7ec3d4e75de8119c812aa36",
+      "rewritten_sha256": "972e286354f771a8c56a8c14427089dc0defd694ee604ad293a5a46ad31d0ba1",
+      "changed": 1,
+      "historical_vm_current_vm_native_stdout": "42\n"
+    },
+    {
+      "name": "wrapping-parameter",
+      "source_sha256": "7b7aaf2a8a90219d723af2ba41ad1d5a61226c27518b5da9ba13206531c8122b",
+      "rewritten_sha256": "66c3106ac516b2e3a3a94f0ced643e8897de7dfddc8ee873b587a3e7dda84b41",
+      "changed": 1,
+      "historical_vm_current_vm_native_stdout": "-9223372036854775808\n"
+    },
+    {
+      "name": "forward-recursive-call",
+      "source_sha256": "7c90d37fcef6d19762aab4d51ee1857eac2b70627321412c567be59c9b2c51eb",
+      "rewritten_sha256": "452a3d4cd6cebcf84abce7b8d63a75ee4febd1758803082ec2de9d6d6cef1f03",
+      "changed": 1,
+      "historical_vm_current_vm_native_stdout": "42\n"
+    },
+    {
+      "name": "optional-else",
+      "source_sha256": "6751ccd5e7334da8fae99944cf7216a0376e8bc119e91b23430dfa1e9639ff2d",
+      "rewritten_sha256": "6751ccd5e7334da8fae99944cf7216a0376e8bc119e91b23430dfa1e9639ff2d",
+      "changed": 0,
+      "historical_vm_current_vm_native_stdout": "42\n"
+    },
+    {
+      "name": "trailing-parameter-and-argument-commas",
+      "source_sha256": "0e7baef8642e1e7bafda34b09457f6f5c8a826c1b2dcea463a3ed01cfa08b8ad",
+      "rewritten_sha256": "20d3c124f70491520963ef075ed3a6fb7a956f8a49b0d36f25993c45fb3acdda",
+      "changed": 1,
+      "historical_vm_current_vm_native_stdout": "42\n"
+    },
+    {
+      "name": "loop-collision-trivia",
+      "source_sha256": "9a23d4e38f41b72b78db439e924c22020ccc50253e022e7068bccac24ecc370c",
+      "rewritten_sha256": "67f82c7394a4baed6e93ac197fb9aac89364fedc3666c0d6fc46fdae35180550",
+      "changed": 1,
+      "historical_vm_current_vm_native_stdout": "42\n"
+    }
+  ],
+  "scope": "Execution evidence for five real source transitions and one separate no-op on both tier-1 hosts. The artifact ZIP and decoded report hashes were inspected on 2026-10-31 JST. This record does not replace the full local baseline, latest-head CI or final M5 exit audit."
+}

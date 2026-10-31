@@ -135,6 +135,8 @@ frontend/editor証明adapter、package/format公開、CLI・test・文書を変�
 
 ## Sources
 
+両host実行証拠（2026-10-31 JST確認）: [保持した移行記録](../../evidence/2026-10-31-m5-source-migration.json)は検証checkout、旧・現compilerとlockのidentity、対応SDK、元・rewrite後source hash、downloadしたreport hashを示す。旧checkoutのbytesを保持した上で、macOS 15・macOS 26・Windows 2025ですべての6 fixtureが成功した。5件は実際のsource遷移、6件目は別扱いのno-opである。これは実行journeyの証拠であり、最終local baseline・最新headの公開checkの代替ではない。
+
 - [RFC 0002](0002-prototype-control-flow.md)、更新2026-10-27: 2の補数のwrapping加算。2026-10-31訂正: 当初案は加算を検査付きと誤記していたが、実行overflow probeと正本の算術契約で誤りを確認した。compiler意味・互換性は変えず、移行仕様の記述を訂正する。
 
 - [RFC 0006](0006-source-frontend-and-portable-programs.md)、現更新2026-10-30、固定commitの旧版更新2026-10-17: source字句・scalar・module規則。

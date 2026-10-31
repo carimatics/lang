@@ -135,6 +135,8 @@ Executable journey checkpoint, 2026-10-31 JST: `tools/check-source-migration.py`
 
 ## Sources
 
+Both-host execution evidence, verified 2026-10-31 JST: the [retained migration record](../evidence/2026-10-31-m5-source-migration.json) identifies the tested checkout, historical/current compiler and lock identities, matching SDKs, original/rewritten source hashes and downloaded report hashes. All six fixtures passed on macOS 15, macOS 26 and Windows 2025 after preserving historical checkout bytes. Five fixtures perform a real source transition; the sixth is a separately reported no-op. This proves the execution journey and does not substitute for the final local baseline or latest-head publication checks.
+
 - [RFC 0002](0002-prototype-control-flow.md), updated 2026-10-27: two's-complement wrapping addition. Correction on 2026-10-31: the original draft incorrectly called addition checked; an executable overflow probe and the canonical arithmetic contract disproved that wording. This corrects the migration specification without changing compiler semantics or compatibility.
 
 - [RFC 0006](0006-source-frontend-and-portable-programs.md), current update 2026-10-30; historical revision at the pinned commit updated 2026-10-17: source lexical, scalar and module rules.
