@@ -91,6 +91,7 @@ impl Client {
             remaining(deadlines.connect)?;
             stream.conn.complete_io(&mut stream.sock)?;
         }
+        remaining(deadlines.connect)?;
         if stream
             .conn
             .alpn_protocol()

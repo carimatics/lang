@@ -60,8 +60,13 @@ pub(super) struct Socket {
 impl Socket {
     pub(super) fn connect(host: &str, port: u16, end: Instant) -> Result<Self, Error> {
         let addresses = resolve(host, port, end)?;
-        for address in addresses {
-            if let Ok(stream) = TcpStream::connect_timeout(&address, remaining(end)?) {
+        for (index, address) in addresses.iter().enumerate() {
+            // A failed/unreachable first DNS candidate must not consume the
+            // entire shared connect/handshake deadline and starve later ones.
+            // In particular, localhost can list IPv6 before an IPv4 listener.
+            let candidates = u32::try_from(addresses.len() - index).expect("bounded DNS answers");
+            let allowance = (remaining(end)? / candidates).max(Duration::from_nanos(1));
+            if let Ok(stream) = TcpStream::connect_timeout(address, allowance) {
                 return Ok(Self { stream, end });
             }
         }

@@ -1,4 +1,5 @@
 use super::*;
+use std::collections::BTreeMap;
 
 pub const MAX_INDEX_BYTES: usize = 2 * 1024 * 1024;
 
@@ -28,6 +29,86 @@ pub(super) fn encode_package(registry: &str, package: &records::Package) -> Resu
 
 fn unavailable() -> Error {
     error(ErrorKind::NotFound, "registry resource is unavailable")
+}
+
+/// A read-only service retains the exclusive registry lock and one fully
+/// validated generation. No mutable authority or replay receipts are cached.
+pub(crate) struct CapturedReads {
+    registry: Registry,
+    head: String,
+    indexes: BTreeMap<String, Option<Box<[u8]>>>,
+    archives: BTreeMap<String, usize>,
+    memory: usize,
+}
+
+impl CapturedReads {
+    pub(crate) fn capture(registry: Registry) -> Result<Self, Error> {
+        let view = history::load(&registry.storage, &registry.identity)?;
+        let mut indexes = BTreeMap::new();
+        let mut archives = BTreeMap::new();
+        let mut memory = 4096usize;
+        for package in &view.state.packages {
+            let bytes = match encode_package(registry.identity.registry(), package) {
+                Ok(bytes) => Some(bytes.into_boxed_slice()),
+                Err(e) if e.kind == ErrorKind::Limit => None,
+                Err(e) => return Err(e),
+            };
+            // A conservative fixed allowance covers each bounded key, map
+            // node, value and allocation rounding, in addition to exact data.
+            memory = memory
+                .checked_add(1024 + bytes.as_ref().map_or(0, |b| b.len()))
+                .ok_or_else(capacity)?;
+            indexes.insert(package.name.clone(), bytes);
+            for release in &package.releases {
+                if !release.quarantined {
+                    let length = usize::try_from(release.archive_bytes).map_err(|_| capacity())?;
+                    if let Some(prior) = archives.insert(release.archive_sha256.clone(), length) {
+                        if prior != length {
+                            return Err(corrupt());
+                        }
+                    } else {
+                        memory = memory.checked_add(1024).ok_or_else(capacity)?;
+                    }
+                }
+            }
+        }
+        Ok(Self {
+            registry,
+            head: view.head,
+            indexes,
+            archives,
+            memory,
+        })
+    }
+
+    pub(crate) fn identity(&self) -> &ServiceIdentity {
+        &self.registry.identity
+    }
+    pub(crate) fn memory_bytes(&self) -> usize {
+        self.memory
+    }
+    pub(crate) fn check_head(&self) -> Result<(), Error> {
+        if self.registry.storage.head()? != self.head {
+            return Err(corrupt());
+        }
+        Ok(())
+    }
+    pub(crate) fn index(&self, name: &str) -> Result<&[u8], Error> {
+        self.check_head()?;
+        self.indexes
+            .get(name)
+            .ok_or_else(unavailable)?
+            .as_deref()
+            .ok_or_else(capacity)
+    }
+    pub(crate) fn archive_length(&self, hash: &str) -> Result<usize, Error> {
+        self.check_head()?;
+        self.archives.get(hash).copied().ok_or_else(unavailable)
+    }
+    pub(crate) fn archive(&self, hash: &str) -> Result<Vec<u8>, Error> {
+        let length = self.archive_length(hash)?;
+        self.registry.storage.captured_object(hash, length)
+    }
 }
 
 impl Registry {

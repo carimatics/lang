@@ -121,6 +121,64 @@ fn framing(headers: &[httparse::Header<'_>]) -> Result<usize, Error> {
     })
 }
 
+pub(super) enum Request<'a> {
+    Index(&'a str),
+    Archive(&'a str),
+}
+
+pub(super) fn request<'a>(bytes: &'a [u8], expected_host: &str) -> Result<Request<'a>, Error> {
+    let mut headers = [httparse::EMPTY_HEADER; MAX_HEADER_FIELDS];
+    let mut parsed = httparse::Request::new(&mut headers);
+    if parsed.parse(bytes).map_err(|e| match e {
+        httparse::Error::TooManyHeaders => limit(),
+        _ => malformed(),
+    })? != httparse::Status::Complete(bytes.len())
+        || parsed.version != Some(1)
+        || parsed.method != Some("GET")
+        || !bytes.starts_with(b"GET ")
+    {
+        return Err(malformed());
+    }
+    if framing(parsed.headers)? != 0
+        || one(parsed.headers, "host")? != Some(expected_host.as_bytes())
+    {
+        return Err(malformed());
+    }
+    for name in [
+        "authorization",
+        "proxy-authorization",
+        "if-match",
+        "if-none-match",
+        "idempotency-key",
+        "expect",
+        "upgrade",
+        "te",
+        "trailer",
+    ] {
+        if one(parsed.headers, name)?.is_some() {
+            return Err(malformed());
+        }
+    }
+    let path = parsed.path.ok_or_else(malformed)?;
+    if let Some(name) = path.strip_prefix("/v1/packages/") {
+        if !crate::package::manifest::valid_name(name) {
+            return Err(malformed());
+        }
+        Ok(Request::Index(name))
+    } else if let Some(hash) = path.strip_prefix("/v1/objects/") {
+        if hash.len() != 64
+            || !hash
+                .bytes()
+                .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
+        {
+            return Err(malformed());
+        }
+        Ok(Request::Archive(hash))
+    } else {
+        Err(error(ErrorKind::NotFound))
+    }
+}
+
 pub(super) struct Response {
     pub(super) status: u16,
     pub(super) length: usize,

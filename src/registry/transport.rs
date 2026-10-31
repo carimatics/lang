@@ -1,11 +1,14 @@
 //! Explicit-origin HTTPS reads for RFC 0046. Transport integrity is independent
 //! of package signatures/freshness and grants no filesystem or guest authority.
 
+mod budget;
 mod client;
+mod server;
 mod socket;
 mod wire;
 
 pub use client::Client;
+pub use server::Server;
 
 use std::fmt::{Display, Formatter};
 use std::io;

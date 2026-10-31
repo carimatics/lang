@@ -214,6 +214,13 @@ fn exact_index_capacity_is_admitted_before_any_candidate_write() {
                 ErrorKind::Limit
             );
             assert_eq!(snapshot(&tmp.path().join("registry")), legacy);
+            let reads = CapturedReads::capture(registry).unwrap();
+            assert_eq!(reads.index("answer").unwrap_err().kind, ErrorKind::Limit);
+            assert_eq!(
+                reads.archive(candidate.sha256()).unwrap(),
+                candidate.as_bytes()
+            );
+            assert_eq!(snapshot(&tmp.path().join("registry")), legacy);
         }
     }
 }

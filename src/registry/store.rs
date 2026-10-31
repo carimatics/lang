@@ -18,6 +18,7 @@ use sha2::{Digest, Sha256};
 use std::fmt::{Display, Formatter};
 
 pub use index::{Index, IndexedRelease};
+pub(crate) use reads::CapturedReads;
 pub use reads::MAX_INDEX_BYTES;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]

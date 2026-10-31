@@ -14,18 +14,30 @@ fn canonical(value: &impl Serialize) -> Vec<u8> {
     bytes.push(b'\n');
     bytes
 }
-fn archive(source: &[u8]) -> AdmittedArchive {
+pub(in crate::registry::transport) fn archive(source: &[u8]) -> AdmittedArchive {
+    archive_files(&[("main.lang", source)])
+}
+
+pub(in crate::registry::transport) fn archive_files(files: &[(&str, &[u8])]) -> AdmittedArchive {
+    let metadata: Vec<_> = files
+        .iter()
+        .map(|(path, source)| {
+            serde_json::json!({
+                "path":path, "bytes":source.len(), "sha256":hash(source)
+            })
+        })
+        .collect();
     let descriptor: Descriptor = serde_json::from_value(serde_json::json!({
         "format":"lang-registry-source", "schema":1,
-        "package":{"name":"answer", "version":"1.0.0", "edition":"2026", "entry":"main.lang"},
-        "tests":[], "dependencies":[], "files":[{"path":"main.lang", "bytes":source.len(), "sha256":hash(source)}]
-    })).unwrap();
+        "package":{"name":"answer", "version":"1.0.0", "edition":"2026", "entry":files[0].0},
+        "tests":[], "dependencies":[], "files":metadata
+    }))
+    .unwrap();
     let descriptor = canonical(&descriptor);
     let mut builder = tar::Builder::new(Vec::new());
-    for (path, bytes) in [
-        (".lang-package.json", descriptor.as_slice()),
-        ("main.lang", source),
-    ] {
+    for (path, bytes) in
+        std::iter::once((".lang-package.json", descriptor.as_slice())).chain(files.iter().copied())
+    {
         let mut header = tar::Header::new_ustar();
         header.set_path(path).unwrap();
         header.set_mode(0o644);

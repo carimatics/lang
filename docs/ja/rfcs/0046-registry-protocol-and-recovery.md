@@ -65,6 +65,8 @@ Headerは100 byte name fieldに名前を入れ、prefix／linkname／owner／gro
 
 証明書検証HTTPS・HTTP/1.1を使い、1 connectionに1 request、`Connection: close`とする。Redirect・content encoding・自動展開・chunked transfer・`Transfer-Encoding`なし。Bodyには有効なContent-Length 1つを必須とし、上限内で正確にそのbyte数を読む。Serverは応答前にclient EOFを待たず、第2／pipeline requestを処理しない。Consumerは切れたresponseと余分なbody byteを拒否する。Framing／authorization／conditional／request-ID headerの重複、異なるHost、未対応method、未知routeを拒否。Request line 2 KiB、header計8 KiB／32 field、handshake／connect 10秒、request／response全体120秒を上限とする。明示parse上限を持つ保守済みHTTP／TLS実装を使い、独自の寛容なHTTP parserを作らない。Serverはhandshakeを含め最大8 connection、application stateに無制限accept queueを持たず、受入request memory総量256 MiBとする。超過workはbody受入前に拒否／closeする。
 
+D03実装明確化（2026-10-31 JST採択）: 読取専用serviceの共有取得済みindex/mapも256 MiB budgetへ計上する。TLS受理前に上限付き接続/TLS/header/worker記憶域、archive open/read前に完全な送信bufferを予約し、所有dataを退役してから予約を解放する。宣言された受信GET body（0 byte）だけを計上してはならない。TLS buffer・workerを制限し、永続TLS session cacheやapplication接続queueを持たない。Handshake接続はsocket/workerの実終了まで数え、cancelはactive socketを閉じてworkerをjoinする。RFC 0048のread snapshot詳細化に従い、接続受理前に起動時の全履歴検証を行う。これは保守的な論理割当て計上であり、process全体RSSや可用性の保証ではない。Allocator/runtime管理情報と信頼済み実行file/config記憶域は別である。既存のbyte・並行・deadline上限は増やさない。実budget境界と敵対peerはD03の受入testとして残る。
+
 全pathはorigin root基準。Name／version／digestは制限済みで、percent decodeで別identityへ変換しない。任意filesystem pathやremote URLをendpoint入出力にしない。
 
 | Methodとpath | 契約 |

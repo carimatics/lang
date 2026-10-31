@@ -208,6 +208,27 @@ impl Storage {
         }
         Ok(bytes)
     }
+
+    pub fn captured_object(&self, hash: &str, length: usize) -> Result<Vec<u8>, Error> {
+        records::hex::<32>(hash)?;
+        if length > archive::MAX_ARCHIVE_BYTES {
+            return Err(capacity());
+        }
+        let mut file = open_file(&self.dir, &Space::Object.path(hash), false)?;
+        if file.metadata().map_err(|_| io())?.len() != length as u64 {
+            return Err(corrupt());
+        }
+        // The caller reserves the exact complete body before this allocation.
+        // Do not use read_to_end's geometric buffer growth for served objects.
+        let mut bytes = Vec::new();
+        bytes.try_reserve_exact(length).map_err(|_| capacity())?;
+        bytes.resize(length, 0);
+        file.read_exact(&mut bytes).map_err(|_| io())?;
+        if file.read(&mut [0]).map_err(|_| io())? != 0 || digest(&bytes) != hash {
+            return Err(corrupt());
+        }
+        Ok(bytes)
+    }
     pub fn head(&self) -> Result<String, Error> {
         let h: records::Head =
             records::decode(&self.read("HEAD", records::MAX_HEAD)?, records::MAX_HEAD)?;

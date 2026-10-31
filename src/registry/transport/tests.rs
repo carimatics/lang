@@ -4,7 +4,7 @@ use std::net::{TcpListener, TcpStream};
 use std::sync::Arc;
 use std::thread;
 
-mod binding;
+pub(in crate::registry::transport) mod binding;
 
 fn tls() -> (Arc<rustls::ServerConfig>, rustls::RootCertStore) {
     tls_names(vec!["localhost".into(), "127.0.0.1".into()])
@@ -137,7 +137,10 @@ fn real_tls_client_requires_exact_framing_and_verified_origin() {
     }
     for host in ["127.0.0.1", "localhost"] {
         let (client, task) = peer(good.clone(), true, host);
-        assert_eq!(get(&client).unwrap(), b"X");
+        assert_eq!(
+            get(&client).unwrap_or_else(|error| panic!("valid {host} read failed: {error:?}")),
+            b"X"
+        );
         let request = String::from_utf8(task.join().unwrap()).unwrap();
         assert!(request.starts_with("GET /v1/packages/answer HTTP/1.1\r\n"));
         assert!(request.contains(&format!("Host: {}\r\n", authority(client.identity()))));
@@ -332,4 +335,35 @@ fn low_level_deadline_does_not_restart_after_progress() {
         socket.write(b"Y").unwrap_err().kind(),
         io::ErrorKind::TimedOut
     );
+}
+
+#[test]
+fn socket_write_deadline_bounds_a_nonreading_peer() {
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    let stream = TcpStream::connect(listener.local_addr().unwrap()).unwrap();
+    let (_peer, _) = listener.accept().unwrap();
+    let start = Instant::now();
+    let mut socket = socket::Socket {
+        stream,
+        end: start + Duration::from_millis(200),
+    };
+    let bytes = [b'X'; 64 * 1024];
+    let mut sent = 0;
+    loop {
+        match socket.write(&bytes) {
+            Ok(n) => {
+                assert!(n > 0);
+                sent += n;
+            }
+            Err(e) => {
+                assert!(matches!(
+                    e.kind(),
+                    io::ErrorKind::TimedOut | io::ErrorKind::WouldBlock
+                ));
+                break;
+            }
+        }
+    }
+    assert!(sent > 0);
+    assert!(start.elapsed() < Duration::from_secs(2));
 }
