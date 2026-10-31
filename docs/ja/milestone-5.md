@@ -10,6 +10,8 @@
 
 **次: M5-D03 — versioned indexと検証付きdownload（3 pt）。**
 
+D02公開（2026-10-31 14:45 JST確認）: 最終head `9361092`の固定全baseline（182 suite・2,590 test、fmt・厳密Clippy・rustdoc、source不変）、CI `41172448771`（対象18 jobすべて成功、文書専用のみ意図的省略）、native-debug `41172448726`（全3 host）が成功した。最終Windows logでもregistry対象16 testを確認。[PR #35](https://github.com/carimatics/lang/pull/35)は`50eeeb3`としてmerge済みで、元`main`を`origin/main`へfast-forwardし、未commit変更なし・0 ahead / 0 behindを確認した。Merge treeは`9361092`と完全一致する。[D03 PR #36](https://github.com/carimatics/lang/pull/36)はbaseを`main`へ変更し、最初のread checkpointは`3a89172`。以下の古い公開待ち記録は履歴である。
+
 D03実装checkpoint（2026-10-31 14:41 JST確認）: Canonicalなcommit済みindex/archive読取り、型付き外部index受理、厳密archive結合、commit前index容量guardを実装した。重点20 testが成功し、2 MiB−1/等値の実publishと+1 byteの全file不変拒否、旧超過stateの保持とindex/新規公開拒否を含む。Archive/authority回帰19件、repository consistency 8件、fmt・厳密Clippyも成功。署名・鮮度の証明は付与せず、HTTPS統合・両host・全baseline/公開は残る。D03だけをdoing・3 ptに維持する。
 
 D03 branch記録（2026-10-31 JST）: `codex/m5-registry-reads`を`codex/m5-registry-store`の`9361092`からclean状態で作成した。Checkoutは`/private/tmp/lang-m5-registry-reads`、初期PR baseは`git@github.com:carimatics/lang.git`の同前提branchで、PR #35の最終検証待ち。元`main`は`5cd0815`でcleanを維持する。
