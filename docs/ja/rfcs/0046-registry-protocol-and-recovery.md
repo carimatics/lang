@@ -105,6 +105,8 @@ Content-addressed object・不変canonical state generation・audit recordをpri
 
 Audit eventはsequence・前commit event hash・前state hash・受入時刻・principal・秘密でないcredential identifier・操作・request ID／digest・対象identity・reason・commit結果／revisionを記録する。最大2 KiBでcredential secret・source bytes・filesystem pathは含めない。Token準備／失効・管理復旧を含む全state変更にeventがある。Hash chainは保持headに対する破損を検知し、悪意operatorの消去を防ぐものではない。Export可能な検証receipt／checkpointはF01／E04の作業として残る。
 
+2026-10-31 JST採択の[RFC 0056](0056-registry-retained-checkpoints.md)は、E04の有界host checkpoint export・保持state包含・完全receipt検証を具体化する。Callerは比較anchorを独立保持して選ぶ必要があり、parseはoriginを認証しない。署名外部証拠とpackage消費trustはF01–F04に残し、未署名fallbackを設けない。本設計checkpointではhost比較は未実装である。
+
 Lock保持中にcommit済みHEAD／state／auditを再load／検証し、再認可、request ID照合、期待revision／quota検査、全archive検証を行い、全新規不変object・event／state fileを書いてsyncする。参照bytesがすべて完成した後に同filesystemでHEADをatomic置換する。この置換をindex・所有・auditの単一可視化点とする。Readerは単一の取得済みcommit stateを観測し、独立した可変indexを見ない。HEAD公開後に成功を返し、その後の応答失敗でrollbackしない。Version identityは削除／置換せず、yank／quarantine／ownerはstateだけを変える。
 
 Request IDは保持audit履歴中principal単位で一意。Request digestはfield順のcanonical JSON `{schema:1, method, path, conditional_revision, body_sha256, body_bytes}`のSHA-256。Pathはcanonicalなorigin root基準request path、conditional_revisionは期待revision整数または初回claimのnull、body identityはcanonical action JSONまたは厳密archive bytesを対象とする。最初に現在authorityを確認する。既知IDと同digestなら古いconditional revisionがstaleでも元結果を返し、異digestなら競合。未知IDとstale revisionも競合。失効／削除済みcallerは旧成功replayで現在認可を迂回できない。接続失敗から未commitと推測せず、clientは同request identityでretry／照合する。

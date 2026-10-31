@@ -2,6 +2,8 @@
 
 # Milestone 5 delivery board
 
+E04保持証拠監査・準備（2026-10-31 23:32 JST）: RFC 0045 R12/R16とRFC 0046は外部保持証拠を要求するが、`16a8e80`のsourceにはreceipt exportのみがあり、保持checkpoint包含・receipt検証APIがない。有界host API、復旧/source実行の統合journey、G5出口監査としてE04を1 → 3 ptへ再見積りする。Delivery追加なしで全44件・20 done、純−7 → −5、退役40、112 − 5 − 40 = 残67 pt。[RFC 0056](rfcs/0056-registry-retained-checkpoints.md)を22-check policy modelと独立Python/JavaScript canonical vector後に実験期委任で採択する。本番/platform証拠ではない。署名による外部認証はF01–F04に残す。E04はtodo、E08だけをdoing・1 ptとし、baseline/CI/公開向けに`16a8e80`へ固定する。Fmt・厳密workspace Clippyは成功し、全test/rustdoc・最新headの両host公開が残る。`codex/m5-registry-exit-audit`は`codex/m5-registry-local-recovery`の同headからcleanで開始し、#44 mergeまでは`git@github.com:carimatics/lang.git`のorigin/codex/m5-registry-local-recoveryを初期PR baseとする。以前の件数は履歴とし、gate完了なし。
+
 E08実行checkpoint・残scope監査（2026-10-31 23:26 JST確認）: 実停止/local登録/追加/復旧/再開HTTPS公開で未変更sourceをVM/nativeで42として実行し、後続無効化後の旧credentialとretryを拒否した。Store 75-test runとoperation間identity fixtureが成功し、72 process中断、全hash再計算済み偽造40件、local/registry writerの両順序、全128-owner置換、保持principal/token 4,096件の等号/超過・失効ID/hash再利用、最終時刻/結果不明の照合、legacy index +1 byte拒否、大きなprovision履歴のworkspace −1/等号/+1、受理入力変異1,024件を含む。独立canonical/request/record vector・fmt・厳密workspace/locked fuzz Clippyが成功。RFC 0055で割当ての重なりを再監査し、service envelopeは変更しない。実装は完了し、固定全baseline（追加HTTP local-action拒否caseを含む）・最新headの両host CI・公開が残る。E08を3 → 1 ptへ再見積りし、純−5 → −7、退役40を維持、112 − 7 − 40 = 残65 ptとする。Delivery・前提・gateの追加/完了なし。E08だけをdoingとし、検証のため本実装を固定する。以下の以前のcheckpointは履歴とする。
 
 E08実行checkpoint（2026-10-31 23:11 JST確認）: 重点2 testが成功した。実local登録 → credential hash追加 → scope付きowner置換 → B公開で未変更sourceをVM/nativeで42として実行した。元owner公開を拒否し、旧復旧/追加/登録receiptは後続owner追加・失効・無効化を取り消さず、期限切れ後の追加replayも含む。4 action/requestとtoken-record digestは独立したpretty-canonical vectorに一致した。初回vector実験はcompact JSONを使っていたため、本番encodingを変えず修正した。E08だけをdoing・3 ptとする。残受入条件は実停止/管理/再開HTTPS統合、完全な権限/replay/偽造/process/競合/上限case、fuzz/lint、固定baseline、最新headの両host公開である。Delivery/gate creditなし。以前のcheckpointは履歴とする。
@@ -38,7 +40,7 @@ E06設計監査（2026-10-31 JST）: source/lifetime確認と外部Rust mirror�
 
 2026-10-30 JST、`3b676c5`から開始。[ロードマップ](roadmap.md#milestone-5ecosystemとcompatibility)のM5全範囲（P1の2ゲートを含む）を追跡する。M4のinstallerとlocal packageは前提条件であり、registry完了を意味しない。
 
-**20 done · 1 doing · 23 todo · 65 remaining pt**
+**20 done · 1 doing · 23 todo · 67 remaining pt**
 
 **次: M5-E08 — 監査付きlocal lifecycle・scope付きowner復旧（1 pt: 固定baseline・両host CI・公開）。**
 
@@ -217,7 +219,7 @@ B05 budget監査（2026-10-31 JST）: 再利用するscalar検査内部の独立
 | M5-E01 | done | 0 | M5-C02 | G5 | 認証identity・credential取扱い・scope付き認可 | `56f9f84` |
 | M5-E02 | done | 0 | M5-E01,M5-D02 | G5 | owner・競合制約付きhost publish・yank・unyank transaction | `f40d643` |
 | M5-E03 | done | 0 | M5-E02 | G5 | owner追加・削除・移管と最後のowner・credential失効fixture | `18b2128` |
-| M5-E04 | todo | 1 | M5-E03,M5-E05,M5-E07,M5-E08 | G5 | 統合された永続復旧・権限外操作journey・G5出口監査 | — |
+| M5-E04 | todo | 3 | M5-E03,M5-E05,M5-E07,M5-E08 | G5 | 保持checkpoint/receipt検証・統合復旧journey・G5出口監査 | — |
 | M5-E05 | done | 0 | M5-E02,M5-E03,M5-E06 | G5 | 認証HTTPS publish/action/owner・最新世代・recovery拒否 | `2ae39fb` |
 | M5-E06 | done | 0 | M5-E02,M5-E03 | G5 | 計上済みhost recovery/transaction・有界な検証済みread世代capture | `db22857` |
 | M5-E07 | done | 0 | M5-E05 | G5 | 監査付き認証quarantine/復元・未変更source実行 | `e3fa55c` |
@@ -247,11 +249,11 @@ B05 budget監査（2026-10-31 JST）: 再利用するscalar検査内部の独立
 
 ## 見積り照合
 
-**112 − 7 − 40 = 65 pt**
+**112 − 5 − 40 = 67 pt**
 
 | 基準残作業 | 純追加・再見積り | 完了時に除去 | 残作業 |
 | ---: | ---: | ---: | ---: |
-| 112 pt | −7 pt | −40 pt | 65 pt |
+| 112 pt | −5 pt | −40 pt | 67 pt |
 
 ## Delivery noteとロードマップ監査
 
