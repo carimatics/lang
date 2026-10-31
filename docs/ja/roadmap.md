@@ -36,7 +36,7 @@ lock寿命の修正を含むinstallerは、2026-10-30 JSTに[PR #25](https://git
 
 以下のmilestone checklistは相対的な受入条件の重みを保持します。`1`はごく小、`2`は小、`3`は中、`5`は大、`8`は非常に大です。重み付きの達成率は `完了した重み / 全重み × 100` を小数第1位へ丸めます。この粗い重みは経過時間や実装残作業を予測しません。Milestoneがcurrentになったとき、またはscope／evidenceが変わったときに、長期見積もりを積み上げで見直します。進行中milestoneごとに別の実装Todoを使い、独立検証可能な残り1〜3 ptのtaskと、明示的なscope／見積もり変更を記録します。
 
-2026-10-31（JST）に確認したexit-gate weightのsnapshotです。受入条件の重みと残作業見積りは別であり、M4の最終収支は完了ボードに記録します。M5が進行中です（**14 done · 1 doing · 25 todo · 73 remaining pt**）。完了済みM2／M3の記録は維持します。
+2026-10-31（JST）に確認したexit-gate weightのsnapshotです。受入条件の重みと残作業見積りは別であり、M4の最終収支は完了ボードに記録します。M5が進行中です（**16 done · 1 doing · 24 todo · 70 remaining pt**）。完了済みM2／M3の記録は維持します。
 
 | Milestone | 完了条件の重み | 条件の総重み | 条件達成率 |
 | --- | ---: | ---: | ---: |
@@ -252,13 +252,19 @@ Exit：新しいdeveloperが1つのtoolをinstallし、packageを作成し、edi
 
 2026-10-30 JST開始。[M5 board](milestone-5.md)に全10ゲート、39件の観測可能delivery、残作業基準112 ptを保持する。[edition・互換性方針](rfcs/0043-editions-and-compatibility.md)と実行可能な互換性・移行fixtureから開始する。registry upload前に脅威モデルを定め、署名toolchain導入をregistry provenanceと混同しない。P1の2ゲートも範囲内。完了には両host ecosystem journeyと日英能力guideを含める。
 
-**15 done · 1 doing · 25 todo · 73 remaining pt**
+**16 done · 1 doing · 24 todo · 70 remaining pt**
 
 D05完了（2026-10-31 JST）: [RFC 0050](rfcs/0050-registry-cache-and-offline-replay.md)を`43dea74`で実装した。固定全baselineは2,645 test / 182 suiteとfmt・厳密Clippy・rustdocに成功し、CI `41185690356`とnative-debug `41185690326`の対象全job/hostも成功した。PR #38は`b0d4d76`としてmergeし、mainはclean・0/0同期・検証済みtreeと同一を確認した。D01–D05でG4を完了とし、認証済み本番消費はF01–F04に残す。
 
-E02/service scope監査（2026-10-31 JST）: [RFC 0051](rfcs/0051-registry-yank-transactions.md)で認証yank/unyank action、閉じたaudit遷移、元結果replayをacceptedとした。純粋な22-case modelと独立canonical hash計算が成功。E02で実host transactionを実装し、認証HTTPS dispatch・要求/store作業memory上限・read世代更新をE05・3 ptとして追加する。E05はE02/E03後、E04前に実装する。既存の不変read-only serviceはこの統合を提供しない。実行scope監査後はE02だけをdoing・1 ptとし、受入条件やgateは削除しない。
+E03設計準備（2026-10-31 18:28 JST確認）: [RFC 0052](rfcs/0052-registry-owner-and-credential-control.md)で認証owner追加・削除・読取り、明示2段階移管、独立構築するlocal credential失効をacceptedとした。純粋modelの24 caseが成功し、JavaScript/Pythonの独立owner/LOCAL失効digestが一致した。Policy/encoding証拠であり実装ではない。`codex/m5-registry-owner-control`は固定E02 `f40d643`から作成し、#39 mergeまでorigin/codex/m5-registry-mutationsをPR baseとして記録する。E02だけをdoing・1 ptに維持し、全検証中のsource/headを固定する。E03は選択時監査までtodo・3 ptとし、delivery・見積り・gateの変更なし。
 
-全41 deliveryの収支は112 − 4 − 35 = 残73 pt。E02の実host mutation/実行checkpointにより残作業を3 → 1 ptへ再見積り（純−2）し、累積純追加・再見積りは−4、退役見積りは35を維持する。G1–G4は完了。PR #39のE02は未変更archiveのVM/native journey、process中断36境界、writer競合、厳密retry、最終権限/時刻guard、偽造履歴と厳密index上限拒否、512入力変異、厳密workspace/fuzz Clippyに成功した。残受入条件は固定全baseline、最新headの両host CI、公開。E05の上限付き認証HTTPS統合は別途追跡し、G5–G10と両P1はopenを維持する。
+E02/service scope監査（2026-10-31 JST）: [RFC 0051](rfcs/0051-registry-yank-transactions.md)で認証yank/unyank action、閉じたaudit遷移、元結果replayをacceptedとした。純粋な22-case modelと独立canonical hash計算が成功。E02で実host transactionを実装し、認証HTTPS dispatch・要求/store作業memory上限・read世代更新をE05・3 ptとして追加する。E05はE02/E03後、E04前に実装する。既存の不変read-only serviceはこの統合を提供しない。過去のE02実行scope監査では公開前の残作業を1 ptとし、受入条件やgateは削除しない。
+
+E03実行checkpoint・残scope監査（2026-10-31 18:49 JST）: 実owner移管 → B公開と独立local失効で厳密source実行（VM/nativeで42）を維持した。Store 42/42が成功し、元owner/失効bearerの最新拒否、private read、128-owner上限、process中断72境界（旧68・新4）、owner/admin競合の両順序、全hash再計算済み偽造18 case、最終時刻、結果不明の明示照合、期限切れ/inactive credential対象、operation間identity衝突を含む。独立vectorと受理入力変異1,024件が成功し、妥当stateのpreflightでrevision 99 → 100が厳密index上限を+1 byte超えることを確認した。Fmt、厳密workspace Clippy、locked fuzz Clippyが成功。残受入条件は固定全baseline、最新headの両host CI、公開であり、E03を3 → 1 ptへ再見積り（純−2）、累積純−6、退役36を維持して112 − 6 − 36 = 残70 ptとする。新規完了・追加deliveryなし。E03だけをdoingとし、E04/E05は別途維持する。本実装を固定して全検証へ進む。
+
+E02完了・公開（2026-10-31 18:39 JST確認）: 固定`f40d643`でfmt、厳密Clippy、全2,655 test / 182 suite、rustdocが成功し、source/head不変を確認した。CI `41188137283`の対象18 job（22個の実装/未分類pathにより文書専用は意図的skip）とnative-debug `41188137315`の3 hostが成功。Windows core-1 `124499182307`、macOS core `124499182172`/`124499182204`でyank全10 fixtureと厳密index上限拒否、locked fuzz Clippyを確認した。[PR #39](https://github.com/carimatics/lang/pull/39)は`f74428c`としてmergeし、元mainはclean・origin/mainと0/0同期・検証済みtreeと同一である。E02の最終1 ptを退役し純−4を維持、112 − 4 − 36 = 残72 pt。E03/E04/E05に対してG5はopen、G1–G4は完了を維持する。
+
+E03選択（2026-10-31 18:39 JST）: [RFC 0052](rfcs/0052-registry-owner-and-credential-control.md)を`31240ab`でacceptedとした。最終実行checkpointは24-case policy/独立encoding modelであり、永続owner mutationではない。Owner action/read受理、完全遷移/retry、実移管 → B公開 → VM/native実行、独立local失効、敵対履歴/process/競合境界、両host公開の残作業を既存3 ptと監査する。E03だけをdoingとし、新規delivery・再見積りなし。[PR #40](https://github.com/carimatics/lang/pull/40)は#39 merge後にmainへretargetした。以下の旧E02/E03準備件数は履歴とする。
 
 **進捗：26 / 65 pt（40.0%）。**
 

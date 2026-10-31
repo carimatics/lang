@@ -107,6 +107,8 @@ Actionやreceiptはcapabilityではない。実bearer所持、現在の登録/�
 
 ## 実装計画
 
+E03具体化: 2026-10-31 JST acceptedの[RFC 0052](0052-registry-owner-and-credential-control.md)がowner追加・削除・読取り、2段階移管、独立local credential失効を定義する。本transaction/replay境界を維持し、E05が認証HTTPS統合を提供する。
+
 1. D05を唯一のdoing deliveryに維持し、検証headを固定したまま本具体化を受理・準備する。2026-10-31 17:57 JSTのscope監査で、host transactionにE02・3 pointを維持し、認証HTTP統合を実装前にE05・3 pointとして明示する。受入条件は削除しない。
 2. 上限付きaction・audit/result variant・完全履歴遷移検証・最新認証yank/unyank transactionを追加する。不変公開と既存API動作を保持する。
 3. E03のowner transaction後、E05で明示認証publish/action/ownerを上限付きservice/clientと最新read generationに統合し、実HTTPSでresource計上・競合・再試行結果を検証する。E05はE04の完全な権限外操作/recovery journeyの前提とする。
@@ -125,6 +127,8 @@ Branch準備: `codex/m5-registry-mutations`は`carimatics/lang`の`codex/m5-regi
 - Flag journeyを通じた厳密download archiveのVM/native実行。本番未署名消費constructorは追加しない。
 
 ## 未解決事項
+
+Host E02公開checkpoint（2026-10-31 JST）: `f40d643`は全2,655 test / 182 suite、fmt・厳密Clippy・rustdoc、CI `41188137283`の対象18 job、native-debug `41188137315`の3 hostに成功した。PR #39を`f74428c`でmergeし、元mainのclean・0/0同期・検証tree一致を確認した。本RFCはE05の認証HTTPS統合を含むためacceptedを維持し、host完了をservice完了と扱わない。
 
 Local E02実装checkpoint（2026-10-31 JST）: 上限付き`YankAction`と`Registry::yank`が厳密archiveを保持しながら完全な監査済みflag遷移を公開する。実host publish → yank → reopen → 別version公開 → unyankでVM/nativeが42を実行し、状態をまたぐretryにも元receiptを返す。Store 30 caseが成功し、実yank/unyank process中断36境界（旧state 34・完全新state 2）、publish/yank writerの両順序、最新最終時刻guard、明示保持したHEAD byteによる結果不明照合、実nonowner/失効/誤scope credential、再計算hash付き履歴偽造9 caseを検証した。Indexの厳密上限公開後に+1 byteとなるunyankは書込み前に拒否する。独立canonical vector、512入力変異、厳密workspace Clippyが成功し、既存authority fuzz入口にaction readerを追加した。Host実装の証拠であり、固定全検証・最新headの両host CI・公開はE02受入条件に残る。E05の認証HTTP/作業memory budget/read世代統合は未実装である。
 

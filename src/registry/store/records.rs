@@ -81,6 +81,17 @@ impl Release {
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 pub(super) enum AuditOperation {
     Initialize,
+    RevokeCredential {
+        credential_id: String,
+    },
+    AddOwner {
+        name: String,
+        principal: String,
+    },
+    RemoveOwner {
+        name: String,
+        principal: String,
+    },
     Publish {
         name: String,
         version: String,
@@ -127,6 +138,25 @@ pub(super) enum AuditResult {
     Initialize(InitialResult),
     Publish(PublishResult),
     Yank(YankResult),
+    Owner(OwnerResult),
+    Revocation(RevocationResult),
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, Eq, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub(super) struct RevocationResult {
+    pub state_revision: u64,
+    pub credential_id: String,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, Eq, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub(super) struct OwnerResult {
+    pub state_revision: u64,
+    pub package_revision: u64,
+    pub name: String,
+    pub principal: String,
+    pub member: bool,
 }
 
 #[derive(Deserialize, Serialize)]
@@ -334,6 +364,51 @@ impl Audit {
                     || r.version != *v
                     || r.archive_sha256 != *h
                     || r.yanked != matches!(operation, AuditOperation::Yank { .. })
+                    || !actions::valid_reason(&self.reason)
+                {
+                    return Err(corrupt());
+                }
+            }
+            (
+                operation @ (AuditOperation::AddOwner {
+                    name: n,
+                    principal: p,
+                }
+                | AuditOperation::RemoveOwner {
+                    name: n,
+                    principal: p,
+                }),
+                AuditResult::Owner(r),
+            ) => {
+                name(n)?;
+                hex::<16>(p)?;
+                hex::<32>(self.previous_audit_sha256.as_deref().ok_or_else(corrupt)?)?;
+                hex::<32>(self.prior_state_sha256.as_deref().ok_or_else(corrupt)?)?;
+                hex::<16>(self.credential_id.as_deref().ok_or_else(corrupt)?)?;
+                hex::<16>(self.request_id.as_deref().ok_or_else(corrupt)?)?;
+                hex::<32>(self.request_sha256.as_deref().ok_or_else(corrupt)?)?;
+                if self.sequence <= 1
+                    || r.state_revision != self.sequence
+                    || r.package_revision == 0
+                    || r.package_revision >= self.sequence
+                    || r.name != *n
+                    || r.principal != *p
+                    || r.member != matches!(operation, AuditOperation::AddOwner { .. })
+                    || !actions::valid_reason(&self.reason)
+                {
+                    return Err(corrupt());
+                }
+            }
+            (AuditOperation::RevokeCredential { credential_id }, AuditResult::Revocation(r)) => {
+                hex::<16>(credential_id)?;
+                hex::<32>(self.previous_audit_sha256.as_deref().ok_or_else(corrupt)?)?;
+                hex::<32>(self.prior_state_sha256.as_deref().ok_or_else(corrupt)?)?;
+                hex::<16>(self.request_id.as_deref().ok_or_else(corrupt)?)?;
+                hex::<32>(self.request_sha256.as_deref().ok_or_else(corrupt)?)?;
+                if self.sequence <= 1
+                    || r.state_revision != self.sequence
+                    || r.credential_id != *credential_id
+                    || self.credential_id.is_some()
                     || !actions::valid_reason(&self.reason)
                 {
                     return Err(corrupt());

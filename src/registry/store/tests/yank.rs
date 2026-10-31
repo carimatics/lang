@@ -24,7 +24,7 @@ fn action(kind: YankActionKind, id: char, revision: u64) -> YankAction {
     )
     .unwrap()
 }
-fn execute(archive: &AdmittedArchive) {
+pub(super) fn execute(archive: &AdmittedArchive) {
     assert_eq!(archive.source("src/main.lang"), Some(SOURCE));
     let analysis = crate::frontend::analyze_virtual(
         lang_diagnostics::SourceMap::new(),

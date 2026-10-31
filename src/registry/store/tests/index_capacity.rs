@@ -292,6 +292,46 @@ fn unyank_cannot_make_an_exact_capacity_index_unservable(base: &std::path::Path)
         .len(),
         MAX_INDEX_BYTES + 1
     );
+    // A valid synthetic transition preflight isolates revision digit growth;
+    // it is not claimed to be a history reached through 68 extra transactions.
+    let mut prior = view.state;
+    prior.revision = 100;
+    prior.packages[0].revision = 99;
+    let target = "00000000000000000000000000000002";
+    prior
+        .authority
+        .principals
+        .push(authority::codec::Principal {
+            id: target.into(),
+            active: true,
+        });
+    prior.validate(&identity()).unwrap();
+    assert_eq!(
+        super::super::reads::encode_package("example", &prior.packages[0])
+            .unwrap()
+            .len(),
+        MAX_INDEX_BYTES
+    );
+    let (next, _) = history::advance_owner(&prior, "answer", target, true, "", 110).unwrap();
+    assert_eq!(
+        json(&OracleIndex {
+            format: "lang-registry-index",
+            schema: 1,
+            registry: "example",
+            name: "answer",
+            revision: 100,
+            releases: &next.packages[0].releases,
+        })
+        .len(),
+        MAX_INDEX_BYTES + 1
+    );
+    assert_eq!(
+        super::super::reads::encode_package("example", &next.packages[0])
+            .unwrap_err()
+            .kind,
+        ErrorKind::Limit
+    );
+    assert_eq!(snapshot(&tmp.path().join("registry")), before);
 }
 
 fn json(value: &impl Serialize) -> Vec<u8> {

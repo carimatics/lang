@@ -107,6 +107,8 @@ An action or receipt is not a capability. Real bearer possession, current enroll
 
 ## Implementation plan
 
+E03 elaboration: [RFC 0052](0052-registry-owner-and-credential-control.md), accepted 2026-10-31 JST, defines owner add/remove/read, two-step transfer and separate local credential revocation. It retains this transaction/replay boundary; E05 supplies authenticated HTTPS integration.
+
 1. Prepare this accepted elaboration while D05 remains the sole doing delivery; preserve its frozen verification head. The 2026-10-31 17:57 JST scope audit retains E02 at 3 points for the host transaction and exposes E05 at 3 points for authenticated HTTP integration before implementation. No acceptance condition is removed.
 2. Add bounded actions, audit/result variants, complete historical transition validation and fresh authenticated yank/unyank transactions. Preserve immutable publication and its existing API behavior.
 3. After E03's owner transactions, E05 integrates explicit authenticated publish/actions/owners with the bounded service/client and fresh read generations; verify resource accounting, conflict and retry outcomes with actual HTTPS. E05 is a prerequisite of E04's complete unauthorized/recovery journey.
@@ -125,6 +127,8 @@ Branch preparation: `codex/m5-registry-mutations` starts from `codex/m5-registry
 - VM/native execution of the exact downloaded archive throughout the flag journey; no production unsigned-consumption constructor.
 
 ## Open questions
+
+Host E02 publication checkpoint, 2026-10-31 JST: `f40d643` passed all 2,655 tests / 182 suites, fmt, strict Clippy, rustdoc, CI `41188137283`'s 18 applicable jobs and native-debug `41188137315`'s three hosts. PR #39 merged as `f74428c`; original main is clean, synchronized (0/0) and identical to the tested tree. This RFC stays accepted because its E05 authenticated HTTPS integration remains outstanding; host completion is not service completion.
 
 Local E02 implementation checkpoint, 2026-10-31 JST: bounded `YankAction` and `Registry::yank` preserve exact archives while publishing a complete audited flag transition. The real host publish → yank → reopen → another-version publish → unyank journey executes 42 in VM/native and returns original receipts on cross-state retries. Thirty store cases pass, including 36 actual yank/unyank process cuts (34 old states/two complete new states), both publish/yank writer orders, fresh final-time guards, unknown-result reconciliation using explicitly retained HEAD bytes, actual nonowner/revoked/wrong-scope credentials and nine recomputed-hash history forgeries. Exact-capacity index publication followed by a +1-byte unyank refuses before writes. Independent canonical vectors, 512 input mutations and strict workspace Clippy pass; the action reader is included in the existing authority fuzz entry point. This is host implementation evidence only: frozen full validation, latest-head both-host CI and publication remain E02 acceptance conditions. E05's authenticated HTTP/workspace-budget/read-generation integration is still unimplemented.
 
