@@ -2,6 +2,12 @@
 
 # Milestone 5 delivery board
 
+E07実行checkpoint・残scope監査（2026-10-31 22:40 JST確認）: 実HTTPSのquarantine → 旧index download拒否 → 復元で同一sourceがVM/nativeの42として実行され、service leaseを全解放した。Store全62 testが成功し、36 process中断、publish/quarantine writerの両順序、再hash偽造12件、現在scope/local失効、最終時刻/結果不明の照合、厳密index +1-byte拒否、workspace −1/等号/+1を含む。独立canonical/request vector、受理入力変異512件、fmt、厳密workspace Clippyが成功した。実装checklistは完了し、固定full baseline・locked fuzz lint・最新headの両host CI・公開が残る。E07を3 → 1 ptへ再見積りし、累積純−3 → −5、退役39を維持、112 − 5 − 39 = 残68 ptとする。Delivery・前提・gateの追加/完了なし。E07だけをdoingとし、検証のため本実装を固定する。以下の以前のcheckpointは履歴とする。
+
+E07実行checkpoint（2026-10-31 21:23 JST確認）: 重点2 testが成功した。実host journeyで公開と42実行、owner専用quarantine拒否、管理者quarantine commitとdownload拒否、独立owner yank保持、reopen/厳密archive復元、VM/nativeでの42再実行、flagを戻さない旧receipt照合を確認した。Canonical bodyは独立175-byte vectorと一致した。E07はdoing・3 ptを維持し、計上/HTTPS統合、完全な敵対履歴/権限/process/上限case、lint、full baseline、最新headの両host公開が残る。Scope追加・gate creditなし。以前のmodelのみのcheckpointは履歴とする。
+
+E05完了 / E07選択（2026-10-31 21:19 JST）: 固定`2ae39fb`でsource不変のfmt・厳密workspace Clippy・2,692 test/182 suite・rustdoc、locked fuzz Clippyが成功した。CI 41199138805は対象18 job成功で、27 implementation/unclassified pathによるdocumentation-only job省略を確認した。Native-debug 41199138761は全3 host成功。Windows/macOS 15/macOS 26の実logでtransport全32 test・workspace全10 testを確認した。[PR #42](https://github.com/carimatics/lang/pull/42)は`7378073`としてmergeし、元mainはclean・0/0同期・検証済みtreeと同一である。E05の最終1 ptを退役し、19 done・純−3・退役39・残70とする。G5は未完了。[PR #43](https://github.com/carimatics/lang/pull/43)をmain向けに変更し、E07のみdoing・3 ptとする。最後の実行checkpointは30-check policy/encoding model（21:03 JST）で、継承するE05実HTTPS → VM/native 42は本baselineで検証済みだが、quarantineは未実装。残受入条件は閉じたadmin action/全履歴遷移、不変flag/read世代動作、実隔離/拒否/復元source journey、権限/replay/偽造/process/上限境界、両hostでの全検証・公開である。この監査ではscope追加なしで3 ptを維持する。以下の以前の未完了・件数記述は履歴とする。
+
 E04残要件監査 / E07準備（2026-10-31 21:03 JST）: RFC 0046はquarantine、監査付きlocal enrollment/provisioning、owner復旧を要求し、RFC 0052はlocal principal lifecycleをE04に残す。E05後も未実装で、単なるend-to-end試験作業ではない。E04の統合結果を3 → 7 ptへ再見積りし、E07（3 pt: 認証quarantine/復元・未変更source実行）、E08（3 pt: 監査付きlocal principal/credential lifecycle・owner復旧）、E04（1 pt: 統合永続recovery/権限外操作の出口監査）に分割する。実装前に2 delivery・純+4を追加し、全44 delivery、累積純−7 → −3、退役38、112 − 3 − 38 = 残71 ptとする。Delivery/gate完了はない。E05を唯一のdoingとし、`2ae39fb`をfull baseline/CI向けに固定する。`codex/m5-registry-quarantine-recovery`はそのbranch/headからclean状態で開始し、#42 mergeまでは`git@github.com:carimatics/lang.git`のorigin/codex/m5-registry-https-mutationsを初期PR baseとする。RFC 0054を実験期委任で採択し、30-check外部policy/encoding modelは本番適用を証明しない。E07はE05公開待ちのtodoを維持し、以下の以前の件数は履歴とする。
 
 E05実行checkpoint・残scope監査（2026-10-31 20:58 JST確認）: transport全32 testが成功し、実TLS公開 → 更新source → VM/native 42、owner移管/yank/失効journey、最終guard期限切れ、元deadline/cancellation、不正framing/action、独立した敵対receipt対応検査を含む。重点workspace runでreceipt保持と同一budgetのbody予約を拒否/等号/+1境界まで確認した。Fmtと厳密workspace Clippyが成功。実装/lifetime checklistは完了し、固定full baseline・locked fuzz lint・最新headの両host CI・公開が残る。E05を3 → 1 ptへ再見積りし、純−5 → −7、退役38を維持、112 − 7 − 38 = 残67 ptとする。Delivery・前提・gateの追加/完了はない。E05のみdoingを維持し、検証のため本実装を固定する。以下の以前のcheckpointは履歴とする。
@@ -24,9 +30,9 @@ E06設計監査（2026-10-31 JST）: source/lifetime確認と外部Rust mirror�
 
 2026-10-30 JST、`3b676c5`から開始。[ロードマップ](roadmap.md#milestone-5ecosystemとcompatibility)のM5全範囲（P1の2ゲートを含む）を追跡する。M4のinstallerとlocal packageは前提条件であり、registry完了を意味しない。
 
-**18 done · 1 doing · 25 todo · 71 remaining pt**
+**19 done · 1 doing · 24 todo · 68 remaining pt**
 
-**次: M5-E05 — 認証HTTPS publication/action/owner journey（1 pt: 固定baseline・両host CI・公開）。**
+**次: M5-E07 — 監査付き認証quarantine/復元（1 pt: 固定baseline・両host CI・公開）。**
 
 E03実行checkpoint・残scope監査（2026-10-31 18:49 JST）: 実owner移管 → B公開と独立local失効で厳密source実行（VM/nativeで42）を維持した。Store 42/42が成功し、元owner/失効bearerの最新拒否、private read、128-owner上限、process中断72境界（旧68・新4）、owner/admin競合の両順序、全hash再計算済み偽造18 case、最終時刻、結果不明の明示照合、期限切れ/inactive credential対象、operation間identity衝突を含む。独立vectorと受理入力変異1,024件が成功し、妥当stateのpreflightでrevision 99 → 100が厳密index上限を+1 byte超えることを確認した。Fmt、厳密workspace Clippy、locked fuzz Clippyが成功。残受入条件は固定全baseline、最新headの両host CI、公開であり、E03を3 → 1 ptへ再見積り（純−2）、累積純−6、退役36を維持して112 − 6 − 36 = 残70 ptとする。新規完了・追加deliveryなし。E03だけをdoingとし、E04/E05は別途維持する。本実装を固定して全検証へ進む。
 
@@ -204,9 +210,9 @@ B05 budget監査（2026-10-31 JST）: 再利用するscalar検査内部の独立
 | M5-E02 | done | 0 | M5-E01,M5-D02 | G5 | owner・競合制約付きhost publish・yank・unyank transaction | `f40d643` |
 | M5-E03 | done | 0 | M5-E02 | G5 | owner追加・削除・移管と最後のowner・credential失効fixture | `18b2128` |
 | M5-E04 | todo | 1 | M5-E03,M5-E05,M5-E07,M5-E08 | G5 | 統合された永続復旧・権限外操作journey・G5出口監査 | — |
-| M5-E05 | doing | 1 | M5-E02,M5-E03,M5-E06 | G5 | 認証HTTPS publish/action/owner・最新世代・recovery拒否 | — |
+| M5-E05 | done | 0 | M5-E02,M5-E03,M5-E06 | G5 | 認証HTTPS publish/action/owner・最新世代・recovery拒否 | `2ae39fb` |
 | M5-E06 | done | 0 | M5-E02,M5-E03 | G5 | 計上済みhost recovery/transaction・有界な検証済みread世代capture | `db22857` |
-| M5-E07 | todo | 3 | M5-E05 | G5 | 監査付き認証quarantine/復元・未変更source実行 | — |
+| M5-E07 | doing | 1 | M5-E05 | G5 | 監査付き認証quarantine/復元・未変更source実行 | — |
 | M5-E08 | todo | 3 | M5-E03,M5-E05 | G5 | 監査付きlocal principal/credential lifecycle・scope付きowner復旧 | — |
 | M5-F01 | todo | 3 | M5-C02 | G6 | package信頼root・provenance・署名・freshness契約を採択 | — |
 | M5-F02 | todo | 3 | M5-F01,M5-D02 | G6 | 署名package release manifestと検証可能provenanceを生成 | — |
@@ -233,11 +239,11 @@ B05 budget監査（2026-10-31 JST）: 再利用するscalar検査内部の独立
 
 ## 見積り照合
 
-**112 − 3 − 38 = 71 pt**
+**112 − 5 − 39 = 68 pt**
 
 | 基準残作業 | 純追加・再見積り | 完了時に除去 | 残作業 |
 | ---: | ---: | ---: | ---: |
-| 112 pt | −3 pt | −38 pt | 71 pt |
+| 112 pt | −5 pt | −39 pt | 68 pt |
 
 ## Delivery noteとロードマップ監査
 

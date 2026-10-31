@@ -111,9 +111,9 @@ source構文・native language ABI・private SDK/package formatは実験段階�
 - [RFC 0048: レジストリ世代と不変公開（implemented）](docs/ja/rfcs/0048-registry-state-and-publication.md)
 - [RFC 0049: 固定package graphへのregistry依存統合（accepted）](docs/ja/rfcs/0049-registry-package-integration.md)
 - [RFC 0050: Registry cache世代とoffline replay（implemented）](docs/ja/rfcs/0050-registry-cache-and-offline-replay.md)
-- [RFC 0051: 認証されたyank・unyank transaction（accepted）](docs/ja/rfcs/0051-registry-yank-transactions.md)
+- [RFC 0051: 認証されたyank・unyank transaction（implemented）](docs/ja/rfcs/0051-registry-yank-transactions.md)
 - [RFC 0052: Registry所有権とローカルcredential失効（implemented）](docs/ja/rfcs/0052-registry-owner-and-credential-control.md)
-- [RFC 0053: Registry要求作業memoryと可変read世代（accepted）](docs/ja/rfcs/0053-registry-request-workspace.md)
+- [RFC 0053: Registry要求作業memoryと可変read世代（implemented）](docs/ja/rfcs/0053-registry-request-workspace.md)
 - [RFC 0054: 監査付きregistry quarantine transaction（accepted）](docs/ja/rfcs/0054-registry-quarantine-transactions.md)
 - [コントリビューションガイド](CONTRIBUTING.ja.md)
 

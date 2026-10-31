@@ -36,7 +36,7 @@ Tasks are listed in dependency-aware priority order within each milestone. A mil
 
 The milestone checklists below retain relative exit-gate weights: `1` is very small, `2` small, `3` medium, `5` large, and `8` very large. Their weighted completion is `completed weights / total weights × 100`, rounded to one decimal place. These coarse weights do not predict elapsed time or remaining implementation effort. Long-horizon estimates require a bottom-up review when their milestone becomes current or scope/evidence changes. For each active milestone, a separate delivery board records independently verifiable 1–3-point remaining tasks and explicit scope/estimate changes.
 
-Snapshot of exit-gate weights verified 2026-10-31 JST. Acceptance weights are separate from remaining-effort estimates; the completed M4 board records its final reconciliation. M5 is active with **18 done · 1 doing · 25 todo · 71 remaining pt**. Completed M2/M3 records remain unchanged.
+Snapshot of exit-gate weights verified 2026-10-31 JST. Acceptance weights are separate from remaining-effort estimates; the completed M4 board records its final reconciliation. M5 is active with **19 done · 1 doing · 24 todo · 68 remaining pt**. Completed M2/M3 records remain unchanged.
 
 | Milestone | Completed gate weight | Total gate weight | Gate completion |
 | --- | ---: | ---: | ---: |
@@ -250,6 +250,10 @@ Exit: a new developer can install one tool, create a package, develop in an edit
 
 ## Milestone 5: ecosystem and compatibility
 
+E07 remaining-scope audit, 2026-10-31 22:40 JST: actual HTTPS/source execution, 62 store tests, 36 process cuts, competing writers, rehashed forgeries, current authority, exact index/workspace boundaries and 512 admission mutations pass. Fmt and strict workspace Clippy pass. Frozen full baseline, locked fuzz lint, latest-head both-host CI and publication remain: E07 3 → 1 pt, net −5, retired 39, remaining 68. E07 alone remains doing; no delivery or gate is newly completed. Earlier checkpoint counts are historical.
+
+E05 completion / E07 selection, 2026-10-31 21:19 JST: `2ae39fb` passes the unchanged-source 2,692-test/182-suite baseline, fmt, strict workspace/fuzz Clippy and rustdoc. CI 41199138805 passes all 18 applicable jobs; native-debug 41199138761 passes three hosts. Windows/macOS 15/macOS 26 each confirm 32 transport and 10 workspace tests. PR #42 merged as `7378073`; main is clean, synchronized 0/0 and identical to the tested tree. E05 retires its last 1 pt: net −3, retired 39, remaining 70. E07 is the sole doing delivery at 3 pt on PR #43 against main; actual quarantine/restoration implementation and both-host evidence remain. G5 stays open; older statuses/counts are historical.
+
 E04 scope audit, 2026-10-31 21:03 JST: required quarantine and local administrative lifecycle/recovery remain unimplemented after E05. Split its 3 pt into E07 quarantine/source execution (3), E08 audited local lifecycle/owner recovery (3), and E04 integrated exit audit (1). Two new deliveries and net +4 yield 44 deliveries, net −3, retired 38, remaining 71. RFC 0054 is accepted with a 30-check policy experiment, not production evidence. E05 alone remains doing, frozen at `2ae39fb` for full baseline/CI; no gate is completed. Earlier counts are historical.
 
 E05 remaining-scope audit, 2026-10-31 20:58 JST: 32 actual transport tests and focused lease-boundary fixtures pass, including authenticated source execution, current authority, deadline/cancellation and unknown-result reconciliation. Fmt and strict workspace Clippy pass. Frozen full baseline, locked fuzz lint, latest-head both-host CI and publication remain: re-estimate E05 3 → 1 pt, net −7, retired 38, remaining 67. E05 is the sole doing row; no delivery or gate is newly completed. Earlier checkpoint counts are historical.
@@ -262,7 +266,7 @@ Current E03/E06 checkpoint, 2026-10-31 JST: E03 completed at `18b2128` (2,667 te
 
 Activated 2026-10-30 JST. The [M5 board](milestone-5.md) retains all ten gates, 39 observable deliveries and a 112 pt remaining-work baseline. Start with the [edition/compatibility policy](rfcs/0043-editions-and-compatibility.md) and executable compatibility/migration fixtures. Threat modeling must precede registry uploads; signed toolchain installation is not registry provenance. Both P1 gates remain in scope. Completion includes both-host ecosystem journeys and a bilingual capability guide.
 
-**18 done · 1 doing · 25 todo · 71 remaining pt**
+**19 done · 1 doing · 24 todo · 68 remaining pt**
 
 D05 completed (2026-10-31 JST): [RFC 0050](rfcs/0050-registry-cache-and-offline-replay.md) is implemented at `43dea74`. The full frozen baseline passes 2,645 tests / 182 suites plus fmt, strict Clippy and rustdoc; CI `41185690356` and native-debug `41185690326` pass all applicable jobs/hosts. PR #38 merged as `b0d4d76`, and main is clean, synchronized (0/0) and identical to the tested tree. D01–D05 close G4; authenticated production consumption remains F01–F04 work.
 

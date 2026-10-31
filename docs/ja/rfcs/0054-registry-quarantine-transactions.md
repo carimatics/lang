@@ -14,6 +14,8 @@
 
 ## 概要
 
+実装checkpoint（2026-10-31 22:39 JST確認）: local hostと実HTTPSで元sourceの隔離/拒否/復元とVM/nativeでの42実行が成功し、旧indexによるdownload拒否、世代を戻さない旧ID照合を含む。Store全62 testが成功し、quarantineの36 process中断、競合writerの両順序、全hash再計算済み偽造12件、最終時刻/local失効の拒否、厳密index超過、workspace −1/等号/+1境界を確認した。独立canonical/request digestと受理入力変異512件が成功し、decoderを既存fuzz targetへ追加した。固定全baselineと最新headの両host CI/公開が残り、要件を満たすまで本RFCはacceptedを維持する。以下の以前のpolicyのみのcheckpointは履歴である。
+
 明示的なpackage scopeを持つ管理者が、既存の認証action routeで厳密releaseを隔離・復元する。Quarantineは不変archive・yank flag・owner・完全履歴を保持し、新規archive downloadを停止する。単一HEAD置換でflag・package revision・audit eventをcommitする。最新認可を受けたretryは、古いread世代へ戻さず元receiptを返す。
 
 2026-10-31 JST、RFC 0001の実験期委任に基づき採択する。既存の`Operation::Admin` policy、transaction/replay guard、有界index modelがこの閉じた拡張を支える。独立した30-checkのpolicy/encoding実験で、replay前の権限確認、期限切れ、revision/no-op競合、逆action、archive/yank identity保持を確認した。Storage・HTTP・両hostの証拠ではない。実装と必須の敵対的/process/transport試験は未検証である。

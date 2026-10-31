@@ -6,6 +6,7 @@ mod administration;
 mod history;
 mod index;
 mod owners;
+mod quarantine;
 mod reads;
 mod records;
 mod storage;
@@ -25,6 +26,7 @@ pub use actions::{YankAction, YankActionKind};
 pub use administration::{Administrator, Revocation};
 pub use index::{Index, IndexedRelease};
 pub use owners::{MAX_OWNER_BYTES, OwnerAction, OwnerActionKind};
+pub use quarantine::{QuarantineAction, QuarantineActionKind};
 pub(crate) use reads::CapturedReads;
 pub use reads::MAX_INDEX_BYTES;
 pub(crate) use workspace::{HttpPublication, RequestControl};
@@ -150,6 +152,7 @@ impl Receipt {
             records::AuditResult::Initialize(r) => r.state_revision,
             records::AuditResult::Publish(r) => r.state_revision,
             records::AuditResult::Yank(r) => r.state_revision,
+            records::AuditResult::Quarantine(r) => r.state_revision,
             records::AuditResult::Owner(r) => r.state_revision,
             records::AuditResult::Revocation(r) => r.state_revision,
         }
@@ -166,6 +169,14 @@ impl Receipt {
             records::AuditResult::Yank(r) => (
                 r.package_revision,
                 if r.yanked { "yanked" } else { "unyanked" },
+            ),
+            records::AuditResult::Quarantine(r) => (
+                r.package_revision,
+                if r.quarantined {
+                    "quarantined"
+                } else {
+                    "unquarantined"
+                },
             ),
             records::AuditResult::Owner(r) => (
                 r.package_revision,

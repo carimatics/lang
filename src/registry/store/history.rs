@@ -340,6 +340,84 @@ pub(super) fn load(store: &Storage, identity: &ServiceIdentity) -> Result<View, 
                 current_hash = prior_hash.into();
                 current = prior;
             }
+            operation @ (AuditOperation::Quarantine {
+                name,
+                version,
+                archive_sha256,
+            }
+            | AuditOperation::Unquarantine {
+                name,
+                version,
+                archive_sha256,
+            }) => {
+                let prior_hash = a.prior_state_sha256.as_deref().ok_or_else(corrupt)?;
+                let prior = state(store, prior_hash, identity)?;
+                if prior.revision.checked_add(1) != Some(current.revision)
+                    || prior.time_floor > a.time
+                    || Some(&prior.last_audit_sha256) != a.previous_audit_sha256.as_ref()
+                {
+                    return Err(corrupt());
+                }
+                Authority::from_records(prior.authority.clone(), identity)
+                    .map_err(|_| corrupt())?
+                    .validate_recorded_actor(
+                        &a.principal,
+                        a.credential_id.as_deref().ok_or_else(corrupt)?,
+                        a.time,
+                        Operation::Admin(name),
+                    )
+                    .map_err(|_| corrupt())?;
+                let kind = if matches!(operation, AuditOperation::Quarantine { .. }) {
+                    QuarantineActionKind::Quarantine
+                } else {
+                    QuarantineActionKind::Unquarantine
+                };
+                let action = QuarantineAction::new(
+                    name,
+                    version,
+                    a.request_id.as_deref().ok_or_else(corrupt)?,
+                    prior.packages[prior.package(name).map_err(|_| corrupt())?].revision,
+                    kind,
+                    &a.reason,
+                )
+                .map_err(|_| corrupt())?;
+                let request_digest = action.request_digest()?;
+                if a.request_sha256.as_deref() != Some(&request_digest) {
+                    return Err(corrupt());
+                }
+                let (expected, result) = advance_quarantine(
+                    &prior,
+                    name,
+                    version,
+                    kind.quarantined(),
+                    &current.last_audit_sha256,
+                    a.time,
+                )
+                .map_err(|_| corrupt())?;
+                if result.archive_sha256 != *archive_sha256
+                    || current != expected
+                    || a.result != AuditResult::Quarantine(result)
+                {
+                    return Err(corrupt());
+                }
+                let key = (
+                    a.principal.clone(),
+                    a.request_id.clone().ok_or_else(corrupt)?,
+                );
+                let replay = Replay {
+                    digest: request_digest,
+                    receipt: Receipt {
+                        schema: 1,
+                        audit_sha256: current.last_audit_sha256.clone(),
+                        result: a.result.clone(),
+                    },
+                };
+                if requests.insert(key, replay).is_some() {
+                    return Err(corrupt());
+                }
+                current_hash = prior_hash.into();
+                current = prior;
+            }
         }
     }
     if reachable
@@ -475,6 +553,45 @@ pub(super) fn advance_yank(
         version: version.into(),
         archive_sha256: release.archive_sha256.clone(),
         yanked,
+    };
+    Ok((next, result))
+}
+
+pub(super) fn advance_quarantine(
+    prior: &State,
+    name: &str,
+    version: &str,
+    quarantined: bool,
+    audit: &str,
+    time: u64,
+) -> Result<(State, records::QuarantineResult), Error> {
+    let mut next = prior.clone();
+    next.revision = next.revision.checked_add(1).ok_or_else(capacity)?;
+    if next.revision > records::MAX_EVENTS {
+        return Err(capacity());
+    }
+    next.time_floor = time;
+    next.authority.time_floor = time;
+    next.last_audit_sha256 = audit.into();
+    let i = next.package(name).map_err(|_| conflict())?;
+    let package = &mut next.packages[i];
+    let release = package
+        .releases
+        .iter_mut()
+        .find(|r| r.version == version)
+        .ok_or_else(|| error(ErrorKind::NotFound, "registry release is unavailable"))?;
+    if release.quarantined == quarantined {
+        return Err(conflict());
+    }
+    release.quarantined = quarantined;
+    package.revision = package.revision.checked_add(1).ok_or_else(capacity)?;
+    let result = records::QuarantineResult {
+        state_revision: next.revision,
+        package_revision: package.revision,
+        name: name.into(),
+        version: version.into(),
+        archive_sha256: release.archive_sha256.clone(),
+        quarantined,
     };
     Ok((next, result))
 }

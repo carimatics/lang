@@ -4,7 +4,7 @@
 
 [日本語版](../ja/rfcs/0051-registry-yank-transactions.md)
 
-- Status: accepted
+- Status: implemented
 - Authors: project contributors
 - Created: 2026-10-31
 - Last updated: 2026-10-31
@@ -13,6 +13,8 @@
 - Superseded by: none
 
 ## Summary
+
+Implementation completed at `2ae39fb`, verified 2026-10-31 21:19 JST: the frozen baseline passes 2,692 tests/182 suites, fmt, strict workspace Clippy and rustdoc with unchanged source; locked fuzz Clippy passes. CI 41199138805 passes all 18 applicable jobs and native-debug 41199138761 all three hosts. Windows/macOS 15/macOS 26 logs each confirm all 32 transport and 10 workspace tests. PR #42 merged as `7378073`; main is clean, synchronized and identical to the tested tree. The host and authenticated HTTPS obligations are implemented; this is not stabilization or completion of the separate quarantine/local-recovery work. Earlier pending checkpoints are historical.
 
 E05 implementation checkpoint, verified 2026-10-31 JST: all 32 local transport tests pass, including actual TLS publish/read/source execution, owner transfer and yank/unyank, revoked-bearer refusal after local administrative reopen, final-guard expiry, original request deadlines, cancellation and unknown-result reconciliation. Independent literal receipts and hostile TLS peers exercise closed canonical response association. Full frozen validation and latest-head both-host CI/publication remain; this RFC remains accepted until those conditions are met. The preparation evidence below is historical.
 

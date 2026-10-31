@@ -4,7 +4,7 @@
 
 [English](../../rfcs/0053-registry-request-workspace.md)
 
-- Status: accepted
+- Status: implemented
 - Authors: project contributors
 - Created: 2026-10-31
 - Last updated: 2026-10-31
@@ -15,6 +15,8 @@
 Host実装checkpoint（2026-10-31 JST確認）: `MeteredRegistry::new`は保持中のprivate registryを消費し、publishは予約後にraw archive byteを受理し、yank/owner actionはcanonical byteを受理する。Private owner readは最新認可とresponse lease保持を行う。`MeteredBytes`は実予約を保持しながらbyteを借用で公開する。Storageはmetadata変更・entry数・実read・candidate encodingを再検査し、probe leaseを未課金の間隙なく原子的に増やす。世代は有界readを別所有し、厳密retryは現在世代を保持する。Commit後refresh失敗では明示的な復旧を要求し、reopenまでread/mutationを拒否する。実VM/native source実行を含むworkspace 8 fixtureと並行budget増加fixtureが成功した。全baseline、最新headの両host CI/公開、E05のHTTPS deadline/cancellation/framing統合が残るため、本RFCはacceptedを維持する。
 
 ## 概要
+
+E05 `2ae39fb`で実装完了（2026-10-31 21:19 JST確認）: 固定baselineでsource不変の2,692 test/182 suite・fmt・厳密workspace Clippy・rustdoc、locked fuzz Clippyが成功した。CI 41199138805は対象18 job、native-debug 41199138761は全3 host成功。Windows/macOS 15/macOS 26の実logでlease解放、元deadline/cancellation、recovery-required照合を含むtransport 32・workspace 10 caseを確認した。PR #42は`7378073`としてmergeし、元mainはclean・同期済み・検証済みtreeと同一である。E06/E05要件を実装し、以前の未完記述は履歴とする。論理計上はRSS実測上限やstabilizationを主張しない。
 
 E05実装checkpoint（2026-10-31 JST確認）: 実TLS fixtureで同一budgetの入力lease、応答/worker lease保持、非待機access、元deadline、協調cancellation、recovery-required照合を検証した。単独receiptと受信bodyの境界試験では書込み前拒否、厳密受理、解放後のゼロを確認した。Localのtransport 32-test runと重点workspace caseが成功した。Implementedへの変更には固定全検証と最新headの両host CI/公開が残り、以前の準備checkpointは履歴とする。
 

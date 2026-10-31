@@ -400,7 +400,7 @@ impl MeteredRegistry {
         let committed = receipt.state_revision() > previous;
         Ok((receipt, committed))
     }
-    /// Apply one canonical yank/unyank action under the same workspace guard.
+    /// Dispatch one closed canonical action under the same workspace guard.
     pub(crate) fn action_http(
         &mut self,
         bearer: &Bearer,
@@ -411,9 +411,13 @@ impl MeteredRegistry {
     ) -> Result<(Receipt, String), Error> {
         self.execute_reserved(Input::Action(bytes.len()), clock, Some(lease), |registry| {
             // Each closed admitter independently validates canonical bytes and
-            // inapplicable fields. Neither body kind supplies authority.
+            // inapplicable fields. No body kind supplies authority.
             if let Ok(action) = YankAction::admit(name, bytes) {
                 let receipt = registry.yank(bearer, &action, clock)?;
+                return Ok((receipt, action.request_id().to_owned()));
+            }
+            if let Ok(action) = QuarantineAction::admit(name, bytes) {
+                let receipt = registry.quarantine(bearer, &action, clock)?;
                 return Ok((receipt, action.request_id().to_owned()));
             }
             let action = OwnerAction::admit(name, bytes)?;
@@ -432,6 +436,18 @@ impl MeteredRegistry {
     ) -> Result<MeteredReceipt, Error> {
         self.execute_receipt(Input::Action(bytes.len()), clock, |registry| {
             registry.yank(bearer, &YankAction::admit(name, bytes)?, clock)
+        })
+    }
+    /// Apply a scoped administrative availability action under the workspace guard.
+    pub fn quarantine(
+        &mut self,
+        bearer: &Bearer,
+        name: &str,
+        bytes: &[u8],
+        clock: &impl Clock,
+    ) -> Result<MeteredReceipt, Error> {
+        self.execute_receipt(Input::Action(bytes.len()), clock, |registry| {
+            registry.quarantine(bearer, &QuarantineAction::admit(name, bytes)?, clock)
         })
     }
     /// Apply one canonical owner-membership action under the workspace guard.

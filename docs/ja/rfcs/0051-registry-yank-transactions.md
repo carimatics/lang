@@ -4,7 +4,7 @@
 
 [English](../../rfcs/0051-registry-yank-transactions.md)
 
-- Status: accepted
+- Status: implemented
 - Authors: project contributors
 - Created: 2026-10-31
 - Last updated: 2026-10-31
@@ -13,6 +13,8 @@
 - Superseded by: none
 
 ## 概要
+
+`2ae39fb`で実装完了（2026-10-31 21:19 JST確認）: 固定baselineでsource不変の2,692 test/182 suite・fmt・厳密workspace Clippy・rustdoc、locked fuzz Clippyが成功した。CI 41199138805は対象18 job、native-debug 41199138761は全3 host成功。Windows/macOS 15/macOS 26の各logでtransport全32・workspace全10 testを確認した。PR #42は`7378073`としてmergeし、mainはclean・同期済み・検証済みtreeと同一である。Hostと認証HTTPSの要件を実装した。Stabilizationや別途quarantine/local復旧作業の完了ではない。以前の未完checkpointは履歴とする。
 
 E05実装checkpoint（2026-10-31 JST確認）: local transport全32 testが成功し、実TLSのpublish/read/source実行、owner移管とyank/unyank、local管理reopen後の失効bearer拒否、最終guardでの期限切れ、元の要求deadline、cancellation、結果不明の照合を含む。独立literal receiptと敵対TLS peerで閉じたcanonical応答の対応を検証した。固定全検証と最新headの両host CI/公開が残り、それらを満たすまで本RFCはacceptedを維持する。以下の準備証拠は履歴である。
 

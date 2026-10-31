@@ -14,6 +14,8 @@
 
 ## Summary
 
+Implementation checkpoint, verified 2026-10-31 22:39 JST: local host and actual HTTPS journeys quarantine/refuse/restore the original source and execute 42 in VM/native, including stale-index download refusal and old-ID reconciliation without generation rollback. All 62 store tests pass, including 36 quarantine process cuts, both competing writer orders, 12 fully rehashed forgeries, final-time and local-revocation refusal, exact index overflow and workspace −1/equality/+1 boundaries. The independent canonical/request digests and 512 admission mutations pass; the decoder is included in the existing fuzz target. Frozen full baseline and latest-head both-host CI/publication remain; this RFC stays accepted until those requirements are met. The earlier policy-only checkpoint below is historical.
+
 An explicitly package-scoped administrator quarantines or restores an exact release through the existing authenticated action route. Quarantine stops fresh archive download while preserving the immutable archive, yank flag, owners and complete history. One HEAD replacement commits the flag, package revision and audit event. Freshly authorized retries return the original receipt without restoring an older read generation.
 
 Accepted under RFC 0001's experimental delegation on 2026-10-31 JST: the existing `Operation::Admin` policy, transaction/replay guard and bounded index model support this closed extension. A separate 30-check policy/encoding experiment covers authority before replay, expiry, revision/no-op conflicts, opposite actions and retained archive/yank identity. It is not storage, HTTP or both-host evidence. Implementation and the required adversarial/process/transport tests remain unverified.

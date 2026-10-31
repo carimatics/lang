@@ -4,7 +4,7 @@
 
 [日本語版](../ja/rfcs/0053-registry-request-workspace.md)
 
-- Status: accepted
+- Status: implemented
 - Authors: project contributors
 - Created: 2026-10-31
 - Last updated: 2026-10-31
@@ -15,6 +15,8 @@
 Host implementation checkpoint, verified 2026-10-31 JST: `MeteredRegistry::new` consumes a held private registry; publish admits raw archive bytes after reservation, and yank/owner actions accept canonical bytes. Private owner reads reauthorize and retain their response lease. `MeteredBytes` exposes borrowed bytes while retaining the actual reservation. Storage rechecks changed metadata, entry counts, actual reads and candidate encodings; the probe lease grows atomically without an uncharged gap. Generations separately own bounded reads, and exact retries retain the current generation. Committed refresh failures require explicit recovery and refuse reads/mutations until reopen. Eight workspace fixtures and a concurrent budget-growth fixture pass, including real VM/native source execution. Full baseline, latest-head both-host CI/publication and E05 HTTPS deadline/cancellation/framing integration remain, so this RFC stays accepted.
 
 ## Summary
+
+Implementation completed at E05 `2ae39fb`, verified 2026-10-31 21:19 JST: the frozen baseline passes 2,692 tests/182 suites, fmt, strict workspace Clippy and rustdoc with unchanged source; locked fuzz Clippy passes. CI 41199138805 passes all 18 applicable jobs and native-debug 41199138761 all three hosts. Actual Windows/macOS 15/macOS 26 logs each confirm 32 transport and 10 workspace cases, including lease retirement, original deadlines/cancellation and recovery-required reconciliation. PR #42 merged as `7378073`; original main is clean, synchronized and identical to the tested tree. E06/E05 obligations are implemented; earlier pending statements are historical. Logical accounting is not a measured RSS bound or stabilization claim.
 
 E05 implementation checkpoint, verified 2026-10-31 JST: actual TLS fixtures exercise the same-budget input lease, retained response/worker leases, nonblocking access, original deadlines, cooperative cancellation and recovery-required reconciliation. Standalone receipt and received-body boundary tests check refusal before writes, exact admission and retirement to zero. The 32-test transport run and focused workspace cases pass locally. Frozen full validation and latest-head both-host CI/publication remain before implementation status; prior preparation checkpoints are historical.
 
