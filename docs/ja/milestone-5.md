@@ -10,6 +10,8 @@
 
 **次: M5-E01 — 認証identity・credential取扱い・scope付き認可（3 pt）。**
 
+D01公開（2026-10-31 12:49 JST確認）: 最終head `2704805`はCI `41164333928`（対象18 job、full routingにより文書専用のみ意図的省略）とnative-debug `41164333850`（全3 host）が成功。[PR #33](https://github.com/carimatics/lang/pull/33)の`f5084f1`としてのmergeを確認した。元`main`を`origin/main`へfast-forwardし、ahead 0 / behind 0・未commit変更なし。E01の[PR #34](https://github.com/carimatics/lang/pull/34)はbaseを`main`へ変更し、実装`56f9f84`を固定したまま全baselineとCIを実行中。以下に残るD01公開待ちの記録は過去のcheckpointである。
+
 E01実行checkpoint（2026-10-31 12:36 JST確認）: policy modelの23 scenarioと失効・owner削除後のretry拒否を確認し、[RFC 0047](rfcs/0047-registry-authority-records.md)を実験段階委任で採択した。`registry::authority`は独立した設定identityに対して上限付きcanonical viewを受理し、秘匿・消去する明示bearer入力と、現在の認証・操作／所有権scopeを評価する。独立計算authenticator、決定的入力変異512件、byte／depth／collection境界、4,096 recordの末尾credential、失効・時刻・ownerの再評価拒否を含む統合10 testが成功。archive回帰9/9、repository consistency 7/7、対象厳密Clippy、fuzz targetのcompileも成功。残る受入条件は固定全baseline・最新head両host CI・PR公開。E01のみをdoing、3 ptに維持し、見積り追加・退役なし。D02では完全なstate/audit形式と実lock内の再認可統合が必要。準備した`codex/m5-registry-authority`は`codex/m5-registry-archive`の`b3c8d1b`から開始し、`2704805`へfast-forwardした。記録した初期PR baseは`git@github.com:carimatics/lang.git`のarchive branchで、PR #33のmerge待ち。元の`main`は変更せずcleanを維持する。
 
 D01完了（2026-10-31 12:24 JST確認）: code `b3c8d1b`の固定全baselineは181 suite・2,562 test、fmt、厳密Clippy、分離targetのrustdocが成功。全4 child exitは0で全source fingerprintは不変。実結果・logを`/private/tmp/lang-m5-fixes-target/m5-d01-validation/`に保持する。CI `41161839406`は対象18 jobすべて成功（full routingにより文書専用のみ意図的省略）、native-debug `41161839444`も3 host jobすべて成功。archive 9 testは元byteのsource実行と決定的変異512件を含む。fuzz targetはcompile済みだが継続的fuzz campaignは主張しない。最終3 ptを退役し追加なし、112 + 1 − 26 = 87 pt。E01のみをdoingとし、3 ptは権限レコード仕様の採択、上限付き秘密入力・ポリシー実装、検証を含む。G4/G5はopen。[PR #33](https://github.com/carimatics/lang/pull/33)の最終文書head CIとmerge、公開完了と最終main同期は未完了。
@@ -123,6 +125,8 @@ B05 budget監査（2026-10-31 JST）: 再利用するscalar検査内部の独立
 | 112 pt | +1 pt | −26 pt | 87 pt |
 
 ## Delivery noteとロードマップ監査
+
+- D02準備（2026-10-31 JST）: [RFC 0048](rfcs/0048-registry-state-and-publication.md)で厳密generation/audit/receipt record、全commit履歴保持、orphan cleanupを実験段階委任で採択し、storage実装は未開始。レビューで不変名への直接書込みをsync済みstagingへ変更し、完全な遷移検証と明示的な公開結果不明を追加した。拡張したlocal macOS probeはobject/audit/state/HEADの部分書込みを含むprocess終了13切断点に成功し、初期の全書込み後6切断点を置き換えた。配置済み不変candidateは全件完全でdigest一致し、可視stateは完全な旧状態か新状態だった。Windows・電源断・実認証・lock・完全な敵対的recoveryは未検証。固定baseline/CI実行中のE01だけをdoingとし、D02は既存3 ptのtodoを維持。Delivery・見積りの追加・退役・削減なし。準備作業は固定checkoutから分離している。
 
 - Registry順序監査（2026-10-31 JST）: 選択済みD01だけをdoingに維持。既存計画のE01認証／credential／scope境界をD02より先に実装し、不変公開がlock内の最新stateで再認可できるようにする。D02はD01・E01へ依存し、E01の依存は採択済みC02のまま。Memory内transactionの探索ではcrash／retryの6切断点と異payloadの両順序を確認し、古い事前認可で失効後のpublishを許可できない理由を示した。これは設計証拠のみでfilesystem・認証実装ではない。既存installerのfile／lock処理は参考になるが、そのstateにはregistry owner／release／auditのatomicityがない。新規delivery・見積り変更なしで残90 ptの照合を維持する。予定するE01／D02の2前提後に次のsource実行fixtureを再監査する。
 

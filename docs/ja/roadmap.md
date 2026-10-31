@@ -254,7 +254,7 @@ Exit：新しいdeveloperが1つのtoolをinstallし、packageを作成し、edi
 
 **10 done · 1 doing · 29 todo · 87 remaining pt**
 
-全40 deliveryの収支は112 + 1 − 26 = 残87 pt。旧scalar前提で3 ptを追加し、B04の実行可能checkpoint 2回で残見積りを各1 pt減らした。完了deliveryの退役見積りは26 pt。G1/G2の互換性と実旧producer・現VM・link済みnativeの移行journeyはPR #29–#31で公開済み。G3は[RFC 0045](rfcs/0045-registry-threat-model.md)と[RFC 0046](rfcs/0046-registry-protocol-and-recovery.md)の採択済み設計で、PR #32で公開した。D01の上限付きcanonical archive受入`b3c8d1b`は181 suite・2,562 test、fmt、厳密Clippy、rustdoc、両host CIが成功し、最終3 ptを追加なしで退役する。PR #33の最終文書head CIとmergeは未完了。次は認証identity・上限付きcredential・scope付き認可のE01のみをdoing（3 pt）とし、公開時にlock内の最新権限を再検査するためD02はE01にも依存する。P1の両成果を含むG4–G10はopen。archive受入と設計採択だけではregistry storage・認証公開・本番消費は完了しない。
+全40 deliveryの収支は112 + 1 − 26 = 残87 pt。旧scalar前提で3 ptを追加し、B04の実行可能checkpoint 2回で残見積りを各1 pt減らした。完了deliveryの退役見積りは26 pt。G1/G2の互換性と実旧producer・現VM・link済みnativeの移行journeyはPR #29–#31で公開済み。G3は[RFC 0045](rfcs/0045-registry-threat-model.md)と[RFC 0046](rfcs/0046-registry-protocol-and-recovery.md)の採択済み設計で、PR #32で公開した。D01の上限付きcanonical archive受入`b3c8d1b`は181 suite・2,562 test、fmt、厳密Clippy、rustdoc、両host CIが成功し、最終3 ptを追加なしで退役する。最終head `2704805`のCI `41164333928`・native-debug `41164333850`成功後、PR #33を`f5084f1`としてmergeし、元mainはclean・remoteと同期済み（0/0）。次は認証identity・上限付きcredential・scope付き認可のE01のみをdoing（3 pt）とし、公開時にlock内の最新権限を再検査するためD02はE01にも依存する。P1の両成果を含むG4–G10はopen。archive受入と設計採択だけではregistry storage・認証公開・本番消費は完了しない。
 
 **進捗：21 / 65 pt（32.3%）。**
 
