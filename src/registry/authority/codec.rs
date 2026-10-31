@@ -5,7 +5,7 @@ use std::io::Write;
 use std::marker::PhantomData;
 use std::net::Ipv4Addr;
 
-const SEQUENCE_LIMIT: &str = "authority collection limit";
+pub(crate) const SEQUENCE_LIMIT: &str = "authority collection limit";
 
 #[derive(Clone, Deserialize, Serialize, Eq, PartialEq)]
 #[serde(deny_unknown_fields)]

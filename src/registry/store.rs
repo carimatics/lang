@@ -2,6 +2,8 @@
 //! No bearer, saved actor, receipt or archive grants ambient filesystem access.
 
 mod history;
+mod index;
+mod reads;
 mod records;
 mod storage;
 #[cfg(test)]
@@ -15,6 +17,10 @@ use serde::Serialize;
 use sha2::{Digest, Sha256};
 use std::fmt::{Display, Formatter};
 
+pub use index::{Index, IndexedRelease};
+pub(crate) use reads::CapturedReads;
+pub use reads::MAX_INDEX_BYTES;
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum ErrorKind {
     Malformed,
@@ -25,6 +31,7 @@ pub enum ErrorKind {
     Integrity,
     State,
     Busy,
+    NotFound,
     Io,
 }
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -48,7 +55,7 @@ impl Error {
             ErrorKind::Conflict => "REG0005",
             ErrorKind::Integrity => "REG0006",
             ErrorKind::State => "REG0007",
-            ErrorKind::Busy | ErrorKind::Io => "REG0008",
+            ErrorKind::Busy | ErrorKind::NotFound | ErrorKind::Io => "REG0008",
         }
     }
 }
@@ -400,6 +407,12 @@ impl Publication {
             records::Release::from_archive(archive),
             "",
             time,
+        )?;
+        // A successful publication must remain readable within the public
+        // index limit. This runs before any candidate file is installed.
+        reads::encode_package(
+            &state.registry,
+            &state.packages[state.package(name).map_err(|_| corrupt())?],
         )?;
         let audit = records::Audit {
             format: "lang-registry-audit".into(),

@@ -1,6 +1,8 @@
 use super::*;
 use std::cell::Cell;
 mod adversarial;
+mod index_capacity;
+mod reads;
 
 struct Temp(std::path::PathBuf);
 impl Temp {

@@ -2,3 +2,4 @@
 pub mod archive;
 pub mod authority;
 pub mod store;
+pub mod transport;

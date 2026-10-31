@@ -719,6 +719,7 @@ dependencies = [
  "cap-std",
  "ed25519-dalek",
  "getrandom 0.4.3",
+ "httparse",
  "lang-bytecode",
  "lang-codegen-clif",
  "lang-diagnostics",

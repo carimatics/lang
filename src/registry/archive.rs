@@ -23,7 +23,7 @@ pub const MAX_PATH_BYTES: usize = 100;
 pub const MAX_JSON_DEPTH: usize = 16;
 const BLOCK: usize = 512;
 const DESCRIPTOR: &str = ".lang-package.json";
-const SEQUENCE_LIMIT: &str = "registry sequence limit exceeded";
+pub(crate) const SEQUENCE_LIMIT: &str = "registry sequence limit exceeded";
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum ErrorKind {
@@ -408,9 +408,16 @@ fn validate_descriptor(d: &Descriptor) -> Result<(), Error> {
             return Err(malformed("test must name a unique listed source"));
         }
     }
+    validate_dependencies(&d.dependencies)
+}
+
+pub(super) fn validate_dependencies(dependencies: &[Dependency]) -> Result<(), Error> {
+    if dependencies.len() > MAX_DEPENDENCIES {
+        return Err(limit("dependency count limit exceeded"));
+    }
     let mut previous = None;
     let mut identities = BTreeMap::new();
-    for dependency in &d.dependencies {
+    for dependency in dependencies {
         if !valid_name(&dependency.alias)
             || !valid_name(&dependency.registry)
             || !valid_name(&dependency.name)
