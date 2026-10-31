@@ -36,7 +36,7 @@ lock寿命の修正を含むinstallerは、2026-10-30 JSTに[PR #25](https://git
 
 以下のmilestone checklistは相対的な受入条件の重みを保持します。`1`はごく小、`2`は小、`3`は中、`5`は大、`8`は非常に大です。重み付きの達成率は `完了した重み / 全重み × 100` を小数第1位へ丸めます。この粗い重みは経過時間や実装残作業を予測しません。Milestoneがcurrentになったとき、またはscope／evidenceが変わったときに、長期見積もりを積み上げで見直します。進行中milestoneごとに別の実装Todoを使い、独立検証可能な残り1〜3 ptのtaskと、明示的なscope／見積もり変更を記録します。
 
-2026-10-30（JST）に確認したexit-gate weightのsnapshotです。受入条件の重みと残作業見積りは別であり、M4の最終収支は完了ボードに記録します。M5が進行中です（**1 done · 1 doing · 37 todo · 110 remaining pt**）。完了済みM2／M3の記録は維持します。
+2026-10-31（JST）に確認したexit-gate weightのsnapshotです。受入条件の重みと残作業見積りは別であり、M4の最終収支は完了ボードに記録します。M5が進行中です（**6 done · 1 doing · 33 todo · 97 remaining pt**）。完了済みM2／M3の記録は維持します。
 
 | Milestone | 完了条件の重み | 条件の総重み | 条件達成率 |
 | --- | ---: | ---: | ---: |
@@ -252,9 +252,9 @@ Exit：新しいdeveloperが1つのtoolをinstallし、packageを作成し、edi
 
 2026-10-30 JST開始。[M5 board](milestone-5.md)に全10ゲート、39件の観測可能delivery、残作業基準112 ptを保持する。[edition・互換性方針](rfcs/0043-editions-and-compatibility.md)と実行可能な互換性・移行fixtureから開始する。registry upload前に脅威モデルを定め、署名toolchain導入をregistry provenanceと混同しない。P1の2ゲートも範囲内。完了には両host ecosystem journeyと日英能力guideを含める。
 
-**5 done · 0 doing · 35 todo · 102 remaining pt**
+**6 done · 1 doing · 33 todo · 97 remaining pt**
 
-B01監査で39件の基準deliveryに旧scalar移行の前提1件・3 ptを追加した（全40件、112 + 3 − 13 = 残102 pt）。[RFC 0044](rfcs/0044-checked-source-migration.md)で検証付きfix・移行契約を採択。B02・B03で検証付きpreviewとCLI公開を実装し、全local検証と両host code CIが成功。最終文書headの公開は未完了で、次はB05の旧scalar reader。G2と他の全残ゲートはopenを維持する。
+B01監査で39件の基準deliveryに旧scalarの前提1件・3 ptを追加した。B04の実行可能CLIと両host journeyの各checkpointで残見積りを1 ptずつ減らした（全40件、純追加+1 pt、112 + 1 − 16 = 残97 pt）。[RFC 0044](rfcs/0044-checked-source-migration.md)で検証付きfix・移行契約を採択。B02・B03の検証付きfixはmerge済みPR #30で公開した。B05の旧scalar previewは`7f41dd0`で全baselineと両host CIが成功。B04のCLI・検証付き適用・実旧producerと現VM・link済みnativeのjourneyは両hostで成功し、local全baseline・最新head CI・PR公開を残す。G2と他の全残ゲートはopenを維持する。
 
 **進捗：5 / 65 pt（7.7%）。**
 

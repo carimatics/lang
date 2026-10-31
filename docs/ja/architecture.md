@@ -149,7 +149,9 @@ prepare／rename は dependency file を含む source 識別子の検証 edit �
 
 literal code action は同じ input／version guard と package linter の rule を再利用し、client が宣言した kind family に限定して提供します。`source.format` は source 位置に依存しない HIR／型の証明後に文書全体を整形し、`quickfix` は一意に選択した未読 binding を rename 証明で `_` prefix にします。initializer と代入の効果を保持し、guest code を実行せず、曖昧／衝突する fix は edit を返しません。
 
-RFC 0044の`package::fix`はentryと全宣言testの上限付き複数root rename証明で元spanを合成します。CLIはpreviewが既定で、`--apply`は証明と同じ固定graphから新しい非公開planを作ります。formatterと共有する公開境界は全source・manifestのidentityとbytesを固定し、別directory authorityを検証して選択source置換を全件stage化し、再検証後file単位でcommitします。依存は証明のみの対象です。previewと適用成功report両方のsizeを書込み前に検査し、後半I/O失敗時は適用済みprefixを報告して未公開stageをcleanupし、rollbackしません。旧source移行は未実装です。
+RFC 0044の`package::fix`はentryと全宣言testの上限付き複数root rename証明で元spanを合成します。CLIはpreviewが既定で、`--apply`は証明と同じ固定graphから新しい非公開planを作ります。formatterと共有する公開境界は全source・manifestのidentityとbytesを固定し、別directory authorityを検証して選択source置換を全件stage化し、再検証後file単位でcommitします。依存は証明のみの対象です。previewと適用成功report両方のsizeを書込み前に検査し、後半I/O失敗時は適用済みprefixを報告して未公開stageをcleanupし、rollbackしません。旧source移行は以下の別profileを使います。
+
+RFC 0044の`package::migration::Preview`はbyteだけを受ける旧scalar readerで、通常compileから分離します。旧lexical scope・関数全体の名前一意性・scalar型・return経路を検証した後、全体でfreshな識別子へ対応付けます。元tokenのoffset検査と型付き解決構造の比較で、private呼出し・値・型・制御フロー順を保持します。previewはfileを開かずguest codeも実行しません。`migration::Plan`は明示directory authorityを受け取り、単一の上限付きregular sourceとopen済みfile identityを取得し、同じbytesを証明して非公開replacementをformatterの共通公開検査に結び付けます。`lang migrate`はpackage探索前にこのstandalone経路を選び、profile・edition・rootを必須として、`--apply`がなければpreviewします。保存reportを実行可能planとして扱いません。両hostの旧producer・現VM・native journeyと最終検証は未完了です。
 
 ## Concurrency、component、将来のtoolchain
 

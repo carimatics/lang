@@ -6,11 +6,25 @@
 
 Activated 2026-10-30 JST from `3b676c5`. This board tracks the entire M5 scope in [the roadmap](roadmap.md#milestone-5-ecosystem-and-compatibility), including both P1 gates. M4's installer and local packages are prerequisites, not registry completion.
 
-**5 done · 0 doing · 35 todo · 102 remaining pt**
+**6 done · 1 doing · 33 todo · 97 remaining pt**
 
-**Next: M5-B05 — preview a checked migration of the historical scalar fixture.**
+**Next: M5-B04 — complete the frozen full baseline and latest-head publication checks.**
 
-Publication checkpoint, 2026-10-31 JST: code `01b425e` passed CI `41085682122` (18 successful jobs; documentation-only intentionally skipped under full routing) and native-debug `41085682104`. Its full local baseline completed with 2,536 passing tests in 178 suites, fmt, strict Clippy and rustdoc; all child exits are 0 and the source fingerprint is unchanged. Logs are retained under `/private/tmp/lang-m5-fixes-target/m5-b03-validation-authorized/`. The first sandboxed attempt refused loopback listeners in two HTTPS fixtures; authorized execution used identical frozen source. No failed or cancelled run is counted as success. Final documentation-head CI and PR #30 merge remain pending.
+B04 acceptance audit, verified 2026-10-31 10:34 JST: [retained evidence](evidence/2026-10-31-m5-source-migration.json) proves six fixtures on each of macOS 15/26 and Windows 2025, including five actual historical-source transitions, current VM and linked native execution, exact edit application and repeat no-op. CLI/publication/refusal requirements are implemented; the remaining work is the complete local baseline, latest-head CI and PR publication. Re-estimate 2 → 1 pt without dropping those checks. B04 remains doing and G2 remains open; the frozen `2f905c7` test process is live, with fmt and strict Clippy passed.
+
+B04 resumed checkpoint, verified 2026-10-31 10:26 JST: CI `41154299004` at `62e742c` passed all three SDK producer migration journeys and isolated SDK installation jobs, including Windows; the remaining CI jobs are still running. The local `5480e14` baseline has no terminal result: session 60960 and its driver/Cargo/test processes are absent, and its log stopped at 10:17 JST. Preserve that interrupted attempt under `/private/tmp/lang-m5-fixes-target/m5-b04-validation-5480e14-interrupted/`; do not count its partial 645 passing tests as a complete baseline. Fast-forwarded the work branch through `2f2e2b9` and will run the full baseline on the newly frozen checkpoint. B04 stays doing at 2 pt until complete local validation and latest-head CI succeed.
+
+B04 CI correction, 2026-10-31 JST: run `41109397767` passed macOS migration journeys but refused Windows before execution because Git's automatic CRLF conversion changed the pinned historical lock bytes. Disposable checkouts reproduced the mismatch with `core.autocrlf=true` and the exact retained hash with `false`. Disable conversion only for the historical worktree creation; keep the exact lock assertion. This CI-only correction is isolated in `/private/tmp/lang-m5-migration-ci` from `5480e14` while its unchanged Rust baseline continues in the original worktree. Publish it to the same branch/PR, then fast-forward the original worktree after that baseline exits. No failed CI run counts as gate completion; delivery scope and estimates are unchanged.
+
+B04 host checkpoint, verified 2026-10-31 03:42 JST: `tools/check-source-migration.py` built the pinned historical compiler with its unchanged lock, executed six original fixtures, applied the actual migration CLI, and checked current VM plus linked matching-SDK native results. Five real transitions cover retained `shared`/`weak`, wrapping parameters, recursion, trailing commas and loop/name-collision/UTF-8-comment/CRLF preservation; a sixth unchanged fixture separately checks no-op behavior. All passed locally on macOS, with source/compiler/lock/SDK/executable hashes and 59 command observations retained in `/private/tmp/lang-m5-b04-journey/report.json`. The existing SDK producer matrix now runs the same journey and retains reports for macOS 15/26 and Windows 2025. Windows, final full baseline and latest-head CI remain pending; B04 stays doing at 2 pt.
+
+B04 executable checkpoint, verified 2026-10-31 03:32 JST: `lang migrate` now requires explicit profile/edition/root, previews by default and applies a freshly proved single-source replacement through the shared publication boundary. The CLI fixture previews unchanged bytes, applies, executes to 42 and repeats as a no-op. Fifteen migration tests cover old admission/proof plus apply, stale bytes/identity, foreign authority, readonly/aliases, usage refusals and cwd-relative/absolute source paths; existing fix 11/11 and format 7/7 also pass. Reduce the remaining estimate from 3 to 2 pt after this executable integration checkpoint. Remaining acceptance: actual pinned historical-producer/current-VM/matching-SDK-native journeys on both hosts, final full baseline and latest-head CI. This checkpoint is not a completed delivery; B04 remains the only doing row on the same coherent branch.
+
+B05 completed, verified 2026-10-31 03:17 JST: code `7f41dd0` admits the real historical `shared`/`weak` source, proves original-token offsets and typed resolved structure, and executes the rewritten source to 42 while ordinary compilation still rejects the original. Eight integration tests and two proof tests cover eleven pinned-producer admission cases, 24 generated scalar executions, wrapping addition, retained fuel exhaustion, collisions/trivia/CRLF, repeat no-op, semantic counterexamples and exact limits with an unraisable recursion ceiling. The frozen full baseline passed 2,546 tests in 179 suites, fmt, strict Clippy and rustdoc; all child exits are 0 and all input fingerprints are unchanged. Logs are retained under `/private/tmp/lang-m5-fixes-target/m5-b05-validation/`. Exact-head CI `41101729179` passed all 18 applicable jobs (documentation-only intentionally skipped under full routing), and native-debug `41101727954` passed all three host jobs. [PR #31](https://github.com/carimatics/lang/pull/31) remains draft for the related B04 continuation; later heads must pass their own publication checks.
+
+Branch `codex/m5-historical-source-migration` was created clean from `codex/m5-checked-source-fixes` at `791237e` in `/private/tmp/lang-m5-migration`, with that prerequisite branch as its initial PR base in `git@github.com:carimatics/lang.git`. After PR #30 was confirmed merged, it fast-forwarded to `6ea2cd1` and its PR base changed to `main`. The original worktree is clean on `main`, synchronized with `origin/main` (0 ahead / 0 behind).
+
+Publication checkpoint, 2026-10-31 JST: code `01b425e` passed CI `41085682122` (18 successful jobs; documentation-only intentionally skipped under full routing) and native-debug `41085682104`. Its full local baseline completed with 2,536 passing tests in 178 suites, fmt, strict Clippy and rustdoc; all child exits are 0 and the source fingerprint is unchanged. Logs are retained under `/private/tmp/lang-m5-fixes-target/m5-b03-validation-authorized/`. The first sandboxed attempt refused loopback listeners in two HTTPS fixtures; authorized execution used identical frozen source. No failed or cancelled run is counted as success. Final head `791237e` also passed CI `41094820142` (18 applicable jobs) and native-debug `41094820280`; [PR #30](https://github.com/carimatics/lang/pull/30) merged as `6ea2cd1` and local `main` was fast-forwarded to the same remote tip.
 
 B03 completed, verified 2026-10-31 JST: `lang fix` previews by default and `--apply` recomputes a private checked plan, using the formatter's frozen-input validation, complete staging and per-file replacement. Fixtures cover entry/test VM execution before/after, stale source/dependency/manifest and foreign-authority refusal, read-only/alias refusal, cleaned staging failures, exact committed-prefix reporting, idempotent replay, CLI diagnostics and the successful-apply report size boundary. A hardlink outside the captured inventory exposed a missed existing no-alias requirement; both live validation passes now check the opened file's link count, with RFC 0036 clarified in both languages. Implementation and both-host CI are complete; final documentation publication remains separately gated above. B04 retains historical migration integration.
 
@@ -21,6 +35,8 @@ B01 checkpoint, 2026-10-30 JST: [RFC 0044](rfcs/0044-checked-source-migration.md
 A02 publication checkpoint, verified 2026-10-31 JST: [PR #29](https://github.com/carimatics/lang/pull/29) merged as `1cdad09` after latest head `8a43f76` passed CI `41072332781` and native-debug `41072332783` (attempt 2). Full routing intentionally skipped only the documentation-only job. The original worktree is restored to `main`, clean and synchronized with `origin/main` (0 ahead / 0 behind); remote is `git@github.com:carimatics/lang.git`. A01/A02's local baseline passed 2,522 tests, fmt, Clippy and isolated-target rustdoc. [Draft PR #30](https://github.com/carimatics/lang/pull/30) tracks the separate checked-fix preview branch; its full local baseline passed and corrected-head CI remains pending. M5 retains nine open gates.
 
 ## Exit gates
+
+B05 budget audit, 2026-10-31 JST: account for all three independent task-syntax classifiers inside the reused scalar checking paths. They each reserve a full phase allowance from the shared budget; a new small-source regression refuses an insufficient aggregate budget. The initial `a55cda0` full run was deliberately interrupted for this correction and is retained under `/private/tmp/lang-m5-fixes-target/m5-b05-validation-a55cda0-interrupted/`; it is not a passing baseline. Restart the complete baseline on the corrected frozen commit. This closes an existing accounting requirement, with no new delivery or estimate change.
 
 | Gate | Required outcome | State |
 | --- | --- | --- |
@@ -46,8 +62,8 @@ Gate completion: **1/10; 5/65 historical gate weight**. Delivery points below ar
 | M5-B01 | done | 0 | M5-A01 | G2 | Accept migration recipes, applicability and write transaction contract | `1ab1201` |
 | M5-B02 | done | 0 | M5-B01 | G2 | Preview real source fixes with original spans and semantic recheck | `2a3aca1` |
 | M5-B03 | done | 0 | M5-B02 | G2 | Apply checked fixes through CLI; stale/conflicting/partial-write refusal fixtures | `01b425e` |
-| M5-B05 | todo | 3 | M5-B01 | G2 | Admit historical scalar syntax, prove fresh renames and preview the real old-source fixture | — |
-| M5-B04 | todo | 3 | M5-B03,M5-B05 | G2 | Edition migration CLI and both-host before/after execution journey | — |
+| M5-B05 | done | 0 | M5-B01 | G2 | Admit historical scalar syntax, prove fresh renames and preview the real old-source fixture | `7f41dd0` |
+| M5-B04 | doing | 1 | M5-B03,M5-B05 | G2 | Edition migration CLI and both-host before/after execution journey | — |
 | M5-C01 | todo | 3 | M5-A01 | G3 | Threat model: identities, namespace, authority, abuse and adversaries | — |
 | M5-C02 | todo | 3 | M5-C01 | G3 | Accept protocol, limits, recovery and security acceptance cases before upload | — |
 | M5-D01 | todo | 3 | M5-C02 | G4 | Admit bounded untrusted archives and reject traversal/duplicate/bomb inputs | — |
@@ -84,13 +100,19 @@ Gate completion: **1/10; 5/65 historical gate weight**. Delivery points below ar
 
 ## Estimate reconciliation
 
-**112 + 3 − 13 = 102 pt**
+**112 + 1 − 16 = 97 pt**
 
 | Baseline remaining | Net additions/re-estimates | Retired at completion | Remaining |
 | ---: | ---: | ---: | ---: |
-| 112 pt | +3 pt | −13 pt | 102 pt |
+| 112 pt | +1 pt | −16 pt | 97 pt |
 
 ## Delivery notes and roadmap audits
+
+- B04 acceptance audit/re-estimate, 2026-10-31 10:34 JST: the actual historical/current VM/linked-native journey now passes on both hosts, with independently inspected report and source hashes. Remaining final validation and publication are 1 pt, reduced from 2; net additions/re-estimates become +3 − 1 − 1 = +1 pt. Retired estimates stay 16 pt because B04 is not done. No delivery, gate or acceptance condition is removed.
+
+- B04 checkpoint/re-estimate, 2026-10-31 JST: the CLI and private single-source publication adapter now execute the migrated fixture. Remaining work is the both-host historical/current VM/native journey and final validation; reduce 3 → 2 pt without removing any acceptance condition. Net additions/re-estimates become +3 − 1 = +2 pt; retired estimates stay 16 pt because B04 remains doing. No new delivery is added.
+
+- B05 completed, 2026-10-31 JST: retire its last 3 pt after full local and exact-head both-host validation at `7f41dd0`; no additions/re-estimates. B04 is next and remains 3 pt after the integration audit above. G2 stays open until the explicit CLI, checked application and real historical-producer/current-VM/native journeys pass on both hosts. The other eight open gates and both P1 outcomes remain required.
 
 - B03 completed, 2026-10-31 JST: code `01b425e`, full local baseline 2,536/2,536 plus fmt/Clippy/rustdoc, and both-host CI successful. Retire the last 3 pt with no additions/re-estimates. G2 remains open until B05/B04's historical admission, checked migration CLI and actual old-producer/current-VM/native journey on both hosts succeed. B05 is next; all other gates and P1 outcomes remain required.
 

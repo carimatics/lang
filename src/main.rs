@@ -368,6 +368,14 @@ fn compile_native(
 }
 fn run() -> Result<u8, CliError> {
     let arguments: Vec<_> = std::env::args_os().skip(1).collect();
+    if arguments.first().is_some_and(|arg| arg == "migrate") {
+        return lang::package::migration::command::run(
+            &arguments[1..],
+            &mut io::stdout().lock(),
+            &mut io::stderr().lock(),
+        )
+        .map_err(failure);
+    }
     if arguments.first().is_some_and(|arg| arg == "compatibility") {
         return lang::package::compatibility::run(
             &arguments[1..],
@@ -403,6 +411,7 @@ fn run() -> Result<u8, CliError> {
         Command::Help => {
             print!("{USAGE}");
             print!("{}", lang::package::compatibility::USAGE);
+            print!("{}", lang::package::migration::command::USAGE);
             println!("       lang package check-manifest [--message-format human|json] FILE");
             print!("{}", lang::package::command::USAGE);
             print!("{}", lang::profile::USAGE);

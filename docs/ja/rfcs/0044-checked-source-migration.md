@@ -41,6 +41,8 @@ lang migrate --from-profile rfc0006-scalar --to-edition 2026 --source-root DIR [
 
 例えば旧local `shared`・`weak`の宣言と全参照をfreshな`_migrated_shared_1`・`_migrated_weak_1`へ変更し、initializer・加算・returnを維持する。実際の名前は既存識別子から決定的に選ぶ。旧名を含むcommentも保持する。
 
+`FILE`は既存source commandと同じく相対表記をcwd基準とし、明示source rootでaccessを制限する。reportには検証したauthority相対pathを使う。alias禁止検査前に入力fileのsymlinkをcanonical化してtarget名に置き換えない。standalone planは単一sourceを取得し、package manifestを創作も参照もしない。
+
 ## Reference semantics
 
 ### 現sourceの修正
@@ -91,7 +93,11 @@ operation全体のsource bytes・root・token・AST/証明work・candidate・rep
 
 B02 previewの既定値（2026-10-31）: root 64件、fix 256件、token edit 65,536件、累積解析source 256 MiB、総量work 1,000,000,000単位、累積replacement 64 MiB、符号化report 16 MiB。既存editor・compiler上限も独立に守る。各index・proof passは実行前にeditor work許容量全体を予約し、検証付きrenameはindexとedit/proofの両passを予約する。source bytesには毎回の解析と適用予定renameのunderscore増分を課金する。保守的な予約のため、個別上限をすべて使う前に拒否する場合がある。reportは上限付きcounting writerで符号化量を測り、巨大JSON bufferを先に確保しない。これは入力受入上限であり、CPU時間や最大常駐memoryの測定値ではない。
 
+B05 previewの既定値（2026-10-31）: 1 file・最大1 MiB、符号化path 4,096 byte、token・node 65,536、関数256、comment深さ64、再帰深さ128（引上げ不可の安全上限）。既存parse・module・binding・typeの各phaseは共有16,000,000 work単位から1,000,000単位を予約し、token読取り・候補名・rewrite・構造証明も同じbudgetを消費する。累積解析sourceは8 MiB、rewrite後sourceは4 MiB、符号化JSONは8 MiB。個別上限に達する前に予約で拒否する場合がある。境界testは全設定可能上限を成功する最小値まで下げ、1少ない値を拒否し、escapeを含むreport pathも扱う。`MIG0001`は未対応・不正sourceまたは等価性失敗、`MIG0002`は移行資源上限超過。byteだけを受けるpreview libraryはfilesystem・実行authorityを持たない。これらは受入上限であり、throughput・常駐memory測定ではない。
+
 ## Security and trust boundaries
+
+compiler予約はscalar入力でも独立したtask構文分類を含む。旧scalar検査前に1回、現semantic facade・HIR pipelineで2回行い、scalar検査と現parse・module・bindingを合わせて完了までに8 phase分を予約する。この内部scanはtask移行を許可しない。小sourceの回帰testは、各1,000,000単位のphaseが個別に成功可能でも、6,000,000単位の総量budgetを拒否する。
 
 source・manifestは未信頼data。解析はsource・native code・host importを実行せず、network・process capabilityを取得しない。source-root/package authorityでreadを制限し、別の明示authorityでwriteを制限する。nonregular・alias・stale入力、不正UTF-8、未対応旧構文、曖昧edit、上限超過は未検証planを公開せず拒否する。任意JSON edit programやユーザー指定applicabilityを信用しない。file単位atomicityと協調writer制限をCLI文書に明示する。
 
@@ -121,9 +127,15 @@ frontend/editor証明adapter、package/format公開、CLI・test・文書を変�
 
 ## Open questions
 
-2026-10-30 JST、RFC 0001の実験段階委任に基づき採択。根拠: 明示的な旧入力受入、全体でfreshな名前対応、解決済み構造の比較、既存の検証付きrename・公開境界の再利用により、通常compileを変えずに限定recipeをレビューできる。保持した旧producerで実在する遷移を確認した。上限付きreaderと証明は未実装・未測定であり、採択はG2完了ではない。具体的な総量上限とdiagnostic割当は境界testを伴う実装判断であり、grammarを広げる許可ではない。追加旧profileと将来editionには別のrecipeレビューが必要。選択sliceの設計を妨げる未決事項はない。
+2026-10-30 JST、RFC 0001の実験段階委任に基づき採択。根拠: 明示的な旧入力受入、全体でfreshな名前対応、解決済み構造の比較、既存の検証付きrename・公開境界の再利用により、通常compileを変えずに限定recipeをレビューできる。保持した旧producerで実在する遷移を確認した。2026-10-31現在、B05の上限付きreader・proof previewは`7f41dd0`で実行・拒否・意味の反例・厳密上限を含む全baselineと両host CIが成功した。移行CLI・検証付き適用・native実行journeyはB04に残す。採択はG2完了ではない。具体的な総量上限とdiagnostic割当は境界testを伴う実装判断であり、grammarを広げる許可ではない。追加旧profileと将来editionには別のrecipeレビューが必要。選択sliceの設計を妨げる未決事項はない。
+
+実装checkpoint（2026-10-31 JST）: B04のstandalone CLIと検証付き単一source適用は、対象preview・apply・no-op、VM実行、stale identity・bytes、異なるauthority、readonly・alias、option・容量testが成功。旧producer・現VM・nativeの両host journeyと最終全baselineは引き続き必要で、このcheckpointではB04・G2を完了しない。
+
+実行journey checkpoint（2026-10-31 JST）: `tools/check-source-migration.py`は`cargo build --locked`で固定producerを再buildし、cleanなrevisionとlock hashを検査した上で、実際のsource実行と、CLI移行後の現VM・対応SDKでlinkしたnative実行を比較する。macOS localで実遷移5件と別扱いのno-op 1件の計6 fixtureが成功した。reportは正確なcommand、元source、編集span、producer・lock・SDK・source・実行fileのhashを保持する。SDK producer CIは同scriptを両tier-1 hostで実行して証拠をuploadする。そのCI結果と最終baselineは未完了。
 
 ## Sources
+
+両host実行証拠（2026-10-31 JST確認）: [保持した移行記録](../../evidence/2026-10-31-m5-source-migration.json)は検証checkout、旧・現compilerとlockのidentity、対応SDK、元・rewrite後source hash、downloadしたreport hashを示す。旧checkoutのbytesを保持した上で、macOS 15・macOS 26・Windows 2025ですべての6 fixtureが成功した。5件は実際のsource遷移、6件目は別扱いのno-opである。これは実行journeyの証拠であり、最終local baseline・最新headの公開checkの代替ではない。
 
 - [RFC 0002](0002-prototype-control-flow.md)、更新2026-10-27: 2の補数のwrapping加算。2026-10-31訂正: 当初案は加算を検査付きと誤記していたが、実行overflow probeと正本の算術契約で誤りを確認した。compiler意味・互換性は変えず、移行仕様の記述を訂正する。
 

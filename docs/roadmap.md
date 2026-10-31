@@ -36,7 +36,7 @@ Tasks are listed in dependency-aware priority order within each milestone. A mil
 
 The milestone checklists below retain relative exit-gate weights: `1` is very small, `2` small, `3` medium, `5` large, and `8` very large. Their weighted completion is `completed weights / total weights × 100`, rounded to one decimal place. These coarse weights do not predict elapsed time or remaining implementation effort. Long-horizon estimates require a bottom-up review when their milestone becomes current or scope/evidence changes. For each active milestone, a separate delivery board records independently verifiable 1–3-point remaining tasks and explicit scope/estimate changes.
 
-Snapshot of exit-gate weights verified 2026-10-30 JST. Acceptance weights are separate from remaining-effort estimates; the completed M4 board records its final reconciliation. M5 is active with **1 done · 1 doing · 37 todo · 110 remaining pt**. Completed M2/M3 records remain unchanged.
+Snapshot of exit-gate weights verified 2026-10-31 JST. Acceptance weights are separate from remaining-effort estimates; the completed M4 board records its final reconciliation. M5 is active with **6 done · 1 doing · 33 todo · 97 remaining pt**. Completed M2/M3 records remain unchanged.
 
 | Milestone | Completed gate weight | Total gate weight | Gate completion |
 | --- | ---: | ---: | ---: |
@@ -252,9 +252,9 @@ Exit: a new developer can install one tool, create a package, develop in an edit
 
 Activated 2026-10-30 JST. The [M5 board](milestone-5.md) retains all ten gates, 39 observable deliveries and a 112 pt remaining-work baseline. Start with the [edition/compatibility policy](rfcs/0043-editions-and-compatibility.md) and executable compatibility/migration fixtures. Threat modeling must precede registry uploads; signed toolchain installation is not registry provenance. Both P1 gates remain in scope. Completion includes both-host ecosystem journeys and a bilingual capability guide.
 
-**5 done · 0 doing · 35 todo · 102 remaining pt**
+**6 done · 1 doing · 33 todo · 97 remaining pt**
 
-The B01 audit adds one 3 pt historical scalar migration prerequisite to the 39-delivery baseline (40 total deliveries; 112 + 3 − 13 = 102 remaining pt). [RFC 0044](rfcs/0044-checked-source-migration.md) accepts the checked-fix and migration contract. B02/B03 implement checked previews and CLI publication with full local validation and both-host code CI. Final documentation-head publication remains pending; B05's historical scalar reader is next. G2 and all remaining gates stay open.
+The B01 audit added one 3 pt historical scalar prerequisite to the 39-delivery baseline. B04's executable CLI and both-host journey checkpoints each reduce its remaining estimate by 1 pt (40 total deliveries; net +1 pt; 112 + 1 − 16 = 97 remaining pt). [RFC 0044](rfcs/0044-checked-source-migration.md) accepts the checked-fix and migration contract. B02/B03's checked fixes are published through merged PR #30. B05's historical scalar preview passed the full baseline and both-host CI at `7f41dd0`. B04's CLI, checked application and actual historical-producer/current-VM/linked-native journey pass on both hosts; the complete local baseline, latest-head CI and PR publication remain. G2 and all remaining gates stay open.
 
 **Progress: 5 / 65 pt (7.7%).**
 

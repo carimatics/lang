@@ -6,11 +6,25 @@
 
 2026-10-30 JST、`3b676c5`から開始。[ロードマップ](roadmap.md#milestone-5ecosystemとcompatibility)のM5全範囲（P1の2ゲートを含む）を追跡する。M4のinstallerとlocal packageは前提条件であり、registry完了を意味しない。
 
-**5 done · 0 doing · 35 todo · 102 remaining pt**
+**6 done · 1 doing · 33 todo · 97 remaining pt**
 
-**次: M5-B05 — 旧scalar fixtureの検証付き移行をpreviewする。**
+**次: M5-B04 — 固定sourceの全baselineと最新headの公開checkを完了する。**
 
-公開checkpoint（2026-10-31 JST）: code `01b425e`のCI `41085682122`（18 job成功、full routingにより文書専用のみ意図的省略）とnative-debug `41085682104`が成功。全local baselineは178 suite・2,536 test、fmt、厳密Clippy、rustdocが成功し、全child exitは0、source fingerprintは不変。logは`/private/tmp/lang-m5-fixes-target/m5-b03-validation-authorized/`に保持する。最初のsandbox実行はHTTPS fixture 2件のloopback待受を拒否したため、同一の固定sourceで承認済み実行を行った。失敗・取消runを成功とは数えない。最終文書headのCIとPR #30 mergeは未完了。
+B04受入監査（2026-10-31 10:34 JST確認）: [保持した証拠](../evidence/2026-10-31-m5-source-migration.json)はmacOS 15/26・Windows 2025の各6 fixtureについて、実旧source遷移5件、現VM・link済みnative実行、厳密な編集適用、再実行no-opを示す。CLI・公開・拒否要件は実装済みで、残作業はlocal全baseline・最新head CI・PR公開。これらのcheckを省かず2 → 1 ptへ再見積りする。B04はdoing、G2はopenを維持し、固定`2f905c7`のtest processは稼働中、fmt・厳密Clippyは成功している。
+
+B04再開checkpoint（2026-10-31 10:26 JST確認）: `62e742c`のCI `41154299004`はWindowsを含む3 hostのSDK producer移行journeyと隔離SDK install jobに成功し、残りのCI jobは実行中。local `5480e14` baselineに終了結果はなく、session 60960とdriver・Cargo・test processは消失し、logは10:17 JSTで停止している。中断試行は`/private/tmp/lang-m5-fixes-target/m5-b04-validation-5480e14-interrupted/`に保持し、途中の645 test成功を全baseline成功に数えない。作業branchを`2f2e2b9`までfast-forwardし、新たに固定するcheckpointで全baselineを実行する。local全検証と最新head CIが成功するまでB04はdoing・2 ptを維持する。
+
+B04 CI修正（2026-10-31 JST）: run `41109397767`はmacOSの移行journeyに成功したが、WindowsではGitの自動CRLF変換が固定旧lockのbytesを変え、実行前に拒否した。一時checkoutで`core.autocrlf=true`の不一致と`false`の保持hash一致を再現した。旧worktree作成時だけ変換を無効にし、厳密なlock検査は維持する。このCIだけの修正は`5480e14`から作った`/private/tmp/lang-m5-migration-ci`に隔離し、元worktreeでRust baselineの入力を不変に保って継続する。同branch・PRに公開し、baseline終了後に元worktreeをfast-forwardする。失敗CIをgate完了に数えず、deliveryの範囲・見積りも変更しない。
+
+B04 host checkpoint（2026-10-31 03:42 JST確認）: `tools/check-source-migration.py`はlock不変で固定旧compilerをbuildし、元fixture 6件を実行、実際のmigration CLIを適用し、現VMと対応SDKでlinkしたnative結果を検査した。実遷移5件は保持した`shared`・`weak`、wrapping parameter、再帰、末尾comma、loop・名前衝突・UTF-8 comment・CRLF保持を検証し、変更不要の6件目でno-opを別途検査する。macOS localですべて成功し、source・compiler・lock・SDK・実行fileのhashと59 commandの観測を`/private/tmp/lang-m5-b04-journey/report.json`に保持する。既存SDK producer matrixにも同journeyを追加し、macOS 15/26・Windows 2025のreportを保持する。Windows・最終全baseline・最新head CIは未完了で、B04はdoing・2 ptを維持する。
+
+B04実行checkpoint（2026-10-31 03:32 JST確認）: `lang migrate`はprofile・edition・rootを明示必須とし、既定でpreview、新しく証明した単一source置換を共通公開境界で適用する。CLI fixtureは元bytesを変更せずpreviewし、適用後42を実行して、再実行がno-opになる。移行test 15件は旧受入・証明に加え、適用・stale bytes/identity・異なるauthority・readonly/alias・usage拒否・cwd基準/絶対source pathを検証し、既存fix 11/11・format 7/7も成功。この実行可能な統合checkpointを受け、残見積りを3から2 ptへ下げる。残る受入条件は固定旧producer・現VM・対応SDK nativeの両host journey、最終全baseline、最新head CI。このcheckpointはdelivery完了ではなく、同じ一貫したbranchでB04だけをdoingとする。
+
+B05完了（2026-10-31 03:17 JST確認）: code `7f41dd0`は実在する旧`shared`・`weak` sourceを受入れ、元token offsetと型付き解決構造を証明し、rewrite後sourceは42を返す一方、通常compileは元sourceを拒否する。integration test 8件・proof test 2件で、固定producerの受入11ケース、生成scalar実行24件、wrapping加算、燃料切れ保持、衝突・trivia・CRLF、再実行no-op、意味の反例、引上げ不可の再帰上限を含む厳密な資源境界を検証。source固定全baselineの179 suite・2,546 test、fmt・厳密Clippy・rustdocが成功し、全child exitは0、全入力fingerprintは不変。logは`/private/tmp/lang-m5-fixes-target/m5-b05-validation/`に保持する。同headのCI `41101729179`は対象18 jobすべて成功（full routingにより文書専用のみ意図的省略）、native-debug `41101727954`も3 host jobすべて成功。[PR #31](https://github.com/carimatics/lang/pull/31)は関連するB04継続用にdraftを維持し、後続headもその公開check成功を必要とする。
+
+branch `codex/m5-historical-source-migration`は`codex/m5-checked-source-fixes`の`791237e`からclean状態で作成し、checkoutは`/private/tmp/lang-m5-migration`、初期PR baseは`git@github.com:carimatics/lang.git`の同前提branch。PR #30のmerge確認後、`6ea2cd1`へfast-forwardし、PR baseを`main`へ変更した。元worktreeは`main`上でcleanかつ`origin/main`と同期済み（ahead 0 / behind 0）。
+
+公開checkpoint（2026-10-31 JST）: code `01b425e`のCI `41085682122`（18 job成功、full routingにより文書専用のみ意図的省略）とnative-debug `41085682104`が成功。全local baselineは178 suite・2,536 test、fmt、厳密Clippy、rustdocが成功し、全child exitは0、source fingerprintは不変。logは`/private/tmp/lang-m5-fixes-target/m5-b03-validation-authorized/`に保持する。最初のsandbox実行はHTTPS fixture 2件のloopback待受を拒否したため、同一の固定sourceで承認済み実行を行った。失敗・取消runを成功とは数えない。最終head `791237e`もCI `41094820142`（対象18 job）とnative-debug `41094820280`が成功し、[PR #30](https://github.com/carimatics/lang/pull/30)を`6ea2cd1`としてmerge、local `main`を同じremote tipへfast-forwardした。
 
 B03完了（2026-10-31 JST確認）: `lang fix`はpreviewが既定で、`--apply`はformatterの固定入力検証・全件staging・file単位置換を再利用し、非公開の検証済みplanを再計算する。entry・testの適用前後VM実行、古いsource・依存・manifestと異なるauthority拒否、readonly・alias拒否、staging失敗cleanup、正確な適用済みprefix、再実行no-op、CLI診断、適用成功reportのsize境界を検証。取得inventory外のhardlinkが既存alias禁止要件の漏れを露出したため、両live検証でopen済みfileのlink数を確認し、RFC 0036を日英で明確化した。実装と両host CIは完了し、最終文書公開は上記の別条件として追跡する。B04は旧source移行統合を維持する。
 
@@ -21,6 +35,8 @@ B01 checkpoint（2026-10-30 JST）: [RFC 0044](rfcs/0044-checked-source-migratio
 A02公開checkpoint（2026-10-31 JST確認）: 最新head `8a43f76`のCI `41072332781`とnative-debug `41072332783`（attempt 2）が成功した後、[PR #29](https://github.com/carimatics/lang/pull/29)を`1cdad09`としてmergeした。full routingにより文書専用jobだけを意図的に省略。元worktreeは`main`へ復帰し、cleanかつ`origin/main`と同期済み（ahead 0 / behind 0）。remoteは`git@github.com:carimatics/lang.git`。A01・A02のlocal baselineは2,522 test、fmt、Clippy、分離targetのrustdocが成功。[Draft PR #30](https://github.com/carimatics/lang/pull/30)で別branchの検証付きfix previewを追跡し、その全local baselineは成功、修正headのCIは未確定。M5の9ゲートはopenを維持する。
 
 ## Exit gates
+
+B05 budget監査（2026-10-31 JST）: 再利用するscalar検査内部の独立task構文分類3回をすべて計上する。各scanは共有budgetからphase許容量全体を予約し、新しい小source回帰testで不十分な総量budgetを拒否する。最初の`a55cda0`全体検証はこの修正のため意図的に中断し、`/private/tmp/lang-m5-fixes-target/m5-b05-validation-a55cda0-interrupted/`に保持した。成功baselineとは数えず、修正後の固定commitで全体を再実行する。既存の課金要件を満たす修正で、新規delivery・見積り変更なし。
 
 | Gate | 必須成果 | State |
 | --- | --- | --- |
@@ -46,8 +62,8 @@ A02公開checkpoint（2026-10-31 JST確認）: 最新head `8a43f76`のCI `410723
 | M5-B01 | done | 0 | M5-A01 | G2 | 移行レシピ・適用可能性・書込みトランザクション契約を採択 | `1ab1201` |
 | M5-B02 | done | 0 | M5-B01 | G2 | 元spanを保持した実ソース修正previewと意味再検査 | `2a3aca1` |
 | M5-B03 | done | 0 | M5-B02 | G2 | CLI修正適用とstale・競合・部分書込み拒否fixture | `01b425e` |
-| M5-B05 | todo | 3 | M5-B01 | G2 | 旧scalar構文を受入れfresh renameを証明し実在する旧sourceをpreview | — |
-| M5-B04 | todo | 3 | M5-B03,M5-B05 | G2 | edition移行CLIと両hostの移行前後実行journey | — |
+| M5-B05 | done | 0 | M5-B01 | G2 | 旧scalar構文を受入れfresh renameを証明し実在する旧sourceをpreview | `7f41dd0` |
+| M5-B04 | doing | 1 | M5-B03,M5-B05 | G2 | edition移行CLIと両hostの移行前後実行journey | — |
 | M5-C01 | todo | 3 | M5-A01 | G3 | identity・namespace・authority・濫用・攻撃者の脅威モデル | — |
 | M5-C02 | todo | 3 | M5-C01 | G3 | upload前にprotocol・上限・復旧・security受入ケースを採択 | — |
 | M5-D01 | todo | 3 | M5-C02 | G4 | 上限付き未信頼archiveの受入とtraversal・重複・bomb拒否 | — |
@@ -84,13 +100,19 @@ A02公開checkpoint（2026-10-31 JST確認）: 最新head `8a43f76`のCI `410723
 
 ## 見積り照合
 
-**112 + 3 − 13 = 102 pt**
+**112 + 1 − 16 = 97 pt**
 
 | 基準残作業 | 純追加・再見積り | 完了時に除去 | 残作業 |
 | ---: | ---: | ---: | ---: |
-| 112 pt | +3 pt | −13 pt | 102 pt |
+| 112 pt | +1 pt | −16 pt | 97 pt |
 
 ## Delivery noteとロードマップ監査
+
+- B04受入監査・再見積り（2026-10-31 10:34 JST）: 実旧source・現VM・link済みnativeのjourneyが両hostで成功し、report・source hashも独立に照合した。残る最終検証・公開を2から1 ptへ下げ、純追加・再見積りは+3 − 1 − 1 = +1 ptとする。B04は未完了のため退役見積り16 ptは維持する。delivery・gate・受入条件の削除なし。
+
+- B04 checkpoint・再見積り（2026-10-31 JST）: CLIと非公開の単一source公開adapterで移行fixtureを実行できた。残作業は両hostの旧producer・現VM・native journeyと最終検証のため、受入条件を削除せず3 → 2 ptへ下げる。純追加・再見積りは+3 − 1 = +2 ptとし、B04はdoingなので退役見積り16 ptは変えない。新規delivery追加なし。
+
+- B05完了（2026-10-31 JST）: `7f41dd0`の全local・同head両host検証後、最後の3 ptを退役。追加・再見積りなし。次はB04で、上記統合監査後も3 ptを維持する。明示CLI・検証付き適用・実旧producerと現VM・nativeのjourneyが両hostで成功するまでG2はopen。他の8 openゲートとP1の両成果も必須を維持する。
 
 - B03完了（2026-10-31 JST）: code `01b425e`、全local baseline 2,536/2,536とfmt・Clippy・rustdoc、両host CIが成功。最終3 ptを退役し、追加・再見積りなし。B05・B04の旧source受入、検証付き移行CLI、両hostでの実旧producer・現VM・native journeyが成功するまでG2をopenとする。次はB05。他の全ゲートとP1成果も必須を維持する。
 
