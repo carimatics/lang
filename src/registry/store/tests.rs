@@ -4,6 +4,7 @@ mod adversarial;
 mod index_capacity;
 mod owners;
 mod reads;
+mod workspace;
 mod yank;
 
 struct Temp(std::path::PathBuf);

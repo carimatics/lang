@@ -254,7 +254,7 @@ fn prepare(
     let audit_bytes = records::encode(&audit, records::MAX_AUDIT)?;
     let audit_hash = digest(&audit_bytes);
     state.last_audit_sha256 = audit_hash.clone();
-    let state_bytes = records::encode(&state, records::MAX_STATE)?;
+    let state_bytes = records::encode(&state, view.state_limit)?;
     let state_hash = digest(&state_bytes);
     let head_bytes = head_bytes(&state_hash)?;
     let receipt = Receipt {

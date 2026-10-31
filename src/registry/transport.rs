@@ -1,7 +1,7 @@
 //! Explicit-origin HTTPS reads for RFC 0046. Transport integrity is independent
 //! of package signatures/freshness and grants no filesystem or guest authority.
 
-mod budget;
+use super::budget;
 mod client;
 mod server;
 mod socket;
@@ -115,6 +115,11 @@ impl From<io::Error> for Error {
 }
 fn error(kind: ErrorKind) -> Error {
     Error { kind }
+}
+impl From<budget::Exhausted> for Error {
+    fn from(_: budget::Exhausted) -> Self {
+        error(ErrorKind::Busy)
+    }
 }
 fn malformed() -> Error {
     error(ErrorKind::Malformed)

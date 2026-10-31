@@ -35,6 +35,10 @@ fn unavailable() -> Error {
 /// validated generation. No mutable authority or replay receipts are cached.
 pub(crate) struct CapturedReads {
     registry: Registry,
+    generation: ReadGeneration,
+}
+
+pub(super) struct ReadGeneration {
     head: String,
     indexes: BTreeMap<String, Option<Box<[u8]>>>,
     archives: BTreeMap<String, usize>,
@@ -43,13 +47,45 @@ pub(crate) struct CapturedReads {
 
 impl CapturedReads {
     pub(crate) fn capture(registry: Registry) -> Result<Self, Error> {
+        let generation = ReadGeneration::capture(&registry, usize::MAX)?;
+        Ok(Self {
+            registry,
+            generation,
+        })
+    }
+    pub(crate) fn identity(&self) -> &ServiceIdentity {
+        &self.registry.identity
+    }
+    pub(crate) fn memory_bytes(&self) -> usize {
+        self.generation.memory
+    }
+    pub(crate) fn check_head(&self) -> Result<(), Error> {
+        self.generation.check_head(&self.registry)
+    }
+    pub(crate) fn index(&self, name: &str) -> Result<&[u8], Error> {
+        self.generation.index(&self.registry, name)
+    }
+    pub(crate) fn archive_length(&self, hash: &str) -> Result<usize, Error> {
+        self.generation.archive_length(&self.registry, hash)
+    }
+    pub(crate) fn archive(&self, hash: &str) -> Result<Vec<u8>, Error> {
+        let length = self.archive_length(hash)?;
+        self.registry.storage.captured_object(hash, length)
+    }
+}
+
+impl ReadGeneration {
+    pub(super) fn capture(registry: &Registry, maximum: usize) -> Result<Self, Error> {
         let view = history::load(&registry.storage, &registry.identity)?;
         let mut indexes = BTreeMap::new();
         let mut archives = BTreeMap::new();
         let mut memory = 4096usize;
+        if memory > maximum {
+            return Err(capacity());
+        }
         for package in &view.state.packages {
             let bytes = match encode_package(registry.identity.registry(), package) {
-                Ok(bytes) => Some(bytes.into_boxed_slice()),
+                Ok(bytes) => Some(bytes),
                 Err(e) if e.kind == ErrorKind::Limit => None,
                 Err(e) => return Err(e),
             };
@@ -58,22 +94,30 @@ impl CapturedReads {
             memory = memory
                 .checked_add(1024 + bytes.as_ref().map_or(0, |b| b.len()))
                 .ok_or_else(capacity)?;
-            indexes.insert(package.name.clone(), bytes);
+            if memory > maximum {
+                return Err(capacity());
+            }
+            // The temporary encoding belongs to the guarded workspace. Check
+            // the retained-generation allowance before boxing or map allocation.
+            indexes.insert(package.name.clone(), bytes.map(Vec::into_boxed_slice));
             for release in &package.releases {
                 if !release.quarantined {
                     let length = usize::try_from(release.archive_bytes).map_err(|_| capacity())?;
-                    if let Some(prior) = archives.insert(release.archive_sha256.clone(), length) {
-                        if prior != length {
+                    if let Some(prior) = archives.get(&release.archive_sha256) {
+                        if *prior != length {
                             return Err(corrupt());
                         }
                     } else {
                         memory = memory.checked_add(1024).ok_or_else(capacity)?;
+                        if memory > maximum {
+                            return Err(capacity());
+                        }
+                        archives.insert(release.archive_sha256.clone(), length);
                     }
                 }
             }
         }
         Ok(Self {
-            registry,
             head: view.head,
             indexes,
             archives,
@@ -81,33 +125,26 @@ impl CapturedReads {
         })
     }
 
-    pub(crate) fn identity(&self) -> &ServiceIdentity {
-        &self.registry.identity
-    }
-    pub(crate) fn memory_bytes(&self) -> usize {
+    pub(super) fn memory_bytes(&self) -> usize {
         self.memory
     }
-    pub(crate) fn check_head(&self) -> Result<(), Error> {
-        if self.registry.storage.head()? != self.head {
+    pub(super) fn check_head(&self, registry: &Registry) -> Result<(), Error> {
+        if registry.storage.head()? != self.head {
             return Err(corrupt());
         }
         Ok(())
     }
-    pub(crate) fn index(&self, name: &str) -> Result<&[u8], Error> {
-        self.check_head()?;
+    pub(super) fn index(&self, registry: &Registry, name: &str) -> Result<&[u8], Error> {
+        self.check_head(registry)?;
         self.indexes
             .get(name)
             .ok_or_else(unavailable)?
             .as_deref()
             .ok_or_else(capacity)
     }
-    pub(crate) fn archive_length(&self, hash: &str) -> Result<usize, Error> {
-        self.check_head()?;
+    pub(super) fn archive_length(&self, registry: &Registry, hash: &str) -> Result<usize, Error> {
+        self.check_head(registry)?;
         self.archives.get(hash).copied().ok_or_else(unavailable)
-    }
-    pub(crate) fn archive(&self, hash: &str) -> Result<Vec<u8>, Error> {
-        let length = self.archive_length(hash)?;
-        self.registry.storage.captured_object(hash, length)
     }
 }
 

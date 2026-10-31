@@ -2,15 +2,21 @@
 
 # Milestone 5 delivery board
 
+E06残scope監査（2026-10-31 19:35 JST）: Workspace 8 fixtureで実publish/owner/yank、private read、response lease保持、厳密budget/generation境界、metadata変更、cleanup受理、recovery-required refresh/reopenが成功した。並行budget増加、整形、厳密workspace Clippy、locked fuzz Clippy、repository consistencyも成功し、以前のstore 47-test回帰は最終境界追加前の記録である。実装は固定full baselineと最新headの両host CI/公開へ進める状態になった。この残受入条件によりE06を3 → 1 ptへ再見積りし、累積純−3 → −5、退役37を維持、112 − 5 − 37 = 残70 ptとする。新delivery・前提・gate完了はない。E06だけをdoingとし、以下の以前の3-point checkpointは履歴とする。
+
+E06実行checkpoint（2026-10-31 19:27 JST確認）: 作業treeで実budget guard付きpublish → 更新index/archive → VM/nativeで42を実行した。2回目の公開と旧ID再試行でも世代が巻き戻らない。Workspace 5 testで、書込み前の共有budget拒否、response lease寿命、不正upload後の回復、probe後のstate/entry増大をdecode/cleanup前に拒否、commit後refresh失敗と明示reopen/照合を確認した。Store全47 testと整形が成功。E06完了やgate完了は主張しない。残る受入条件はguard付きowner/yank/read-response、厳密budget/generation/cleanup境界と最終的な復旧結果分類、厳密lint/fuzz、全baseline、最新headの両host CI/公開である。残作業監査により3 ptを維持し、前提/scope追加はない。以下の以前の未実装/checkpoint記録は履歴とする。
+
+E03完了 / E06選択（2026-10-31 19:15 JST）: `18b2128`で固定baseline（fmt・厳密workspace Clippy・2,667 test/182 suite・rustdoc、source不変）、重点store 42 test、locked fuzz Clippyが成功した。CI 41190281059は対象18 job成功で、implementation classifierによるdocumentation-only job省略を確認した。Native-debug 41190281058は3 host成功し、Windows/macOS 15/macOS 26の各logでowner/失効12 testとindex capacityを確認した。[PR #40](https://github.com/carimatics/lang/pull/40)は`ee0d985`としてmergeし、元のmainはclean・0/0同期済み・検証済みtreeと同一である。E03の最終1 ptを退役し、17 done・純−3・退役37・残72とする。G5は未完了。既存準備branchでE06を唯一のdoing・3 ptとし、[PR #41](https://github.com/carimatics/lang/pull/41)をmain向けに変更した。継承する実行checkpointはbaseline確認済みのE03実VM/native経路であり、E06 guardは未実装。残る受入条件は、計上済みmetadata/recovery/transaction、別課金の有界read世代、実guard付きpublish → VM/native実行、両hostの拒否/cleanup境界、baseline/CI/公開である。残作業監査後も3 ptを維持し、scope追加はない。以下の以前のcheckpoint・proposed/doing段落は履歴とする。
+
 E06設計監査（2026-10-31 JST）: source/lifetime確認と外部Rust mirror実験（layout 72 case・増加8,192 case）後、RFC 0053を実験期委任でacceptした。不正noncanonical decodeを明示的に含めるためstate係数を48 → 96へ増やし、改訂30-case policy modelも成功した。これらの実験は本番適用や両host挙動を証明しない。E03だけをdoingとし、guard付き実行/境界fixtureをE06/E05受入条件に残す。本監査による見積り・完了件数・gate変更はなく、以下の以前のproposed状態は履歴である。
 
 [English](../milestone-5.md)
 
 2026-10-30 JST、`3b676c5`から開始。[ロードマップ](roadmap.md#milestone-5ecosystemとcompatibility)のM5全範囲（P1の2ゲートを含む）を追跡する。M4のinstallerとlocal packageは前提条件であり、registry完了を意味しない。
 
-**16 done · 1 doing · 25 todo · 73 remaining pt**
+**17 done · 1 doing · 24 todo · 70 remaining pt**
 
-**次: M5-E03 — owner移管・local失効の検証と公開（1 pt）。**
+**次: M5-E06 — 計上済みhost transaction/read世代の検証と公開（1 pt）。**
 
 E03実行checkpoint・残scope監査（2026-10-31 18:49 JST）: 実owner移管 → B公開と独立local失効で厳密source実行（VM/nativeで42）を維持した。Store 42/42が成功し、元owner/失効bearerの最新拒否、private read、128-owner上限、process中断72境界（旧68・新4）、owner/admin競合の両順序、全hash再計算済み偽造18 case、最終時刻、結果不明の明示照合、期限切れ/inactive credential対象、operation間identity衝突を含む。独立vectorと受理入力変異1,024件が成功し、妥当stateのpreflightでrevision 99 → 100が厳密index上限を+1 byte超えることを確認した。Fmt、厳密workspace Clippy、locked fuzz Clippyが成功。残受入条件は固定全baseline、最新headの両host CI、公開であり、E03を3 → 1 ptへ再見積り（純−2）、累積純−6、退役36を維持して112 − 6 − 36 = 残70 ptとする。新規完了・追加deliveryなし。E03だけをdoingとし、E04/E05は別途維持する。本実装を固定して全検証へ進む。
 
@@ -186,10 +192,10 @@ B05 budget監査（2026-10-31 JST）: 再利用するscalar検査内部の独立
 | M5-D05 | done | 0 | M5-D04 | G4 | lock・offline replay・公開中断・並行immutable検証 | `43dea74` |
 | M5-E01 | done | 0 | M5-C02 | G5 | 認証identity・credential取扱い・scope付き認可 | `56f9f84` |
 | M5-E02 | done | 0 | M5-E01,M5-D02 | G5 | owner・競合制約付きhost publish・yank・unyank transaction | `f40d643` |
-| M5-E03 | doing | 1 | M5-E02 | G5 | owner追加・削除・移管と最後のowner・credential失効fixture | — |
+| M5-E03 | done | 0 | M5-E02 | G5 | owner追加・削除・移管と最後のowner・credential失効fixture | `18b2128` |
 | M5-E04 | todo | 3 | M5-E03,M5-E05 | G5 | 永続audit trail・復旧・権限外操作のend-to-end検証 | — |
 | M5-E05 | todo | 3 | M5-E02,M5-E03,M5-E06 | G5 | 認証HTTPS publish/action/owner・最新世代・recovery拒否 | — |
-| M5-E06 | todo | 3 | M5-E02,M5-E03 | G5 | 計上済みhost recovery/transaction・有界な検証済みread世代capture | — |
+| M5-E06 | doing | 1 | M5-E02,M5-E03 | G5 | 計上済みhost recovery/transaction・有界な検証済みread世代capture | — |
 | M5-F01 | todo | 3 | M5-C02 | G6 | package信頼root・provenance・署名・freshness契約を採択 | — |
 | M5-F02 | todo | 3 | M5-F01,M5-D02 | G6 | 署名package release manifestと検証可能provenanceを生成 | — |
 | M5-F03 | todo | 3 | M5-F02,M5-D03 | G6 | 消費前に信頼・artifact結合・期限・replayを検証 | — |
@@ -215,11 +221,11 @@ B05 budget監査（2026-10-31 JST）: 再利用するscalar検査内部の独立
 
 ## 見積り照合
 
-**112 − 3 − 36 = 73 pt**
+**112 − 5 − 37 = 70 pt**
 
 | 基準残作業 | 純追加・再見積り | 完了時に除去 | 残作業 |
 | ---: | ---: | ---: | ---: |
-| 112 pt | −3 pt | −36 pt | 73 pt |
+| 112 pt | −5 pt | −37 pt | 70 pt |
 
 ## Delivery noteとロードマップ監査
 

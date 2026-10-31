@@ -112,7 +112,7 @@ The rationale and unresolved tradeoffs are documented in [the architecture basel
 - [RFC 0049: Registry dependencies in frozen package graphs (accepted)](docs/rfcs/0049-registry-package-integration.md)
 - [RFC 0050: Registry cache generations and offline replay (implemented)](docs/rfcs/0050-registry-cache-and-offline-replay.md)
 - [RFC 0051: Authenticated yank and unyank transactions (accepted)](docs/rfcs/0051-registry-yank-transactions.md)
-- [RFC 0052: Registry ownership and local credential revocation (accepted)](docs/rfcs/0052-registry-owner-and-credential-control.md)
+- [RFC 0052: Registry ownership and local credential revocation (implemented)](docs/rfcs/0052-registry-owner-and-credential-control.md)
 - [RFC 0053: Registry request workspace and mutable read generations (accepted)](docs/rfcs/0053-registry-request-workspace.md)
 - [Contribution guide](CONTRIBUTING.md)
 

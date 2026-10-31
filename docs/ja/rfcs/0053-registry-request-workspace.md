@@ -12,6 +12,8 @@
 - Supersedes: なし。RFC 0046・0048・0051を具体化
 - Superseded by: なし
 
+Host実装checkpoint（2026-10-31 JST確認）: `MeteredRegistry::new`は保持中のprivate registryを消費し、publishは予約後にraw archive byteを受理し、yank/owner actionはcanonical byteを受理する。Private owner readは最新認可とresponse lease保持を行う。`MeteredBytes`は実予約を保持しながらbyteを借用で公開する。Storageはmetadata変更・entry数・実read・candidate encodingを再検査し、probe leaseを未課金の間隙なく原子的に増やす。世代は有界readを別所有し、厳密retryは現在世代を保持する。Commit後refresh失敗では明示的な復旧を要求し、reopenまでread/mutationを拒否する。実VM/native source実行を含むworkspace 8 fixtureと並行budget増加fixtureが成功した。全baseline、最新headの両host CI/公開、E05のHTTPS deadline/cancellation/framing統合が残るため、本RFCはacceptedを維持する。
+
 ## 概要
 
 認証HTTPS mutationを有効化する前に、有界host作業memory受理と置換可能な検証済みread世代を準備する。Metadataのみのpreflightで保守的なallocation上限を導出し、body decode・recovery・state複製前に共有budgetから予約する。実store経路でも観測した上限を再検査する。Mutationはcommit前に置換read世代を予約し、commit後の更新に失敗したら古いservice readを拒否する。

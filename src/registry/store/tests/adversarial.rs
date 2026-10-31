@@ -5,6 +5,7 @@ fn empty_inventory() -> storage::Inventory {
     storage::Inventory {
         bytes: 0,
         entries: 0,
+        entry_limit: storage::MAX_ENTRIES,
         immutable: BTreeMap::new(),
         bindings: BTreeMap::new(),
         staged: Vec::new(),

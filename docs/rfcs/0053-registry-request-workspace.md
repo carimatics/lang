@@ -12,6 +12,8 @@
 - Supersedes: none; elaborates RFCs 0046, 0048 and 0051
 - Superseded by: none
 
+Host implementation checkpoint, verified 2026-10-31 JST: `MeteredRegistry::new` consumes a held private registry; publish admits raw archive bytes after reservation, and yank/owner actions accept canonical bytes. Private owner reads reauthorize and retain their response lease. `MeteredBytes` exposes borrowed bytes while retaining the actual reservation. Storage rechecks changed metadata, entry counts, actual reads and candidate encodings; the probe lease grows atomically without an uncharged gap. Generations separately own bounded reads, and exact retries retain the current generation. Committed refresh failures require explicit recovery and refuse reads/mutations until reopen. Eight workspace fixtures and a concurrent budget-growth fixture pass, including real VM/native source execution. Full baseline, latest-head both-host CI/publication and E05 HTTPS deadline/cancellation/framing integration remain, so this RFC stays accepted.
+
 ## Summary
 
 Prepare bounded host workspace admission and replaceable validated read generations before enabling authenticated HTTPS mutations. A metadata-only preflight derives a conservative allocation envelope; the shared budget reserves it before body decoding, recovery or state cloning. The actual store path enforces the observed limits again. A mutation reserves its replacement read generation before commit and refuses stale service reads if refresh fails afterward.
