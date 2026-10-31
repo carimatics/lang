@@ -151,9 +151,11 @@ literal code action は同じ input／version guard と package linter の rule 
 
 RFC 0044の`package::fix`はentryと全宣言testの上限付き複数root rename証明で元spanを合成します。CLIはpreviewが既定で、`--apply`は証明と同じ固定graphから新しい非公開planを作ります。formatterと共有する公開境界は全source・manifestのidentityとbytesを固定し、別directory authorityを検証して選択source置換を全件stage化し、再検証後file単位でcommitします。依存は証明のみの対象です。previewと適用成功report両方のsizeを書込み前に検査し、後半I/O失敗時は適用済みprefixを報告して未公開stageをcleanupし、rollbackしません。旧source移行は以下の別profileを使います。
 
-RFC 0044の`package::migration::Preview`はbyteだけを受ける旧scalar readerで、通常compileから分離します。旧lexical scope・関数全体の名前一意性・scalar型・return経路を検証した後、全体でfreshな識別子へ対応付けます。元tokenのoffset検査と型付き解決構造の比較で、private呼出し・値・型・制御フロー順を保持します。previewはfileを開かずguest codeも実行しません。`migration::Plan`は明示directory authorityを受け取り、単一の上限付きregular sourceとopen済みfile identityを取得し、同じbytesを証明して非公開replacementをformatterの共通公開検査に結び付けます。`lang migrate`はpackage探索前にこのstandalone経路を選び、profile・edition・rootを必須として、`--apply`がなければpreviewします。保存reportを実行可能planとして扱いません。両hostの旧producer・現VM・native journeyと最終検証は未完了です。
+RFC 0044の`package::migration::Preview`はbyteだけを受ける旧scalar readerで、通常compileから分離します。旧lexical scope・関数全体の名前一意性・scalar型・return経路を検証した後、全体でfreshな識別子へ対応付けます。元tokenのoffset検査と型付き解決構造の比較で、private呼出し・値・型・制御フロー順を保持します。previewはfileを開かずguest codeも実行しません。`migration::Plan`は明示directory authorityを受け取り、単一の上限付きregular sourceとopen済みfile identityを取得し、同じbytesを証明して非公開replacementをformatterの共通公開検査に結び付けます。`lang migrate`はpackage探索前にこのstandalone経路を選び、profile・edition・rootを必須として、`--apply`がなければpreviewします。保存reportを実行可能planとして扱いません。旧producer・現VM・link済みnative journeyは両hostで成功し、[producer・artifact identity](../evidence/2026-10-31-m5-source-migration.json)を保持しています。全baselineと最終head CIの成功後にPR #31をmergeしました。[B04完了記録](milestone-5.md)を参照してください。
 
 ## Concurrency、component、将来のtoolchain
+
+M5 registry境界は設計段階で未実装です。[RFC 0045](rfcs/0045-registry-threat-model.md)で明示origin／name／version／digest identity、現在stateに対するscope付き認可、不変release／audit transaction、testに対応する16の脅威を採択しました。[RFC 0046](rfcs/0046-registry-protocol-and-recovery.md)でupload実装前に厳密portable source archive・有限の厳密origin protocol・不変state／audit復旧契約を採択しました。Package信頼／provenanceはRFC 0042のtoolchain配布と分離し、署名は実行capabilityを与えません。
 
 [RFC 0021](rfcs/0021-bounded-structured-task-driver.md)の有界FIFO driverと[RFC 0022](rfcs/0022-source-structured-tasks.md)・[0023](rfcs/0023-task-mir-boundaries.md)のsource/MIR契約を実装済みです。scope付きtask claim、join、所有引数/結果、suspension loan規則、取消、子から親のcleanupはVMと生成native continuation、受理済み別リンクobjectで共通です。未回収所有結果はescrowとlive-cell計上を保持し、子のjoinと結果退役が親localのcleanupに先行します。taskは1 invocation内の論理taskであり、複数OS threadでguestを実行しません。
 

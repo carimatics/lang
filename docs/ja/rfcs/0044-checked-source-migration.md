@@ -4,7 +4,7 @@
 
 [English](../../rfcs/0044-checked-source-migration.md)
 
-- Status: accepted
+- Status: implemented
 - Authors: project contributors
 - Created: 2026-10-30
 - Last updated: 2026-10-31
@@ -13,6 +13,8 @@
 - Superseded by: none
 
 ## Summary
+
+実装確認（2026-10-31 JST）: B04・G2は完了。code `62e742c`でtier-1の両hostの旧producer・現VM・link済みnative journeyが成功し、[証拠](../../evidence/2026-10-31-m5-source-migration.json)を保持する。固定`2f905c7`の全baselineは180 suite・2,553 test、fmt・厳密Clippy・rustdocが成功し、4つのchild exitすべてが0、source fingerprintも不変。最終head `ab5cda8`のCI `41156030921`とnative-debug `41156030861`の成功後、[PR #31](https://github.com/carimatics/lang/pull/31)を`46cb6a1`としてmergeした。以下の日付付き採択・中間checkpointは実装履歴を保持したもので、そこに記した残作業は完了している。
 
 previewを既定とする検証付きsource修正と、この言語の旧scalar構文からedition `2026`への明示移行を追加する。通常compileの現grammarと有限edition集合は維持する。現editionのno-opやpackage manifestの追加だけでは移行完了を証明しない。
 

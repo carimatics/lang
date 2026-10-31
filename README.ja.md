@@ -104,7 +104,9 @@ source構文・native language ABI・private SDK/package formatは実験段階�
 - [RFC 0041: 上限付きtoolchain profile（implemented）](docs/ja/rfcs/0041-bounded-toolchain-profiles.md)
 - [RFC 0042: 署名付きtoolchain installation（implemented）](docs/ja/rfcs/0042-signed-toolchain-installation.md)
 - [RFC 0043: Editionと互換性方針（implemented）](docs/ja/rfcs/0043-editions-and-compatibility.md)
-- [RFC 0044: 検証付きsource修正と旧仕様からの移行（accepted）](docs/ja/rfcs/0044-checked-source-migration.md)
+- [RFC 0044: 検証付きsource修正と旧仕様からの移行（implemented）](docs/ja/rfcs/0044-checked-source-migration.md)
+- [RFC 0045: Public registryの脅威モデル（accepted）](docs/ja/rfcs/0045-registry-threat-model.md)
+- [RFC 0046: Registry protocol・受入・復旧（accepted）](docs/ja/rfcs/0046-registry-protocol-and-recovery.md)
 - [コントリビューションガイド](CONTRIBUTING.ja.md)
 
 `cargo run -- toolchain verify --trust-root root.json --metadata channel.json --channel stable --message-format json` は現在のhost向けの上限付き署名metadataを検証し、JSON概要を出力します。rootは別経路で信頼を確認してください。この読取専用検査は新規trust contextを使い、既存installのrollback floorを参照せず、payloadの読取やinstallも行いません。[RFC 0042](docs/ja/rfcs/0042-signed-toolchain-installation.md)を参照してください。
@@ -135,7 +137,7 @@ literal code action は同じ input／version guard と package linter の rule 
 
 `cargo run -- fix --manifest-path target/my_app/Lang.json --message-format json` は選択entryと全宣言testの検証付き`LNT0001` renameをpreviewします。`--apply`を付けると証明を再計算して置換し、initializer・assignment・comment・無関係なbytesを保持します。依存は検査しますが編集しません。reportは対象root・file、元byte span、変更・適用件数を含み、保存したreportは適用入力にできません。`--locked`は操作前のlockを検証し、source編集後もlockは変更せずstaleに保ち、通常build／runで再生成します。公開中は協調writerの排他的書込み時間帯が必要です。全入力を再検証してfile単位でatomic置換しますが、後半I/O失敗時は適用済みprefixを報告しrollbackしません。[RFC 0044](docs/ja/rfcs/0044-checked-source-migration.md)を参照してください。
 
-`cargo run -- migrate --from-profile rfc0006-scalar --to-edition 2026 --source-root target/legacy --message-format json target/legacy/main.lang` は単一の旧scalar sourceの移行をpreviewします。`--apply`を付けると新しいsnapshotを検証してそのfileを置換します。`FILE`はcwd基準または絶対pathで、明示root内に限定し、reportにはroot相対pathを使います。有限profileはprivateな`i64`／`bool`関数と検証付き識別子renameを受け入れ、未対応構文・stale入力・filesystem aliasを拒否します。commentと無関係なbytesを保持し、manifest・lockは作成も変更もしません。適用は上記の公開境界を使います。旧producer・現VM・nativeの全journeyを両hostで確認する作業はB04に残っています。
+`cargo run -- migrate --from-profile rfc0006-scalar --to-edition 2026 --source-root target/legacy --message-format json target/legacy/main.lang` は単一の旧scalar sourceの移行をpreviewします。`--apply`を付けると新しいsnapshotを検証してそのfileを置換します。`FILE`はcwd基準または絶対pathで、明示root内に限定し、reportにはroot相対pathを使います。有限profileはprivateな`i64`／`bool`関数と検証付き識別子renameを受け入れ、未対応構文・stale入力・filesystem aliasを拒否します。commentと無関係なbytesを保持し、manifest・lockは作成も変更もしません。適用は上記の公開境界を使います。旧producer・現VM・link済みnativeの全journeyはmacOSとWindowsで成功しています。[保持した証拠](docs/evidence/2026-10-31-m5-source-migration.json)と[B04完了記録](docs/ja/milestone-5.md)を参照してください。
 
 `cargo run -- package --manifest-path target/my_app/Lang.json --list` は予定する固定 source snapshot を無書込みで一覧表示します。`--list` を省くと、元 manifest／source byte、`Lang.lock`、version 付き descriptor の決定的な非圧縮 TAR を公開します。`--locked --offline` は完全一致 replay を検証します。profile 1 は directory alias を拒否し、信頼しない archive の展開や registry 公開は行いません。[RFC 0035](docs/ja/rfcs/0035-source-package-snapshots.md) を参照してください。
 
